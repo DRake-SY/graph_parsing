@@ -1,7 +1,7 @@
 
 def Affichage(id_sommet, partenaire, nb_graph) : ## a changer et mettre dans un fichier directement
     
-    with open('debug.txt','a') as file :
+    with open('workflow_parsing.txt','a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
         #nb_sommet = 0
         #nb_arrete = 0
