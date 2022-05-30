@@ -152,7 +152,7 @@ def triage(dossier) :
     for dirpath, dirnames, filenames in os.walk(dossier):
         
         
-        if len(filenames) == 6:#Condition pour les DSL1 ==> 844
+        if len(filenames) == 7:#Condition pour les DSL1 ==> 844
             for name in filenames :
                 if name == "processes_info.json" :
                     with open(os.path.join(dirpath, name), "r") as data :
