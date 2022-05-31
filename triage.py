@@ -142,6 +142,50 @@ def ParseStructure(chemin):
         
     return StructWorkflow
 
+def Cycle(dicoListe):
+    """
+    Cette fonction sort les métriques courantes des graphes donnés sous forme de liste. Les listes sont converties en graphe Non Orientés!
+
+    Parameters
+    ----------
+    dicoListe : dict
+        Dictionnaire des listes des sommets vers aretes
+
+    Returns
+    -------
+        dictionnaire contenant toutes les informations pour chaque répertoire, en [0] pour les Convexes, en [1] pour les Non Convexes
+    
+    Ex
+    --
+    results= parserNetworkX.AnalyseNO(Workflow_dict)
+    analyse_dictC=results[0]
+
+    """
+    import networkx as nx
+
+    analyse_dictC={} #creation d'un dictionnaire qui va contenir toutes les stats pour G connexes
+    #analyse_dictNC={}#Pareil mais pour Non Connexe
+
+    for cle in dicoListe:
+        if len(dicoListe[cle]) != 0 : #On vérifie que les graphs ne sont pas vides
+            G = nx.DiGraph(dicoListe[cle]) #Attention ici non orienté!! 
+            
+            if nx.is_weakly_connected(G) == True :
+                analyse_dictC[cle]={}
+                analyse_dictC[cle]["Cycles"]=list(nx.simple_cycles(G))
+
+                
+             
+            else:
+                analyse_dictC[cle]={}
+                analyse_dictC[cle]["Cycles"]=list(nx.simple_cycles(G))
+        
+                
+    return analyse_dictC
+
+
+
+
 def triage(dossier) :
     #Creation d'une liste de tous les répertoires vides
     CompleteList = list()
@@ -152,7 +196,8 @@ def triage(dossier) :
     for dirpath, dirnames, filenames in os.walk(dossier):
         
         
-        if len(filenames) == 7:#Condition pour les DSL1 ==> 844
+        if len(filenames) >= 7:#Condition pour les DSL1 ==> 844
+            
             for name in filenames :
                 if name == "processes_info.json" :
                     with open(os.path.join(dirpath, name), "r") as data :
@@ -160,6 +205,7 @@ def triage(dossier) :
 
                     if len(text)> 1 :#condition pour ne prendre que graph avec des process
                     # ==> 812
+                        
                         data.close()
                         vide = Hello(os.path.join(dirpath, name))
                         #condition pour ne prendre que les fichiers avec au
@@ -184,8 +230,25 @@ def triage(dossier) :
                                                     #print(condition)
                                 
                                     if condition == True :
-                                        CompleteList.append(dirpath)
+                                        # on regarde s'il y a des cycles et on les enlève
+                                        
+                                        cyc = Cycle(workflow)
+                                        
+                                        
+                                            
+                                        for cycle in cyc :
+                                            for res in cyc[cycle] :
+                                                    
+                                                if len(cyc[cycle][res]) == 0:
 
+                                                    
+                                                    CompleteList.append(dirpath)
+                                                    #total final ==> 556
+                                        
+                                                    
+                                                
+                                                
+    
     return CompleteList
 
 
