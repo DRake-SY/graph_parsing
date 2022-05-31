@@ -180,7 +180,7 @@ def triage(dossier) :
                                                 #print("partenaire " +partenaire)
                                                 if sommet == partenaire :
                                                     condition = False
-                                                    
+                                                    #verifie si un sommet pointe sur lui même
                                                     #print(condition)
                                 
                                     if condition == True :
