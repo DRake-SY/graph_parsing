@@ -48,7 +48,7 @@ def dico_label_type_operation(dossier) :
     
     return id_type_operation
 
-#dico_id_type_operation("new_new_analysis_nf")
+
 
 def Tool_Or_Not(processes_info_json) :
 
@@ -65,15 +65,17 @@ def Tool_Or_Not(processes_info_json) :
 
     for process in data :
         if len(data[process]["tools"]) == 0:
-            #print(process , ':' , "no tools")
+            
             ToolsOrNot.append(False)
         else :
-            #print(process, ":", data[process]["tools"])
+            
             ToolsOrNot.append(True)
-    #print (ToolsOrNot)
+
+    info.close()        
+    
     return ToolsOrNot
 
-#Tool_Or_Not("Aveglia__vAMPirus/processes_info.json")
+
 
 
 

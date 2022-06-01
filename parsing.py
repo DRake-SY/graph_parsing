@@ -138,14 +138,14 @@ def Traitement_Structure(structure_workflow) :
         
         
             for char in elle :
-                #print(partenaire)
+                
                 taille += 1
                     # boucle pour déterminer la fin du premier partenaire
                     # on s'arrête au 1er "-" qu'on croise (pour les fichiers de ce type)
                     # à partir de là on sait que la fin réel tu premiers partenaire de l'arrête
                     # est à 2 charactère du "-" et qu'il commence à 0.
                 if char == ">" : 
-                        #print("fin du premier")
+                        
                     fin1 = taille-3
 
                     partenaire.append(elle[0:fin1])
@@ -154,7 +154,7 @@ def Traitement_Structure(structure_workflow) :
                     # du char "[" et on sait que la fin réelle est -2 charatère et le début à +2 de la fin
                     # estimé du premier
                 elif char == "[" : ## boucle 
-                        #print("fin du deuxième")
+                       
                     fin2 = taille-2
                     partenaire.append(elle[fin1+4:fin2])
             taille = 0
@@ -251,125 +251,159 @@ def new_new_Parsing(dossier) :
     import pandas as pd
     import json
 
-    no_tools = fl.dico_no_tools("new_new_analysis_nf")
+    no_tools = fl.dico_no_tools("new_new_analysis_nf") 
+    # on extrait un dico contenant tous les process ne contenant pas d'outil
+
     label_ope = fl.dico_label_type_operation("new_new_analysis_nf")
+    # on extrait un dico contenant le label de tous les types d'operation présent dans la base
 
     for path, subdirs, filenames in os.walk(dossier) :
         for name in filenames :
+        
+        # on va extraire les données à partir de certain fichier contenus dans le dossier de chaque workflow
 
-            nb_sommet = 0
             
             
-
+        
             if name == "processes_info.json" :
                 Tools = fl.Tool_Or_Not(os.path.join(path, name))
-                #print(Tools)
+                
+                # on extrait du fichier processes_info.json une liste de booléen ranger par ordre d'apparition de chaque sommet
+                # True : le process a un au moins un outil / False : le process n'a pas d'outil
                 
                 
-            
             if name == "structure_worklow" :
+
+                nb_sommet = 0 #indicatif de l'id de chaque sommet
+
                 with open(os.path.join(path, name) ,"r") as data_workflow :
                     lines = data_workflow.readlines()
-                
-                id_sommet = []
+            
+                # le fichier sctructure_worklow contient les principales informations du workflow : ses sommets et ses arrêtes
+
+                id_sommet = [] 
+                #liste qui contiendra le nom du process, sa postion dans le workflow (ID) et son label (il correspond au groupe
+                # de similarité d'outil dans lequel il est)
+
                 arrete = []
+                #liste qui contiendra les arrêtes (non traité dans cette première partie du code)
 
                 l_lines = len(lines)
+                
+                
+
                 for line in lines[3:l_lines-1] :
                     line = line.rstrip("\n")
                     line = line.strip("\t")
+
                     
-                    #print (line)
 
                     l_line = len(line)
-                    i = True
+                    vertex_or_edge = True
                     character = 0
                     
-
+                # Parmis toutes les lignes du fichier on va uniquement lire à partir de la ligne n=3 jusqu'à la ligne n-1 (avec n étant le nombre
+                # total de ligne dans le fichier) + on nettoie les lignes pour enlever la tabulation et les retours à ligne présent dans les chaines
+                # de caractère
 
                     while character != l_line :
                         for char in line[0:l_line] :
                             character += 1
                             if char == ">" :
-                                i = False
+                                vertex_or_edge = False
+                    
+                    # Ici on va différencier les sommets des arrêtes en cherchant dans chaque ligne le caractère ">" :
+                    # si i = True ==> c'est un sommet
+                    #si i = False ==> c'est une arrêtes
 
-                    if i == True :
+                    if vertex_or_edge == True :
                         line = line.split(" ")
                         sommet = line[0]
                         
-                        
-                        
-    ## on a tous les sommets du fichier structure avec le code ci-dessus
-    ## maintenant, on doit identifier chaque élément, un id avec le nom du fichier qui le contient
-    ## et le process ou l'opération associé
+                    # on continue de nettoyer la ligne afin de garder seulement le nom du sommet 
 
-    ## !!!! Idée pour les opérations faire une première lecture de tout le dossier en créant une base de type d'opération pour la labélisation
-    ## La fonction Tools_or_Not nous renvois pour un fichier donner si les process possède ou non un outil ==> doit on changer pour qu'elle ne regarde que
-    ## le process qui se fait analyser ou gardons la comme elle sachant que la lecture sera peut être plus simple sachant qu'on va avancer avec des compteur pour
-    # savoir qu'elle process on regarde
-                        
+                        # ici on cherche à ne prendre que les process et non les OPERATIONs (le and est necessaire car il existe
+                        # dans les données des OPERATIONs négatives et leur écriture n'est pas la même)
+
                         if sommet[0:9] != "OPERATION" and sommet[0:9] != '"OPERATIO' :
-                            #print(sommet)
-                            
+
+                            #on rentre dans la boucle ==> on a un process
+                           
                             val = Tools[nb_sommet]
-                            sommet_lie = os.path.join(path, sommet)
-                            sommet_lie=sommet_lie.split("__")
-                            sommet_lie_un = sommet_lie[1].replace("/", ":")
                             
+                            
+
+                            #on regarde si ce process a un outil
+
 
                             if val == True :
-        
-                                data = pd.read_csv('groups_sim_nf_names.csv')
-                            
-                                
-                                #id_process[compteur] = sommet
 
+                                # val = TRUE , le process a au moins un outil, on va donc regarder dans quel groupe de similarité il se trouve
+                                #dans la table de similarité.
+                                #Pour ce faire, on a besoin du nom du process ainsi que le workflow dans lequel il se trouve d'ou l'intéret des
+                                #lignes qui vont suivre.
+
+                                sommet_lie = os.path.join(path, sommet)
+                                sommet_lie=sommet_lie.split("__")
+                                sommet_lie_un = sommet_lie[1].replace("/", ":")
+
+
+                                # On va parcourir la table de similarité afin de trouver ou se trouve process et ainsi lui attribuer un label
+                                data = pd.read_csv('groups_sim_nf_names.csv')
+ 
                                 for i in range(0,len(data),1) :
-                                    
-                                    #print('groupe de similiratité n°' ,i) ## donne l'id du groupe de similarité, il servira a labeliser les sommets
+                                
+                                # i correspond au i-ième groupe de process == label
 
                                     rows = data.at[i, 'groups']
                                     rows = rows.split(",")
-                                    #print(rows)
+                                
                                     for process in rows  :
-                                        #print(process)
+                                        
                                         pro = process.split("'")
                                         
-
                                         for proc in range(1,len(pro),2) : 
-                                            #print(pro[proc])
-                                            # a confirmer que c'est bien les process qui sont sortis et non les outils
-                                            #sinon il faudra changer le 1 en 0 
 
-                                            
-                                            #print("process n°", compteur, ":", procc)
-                                            
-                                            
-                        
-                                            #print(sommet_lie_un)
-                                            
+
                                             if sommet_lie_un == pro[proc] :
 
 
-                                                #print(True)
-                                                #print(procc)
-                                                #print(sommet, "id = ", nb_sommet, "label = ", i)
-                                                      
+                                                # si le sommet coorespond à un process de la table on va lui attribuer
+                                                # le label du groupe
+                                                # l'id est attribué par ordre d'arrivé
+
                                                 id_sommet.append([sommet,nb_sommet,i])
+                                                
 
                                 nb_sommet +=1
 
-
-                                                #print(id_sommet)
                             else :
                                 
-                                #print(sommet, "n'a pas d'outil")
+                                # Si val = False alors on a un process qui n'utilise pas d'outil
+                                # Dans ce cas la soit on attribue un label different à chaque process soit on leur
+                                # attribue le même
+                                
+                                '''
+                                ## Part for no _tools with different labels ###
+
+                                # 
+
                                 for label_no_tools in range(100000,100000+len(no_tools),1):
                                     if no_tools[label_no_tools] == sommet_lie_un :
-                                        #print(sommet,"id =", nb_sommet, "label = ", label_no_tools)
+                                        
                                         
                                         id_sommet.append([sommet,nb_sommet, label_no_tools])
-                                        
+                                    
+                                ## -------------------------------------------------
+                                '''
+
+                                ## Part for no_tools with same labels ###
+
+                                id_sommet.append([sommet,nb_sommet, 100000])
+                                
+
+                                ## -------------------------------------------
+
                                 nb_sommet +=1
                                 
                         
@@ -384,13 +418,14 @@ def new_new_Parsing(dossier) :
                             propre = action[0].split(".")
                             plus_que_propre = propre[0]
                             plus_que_propre= plus_que_propre.strip('\n')
-                            #print(sommet,"=", plus_que_propre)
+                            
 
                             for lab_ope in range(10000, 10000+len(label_ope),1) :
                                 if label_ope[lab_ope] == plus_que_propre :
-                                    #print(sommet, "id =", nb_sommet, "label =" ,lab_ope)
                                     
                                     id_sommet.append([sommet, nb_sommet, lab_ope])
+                                    
+
                             nb_sommet += 1
     ## a ce niveau on a tous les sommets avec un id et un label en fonction de leur catégories
                             
@@ -409,14 +444,14 @@ def new_new_Parsing(dossier) :
             
             
             for char in elle :
-                #print(partenaire)
+                
                 taille += 1
                         # boucle pour déterminer la fin du premier partenaire
                         # on s'arrête au 1er "-" qu'on croise (pour les fichiers de ce type)
                         # à partir de là on sait que la fin réel tu premiers partenaire de l'arrête
                         # est à 2 charactère du "-" et qu'il commence à 0.
                 if char == ">" : 
-                            #print("fin du premier")
+                            
                     fin1 = taille-3
 
                     partenaire.append(elle[0:fin1])
@@ -425,7 +460,7 @@ def new_new_Parsing(dossier) :
                         # du char "[" et on sait que la fin réelle est -2 charatère et le début à +2 de la fin
                         # estimé du premier
                 elif char == "[" : ## boucle 
-                            #print("fin du deuxième")
+                            
                     fin2 = taille-2
                     partenaire.append(elle[fin1+4:fin2])
             taille = 0
