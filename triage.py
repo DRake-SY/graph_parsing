@@ -183,9 +183,6 @@ def Cycle(dicoListe):
                 
     return analyse_dictC
 
-
-
-
 def triage(dossier) :
     #Creation d'une liste de tous les répertoires vides
     CompleteList = list()

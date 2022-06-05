@@ -1,3 +1,7 @@
+
+
+
+
 def dico_label_type_operation(dossier) :
     import json
     import os
@@ -48,8 +52,6 @@ def dico_label_type_operation(dossier) :
     
     return id_type_operation
 
-
-
 def Tool_Or_Not(processes_info_json) :
 
     import json
@@ -74,10 +76,6 @@ def Tool_Or_Not(processes_info_json) :
     info.close()        
     
     return ToolsOrNot
-
-
-
-
 
 def dico_no_tools(dossier) :
 
