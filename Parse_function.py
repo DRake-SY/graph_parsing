@@ -175,6 +175,9 @@ def Cycle(dicoListe):
     return analyse_dictC
 
 def triage(dossier) :
+
+    import os
+
     #Creation d'une liste de tous les répertoires vides
     CompleteList = list()
     
@@ -254,7 +257,6 @@ Et enfin, les arrêtes sont labélisé de la même manière (0) de façon arbitr
 def dico_label_type_operation(dossier) :
     import json
     import os
-    import triage as t
     '''
     Cette fonction prend en entré contenant un ensemble de dossier de workflow ainsi que les données associées et renvoie un dico avec un label
     pour chauqe type d'operation existante
@@ -326,7 +328,6 @@ def Tool_Or_Not(processes_info_json) :
 def dico_no_tools(dossier) :
 
     import json
-    import triage as t
     import os 
 
     dico_label_no_tools = {}
@@ -371,7 +372,6 @@ def dico_no_tools(dossier) :
 def new_new_Parsing(dossier) :
 
     import os
-    import fonction_label as fl
     import pandas as pd
     import json
 
@@ -472,9 +472,10 @@ def new_new_Parsing(dossier) :
                                 sommet_lie_un = sommet_lie[1].replace("/", ":")
 
 
+                                
                                 # On va parcourir la table de similarité afin de trouver ou se trouve process et ainsi lui attribuer un label
-                                data = pd.read_csv('groups_sim_nf_names.csv')
- 
+                                data = pd.read_csv('simi_table.csv')
+                                egale = False 
                                 for i in range(0,len(data),1) :
                                 
                                 # i correspond au i-ième groupe de process == label
@@ -489,7 +490,7 @@ def new_new_Parsing(dossier) :
                                         for proc in range(1,len(pro),2) : 
 
 
-                                            if sommet_lie_un == pro[proc] :
+                                            if sommet_lie_un == pro[proc] and egale ==False :
 
 
                                                 # si le sommet coorespond à un process de la table on va lui attribuer
@@ -497,20 +498,23 @@ def new_new_Parsing(dossier) :
                                                 # l'id est attribué par ordre d'arrivé
 
                                                 id_sommet.append([sommet,nb_sommet,i])
-                                                
-
-                                nb_sommet +=1
-
-                            else :
+                                                egale = True
                                 
+                                nb_sommet +=1
+                                
+                            else :
+
+                                '''
                                 # Si val = False alors on a un process qui n'utilise pas d'outil
                                 # Dans ce cas la soit on attribue un label different à chaque process soit on leur
                                 # attribue le même
                                 
-                                '''
+                                
                                 ## Part for no _tools with different labels ###
 
-                                # 
+                                sommet_lie = os.path.join(path, sommet)
+                                sommet_lie=sommet_lie.split("__")
+                                sommet_lie_un = sommet_lie[1].replace("/", ":")
 
                                 for label_no_tools in range(100000,100000+len(no_tools),1):
                                     if no_tools[label_no_tools] == sommet_lie_un :
@@ -525,7 +529,7 @@ def new_new_Parsing(dossier) :
 
                                 id_sommet.append([sommet,nb_sommet, 100000])
                                 
-
+                                
                                 ## -------------------------------------------
 
                                 nb_sommet +=1
@@ -604,7 +608,7 @@ retranscription dans un fichier test.
 '''
 def Affichage(id_sommet, partenaire, nb_graph) : ## a changer et mettre dans un fichier directement
     
-    with open('workflow_parsing_no_tools_same_id____test.txt','a') as file :
+    with open('all_data_parsed_test.txt','a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
         
 

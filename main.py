@@ -12,7 +12,8 @@ for y in CompleteList:
 
     id_sommet = res[0] 
     partenaire = res[1]
-        
+
+    print(nb_graph,y) 
     pf.Affichage(id_sommet, partenaire, nb_graph)
     nb_graph += 1
             
