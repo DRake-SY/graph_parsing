@@ -499,7 +499,7 @@ def new_new_Parsing(dossier) :
 
                                                 id_sommet.append([sommet,nb_sommet,i])
                                                 egale = True
-                                
+
                                 nb_sommet +=1
                                 
                             else :
@@ -608,7 +608,7 @@ retranscription dans un fichier test.
 '''
 def Affichage(id_sommet, partenaire, nb_graph) : ## a changer et mettre dans un fichier directement
     
-    with open('all_data_parsed_test.txt','a') as file :
+    with open('all_data_parsed.txt','a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
         
 
