@@ -499,7 +499,7 @@ def new_new_Parsing(dossier) :
 
                                                 id_sommet.append([sommet,nb_sommet,i])
                                                 egale = True
-
+                                
                                 nb_sommet +=1
                                 
                             else :
