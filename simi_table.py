@@ -124,8 +124,10 @@ for i in range(0,len(sim_nf),1):
 
             write.writerow(["","tools","groups"])
             n =1 
-        
-        write.writerow([i,str(sim_tools[i]),str(liste_simi_tools)])
+        if sim_tools[i]==sim_tools[i-1] :
+            write.writerow([i-1,str(sim_tools[i]),str(liste_simi_tools)])
+        else :    
+            write.writerow([i,str(sim_tools[i]),str(liste_simi_tools)])
     
     
     

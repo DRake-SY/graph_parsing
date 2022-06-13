@@ -1,17 +1,17 @@
 import os
-import Parse_function as pf
+import Parse_function_wo as pf
 
 
-CompleteList = pf.triage("new_new_analysis_nf")
+CompleteList = pf.triage("/home/maxime/Bureau/new_analysisNB")
 nb_graph = 0
 
 
 for y in CompleteList:
     
     
-    if nb_graph < 7 : ## a enlever plus tard juste pour les test
+    if nb_graph < 557 : ## a enlever plus tard juste pour les test
         
-        print(y)  
+        print(nb_graph, y)  
 
         res =  pf.new_new_Parsing(y)
         id_sommet = res[0]
