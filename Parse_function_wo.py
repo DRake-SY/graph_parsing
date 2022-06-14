@@ -390,9 +390,18 @@ def new_new_Parsing(dossier) :
 
             
             
-        
+            
             if name == "processes_info.json" :
                 Tools = Tool_Or_Not(os.path.join(path, name))
+
+                # à mettre pour woT et pour woOPT
+                
+                for i in Tools :
+                    if i == False :
+                        Tools.remove(i)
+                #-----------------------------------------------------------------------------------
+                
+
                 Tools.append(False)
                 Tools.append(False)
                 
