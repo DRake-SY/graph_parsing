@@ -9,7 +9,7 @@ nb_graph = 0
 for y in CompleteList:
     
     
-    if nb_graph < 557 : ## a enlever plus tard juste pour les test
+    if nb_graph < 557 : ## a enlever plus tard juste pour les tests
         
         print(nb_graph, y)  
 

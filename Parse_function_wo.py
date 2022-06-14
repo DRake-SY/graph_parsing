@@ -299,10 +299,15 @@ def dico_label_type_operation(dossier) :
                         if already_here == False :
                             id_type_operation[label_type] = plus_que_propre
                             label_type += 1
-
+                            '''
+                            # a revoir
+                            with open('OPE_table', "a") as f :
+                                write = csv.writer(f)
+                                write.writerow([label_type, str(plus_que_propre)])
+                            '''
     return id_type_operation
 
-def Tool_Or_Not(processes_info_json) :
+def Tool_Or_Not(processes_info_json, proc) :
 
     import json
     '''
@@ -310,20 +315,24 @@ def Tool_Or_Not(processes_info_json) :
     '''
     
 
-    ToolsOrNot = list()
+    ToolsOrNot = True
+    if proc == 'in' or proc == 'out':
+        ToolsOrNot = False
 
-    with open(processes_info_json) as info :
-        data = json.load(info)
+    else :
+        with open(processes_info_json) as info :
+            data = json.load(info)
 
-    for process in data :
-        if len(data[process]["tools"]) == 0:
-            
-            ToolsOrNot.append(False)
-        else :
-            
-            ToolsOrNot.append(True)
+       
+        
+            if len(data[proc]["tools"]) == 0:
+                    
+                ToolsOrNot = False
+            else :
+                    
+                ToolsOrNot = True
 
-    info.close()        
+        info.close()        
     
     return ToolsOrNot
 
@@ -388,31 +397,13 @@ def new_new_Parsing(dossier) :
         
         # on va extraire les données à partir de certain fichier contenus dans le dossier de chaque workflow
 
-            
-            
-            
-            if name == "processes_info.json" :
-                Tools = Tool_Or_Not(os.path.join(path, name))
-
-                # à mettre pour woT et pour woOPT
-                
-                for i in Tools :
-                    if i == False :
-                        Tools.remove(i)
-                #-----------------------------------------------------------------------------------
-                
-
-                Tools.append(False)
-                Tools.append(False)
-                
-                # on extrait du fichier processes_info.json une liste de booléen ranger par ordre d'apparition de chaque sommet
-                # True : le process a un au moins un outil / False : le process n'a pas d'outil
-                
+    
                 
             if name == "structure_woOPT.txt" :
 
                 nb_sommet = 0 #indicatif de l'id de chaque sommet
                 compt_op = 0
+                nb_out = 0
 
                 with open(os.path.join(path, name) ,"r") as data_workflow :
                     lines = data_workflow.readlines()
@@ -468,7 +459,20 @@ def new_new_Parsing(dossier) :
 
                             #on rentre dans la boucle ==> on a un process
                            
-                            val = Tools[nb_sommet-compt_op]
+                            name = "processes_info.json"
+                            val = Tool_Or_Not(os.path.join(path, name), sommet)
+
+                                     # à mettre pour woT et pour woOPT
+                
+                                                    
+                            #-----------------------------------------------------------------------------------
+                            
+
+                            #Tools.append(False)
+                            #Tools.append(False)
+                            
+                            # on extrait du fichier processes_info.json une liste de booléen ranger par ordre d'apparition de chaque sommet
+                            # True : le process a un au moins un outil / False : le process n'a pas d'outil
                             
 
                             #on regarde si ce process a un outil
@@ -523,6 +527,7 @@ def new_new_Parsing(dossier) :
                             elif sommet == "out" :
                                 id_sommet.append([sommet, nb_sommet, "-2"])
                                 nb_sommet += 1
+                                nb_out += 1
 
                             else :
 
@@ -617,7 +622,7 @@ def new_new_Parsing(dossier) :
             taille = 0
 
     
-    
+    #print(nb_out)
     return id_sommet, partenaire
 
 '''
