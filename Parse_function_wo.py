@@ -636,7 +636,7 @@ retranscription dans un fichier test.
 '''
 def Affichage(id_sommet, partenaire, nb_graph) : ## a changer et mettre dans un fichier directement
     
-    with open('enracine+puit-OPE-NOTOOLS.txt','a') as file :
+    with open('test.txt','a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
         
 

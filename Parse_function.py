@@ -185,7 +185,7 @@ def triage(dossier) :
     
     #on rentre dans les différents dossiers contenant les informations
     for dirpath, dirnames, filenames in os.walk(dossier):
-        
+
         
         if len(filenames) >= 7:#Condition pour les DSL1 ==> 844
             
@@ -375,10 +375,11 @@ def new_new_Parsing(dossier) :
     import pandas as pd
     import json
 
-    no_tools = dico_no_tools("new_new_analysis_nf") 
+    no_tools = dico_no_tools("/home/maxime/Bureau/base_wo_nf_core") 
     # on extrait un dico contenant tous les process ne contenant pas d'outil
+    #nécessaire si on veut labélisser les outils de la même façon
 
-    label_ope = dico_label_type_operation("new_new_analysis_nf")
+    label_ope = dico_label_type_operation("/home/maxime/Bureau/base_wo_nf_core")
     # on extrait un dico contenant le label de tous les types d'operation présent dans la base
 
     for path, subdirs, filenames in os.walk(dossier) :
@@ -608,7 +609,7 @@ retranscription dans un fichier test.
 '''
 def Affichage(id_sommet, partenaire, nb_graph) : ## a changer et mettre dans un fichier directement
     
-    with open('all_data_parsed.txt','a') as file :
+    with open('data_parsed_only_nf_core.txt','a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
         
 

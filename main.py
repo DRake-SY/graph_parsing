@@ -1,8 +1,10 @@
 import os
 import Parse_function as pf
 
+data = input("Dossier :")
+#/home/maxime/Bureau/base_only_nf-core
 
-CompleteList = pf.triage("new_new_analysis_nf")
+CompleteList = pf.triage(data)
 nb_graph = 0
 
 
