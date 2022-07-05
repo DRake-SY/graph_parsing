@@ -319,7 +319,7 @@ def Tool_Or_Not(processes_info_json) :
             ToolsOrNot.append(False)
         else :
             
-            ToolsOrNot.append(True)
+            ToolsOrNot.append(data[process]["tools"])
 
     info.close()        
     
@@ -369,17 +369,17 @@ def dico_no_tools(dossier) :
 
     return dico_label_no_tools
 
-def new_new_Parsing(dossier) :
+def Parsing_v_gspan(dossier) :
 
     import os
     import pandas as pd
     import json
 
-    no_tools = dico_no_tools("/home/maxime/Bureau/base_wo_nf_core") 
+    no_tools = dico_no_tools(dossier) 
     # on extrait un dico contenant tous les process ne contenant pas d'outil
     #nécessaire si on veut labélisser les outils de la même façon
 
-    label_ope = dico_label_type_operation("/home/maxime/Bureau/base_wo_nf_core")
+    label_ope = dico_label_type_operation(dossier)
     # on extrait un dico contenant le label de tous les types d'operation présent dans la base
 
     for path, subdirs, filenames in os.walk(dossier) :
@@ -387,9 +387,6 @@ def new_new_Parsing(dossier) :
         
         # on va extraire les données à partir de certain fichier contenus dans le dossier de chaque workflow
 
-            
-            
-        
             if name == "processes_info.json" :
                 Tools = Tool_Or_Not(os.path.join(path, name))
                 
@@ -461,7 +458,7 @@ def new_new_Parsing(dossier) :
                             #on regarde si ce process a un outil
 
 
-                            if val == True :
+                            if val != False :
 
                                 # val = TRUE , le process a au moins un outil, on va donc regarder dans quel groupe de similarité il se trouve
                                 #dans la table de similarité.
@@ -598,6 +595,177 @@ def new_new_Parsing(dossier) :
     
     return id_sommet, partenaire
 
+def Parsing_v_graphmdl(dossier) :
+
+    import os
+    import pandas as pd
+    import json
+
+    no_tools = dico_no_tools(dossier) 
+    # on extrait un dico contenant tous les process ne contenant pas d'outil
+    #nécessaire si on veut labélisser les outils de la même façon
+
+    label_ope = dico_label_type_operation(dossier)
+    # on extrait un dico contenant le label de tous les types d'operation présent dans la base
+
+    for path, subdirs, filenames in os.walk(dossier) :
+        for name in filenames :
+        
+        # on va extraire les données à partir de certain fichier contenus dans le dossier de chaque workflow
+       
+            if name == "processes_info.json" :
+                Tools = Tool_Or_Not(os.path.join(path, name))
+                
+                # on extrait du fichier processes_info.json une liste de booléen ranger par ordre d'apparition de chaque sommet
+                # True : le process a un au moins un outil / False : le process n'a pas d'outil
+                
+                
+            if name == "structure_worklow" :
+
+                nb_sommet = 0 #indicatif de l'id de chaque sommet
+
+                with open(os.path.join(path, name) ,"r") as data_workflow :
+                    lines = data_workflow.readlines()
+            
+                # le fichier sctructure_worklow contient les principales informations du workflow : ses sommets et ses arrêtes
+
+                id_sommet = [] 
+                #liste qui contiendra le nom du process, sa postion dans le workflow (ID) et son label (il correspond au groupe
+                # de similarité d'outil dans lequel il est)
+
+                arrete = []
+                #liste qui contiendra les arrêtes (non traité dans cette première partie du code)
+
+                l_lines = len(lines)
+                
+                
+
+                for line in lines[3:l_lines-1] :
+                    line = line.rstrip("\n")
+                    line = line.strip("\t")
+
+                    
+
+                    l_line = len(line)
+                    vertex_or_edge = True
+                    character = 0
+                    
+                # Parmis toutes les lignes du fichier on va uniquement lire à partir de la ligne n=3 jusqu'à la ligne n-1 (avec n étant le nombre
+                # total de ligne dans le fichier) + on nettoie les lignes pour enlever la tabulation et les retours à ligne présent dans les chaines
+                # de caractère
+
+                    while character != l_line :
+                        for char in line[0:l_line] :
+                            character += 1
+                            if char == ">" :
+                                vertex_or_edge = False
+                    
+                    # Ici on va différencier les sommets des arrêtes en cherchant dans chaque ligne le caractère ">" :
+                    # si i = True ==> c'est un sommet
+                    #si i = False ==> c'est une arrêtes
+
+                    if vertex_or_edge == True :
+                        line = line.split(" ")
+                        sommet = line[0]
+                        
+                    # on continue de nettoyer la ligne afin de garder seulement le nom du sommet 
+
+                        # ici on cherche à ne prendre que les process et non les OPERATIONs (le and est necessaire car il existe
+                        # dans les données des OPERATIONs négatives et leur écriture n'est pas la même)
+
+                        if sommet[0:9] != "OPERATION" and sommet[0:9] != '"OPERATIO' :
+
+                            #on rentre dans la boucle ==> on a un process
+                           
+                            val = Tools[nb_sommet]
+
+                            #on regarde si ce process a un outil
+
+
+                            if val != False :
+
+                                # val = TRUE , le process a au moins un outil, on va donc regarder dans quel groupe de similarité il se trouve
+                                #dans la table de similarité.
+                                #Pour ce faire, on a besoin du nom du process ainsi que le workflow dans lequel il se trouve d'ou l'intéret des
+                                #lignes qui vont suivre.
+                                
+                                #val = str(val).strip("[").strip("]")
+                                #val = val.translate({ord("'"): None}).translate({ord(","): None})
+
+                                id_sommet.append([sommet, nb_sommet, val])
+                                nb_sommet +=1
+                                
+                            else :
+
+                                # Si val = False alors on a un process qui n'utilise pas d'outil
+                                ## Part for no_tools with same labels ###
+
+                                id_sommet.append([sommet,nb_sommet, "['no_tools']"])
+                                
+                                ## -------------------------------------------
+
+                                nb_sommet +=1
+                                
+                        
+                        else :
+                            name = "operations_extracted.json"
+                            with open(os.path.join(path, name)) as data_operation :
+                                file = json.load(data_operation)
+                            
+                                
+                            action = file[sommet]["string"]
+                            action = action.split(" ")
+                            propre = action[0].split(".")
+
+                            plus_que_propre = list()
+
+                            plus_que_propre.append(propre[0].strip('\n'))
+                            id_sommet.append([sommet, nb_sommet, plus_que_propre])
+                            nb_sommet += 1
+
+    ## a ce niveau on a tous les sommets avec un id et un label en fonction de leur catégories
+                            
+                    else :            
+                        arrete.append(line)
+        
+    taille = 0
+    partenaire = []
+
+    for arr in range(0,len(arrete)) :
+
+        if arrete[arr] != arrete[arr-1] :
+            fin1 = 0
+            fin2 = 0
+            elle = arrete[arr]
+            
+            
+            for char in elle :
+                
+                taille += 1
+                        # boucle pour déterminer la fin du premier partenaire
+                        # on s'arrête au 1er "-" qu'on croise (pour les fichiers de ce type)
+                        # à partir de là on sait que la fin réel tu premiers partenaire de l'arrête
+                        # est à 2 charactère du "-" et qu'il commence à 0.
+                if char == ">" : 
+                            
+                    fin1 = taille-3
+
+                    partenaire.append(elle[0:fin1])
+
+                        # Même raisonnement que pour le premier partenaire, on détermine la fin en fonction
+                        # du char "[" et on sait que la fin réelle est -2 charatère et le début à +2 de la fin
+                        # estimé du premier
+                elif char == "[" : ## boucle 
+                            
+                    fin2 = taille-2
+                    partenaire.append(elle[fin1+4:fin2])
+            taille = 0
+
+    
+    
+    return id_sommet, partenaire
+
+
 '''
 ---------------------------------------------------------------------------------
 ------------------------------ DISPLAY ------------------------------------------
@@ -607,9 +775,9 @@ Le display consite juste en la lecture des précédentes données parser et la
 retranscription dans un fichier test.
 
 '''
-def Affichage(id_sommet, partenaire, nb_graph) : ## a changer et mettre dans un fichier directement
+def Affichage(id_sommet, partenaire, nb_graph, output_name) : ## a changer et mettre dans un fichier directement
     
-    with open('data_parsed_only_nf_core.txt','a') as file :
+    with open(output_name,'a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
         
 
