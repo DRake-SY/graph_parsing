@@ -1,11 +1,16 @@
 import os
 import Parse_function_wo as pf
+import argparse as ar
 
+p = ar.ArgumentParser(description="Command to Parse a folder of workflow to the sub graph analyser format")
+p.add_argument('f', help = " path to the folder you want to be parsed and analysed", metavar="data")
 
-data = input("Dossier : ")
+args = p.parse_args()
+#data = input("Dossier : ")
 #/home/maxime/Bureau/new_analysisNB_v2
+#print(args.f)
 
-CompleteList = pf.triage(data)
+CompleteList = pf.triage(args.f)
 nb_graph = 0
 
 
@@ -24,4 +29,4 @@ for y in CompleteList:
         pf.Affichage(id_sommet, partenaire, nb_graph)
         nb_graph += 1
             
-        
+       

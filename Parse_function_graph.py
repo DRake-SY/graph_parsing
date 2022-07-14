@@ -191,62 +191,39 @@ def Cycle(dicoListe):
     return analyse_dictC
 
 def triage(dossier) :
-
     import os
-
     #Creation d'une liste de tous les répertoires vides
     CompleteList = list()
-    
-    
-    
     #on rentre dans les différents dossiers contenant les informations
     for dirpath, dirnames, filenames in os.walk(dossier):
-
-        
         if len(filenames) >= 7:#Condition pour les DSL1 ==> 844
-            
             for name in filenames :
                 if name == "processes_info.json" :
                     with open(os.path.join(dirpath, name), "r") as data :
                         text = data.readlines()
-
                     if len(text)> 1 :#condition pour ne prendre que graph avec des process
                     # ==> 812
-                        
                         data.close()
                         vide = ProcessOrNotProcess(os.path.join(dirpath, name))
                         #condition pour ne prendre que les fichiers avec au
                         #moins un outil ==> 634
-
                         if vide == True :
-                            
                             for other_name in filenames :
-                                
                                 condition = True
                                 if other_name == "structure_worklow":
                                     workflow = ParseStructure(os.path.join(dirpath, other_name))
-                                    
                                     for clé in workflow :
                                         for sommet in workflow[clé] :
-                                            
                                             for partenaire in workflow[clé][sommet] :
-                                                
                                                 if sommet == partenaire :
                                                     condition = False
                                                     #verifie si un sommet pointe sur lui même
-                                                    
-                                
                                     if condition == True :
                                         # on regarde s'il y a des cycles et on les enlève
-                                        
                                         cyc = Cycle(workflow)
-
                                         for cycle in cyc :
                                             for res in cyc[cycle] :
-                                                    
                                                 if len(cyc[cycle][res]) == 0:
-
-                                                    
                                                     CompleteList.append(dirpath)
                                                     #total final ==> 556
     return CompleteList
@@ -398,38 +375,28 @@ def Parsing_v_graphmdl(dossier) :
     import json
     import pygraphviz as pg
 
-    #no_tools = dico_no_tools(dossier)  
-    #on créé un dico pour les no_tools, nécéssaire lorsque l'on veut donner un label différents aux process no_tools 
-
-    #label_ope = dico_label_type_operation(dossier)
-    #dico pour labeliser les opérations en fonction de leur type
-
     for path, subdirs, filenames in os.walk(dossier) :
-
         #on cherche le nom des fichiers dans chaque dossier de workflow
-
         #liste de sortie : 
         id_sommet = [] # les sommets + id + label
         partenaire = [] # couple d'arrêtes
 
         for name in filenames :  
-            
             if name == "structure_worklow" :
-
                 g = pg.AGraph(os.path.join(path, name)) #on extrait la structure graviz du workflow
                 nb_sommet = 0
 
                 for n in g.nodes() : #on énumére chaque sommet
-                    
                     if n[0:9] != "OPERATION" and n[0:9] != '"OPERATIO' : #on différencie operation et process
                         
                         #on entre dans la boucle si c'est un process
-
                         val = Tool_Or_Not(os.path.join(path, "processes_info.json"),n) 
                         # False si c'est un no_tools 
                         #['.....'] si c'est un process avec des outils
-                            
-                        if val != False :
+                        val = str(val).replace(" ","")
+                         
+                        if val != "False" :
+                            #print(val)
                             #process avec des outils  
                             id_sommet.append([n, nb_sommet, val])
                             nb_sommet +=1
@@ -442,19 +409,17 @@ def Parsing_v_graphmdl(dossier) :
                     else :
                             
                             #le sommet est une opération
-
                             with open(os.path.join(path, "operations_extracted.json")) as data_operation :
                                 file = json.load(data_operation)
 
-                            #on extrait le type de l'opération    
-                                    
+                            #on extrait le type de l'opération                                        
                             action = file[n]["string"]
                             action = action.split(" ")
                             propre = action[0].split(".")
 
                             plus_que_propre = list() #on veut garder la nomenclature ['...']
 
-                            plus_que_propre.append(propre[0].strip('\n'))
+                            plus_que_propre.append(propre[0].strip('\t').strip('\n'))
                                                             
                             id_sommet.append([n, nb_sommet, plus_que_propre])
                             nb_sommet += 1
@@ -465,7 +430,7 @@ def Parsing_v_graphmdl(dossier) :
     
     return id_sommet, partenaire
 
-def Parsing_v_gspan(dossier) :
+def Parsing_v_gspan(dossier,table_simi) :
 
     import os
     import pandas as pd
@@ -497,29 +462,37 @@ def Parsing_v_gspan(dossier) :
                     if n[0:9] != "OPERATION" and n[0:9] != '"OPERATIO' :
 
                         val = Tool_Or_Not(os.path.join(path, "processes_info.json"),n)
+                        #print(val)
                             
                         if val != False :
-                            
+                            #print(n)
                             #la différence avec le code de Parse_v_graphMDL est que pour gSpan
                             #on doit labéliser par des chiffres et de ce fait on doit passer par
                             #une table de similarité
 
-                            data = pd.read_csv('simi_table.csv')
+                            sommet_lie = os.path.join(path, n)
+                            sommet_lie=sommet_lie.split("__")
+                            sommet_lie_un = sommet_lie[1].replace("/", ":")
+                            #print(sommet_lie_un)
+
+                            data = pd.read_csv(table_simi)
                             egale = False #dans le cas ou il y aurait des doublons au sein du groupe
 
                             for i in range(0, len(data),1) :
                                 rows = data.at[i, 'groups']
                                 rows =  rows.split(",")
-
+                                
 
                                 for process in rows :
                                     pro = process.split("'")
+                                    
                                     for proc in range(1, len(pro), 2) :
-
-                                        if n == pro[proc] and egale == False :
-
+                                        #print(pro[proc])
+                                        if sommet_lie_un == pro[proc] and egale == False :
+                                            #print(n, nb_sommet, i)
                                             id_sommet.append([n, nb_sommet, i])
                                             nb_sommet +=1
+                                            egale = True
                                     
                         else :
                             id_sommet.append([n,nb_sommet, 100000])
@@ -564,7 +537,7 @@ Cette partie display permet l'affichage, dans un fichier text, des informations 
 récoltés vis à vis de nos workflows.
 
 '''
-def Affichage(id_sommet, partenaire, nb_graph, output_name) : ## a changer et mettre dans un fichier directement
+def Affichage(id_sommet, partenaire, nb_graph, output_name, form) : ## a changer et mettre dans un fichier directement
     
     with open(output_name,'a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
@@ -586,9 +559,12 @@ def Affichage(id_sommet, partenaire, nb_graph, output_name) : ## a changer et me
                     id_second = keys[1]
                     two = True
 
-            if one == True and two == True :
-                file.write("e " + str(id_first) +" "+ str(id_second) +"\n") 
-       
+            if one == True and two == True and form == 'graphmdl+':
+                file.write("e " + str(id_first) +" "+ str(id_second)+ " 0" +"\n")
+
+            if  one == True and two == True and form == 'gspan' :
+                file.write("e " + str(id_first) +" "+ str(id_second)+" 0" +"\n")
+
         file.write("\n")
        
     file.close()
