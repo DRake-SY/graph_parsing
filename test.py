@@ -24,7 +24,7 @@ else :
 
     if args.a == 'gspan' :
 
-        CompleteList = pfg.triage(args.f)
+        CompleteList = pfg.filtrage(args.f)
         nb_graph = 0
 
         for y in CompleteList:
@@ -44,7 +44,7 @@ else :
                 
     else :
 
-        CompleteList = pfg.triage(args.f)
+        CompleteList = pfg.filtrage(args.f)
         nb_graph = 0
 
         for y in CompleteList:

@@ -190,7 +190,7 @@ def Cycle(dicoListe):
                 
     return analyse_dictC
 
-def triage(dossier) :
+def filtrage(dossier) :
     import os
     #Creation d'une liste de tous les répertoires vides
     CompleteList = list()
@@ -264,7 +264,7 @@ def dico_label_type_operation(dossier) :
     label_type = 10000
 
     
-    dossier_trie = triage(dossier)
+    dossier_trie = filtrage(dossier)
     ##test sur un fichier
 
     for y in dossier_trie:
@@ -333,7 +333,7 @@ def dico_no_tools(dossier) :
 
     label_no_tools= 100000
 
-    dossier_trie = triage(dossier)
+    dossier_trie = filtrage(dossier)
    
     for y in dossier_trie:
         
