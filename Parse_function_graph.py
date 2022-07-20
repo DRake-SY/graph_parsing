@@ -368,7 +368,7 @@ def dico_no_tools(dossier) :
 
     return dico_label_no_tools
 
-def Parsing_v_graphmdl(dossier) :
+def Parsing_v_graphmdl(dossier, graph_file) :
 
     import os
     import pandas as pd
@@ -382,12 +382,13 @@ def Parsing_v_graphmdl(dossier) :
         partenaire = [] # couple d'arrêtes
 
         for name in filenames :  
-            if name == "structure_worklow" :
+            if name == graph_file :
                 g = pg.AGraph(os.path.join(path, name)) #on extrait la structure graviz du workflow
                 nb_sommet = 0
 
                 for n in g.nodes() : #on énumére chaque sommet
-                    if n[0:9] != "OPERATION" and n[0:9] != '"OPERATIO' : #on différencie operation et process
+                    
+                    if n[0:9] != "OPERATION" and n[0:9] != '"OPERATIO' and n!= "in" and n!= "out": #on différencie operation et process
                         
                         #on entre dans la boucle si c'est un process
                         val = Tool_Or_Not(os.path.join(path, "processes_info.json"),n) 
@@ -408,21 +409,33 @@ def Parsing_v_graphmdl(dossier) :
 
                     else :
                             
-                            #le sommet est une opération
-                            with open(os.path.join(path, "operations_extracted.json")) as data_operation :
-                                file = json.load(data_operation)
+                            if n == "in" :
 
-                            #on extrait le type de l'opération                                        
-                            action = file[n]["string"]
-                            action = action.split(" ")
-                            propre = action[0].split(".")
+                                id_sommet.append([n, nb_sommet, "['Begin']"])
+                                nb_sommet += 1
+                            
+                            elif n == "out" :
+                                
+                                id_sommet.append([n, nb_sommet, "['End']"])
+                                nb_sommet += 1
 
-                            plus_que_propre = list() #on veut garder la nomenclature ['...']
+                            else :
 
-                            plus_que_propre.append(propre[0].strip('\t').strip('\n'))
-                                                            
-                            id_sommet.append([n, nb_sommet, plus_que_propre])
-                            nb_sommet += 1
+                                #le sommet est une opération
+                                with open(os.path.join(path, "operations_extracted.json")) as data_operation :
+                                    file = json.load(data_operation)
+
+                                #on extrait le type de l'opération                                        
+                                action = file[n]["string"]
+                                action = action.split(" ")
+                                propre = action[0].split(".")
+
+                                plus_que_propre = list() #on veut garder la nomenclature ['...']
+
+                                plus_que_propre.append(propre[0].strip('\t').strip('\n'))
+                                                                
+                                id_sommet.append([n, nb_sommet, plus_que_propre])
+                                nb_sommet += 1
 
                 for e in g.edges(): #on enumère les arrêtes 
 
@@ -430,7 +443,7 @@ def Parsing_v_graphmdl(dossier) :
     
     return id_sommet, partenaire
 
-def Parsing_v_gspan(dossier,table_simi) :
+def Parsing_v_gspan(dossier,table_simi, graph_file) :
 
     import os
     import pandas as pd
@@ -447,19 +460,18 @@ def Parsing_v_gspan(dossier,table_simi) :
     for path, subdirs, filenames in os.walk(dossier) :
 
         id_sommet = [] 
-        arrete = []
-
+        
         for name in filenames :  
-                
-            if name == "structure_worklow" :
+             
+            if name == graph_file :
 
                 g = pg.AGraph(os.path.join(path, name))
                 nb_sommet = 0
 
-            
+                
                 for n in g.nodes() :
                     
-                    if n[0:9] != "OPERATION" and n[0:9] != '"OPERATIO' :
+                    if n[0:9] != "OPERATION" and n[0:9] != '"OPERATIO' and n!= "in" and n!= "out":
 
                         val = Tool_Or_Not(os.path.join(path, "processes_info.json"),n)
                         #print(val)
@@ -499,25 +511,36 @@ def Parsing_v_gspan(dossier,table_simi) :
                             nb_sommet +=1
 
                     else :
+                            if n == "in" :
+
+                                id_sommet.append([n, nb_sommet, "-1"])
+                                nb_sommet += 1
                             
-                            with open(os.path.join(path, "operations_extracted.json")) as data_operation :
-                                file = json.load(data_operation)
+                            elif n == "out" :
                                 
-                                    
-                            action = file[n]["string"]
-                            action = action.split(" ")
-                            propre = action[0].split(".")
+                                id_sommet.append([n, nb_sommet, "-2"])
+                                nb_sommet += 1
 
-                            plus_que_propre = propre[0].strip('\n')
-
-                            #on parcours le dico label_ope pour attribuer un label en focntion
-                            #du type d'opération
-                            for lab_ope in range(10000, 10000+len(label_ope),1) :
-                                if label_ope[lab_ope] == plus_que_propre :
-                                    
-                                    id_sommet.append([n, nb_sommet, lab_ope])
+                            else :
                             
-                            nb_sommet += 1
+                                with open(os.path.join(path, "operations_extracted.json")) as data_operation :
+                                    file = json.load(data_operation)
+                                    
+                                        
+                                action = file[n]["string"]
+                                action = action.split(" ")
+                                propre = action[0].split(".")
+
+                                plus_que_propre = propre[0].strip('\n')
+
+                                #on parcours le dico label_ope pour attribuer un label en focntion
+                                #du type d'opération
+                                for lab_ope in range(10000, 10000+len(label_ope),1) :
+                                    if label_ope[lab_ope] == plus_que_propre :
+                                        
+                                        id_sommet.append([n, nb_sommet, lab_ope])
+                                
+                                nb_sommet += 1
 
                     
                 partenaire = []

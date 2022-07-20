@@ -10,7 +10,8 @@ p = ar.ArgumentParser(description="Command to Parse a folder of workflow to the 
 p.add_argument('f', help = " path to the folder you want to be parsed and analysed", metavar="data")
 p.add_argument('a', help = "choice between the forma type gspan or graphmdl+",choices=['gspan', 'graphmdl+'], metavar='Analyser')
 p.add_argument('-t',default = None, help = "pathway to the similarity table in case you choose the gspan format", metavar = "simi_table")
-p.add_argument('s', help = "output file name", metavar='output name')
+p.add_argument('-g',default = "structure_worklow", help="name of file that will be read during the parsing", metavar="graph file name")
+p.add_argument('s', help = "output file name", metavar='output_name')
 
 args = p.parse_args()
 #data = input("Dossier : ")
@@ -33,7 +34,7 @@ else :
                 
                 print(nb_graph, y)  
 
-                res =  pfg.Parsing_v_gspan(y, args.t)
+                res =  pfg.Parsing_v_gspan(y, args.t, args.g)
                 id_sommet = res[0]
                 
                 partenaire = res[1]
@@ -53,7 +54,7 @@ else :
                 
                 print(nb_graph, y)  
 
-                res =  pfg.Parsing_v_graphmdl(y)
+                res =  pfg.Parsing_v_graphmdl(y, args.g)
                 id_sommet = res[0]
                 
                 partenaire = res[1]
