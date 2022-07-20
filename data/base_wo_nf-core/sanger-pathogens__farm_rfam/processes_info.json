@@ -1,0 +1,112 @@
+{
+    "split_fasta": {
+        "name_process": "split_fasta",
+        "string_process": "\nprocess split_fasta {\n    memory { 1.GB }\n    time { 10.min }\n    errorStrategy {'terminate'} \n\n    input:\n      file 'query.fa' from query\n    output:\n      file 'query.fa.*' into rfam_query_chunks mode flatten\n\n    \"\"\"\n    split_fa.pl -r $params.chunk_size -e -o $params.chunk_overlap -n . query.fa\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    split_fa.pl -r $params.chunk_size -e -o $params.chunk_overlap -n . query.fa\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "query"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "rfam_query_chunks"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sanger-pathogens__farm_rfam",
+        "directive": [
+            "memory { 1.GB }",
+            "time { 10.min }",
+            "errorStrategy {'terminate'}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rfam_scan": {
+        "name_process": "rfam_scan",
+        "string_process": "\nprocess rfam_scan {\n\n    memory { 3.GB * task.attempt }\n    time { 15.min * task.attempt }\n    errorStrategy { 'retry' }\n    maxRetries 3\n\n\n    input:\n       file query from rfam_query_chunks\n\n    output:\n       file 'output' into rfam_scan_outputs\n    \n\n    \"\"\"\n    rfam_scan.pl -v -blastdb $params.blastdb -o output $params.cm ${query} \n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n    rfam_scan.pl -v -blastdb $params.blastdb -o output $params.cm ${query} \n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "rfam_query_chunks"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "rfam_scan_outputs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sanger-pathogens__farm_rfam",
+        "directive": [
+            "memory { 3.GB * task.attempt }",
+            "time { 15.min * task.attempt }",
+            "errorStrategy { 'retry' }",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_rfam_result": {
+        "name_process": "merge_rfam_result",
+        "string_process": "\nprocess merge_rfam_result {\n\n   memory { 1.GB * task.attempt }\n   errorStrategy { 'retry' }\n   maxRetries 3\n\n   input:\n      file rfam_annotations_unclean_unsorted_chunked from rfam_scan_outputs.collectFile(name: 'rfam_annotations_unclean_unsorted_chunked.txt')\n\n   output:\n      file 'rfam_annotations_clean_sorted_chunked.txt' into rfam_merged_outputs\n\n   \"\"\"\n   grep -v \"^#\" $rfam_annotations_unclean_unsorted_chunked | sort > rfam_annotations_clean_sorted_chunked.txt\n   \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n   grep -v \"^#\" $rfam_annotations_unclean_unsorted_chunked | sort > rfam_annotations_clean_sorted_chunked.txt\n   \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "rfam_scan_outputs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "rfam_merged_outputs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sanger-pathogens__farm_rfam",
+        "directive": [
+            "memory { 1.GB * task.attempt }",
+            "errorStrategy { 'retry' }",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dechunk_rfam_result": {
+        "name_process": "dechunk_rfam_result",
+        "string_process": "\nprocess dechunk_rfam_result {\n\n   publishDir \"$params.output\", mode: 'copy', overwrite: false\n   memory { 1.GB * task.attempt }\n   errorStrategy { 'retry' }\n   maxRetries 3\n\n   input:\n      file 'rfam_annotations_clean_sorted_chunked.txt' from rfam_merged_outputs\n   output:\n      file 'rfam_annotations.txt' into rfam_annotations\n\n   '''\n   #!/usr/bin/env perl\n\n   #Beware, this perl code is not exactly Perl, but a groovy string containing perl code\n   #Thus each slash was replaced by a double slash, ie tab is \\\\t\n\n   use strict;\n   use warnings;\n\n   my $infile = 'rfam_annotations_clean_sorted_chunked.txt';\n   my $outfile = 'rfam_annotations.txt';\n   open(IN, \"$infile\");\n   open(OUT, \">$outfile\");\n   while(<IN>)\n   {\n       my @fields = split(/\\\\t/, $_);\n       my @names = split(/\\\\_/, $fields[0]);\n       my $coords = $names[$#names];\n       my @xy = split(/\\\\-/, $coords);\n       my $add = $xy[0] - 1;\n       $fields[0] =~ s/_$coords$//;\n       $fields[3] += $add;\n       $fields[4] += $add;\n       for my $x(0..$#fields)\n       {\n          print OUT \"$fields[$x]\";\n          if($x < $#fields)\n          {\n              print OUT \"\\\\t\";\n          }\n       }\n   }\n   close(IN);\n   close(OUT);\n   '''\n}",
+        "nb_lignes_process": 47,
+        "string_script": "'''\n   #!/usr/bin/env perl\n\n   #Beware, this perl code is not exactly Perl, but a groovy string containing perl code\n   #Thus each slash was replaced by a double slash, ie tab is \\\\t\n\n   use strict;\n   use warnings;\n\n   my $infile = 'rfam_annotations_clean_sorted_chunked.txt';\n   my $outfile = 'rfam_annotations.txt';\n   open(IN, \"$infile\");\n   open(OUT, \">$outfile\");\n   while(<IN>)\n   {\n       my @fields = split(/\\\\t/, $_);\n       my @names = split(/\\\\_/, $fields[0]);\n       my $coords = $names[$#names];\n       my @xy = split(/\\\\-/, $coords);\n       my $add = $xy[0] - 1;\n       $fields[0] =~ s/_$coords$//;\n       $fields[3] += $add;\n       $fields[4] += $add;\n       for my $x(0..$#fields)\n       {\n          print OUT \"$fields[$x]\";\n          if($x < $#fields)\n          {\n              print OUT \"\\\\t\";\n          }\n       }\n   }\n   close(IN);\n   close(OUT);\n   '''",
+        "nb_lignes_script": 34,
+        "language_script": "perl",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "rfam_merged_outputs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "rfam_annotations"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sanger-pathogens__farm_rfam",
+        "directive": [
+            "publishDir \"$params.output\", mode: 'copy', overwrite: false",
+            "memory { 1.GB * task.attempt }",
+            "errorStrategy { 'retry' }",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

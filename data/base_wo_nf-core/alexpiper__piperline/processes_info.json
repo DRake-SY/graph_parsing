@@ -1,0 +1,1449 @@
+{
+    "validate_reads": {
+        "name_process": "validate_reads",
+        "string_process": "\nprocess validate_reads {\n    tag { \"validate_reads.${fastq_id}\" }\n\n    input:\n    tuple fastq_id, file(reads) from samples_ch\n\n    output:\n    tuple fastq_id, file(\"data/${fastq_id}_R1_001.fastq.gz\"), file(\"data/${fastq_id}_R2_001.fastq.gz\") into samples_to_qual\n    tuple fastq_id, env(fcid), env(sampleid), env(ext_id), env(pcr_id), file(\"data/*R[12]_001.fastq.gz\") into samples_to_filt\n    file ('*fastq_id.txt') into samples_to_validate\n    tuple fastq_id, file(\"data/${fastq_id}_R1_001.fastq.gz\") into samples_to_index\n    \n    script:\n    \"\"\"\n    #!/bin/bash\n    mkdir data\n    \n    # Subsample if a value has been provided to params.subsample\n    if [ -z \"${params.subsample}\" ]\n    then\n        cp ${reads[0]} data/${fastq_id}_R1_001.fastq.gz\n        cp ${reads[1]} data/${fastq_id}_R2_001.fastq.gz\n    else\n        seqtk sample -s\"${params.subsample_seed}\" ${reads[0]} \"${params.subsample}\" | pigz -p ${task.cpus} > data/${fastq_id}_R1_001.fastq.gz\n        seqtk sample -s\"${params.subsample_seed}\" ${reads[1]} \"${params.subsample}\" | pigz -p ${task.cpus} > data/${fastq_id}_R2_001.fastq.gz\n    fi  \n    \n    # Get expected positions of elements from read_format\n    fcid_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -n 'fcid' | cut -d : -f 1 )\"\n    sampleid_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -Fxn 'sampleid' | cut -d : -f 1 )\"\n    ext_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -Fxn 'ext' | cut -d : -f 1 )\"\n    pcr_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -Fxn 'pcr' | cut -d : -f 1 )\"\n    \n    # Check filepaths match input_format  \n    if [[ \"${fastq_id}\" =~ .*\"Undetermined\".* ]]; then\n        echo \"Undetermined reads file.\"\n        # Extract elements                      \n        fcid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${fcid_pos})\"\n        sampleid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${sampleid_pos})\"\n        ext_id=\"ext1\"\n        pcr_id=\"pcr1\"\n    else\n        # Check number of underscores match the read format\n        read_format_start=\"\\$(echo \"${params.read_format}\" | sed 's/_R.*\\$//g')\"\n        fmt_split=\"\\$(awk -F\"_\" '{print NF-1}' <<< \"\\${read_format_start}\")\"\n        name_split=\"\\$(awk -F\"_\" '{print NF-1}' <<< \"${fastq_id}\")\"\n        \n        # if different - exit\n        if [ \"\\${fmt_split}\" -ne \"\\${name_split}\" ]; then\n            echo 'Number of underscores in filename \"${fastq_id}\" do not match expected read format: \"${params.read_format}\"'\n            exit 1\n        fi\n        \n        # Extract elements\n        fcid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${fcid_pos})\"\n        sampleid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${sampleid_pos})\"\n        ext_id=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${ext_pos})\"\n        pcr_id=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${pcr_pos})\"         \n    fi\n    \n    # write out info for samplesheet creation\n    echo \"${fastq_id} \\${fcid} \\${sampleid} \\${ext_id} \\${pcr_id}\" > \"${fastq_id}_fastq_id.txt\"\n    \"\"\"\n}",
+        "nb_lignes_process": 63,
+        "string_script": "    \"\"\"\n    #!/bin/bash\n    mkdir data\n    \n    # Subsample if a value has been provided to params.subsample\n    if [ -z \"${params.subsample}\" ]\n    then\n        cp ${reads[0]} data/${fastq_id}_R1_001.fastq.gz\n        cp ${reads[1]} data/${fastq_id}_R2_001.fastq.gz\n    else\n        seqtk sample -s\"${params.subsample_seed}\" ${reads[0]} \"${params.subsample}\" | pigz -p ${task.cpus} > data/${fastq_id}_R1_001.fastq.gz\n        seqtk sample -s\"${params.subsample_seed}\" ${reads[1]} \"${params.subsample}\" | pigz -p ${task.cpus} > data/${fastq_id}_R2_001.fastq.gz\n    fi  \n    \n    # Get expected positions of elements from read_format\n    fcid_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -n 'fcid' | cut -d : -f 1 )\"\n    sampleid_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -Fxn 'sampleid' | cut -d : -f 1 )\"\n    ext_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -Fxn 'ext' | cut -d : -f 1 )\"\n    pcr_pos=\"\\$(echo \"${params.read_format}\" | tr '_' '\\n' | grep -Fxn 'pcr' | cut -d : -f 1 )\"\n    \n    # Check filepaths match input_format  \n    if [[ \"${fastq_id}\" =~ .*\"Undetermined\".* ]]; then\n        echo \"Undetermined reads file.\"\n        # Extract elements                      \n        fcid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${fcid_pos})\"\n        sampleid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${sampleid_pos})\"\n        ext_id=\"ext1\"\n        pcr_id=\"pcr1\"\n    else\n        # Check number of underscores match the read format\n        read_format_start=\"\\$(echo \"${params.read_format}\" | sed 's/_R.*\\$//g')\"\n        fmt_split=\"\\$(awk -F\"_\" '{print NF-1}' <<< \"\\${read_format_start}\")\"\n        name_split=\"\\$(awk -F\"_\" '{print NF-1}' <<< \"${fastq_id}\")\"\n        \n        # if different - exit\n        if [ \"\\${fmt_split}\" -ne \"\\${name_split}\" ]; then\n            echo 'Number of underscores in filename \"${fastq_id}\" do not match expected read format: \"${params.read_format}\"'\n            exit 1\n        fi\n        \n        # Extract elements\n        fcid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${fcid_pos})\"\n        sampleid=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${sampleid_pos})\"\n        ext_id=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${ext_pos})\"\n        pcr_id=\"\\$(echo \"${fastq_id}\" | cut -d'_' -f\\${pcr_pos})\"         \n    fi\n    \n    # write out info for samplesheet creation\n    echo \"${fastq_id} \\${fcid} \\${sampleid} \\${ext_id} \\${pcr_id}\" > \"${fastq_id}_fastq_id.txt\"\n    \"\"\"",
+        "nb_lignes_script": 49,
+        "language_script": "bash",
+        "tools": [
+            "seqtk"
+        ],
+        "tools_url": [
+            "https://bio.tools/seqtk"
+        ],
+        "tools_dico": [
+            {
+                "name": "seqtk",
+                "uri": "https://bio.tools/seqtk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2121",
+                                    "term": "Sequence file editing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A tool for processing sequences in the FASTA or FASTQ format. It parses both FASTA and FASTQ files which can also be optionally compressed by gzip.",
+                "homepage": "https://github.com/lh3/seqtk"
+            }
+        ],
+        "inputs": [
+            "samples_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "samples_to_qual",
+            "samples_to_filt",
+            "samples_to_validate",
+            "samples_to_index"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"validate_reads.${fastq_id}\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc": {
+        "name_process": "fastqc",
+        "string_process": "\nprocess fastqc {\n    tag { \"rFQC.${fastq_id}\" }\n    publishDir \"${params.outdir}/qc/FASTQC-prefilter\", mode: \"copy\", overwrite: true\n\n    input:\n    tuple fastq_id, file(For), file(Rev) from samples_to_qual\n\n    output:\n    file '*_fastqc.{zip,html}' into fastqc_files_ch, fastqc_files2_ch\n\n    \"\"\"\n    fastqc --nogroup -q ${For} ${Rev}\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    fastqc --nogroup -q ${For} ${Rev}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "samples_to_qual"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastqc_files_ch",
+            "fastqc_files2_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"rFQC.${fastq_id}\" }",
+            "publishDir \"${params.outdir}/qc/FASTQC-prefilter\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n    tag { \"multiqc\" }\n    publishDir \"${params.outdir}/qc/MultiQC-prefilter\", mode: 'copy', overwrite: true\n\n    input:\n    file('./raw-seq/*') from fastqc_files_ch.collect()\n\n    output:\n    file \"*_report.html\" into multiqc_report\n    file \"*_data\"\n\n    script:\n    interactivePlots = params.interactiveMultiQC == true ? \"-ip\" : \"\"\n    \"\"\"\n    multiqc ${interactivePlots} .\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    interactivePlots = params.interactiveMultiQC == true ? \"-ip\" : \"\"\n    \"\"\"\n    multiqc ${interactivePlots} .\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "fastqc_files_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "multiqc_report"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"multiqc\" }",
+            "publishDir \"${params.outdir}/qc/MultiQC-prefilter\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "summarise_index": {
+        "name_process": "summarise_index",
+        "string_process": " process summarise_index {\n        tag { \"summarise_index_${fastq_id}\" }\n\n        input:\n        set fastq_id, file(For) from samples_to_index\n\n        output:\n        file \"*_indexes.txt\" into index_count\n        file \"*_undetermined.txt\" into undetermined_counts\n\n        script:\n        \"\"\"\n        #!/bin/bash        \n        if [[ \"${fastq_id}\" =~ .*\"Undetermined\".* ]]; then\n            echo \"Undetermined reads file.\"\n            zcat \"${For}\" | grep '^@M' | rev | cut -d':' -f 1 | rev | sort | uniq -c | sort -nr  | sed 's/+/ /' | sed 's/^ *//g' > ${fastq_id}_undetermined.txt\n            touch ${fastq_id}_indexes.txt\n        else\n            zcat \"${For}\" | grep '^@M' | rev | cut -d':' -f 1 | rev | sort | uniq -c | sort -nr  | sed 's/+/ /' | sed 's/^ *//g' > ${fastq_id}_indexes.txt\n            touch ${fastq_id}_undetermined.txt\n        fi   \n        \"\"\"\n    }",
+        "nb_lignes_process": 21,
+        "string_script": "        \"\"\"\n        #!/bin/bash        \n        if [[ \"${fastq_id}\" =~ .*\"Undetermined\".* ]]; then\n            echo \"Undetermined reads file.\"\n            zcat \"${For}\" | grep '^@M' | rev | cut -d':' -f 1 | rev | sort | uniq -c | sort -nr  | sed 's/+/ /' | sed 's/^ *//g' > ${fastq_id}_undetermined.txt\n            touch ${fastq_id}_indexes.txt\n        else\n            zcat \"${For}\" | grep '^@M' | rev | cut -d':' -f 1 | rev | sort | uniq -c | sort -nr  | sed 's/+/ /' | sed 's/^ *//g' > ${fastq_id}_indexes.txt\n            touch ${fastq_id}_undetermined.txt\n        fi   \n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_to_index"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "index_count",
+            "undetermined_counts"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"summarise_index_${fastq_id}\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "index_calc": {
+        "name_process": "index_calc",
+        "string_process": " process index_calc {\n        tag { \"index_calc\" }\n        publishDir \"${params.outdir}/qc\", mode: 'copy', overwrite: true\n    \n        input:\n        file(indexes) from index_count.collectFile(name: 'determined_counts.txt', newLine: true)\n        file(undetermined) from undetermined_counts.collectFile(name: 'undetermined_counts.txt', newLine: true)\n        \n        output:\n        file \"index_switch_calc.txt\"\n    \n        script:\n        \"\"\"\n        #!/bin/bash\n        \n        # Remove empty lines of collated files\n        sed -i '/^\\$/d' determined_counts.txt\n        sed -i '/^\\$/d' undetermined_counts.txt\n        \n        # Get all potential switched combinations of used indexes\n        index1=\"\\$(cat determined_counts.txt | cut -d' ' -f 2)\"\n        index2=\"\\$(cat determined_counts.txt | cut -d' ' -f 3)\"\n        \n        # get all possible combinations of determined indexes\n        touch all_combinations.txt\n        for i in \\${index1} ; do\n          for j in \\${index2} ; do\n            if [ \"\\${i}\" \\\\< \"\\${j}\" ]\n            then\n             echo \\${i} \\${j} >> all_combinations.txt\n            fi\n          done\n        done\n            \n        # Count number of undetermined reads\n        cat undetermined_counts.txt | cut -d' ' -f 2,3 > undetermined_index.txt\n    \n        # Count number of correctly demultiplexed reads\n        correct_counts=\"\\$(cat determined_counts.txt | cut -d' ' -f 1 | awk '{ SUM += \\$1} END { print SUM }')\"\n    \n        # Count number of switched reads\n        comm -12 <(sort all_combinations.txt) <(sort undetermined_index.txt) > switched_indexes.txt\n        switched_counts=\"\\$(grep -f \"switched_indexes.txt\" \"undetermined_counts.txt\" | cut -d' ' -f 1 | awk '{ SUM += \\$1} END { print SUM }')\"\n    \n        # Count number of other reads (these can be sequencing errors, PhiX and other junk)\n        other_counts=\"\\$(grep -v -f \"switched_indexes.txt\" \"undetermined_counts.txt\" | cut -d' ' -f 1 | awk '{ SUM += \\$1} END { print SUM }')\"\n    \n        # Calculate switch rate (in percentage)\n        calc(){ awk \"BEGIN { print \"\\$*\" }\"; }\n        switch_rate=\"\\$(calc \"\\${switched_counts}\"/\"\\${correct_counts}\")\"\n        switch_rate_perc=\"\\$(calc \"\\${switched_counts}\"/\"\\${correct_counts}\"*100)\"\n    \n        # Print results to file\n        touch index_switch_calc.txt\n        echo Correctly demultiplexed reads: \"\\${correct_counts}\" >> index_switch_calc.txt\n        echo Switched reads: \"\\${switched_counts}\" >> index_switch_calc.txt\n        echo Other undetermined reads: \"\\${other_counts}\" >> index_switch_calc.txt\n        echo Index switching rate: \"\\${switch_rate}\" \\\\(\"\\${switch_rate_perc}\"%\\\\) >> index_switch_calc.txt\n        \"\"\"\n    }",
+        "nb_lignes_process": 58,
+        "string_script": "        \"\"\"\n        #!/bin/bash\n        \n        # Remove empty lines of collated files\n        sed -i '/^\\$/d' determined_counts.txt\n        sed -i '/^\\$/d' undetermined_counts.txt\n        \n        # Get all potential switched combinations of used indexes\n        index1=\"\\$(cat determined_counts.txt | cut -d' ' -f 2)\"\n        index2=\"\\$(cat determined_counts.txt | cut -d' ' -f 3)\"\n        \n        # get all possible combinations of determined indexes\n        touch all_combinations.txt\n        for i in \\${index1} ; do\n          for j in \\${index2} ; do\n            if [ \"\\${i}\" \\\\< \"\\${j}\" ]\n            then\n             echo \\${i} \\${j} >> all_combinations.txt\n            fi\n          done\n        done\n            \n        # Count number of undetermined reads\n        cat undetermined_counts.txt | cut -d' ' -f 2,3 > undetermined_index.txt\n    \n        # Count number of correctly demultiplexed reads\n        correct_counts=\"\\$(cat determined_counts.txt | cut -d' ' -f 1 | awk '{ SUM += \\$1} END { print SUM }')\"\n    \n        # Count number of switched reads\n        comm -12 <(sort all_combinations.txt) <(sort undetermined_index.txt) > switched_indexes.txt\n        switched_counts=\"\\$(grep -f \"switched_indexes.txt\" \"undetermined_counts.txt\" | cut -d' ' -f 1 | awk '{ SUM += \\$1} END { print SUM }')\"\n    \n        # Count number of other reads (these can be sequencing errors, PhiX and other junk)\n        other_counts=\"\\$(grep -v -f \"switched_indexes.txt\" \"undetermined_counts.txt\" | cut -d' ' -f 1 | awk '{ SUM += \\$1} END { print SUM }')\"\n    \n        # Calculate switch rate (in percentage)\n        calc(){ awk \"BEGIN { print \"\\$*\" }\"; }\n        switch_rate=\"\\$(calc \"\\${switched_counts}\"/\"\\${correct_counts}\")\"\n        switch_rate_perc=\"\\$(calc \"\\${switched_counts}\"/\"\\${correct_counts}\"*100)\"\n    \n        # Print results to file\n        touch index_switch_calc.txt\n        echo Correctly demultiplexed reads: \"\\${correct_counts}\" >> index_switch_calc.txt\n        echo Switched reads: \"\\${switched_counts}\" >> index_switch_calc.txt\n        echo Other undetermined reads: \"\\${other_counts}\" >> index_switch_calc.txt\n        echo Index switching rate: \"\\${switch_rate}\" \\\\(\"\\${switch_rate_perc}\"%\\\\) >> index_switch_calc.txt\n        \"\"\"",
+        "nb_lignes_script": 46,
+        "language_script": "bash",
+        "tools": [
+            "COMMA"
+        ],
+        "tools_url": [
+            "https://bio.tools/comma"
+        ],
+        "tools_dico": [
+            {
+                "name": "COMMA",
+                "uri": "https://bio.tools/comma",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2275",
+                            "term": "Molecular modelling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "COMMA (COMmunication MApping) is a method to dissect proteins dynamical architectures.",
+                "homepage": "http://www.lcqb.upmc.fr/COMMA/COMMA.html"
+            }
+        ],
+        "inputs": [
+            "index_count",
+            "undetermined_counts"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"index_calc\" }",
+            "publishDir \"${params.outdir}/qc\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "nfilter": {
+        "name_process": "nfilter",
+        "string_process": "\nprocess nfilter {\n    tag { \"nfilter_${fastq_id}\" }\n\n    input:\n    tuple fastq_id, fcid, sampleid, ext_id, pcr_id, reads from samples_to_filt.filter { !it[0].contains('Undetermined') }\n    \n    output:\n    set val(fastq_id), val(fcid), val(sampleid), val(ext_id), val(pcr_id), \"${fastq_id}.R[12].noN.fastq.gz\" optional true into filt_step2\n    set val(fastq_id), \"${fastq_id}.out.RDS\" into filt_step3Trimming                           \n    file \"forwardP.fa\" into forprimers\n    file \"reverseP.fa\" into revprimers\n    file \"forwardP_rc.fa\" into rcfor\n    file \"reverseP_rc.fa\" into rcrev\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")\n    require(ShortRead); packageVersion(\"ShortRead\")\n    require(Biostrings); packageVersion(\"Biostrings\")\n    require(stringr); packageVersion(\"stringr\")\n    \n    #Filter out reads with N's\n    out1 <- filterAndTrim(fwd = \"${reads[0]}\",\n                        filt = paste0(\"${fastq_id}\", \".R1.noN.fastq.gz\"),\n                        rev = \"${reads[1]}\",\n                        filt.rev = paste0(\"${fastq_id}\", \".R2.noN.fastq.gz\"),\n                        maxN = 0,\n                        matchIDs = as.logical(${params.matchIDs}),\n                        multithread = ${task.cpus})\n                        \n    # Write out fasta of primers - Handles multiple primers\n    Fprimer_name <- unlist(stringr::str_split(\"${params.fwdprimer_name}\", \";\"))\n    Rprimer_name <- unlist(stringr::str_split(\"${params.revprimer_name}\", \";\"))\n    \n    Fprimers <- unlist(stringr::str_split(\"${params.fwdprimer}\", \";\"))\n    names(Fprimers) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n    Rprimers <- unlist(stringr::str_split(\"${params.revprimer}\", \";\"))\n    names(Rprimers) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n    \n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(Fprimers), \"forwardP.fa\")\n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(Rprimers), \"reverseP.fa\")\n    \n    # Write out fasta of reverse complement primers\n    # Used for checking for read-through into the other end of molecule for variable length markers\n    fwd_rc <- sapply(Fprimers, dada2:::rc)\n    names(fwd_rc) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n\n    rev_rc <- sapply(Rprimers, dada2:::rc)\n    names(rev_rc) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n    \n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(fwd_rc), \"forwardP_rc.fa\")\n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(rev_rc), \"reverseP_rc.fa\")\n        \n    saveRDS(out1, \"${fastq_id}.out.RDS\")\n    \"\"\"\n}",
+        "nb_lignes_process": 56,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")\n    require(ShortRead); packageVersion(\"ShortRead\")\n    require(Biostrings); packageVersion(\"Biostrings\")\n    require(stringr); packageVersion(\"stringr\")\n    \n    #Filter out reads with N's\n    out1 <- filterAndTrim(fwd = \"${reads[0]}\",\n                        filt = paste0(\"${fastq_id}\", \".R1.noN.fastq.gz\"),\n                        rev = \"${reads[1]}\",\n                        filt.rev = paste0(\"${fastq_id}\", \".R2.noN.fastq.gz\"),\n                        maxN = 0,\n                        matchIDs = as.logical(${params.matchIDs}),\n                        multithread = ${task.cpus})\n                        \n    # Write out fasta of primers - Handles multiple primers\n    Fprimer_name <- unlist(stringr::str_split(\"${params.fwdprimer_name}\", \";\"))\n    Rprimer_name <- unlist(stringr::str_split(\"${params.revprimer_name}\", \";\"))\n    \n    Fprimers <- unlist(stringr::str_split(\"${params.fwdprimer}\", \";\"))\n    names(Fprimers) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n    Rprimers <- unlist(stringr::str_split(\"${params.revprimer}\", \";\"))\n    names(Rprimers) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n    \n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(Fprimers), \"forwardP.fa\")\n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(Rprimers), \"reverseP.fa\")\n    \n    # Write out fasta of reverse complement primers\n    # Used for checking for read-through into the other end of molecule for variable length markers\n    fwd_rc <- sapply(Fprimers, dada2:::rc)\n    names(fwd_rc) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n\n    rev_rc <- sapply(Rprimers, dada2:::rc)\n    names(rev_rc) <- paste0(Fprimer_name,\"-\", Rprimer_name)\n    \n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(fwd_rc), \"forwardP_rc.fa\")\n    Biostrings::writeXStringSet(Biostrings::DNAStringSet(rev_rc), \"reverseP_rc.fa\")\n        \n    saveRDS(out1, \"${fastq_id}.out.RDS\")\n    \"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_to_filt"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "filt_step2",
+            "filt_step3Trimming",
+            "forprimers",
+            "revprimers",
+            "rcfor",
+            "rcrev"
+        ],
+        "nb_outputs": 6,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"nfilter_${fastq_id}\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cutadapt": {
+        "name_process": "cutadapt",
+        "string_process": "\nprocess cutadapt {\n    tag { \"filt_step2_${fastq_id}\" }\n\n    input:\n    set fastq_id, fcid, sampleid, ext_id, pcr_id, reads from filt_step2\n    file(\"forwardP.fa\") from forprimers\n    file(\"reverseP.fa\") from revprimers\n    file(\"forwardP_rc.fa\") from rcfor\n    file(\"reverseP_rc.fa\") from rcrev\n    \n    output:\n    set val(fastq_id), val(fcid), val(sampleid), val(ext_id), val(pcr_id), \"${fastq_id}*.R[12].cutadapt.fastq.gz\" optional true into filt_step3\n    file \"*.cutadapt.out\" into cutadaptToMultiQC\n    file ('*demux.txt') into demux_to_validate\n\n    script:\n    if (params.lengthvar == false) \n        \"\"\"\n        #!/bin/bash\n        cutadapt \\\\\n            -g file:forwardP.fa \\\\\n            -G file:reverseP.fa \\\\\n            --cores ${task.cpus} \\\\\n            -n 2 -e 1 \\\\\n            --no-indels \\\\\n            -o \"${fastq_id}.{name}.R1.cutadapt.fastq.gz\" \\\\\n            -p \"${fastq_id}.{name}.R2.cutadapt.fastq.gz\" \\\\\n            \"${reads[0]}\" \"${reads[1]}\" > \"${fastq_id}.cutadapt.out\"           \n\n        # write out demuxed fastq names for sample sheet\n        echo \"\\$(ls | grep .fastq.gz)\" > \"${fastq_id}_demux.txt\"\n        \"\"\"\n    else if (params.lengthvar == true)\n        \"\"\"\n        cutadapt \\\\\n            -g file:forwardP.fa -a file:reverseP_rc.fa \\\\\n            -G file:reverseP.fa -a file:forwardP_rc.fa\\\\\n            --cores ${task.cpus} \\\\\n            -n 2 -e 1 \\\\\n            --no-indels \\\\\n            -o \"${fastq_id}.{name}.R1.cutadapt.fastq.gz\" \\\\\n            -p \"${fastq_id}.{name}.R2.cutadapt.fastq.gz\" \\\\\n            \"${reads[0]}\" \"${reads[1]}\" > \"${fastq_id}.cutadapt.out\"\n            \n        # write out demuxed fastq names for sample sheet\n        echo \"\\$(ls | grep .fastq.gz)\" > \"${fastq_id}_demux.txt\"\n        \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "    if (params.lengthvar == false) \n        \"\"\"\n        #!/bin/bash\n        cutadapt \\\\\n            -g file:forwardP.fa \\\\\n            -G file:reverseP.fa \\\\\n            --cores ${task.cpus} \\\\\n            -n 2 -e 1 \\\\\n            --no-indels \\\\\n            -o \"${fastq_id}.{name}.R1.cutadapt.fastq.gz\" \\\\\n            -p \"${fastq_id}.{name}.R2.cutadapt.fastq.gz\" \\\\\n            \"${reads[0]}\" \"${reads[1]}\" > \"${fastq_id}.cutadapt.out\"           \n\n        # write out demuxed fastq names for sample sheet\n        echo \"\\$(ls | grep .fastq.gz)\" > \"${fastq_id}_demux.txt\"\n        \"\"\"\n    else if (params.lengthvar == true)\n        \"\"\"\n        cutadapt \\\\\n            -g file:forwardP.fa -a file:reverseP_rc.fa \\\\\n            -G file:reverseP.fa -a file:forwardP_rc.fa\\\\\n            --cores ${task.cpus} \\\\\n            -n 2 -e 1 \\\\\n            --no-indels \\\\\n            -o \"${fastq_id}.{name}.R1.cutadapt.fastq.gz\" \\\\\n            -p \"${fastq_id}.{name}.R2.cutadapt.fastq.gz\" \\\\\n            \"${reads[0]}\" \"${reads[1]}\" > \"${fastq_id}.cutadapt.out\"\n            \n        # write out demuxed fastq names for sample sheet\n        echo \"\\$(ls | grep .fastq.gz)\" > \"${fastq_id}_demux.txt\"\n        \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [
+            "Cutadapt"
+        ],
+        "tools_url": [
+            "https://bio.tools/cutadapt"
+        ],
+        "tools_dico": [
+            {
+                "name": "Cutadapt",
+                "uri": "https://bio.tools/cutadapt",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0632",
+                            "term": "Probes and primers"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3495",
+                                "term": "RNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3495",
+                                "term": "RNA sequence"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Find and remove adapter sequences, primers, poly-A tails and other types of unwanted sequence from your high-throughput sequencing reads.",
+                "homepage": "https://pypi.python.org/pypi/cutadapt"
+            }
+        ],
+        "inputs": [
+            "filt_step2",
+            "forprimers",
+            "revprimers",
+            "rcfor",
+            "rcrev"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "filt_step3",
+            "cutadaptToMultiQC",
+            "demux_to_validate"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"filt_step2_${fastq_id}\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_and_trim": {
+        "name_process": "filter_and_trim",
+        "string_process": "\nprocess filter_and_trim {\n    tag { \"filt_step3_${fastq_id}\" }\n\n    input:\n    set fastq_id, fcid, sampleid, ext_id, pcr_id, file(reads), file(trimming) from filt_step3.join(filt_step3Trimming)\n\n    output:\n    set val(fastq_id), \"*.R1.filtered.fastq.gz\", \"*.R2.filtered.fastq.gz\" optional true into filteredReadsforQC, filteredReads   \n    file(\"*.filtered.fastq.gz\") into filtReadsErr\n    file(\"*.filtered.fastq.gz\") into filtReads\n    file \"*.trimmed.txt\" into trimTracking\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")\n    require(ShortRead); packageVersion(\"ShortRead\")\n    require(Biostrings); packageVersion(\"Biostrings\")\n    require(stringr); packageVersion(\"stringr\")\n    require(dplyr); packageVersion(\"dplyr\")\n    \n    fastqFs <- sort(list.files(pattern=\"*.R1.cutadapt.fastq.gz\"))\n    fastqFs <- fastqFs[!stringr::str_detect(fastqFs, \"unknown\")]\n    fastqRs <- sort(list.files(pattern=\"*.R2.cutadapt.fastq.gz\"))\n    fastqRs <- fastqRs[!stringr::str_detect(fastqRs, \"unknown\")]\n    \n    out1 <- readRDS(\"${trimming}\")\n    out2 <- filterAndTrim(\n                        fwd = fastqFs,\n                        filt = stringr::str_replace(fastqFs, \".cutadapt.fastq.gz\", \".filtered.fastq.gz\"),\n                        rev = fastqRs,\n                        filt.rev = stringr::str_replace(fastqRs, \".cutadapt.fastq.gz\", \".filtered.fastq.gz\"),\n                        maxEE = c(${params.maxEEFor},${params.maxEERev}),\n                        trimLeft = c(${params.trimFor},${params.trimRev}),\n                        truncLen = c(${params.truncFor},${params.truncRev}),\n                        truncQ = ${params.truncQ},\n                        maxN = ${params.maxN},\n                        rm.phix = as.logical(${params.rmPhiX}),\n                        maxLen = ${params.maxLen},\n                        minLen = ${params.minLen},\n                        compress = TRUE,\n                        verbose = TRUE,\n                        matchIDs = as.logical(${params.matchIDs}),\n                        multithread = ${task.cpus})\n                        \n    #Change input read counts to actual raw read counts\n    out1 <- out1 %>% \n        as.data.frame() %>%\n        dplyr::slice(rep(dplyr::row_number(), nrow(out2)))\n    out3 <- cbind(out1, out2)      \n    rownames(out3) <- rownames(out2)\n    colnames(out3) <- c('cutadapt', 'filtered', 'input', 'filterN')    \n    write.csv(out3, paste0(\"${fastq_id}\", \".trimmed.txt\"))\n    \"\"\"\n}",
+        "nb_lignes_process": 54,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")\n    require(ShortRead); packageVersion(\"ShortRead\")\n    require(Biostrings); packageVersion(\"Biostrings\")\n    require(stringr); packageVersion(\"stringr\")\n    require(dplyr); packageVersion(\"dplyr\")\n    \n    fastqFs <- sort(list.files(pattern=\"*.R1.cutadapt.fastq.gz\"))\n    fastqFs <- fastqFs[!stringr::str_detect(fastqFs, \"unknown\")]\n    fastqRs <- sort(list.files(pattern=\"*.R2.cutadapt.fastq.gz\"))\n    fastqRs <- fastqRs[!stringr::str_detect(fastqRs, \"unknown\")]\n    \n    out1 <- readRDS(\"${trimming}\")\n    out2 <- filterAndTrim(\n                        fwd = fastqFs,\n                        filt = stringr::str_replace(fastqFs, \".cutadapt.fastq.gz\", \".filtered.fastq.gz\"),\n                        rev = fastqRs,\n                        filt.rev = stringr::str_replace(fastqRs, \".cutadapt.fastq.gz\", \".filtered.fastq.gz\"),\n                        maxEE = c(${params.maxEEFor},${params.maxEERev}),\n                        trimLeft = c(${params.trimFor},${params.trimRev}),\n                        truncLen = c(${params.truncFor},${params.truncRev}),\n                        truncQ = ${params.truncQ},\n                        maxN = ${params.maxN},\n                        rm.phix = as.logical(${params.rmPhiX}),\n                        maxLen = ${params.maxLen},\n                        minLen = ${params.minLen},\n                        compress = TRUE,\n                        verbose = TRUE,\n                        matchIDs = as.logical(${params.matchIDs}),\n                        multithread = ${task.cpus})\n                        \n    #Change input read counts to actual raw read counts\n    out1 <- out1 %>% \n        as.data.frame() %>%\n        dplyr::slice(rep(dplyr::row_number(), nrow(out2)))\n    out3 <- cbind(out1, out2)      \n    rownames(out3) <- rownames(out2)\n    colnames(out3) <- c('cutadapt', 'filtered', 'input', 'filterN')    \n    write.csv(out3, paste0(\"${fastq_id}\", \".trimmed.txt\"))\n    \"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "filt_step3",
+            "filt_step3Trimming"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "filteredReadsforQC",
+            "filteredReads",
+            "filtReadsErr",
+            "filtReads",
+            "trimTracking"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"filt_step3_${fastq_id}\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc_filtered": {
+        "name_process": "fastqc_filtered",
+        "string_process": "\nprocess fastqc_filtered {\n    tag { \"fastqc_filtered.${fastq_id}\" }\n    publishDir \"${params.outdir}/qc/FastQC-postfilter\", mode: \"copy\", overwrite: true\n\n    input:\n    set val(fastq_id), file(filtFor), file(filtRev) from filteredReadsforQC\n\n    output:\n    file '*_fastqc.{zip,html}' into fastqc_files_post\n\n    \"\"\"\n    fastqc --nogroup -q ${filtFor} ${filtRev}\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    fastqc --nogroup -q ${filtFor} ${filtRev}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "filteredReadsforQC"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastqc_files_post"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"fastqc_filtered.${fastq_id}\" }",
+            "publishDir \"${params.outdir}/qc/FastQC-postfilter\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc_filtered": {
+        "name_process": "multiqc_filtered",
+        "string_process": "\nprocess multiqc_filtered {\n    tag { \"multiqc_filtered\" }\n    publishDir \"${params.outdir}/qc/MultiQC-postfilter\", mode: 'copy', overwrite: true\n\n    input:\n    file('./raw-seq/*') from fastqc_files2_ch.collect()\n    file('./trimmed-seq/*') from fastqc_files_post.collect()\n    file('./cutadapt/*') from cutadaptToMultiQC.collect()\n\n    output:\n    file \"*_report.html\" into multiqc_report_post\n    file \"*_data\"\n\n    script:\n    interactivePlots = params.interactiveMultiQC == true ? \"-ip\" : \"\"\n    \"\"\"\n    multiqc ${interactivePlots} .\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    interactivePlots = params.interactiveMultiQC == true ? \"-ip\" : \"\"\n    \"\"\"\n    multiqc ${interactivePlots} .\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "fastqc_files2_ch",
+            "fastqc_files_post",
+            "cutadaptToMultiQC"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "multiqc_report_post"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"multiqc_filtered\" }",
+            "publishDir \"${params.outdir}/qc/MultiQC-postfilter\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_trimmed_table": {
+        "name_process": "merge_trimmed_table",
+        "string_process": "\nprocess merge_trimmed_table {\n    tag { \"merge_trimmed_table\" }\n    publishDir \"${params.outdir}/csv\", mode: \"copy\", overwrite: true\n\n    input:\n    file trimData from trimTracking.collect()\n\n    output:\n    file \"all.trimmed.csv\" into trimmed_read_tracking\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(tidyverse); packageVersion(\"tidyverse\")\n    readr::read_csv(list.files(path = '.', pattern = '*.trimmed.txt')) %>%\n        magrittr::set_colnames(c(\"sample_id\", \"cutadapt\", \"filtered\", \"input\", \"filterN\")) %>%\n        dplyr::mutate(sample_id = sample_id %>% stringr::str_remove(\".R[1-2].cutadapt.fastq.gz\")) %>%\n        write_csv(\"all.trimmed.csv\")\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(tidyverse); packageVersion(\"tidyverse\")\n    readr::read_csv(list.files(path = '.', pattern = '*.trimmed.txt')) %>%\n        magrittr::set_colnames(c(\"sample_id\", \"cutadapt\", \"filtered\", \"input\", \"filterN\")) %>%\n        dplyr::mutate(sample_id = sample_id %>% stringr::str_remove(\".R[1-2].cutadapt.fastq.gz\")) %>%\n        write_csv(\"all.trimmed.csv\")\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "trimTracking"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trimmed_read_tracking"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"merge_trimmed_table\" }",
+            "publishDir \"${params.outdir}/csv\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dada2_learn_errors": {
+        "name_process": "dada2_learn_errors",
+        "string_process": "\nprocess dada2_learn_errors {\n    tag { \"dada2_learn_errors\" }\n    publishDir \"${params.outdir}/qc\", mode: \"copy\", overwrite: true\n\n    input:\n    set key, file(reads) from filtReadsErrKey.view()\n\n    output:\n    file \"errorsF_${key}.RDS\" into errorsFor\n    file \"errorsR_${key}.RDS\" into errorsRev\n    file \"*.pdf\"\n    \n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")    \n    setDadaOpt(${params.dadaOpt.collect{k,v->\"$k=$v\"}.join(\", \")})\n\n    # File parsing\n    filtFs <- list.files('.', pattern=\"${key}.*R1.filtered.fastq.gz\", full.names = TRUE)\n    filtRs <- list.files('.', pattern=\"${key}.*R2.filtered.fastq.gz\", full.names = TRUE)\n    \n    #TODO Change this to new param: dada2 seed?\n    set.seed(100)\n\n    # Learn error rates\n    errF <- learnErrors(filtFs,         \n        nbases=${params.errbases},\n        errorEstimationFunction=${params.errfun},\n        multithread=${task.cpus},\n        randomize=FALSE\n        )\n    errR <- learnErrors(filtRs,\n        nbases=${params.errbases},\n        errorEstimationFunction=${params.errfun},\n        multithread=${task.cpus},\n        randomize=FALSE\n        )\n\n    # optional NovaSeq binning error correction\n    if (as.logical('${params.qualityBinning}') == TRUE ) {\n        print(\"Running binning correction\")\n        errs <- t(apply(getErrors(errF), 1, function(x) { x[x < x[40]] = x[40]; return(x)} ))\n        errF\\$err_out <- errs\n        errs <- t(apply(getErrors(errR), 1, function(x) { x[x < x[40]] = x[40]; return(x)} ))\n        errR\\$err_out <- errs\n    }\n\n    pdf(\"err_${key}.pdf\")\n    plotErrors(errF, nominalQ=TRUE)\n    plotErrors(errR, nominalQ=TRUE)\n    dev.off()\n\n    saveRDS(errF, \"errorsF_${key}.RDS\")\n    saveRDS(errR, \"errorsR_${key}.RDS\")\n    \"\"\"\n}",
+        "nb_lignes_process": 56,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")    \n    setDadaOpt(${params.dadaOpt.collect{k,v->\"$k=$v\"}.join(\", \")})\n\n    # File parsing\n    filtFs <- list.files('.', pattern=\"${key}.*R1.filtered.fastq.gz\", full.names = TRUE)\n    filtRs <- list.files('.', pattern=\"${key}.*R2.filtered.fastq.gz\", full.names = TRUE)\n    \n    #TODO Change this to new param: dada2 seed?\n    set.seed(100)\n\n    # Learn error rates\n    errF <- learnErrors(filtFs,         \n        nbases=${params.errbases},\n        errorEstimationFunction=${params.errfun},\n        multithread=${task.cpus},\n        randomize=FALSE\n        )\n    errR <- learnErrors(filtRs,\n        nbases=${params.errbases},\n        errorEstimationFunction=${params.errfun},\n        multithread=${task.cpus},\n        randomize=FALSE\n        )\n\n    # optional NovaSeq binning error correction\n    if (as.logical('${params.qualityBinning}') == TRUE ) {\n        print(\"Running binning correction\")\n        errs <- t(apply(getErrors(errF), 1, function(x) { x[x < x[40]] = x[40]; return(x)} ))\n        errF\\$err_out <- errs\n        errs <- t(apply(getErrors(errR), 1, function(x) { x[x < x[40]] = x[40]; return(x)} ))\n        errR\\$err_out <- errs\n    }\n\n    pdf(\"err_${key}.pdf\")\n    plotErrors(errF, nominalQ=TRUE)\n    plotErrors(errR, nominalQ=TRUE)\n    dev.off()\n\n    saveRDS(errF, \"errorsF_${key}.RDS\")\n    saveRDS(errR, \"errorsR_${key}.RDS\")\n    \"\"\"",
+        "nb_lignes_script": 42,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "filtReadsErrKey"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "errorsFor",
+            "errorsRev"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"dada2_learn_errors\" }",
+            "publishDir \"${params.outdir}/qc\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dada2_pooled": {
+        "name_process": "dada2_pooled",
+        "string_process": " process dada2_pooled {\n        tag { \"dada2_pooled\" }\n        publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true\n\n        input:\n        set key, file(reads) from filtReadsKey.view()\n        file(errFor) from errorsFor\n        file(errRev) from errorsRev\n\n        output:\n        file \"seqtab.RDS\" into seqTable,rawSeqTableToRename\n        file \"*.mergers.RDS\" into merged_read_tracking\n        file \"*.dadaFs.RDS\" into dada_for_read_tracking\n        file \"*.dadaRs.RDS\" into dada_rev_read_tracking\n        file \"seqtab.*\"\n\n        script:\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        setDadaOpt(${params.dadaOpt.collect{k,v->\"$k=$v\"}.join(\", \")})\n        filtFs <- list.files('.', pattern=\"${key}.*R1.filtered.fastq.gz\", full.names = TRUE)\n        filtRs <- list.files('.', pattern=\"${key}.*R2.filtered.fastq.gz\", full.names = TRUE)\n\n        errF <- readRDS(\"${errFor}\")\n        errR <- readRDS(\"${errRev}\")\n        cat(\"Processing all samples\")\n\n        #Variable selection from CLI input flag --pool\n        pool <- \"${params.pool}\"\n        if(pool == \"T\" || pool == \"TRUE\"){\n          pool <- as.logical(pool)\n        }\n        dadaFs <- dada(filtFs, err=errF, multithread=${task.cpus}, pool=pool)\n        dadaRs <- dada(filtRs, err=errR, multithread=${task.cpus}, pool=pool)\n\n        mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs,\n            returnRejects = TRUE,\n            minOverlap = ${params.minOverlap},\n            maxMismatch = ${params.maxMismatch},\n            trimOverhang = as.logical(\"${params.trimOverhang}\"),\n            justConcatenate = as.logical(\"${params.justConcatenate}\")\n            )\n\n        # TODO: make this a single item list with ID as the name, this is lost\n        # further on\n        saveRDS(mergers, \"${key}.mergers.RDS\")\n\n        saveRDS(dadaFs, \"${key}.dadaFs.RDS\")\n        saveRDS(dadaRs, \"${key}.dadaRs.RDS\")\n\n        # go ahead and make seqtable\n        seqtab <- makeSequenceTable(mergers)\n        saveRDS(seqtab, \"seqtab.RDS\")\n        \n        # Track reads\n        getN <- function(x){sum(getUniques(x))}\n        dada_out <- cbind(sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN)) %>%\n            magrittr::set_colnames(c(\"dadaFs\", \"dadaRs\", \"merged\")) %>%\n            as.data.frame()\n            \n        # TODO: change this to flow cell id\n        write.csv(dada_out, \"dada_${key}.csv\") \n        \"\"\"\n        }",
+        "nb_lignes_process": 64,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        setDadaOpt(${params.dadaOpt.collect{k,v->\"$k=$v\"}.join(\", \")})\n        filtFs <- list.files('.', pattern=\"${key}.*R1.filtered.fastq.gz\", full.names = TRUE)\n        filtRs <- list.files('.', pattern=\"${key}.*R2.filtered.fastq.gz\", full.names = TRUE)\n\n        errF <- readRDS(\"${errFor}\")\n        errR <- readRDS(\"${errRev}\")\n        cat(\"Processing all samples\")\n\n        #Variable selection from CLI input flag --pool\n        pool <- \"${params.pool}\"\n        if(pool == \"T\" || pool == \"TRUE\"){\n          pool <- as.logical(pool)\n        }\n        dadaFs <- dada(filtFs, err=errF, multithread=${task.cpus}, pool=pool)\n        dadaRs <- dada(filtRs, err=errR, multithread=${task.cpus}, pool=pool)\n\n        mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs,\n            returnRejects = TRUE,\n            minOverlap = ${params.minOverlap},\n            maxMismatch = ${params.maxMismatch},\n            trimOverhang = as.logical(\"${params.trimOverhang}\"),\n            justConcatenate = as.logical(\"${params.justConcatenate}\")\n            )\n\n        # TODO: make this a single item list with ID as the name, this is lost\n        # further on\n        saveRDS(mergers, \"${key}.mergers.RDS\")\n\n        saveRDS(dadaFs, \"${key}.dadaFs.RDS\")\n        saveRDS(dadaRs, \"${key}.dadaRs.RDS\")\n\n        # go ahead and make seqtable\n        seqtab <- makeSequenceTable(mergers)\n        saveRDS(seqtab, \"seqtab.RDS\")\n        \n        # Track reads\n        getN <- function(x){sum(getUniques(x))}\n        dada_out <- cbind(sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN)) %>%\n            magrittr::set_colnames(c(\"dadaFs\", \"dadaRs\", \"merged\")) %>%\n            as.data.frame()\n            \n        # TODO: change this to flow cell id\n        write.csv(dada_out, \"dada_${key}.csv\") \n        \"\"\"",
+        "nb_lignes_script": 47,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "filtReadsKey",
+            "errorsFor",
+            "errorsRev"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "seqTable",
+            "rawSeqTableToRename",
+            "merged_read_tracking",
+            "dada_for_read_tracking",
+            "dada_rev_read_tracking"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"dada2_pooled\" }",
+            "publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dada2_persample": {
+        "name_process": "dada2_persample",
+        "string_process": " process dada2_persample {\n        tag { \"dada2_persample\" }\n        publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true\n\n        input:\n        set val(fastq_id), file(filtFor), file(filtRev) from filteredReads\n        file errFor from errorsFor\n        file errRev from errorsRev\n\n        output:\n        file \"seqtab.RDS\" into seqTable\n        file \"all.mergers.RDS\" into merged_read_tracking\n        file \"all.dadaFs.RDS\" into dada_for_read_tracking\n        file \"all.dadaRs.RDS\" into dada_rev_read_tracking\n        file \"seqtab.*\"\n\n        script:\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        setDadaOpt(${params.dadaOpt.collect{k,v->\"$k=$v\"}.join(\", \")})\n\n        errF <- readRDS(\"${errFor}\")\n        errR <- readRDS(\"${errRev}\")\n        cat(\"Processing:\", \"${fastq_id}\", \"\\\\n\")\n        \n        filtFs <- \"${filtFor}\"\n        filtRs <- \"${filtRev}\"\n\n        dadaFs <- dada(filtFs, err=errF, multithread=${task.cpus}, pool=as.logical(\"${params.pool}\"))\n        dadaRs <- dada(filtRs, err=errR, multithread=${task.cpus}, pool=as.logical(\"${params.pool}\"))\n\n        merger <- mergePairs(dadaFs, filtFs, dadaRs, filtRs,\n            returnRejects = TRUE,\n            minOverlap = ${params.minOverlap},\n            maxMismatch = ${params.maxMismatch},\n            trimOverhang = as.logical(\"${params.trimOverhang}\"),\n            justConcatenate=as.logical(\"${params.justConcatenate}\")\n            )\n\n        saveRDS(merger, paste(\"${fastq_id}\", \"merged\", \"RDS\", sep=\".\"))\n\n        saveRDS(dadaFs, \"all.dadaFs.RDS\")\n        saveRDS(dadaRs, \"all.dadaRs.RDS\")\n        \"\"\"\n    }",
+        "nb_lignes_process": 44,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        setDadaOpt(${params.dadaOpt.collect{k,v->\"$k=$v\"}.join(\", \")})\n\n        errF <- readRDS(\"${errFor}\")\n        errR <- readRDS(\"${errRev}\")\n        cat(\"Processing:\", \"${fastq_id}\", \"\\\\n\")\n        \n        filtFs <- \"${filtFor}\"\n        filtRs <- \"${filtRev}\"\n\n        dadaFs <- dada(filtFs, err=errF, multithread=${task.cpus}, pool=as.logical(\"${params.pool}\"))\n        dadaRs <- dada(filtRs, err=errR, multithread=${task.cpus}, pool=as.logical(\"${params.pool}\"))\n\n        merger <- mergePairs(dadaFs, filtFs, dadaRs, filtRs,\n            returnRejects = TRUE,\n            minOverlap = ${params.minOverlap},\n            maxMismatch = ${params.maxMismatch},\n            trimOverhang = as.logical(\"${params.trimOverhang}\"),\n            justConcatenate=as.logical(\"${params.justConcatenate}\")\n            )\n\n        saveRDS(merger, paste(\"${fastq_id}\", \"merged\", \"RDS\", sep=\".\"))\n\n        saveRDS(dadaFs, \"all.dadaFs.RDS\")\n        saveRDS(dadaRs, \"all.dadaRs.RDS\")\n        \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "filteredReads",
+            "errorsFor",
+            "errorsRev"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "seqTable",
+            "merged_read_tracking",
+            "dada_for_read_tracking",
+            "dada_rev_read_tracking"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"dada2_persample\" }",
+            "publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_dada_rds": {
+        "name_process": "merge_dada_rds",
+        "string_process": " process merge_dada_rds {\n        tag { \"merge_dada_rds\" }\n        publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true\n\n        input:\n        file dadaFs from dadaFor.collect()\n        file dadaRs from dadaRev.collect()\n\n        output:\n        file \"all.dadaFs.RDS\" into dada_for_read_tracking\n        file \"all.dadaRs.RDS\" into dada_rev_read_tracking\n\n        script:\n        '''\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")\n\n        dadaFs <- lapply(list.files(path = '.', pattern = '.dadaFs.RDS$'), function (x) readRDS(x))\n        names(dadaFs) <- sub('.dadaFs.RDS', '', list.files('.', pattern = '.dadaFs.RDS'))\n        dadaRs <- lapply(list.files(path = '.', pattern = '.dadaRs.RDS$'), function (x) readRDS(x))\n        names(dadaRs) <- sub('.dadaRs.RDS', '', list.files('.', pattern = '.dadaRs.RDS'))\n        saveRDS(dadaFs, \"all.dadaFs.RDS\")\n        saveRDS(dadaRs, \"all.dadaRs.RDS\")\n        '''\n    }",
+        "nb_lignes_process": 23,
+        "string_script": "        '''\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")\n\n        dadaFs <- lapply(list.files(path = '.', pattern = '.dadaFs.RDS$'), function (x) readRDS(x))\n        names(dadaFs) <- sub('.dadaFs.RDS', '', list.files('.', pattern = '.dadaFs.RDS'))\n        dadaRs <- lapply(list.files(path = '.', pattern = '.dadaRs.RDS$'), function (x) readRDS(x))\n        names(dadaRs) <- sub('.dadaRs.RDS', '', list.files('.', pattern = '.dadaRs.RDS'))\n        saveRDS(dadaFs, \"all.dadaFs.RDS\")\n        saveRDS(dadaRs, \"all.dadaRs.RDS\")\n        '''",
+        "nb_lignes_script": 10,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dadaFor",
+            "dadaRev"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "dada_for_read_tracking",
+            "dada_rev_read_tracking"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"merge_dada_rds\" }",
+            "publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "make_seqtab": {
+        "name_process": "make_seqtab",
+        "string_process": " process make_seqtab {\n        tag { \"make_seqtab\" }\n        publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true\n\n        input:\n        file mr from mergedReads.collect()\n\n        output:\n        file \"seqtab.RDS\" into seqTable,rawSeqTableToRename\n        file \"all.mergers.RDS\" into merged_read_tracking\n\n        script:\n        '''\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        \n        mergerFiles <- list.files(path = '.', pattern = '.*.RDS$')\n        pairIds <- sub('.merged.RDS', '', mergerFiles)\n        mergers <- lapply(mergerFiles, function (x) readRDS(x))\n        names(mergers) <- pairIds\n        seqtab <- makeSequenceTable(mergers)\n        seqtab <- seqtab[,nchar(colnames(seqtab)) >= ${params.minLen}]\n\n        saveRDS(seqtab, \"seqtab.RDS\")\n        saveRDS(mergers, \"all.mergers.RDS\")\n        '''\n    }",
+        "nb_lignes_process": 25,
+        "string_script": "        '''\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        \n        mergerFiles <- list.files(path = '.', pattern = '.*.RDS$')\n        pairIds <- sub('.merged.RDS', '', mergerFiles)\n        mergers <- lapply(mergerFiles, function (x) readRDS(x))\n        names(mergers) <- pairIds\n        seqtab <- makeSequenceTable(mergers)\n        seqtab <- seqtab[,nchar(colnames(seqtab)) >= ${params.minLen}]\n\n        saveRDS(seqtab, \"seqtab.RDS\")\n        saveRDS(mergers, \"all.mergers.RDS\")\n        '''",
+        "nb_lignes_script": 13,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mergedReads"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "seqTable",
+            "rawSeqTableToRename",
+            "merged_read_tracking"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"make_seqtab\" }",
+            "publishDir \"${params.outdir}/qc/dada2\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "asv_filter": {
+        "name_process": "asv_filter",
+        "string_process": "\nprocess asv_filter {\n    tag { \"asv_filter\" }\n    publishDir \"${params.outdir}/rds\", pattern: 'seqtab_final.rds', mode: \"copy\", overwrite: true\n    publishDir \"${params.outdir}/qc\", pattern: 'seqtab_length_dist.pdf', mode: \"copy\", overwrite: true\n    publishDir \"${params.outdir}/qc\", pattern: 'ASV_cleanup_summary.csv', mode: \"copy\", overwrite: true\n\n    input:\n    file st from seqTable\n    file phmm from phmm_ch.ifEmpty( \"\" )\n\n    output:\n    file \"seqtab_final.RDS\" into seqtab_to_tax,seqtab_to_exact,seqtab_to_blast,seqtab_to_rename,seqtab_to_output,seqtab_read_tracking\n    file \"ASV_cleanup_summary.csv\" \n    file \"seqtab_length_dist.pdf\"\n    file \"sample_cleanup_summary.csv\" into asv_read_tracking\n\n    script:\n    chimOpts = params.removeBimeraDenovoOptions != false ? \", ${params.removeBimeraDenovoOptions}\" : ''\n    \n    if (params.coding == true) \n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(Biostrings); packageVersion(\"Biostrings\")\n        require(taxreturn); packageVersion(\"taxreturn\")\n        require(patchwork); packageVersion(\"patchwork\")\n        st.all <- readRDS(\"${st}\")\n\n        # Remove chimeras\n        seqtab_nochim <- removeBimeraDenovo(\n            st.all, \n            method=\"consensus\", \n            multithread=${task.cpus}, \n            verbose=TRUE ${chimOpts} \n            )\n\n        #cut to expected size\n        min_asv_len <- as.numeric(${params.min_asv_len})\n        max_asv_len <- as.numeric(${params.max_asv_len})\n        \n        if(min_asv_len > 0 && max_asv_len > 0){\n            seqtab_cut <- seqtab_nochim[,nchar(colnames(seqtab_nochim)) %in% as.numeric(${params.min_asv_len}):as.numeric(${params.max_asv_len})]\n        } else {\n            seqtab_cut <- seqtab_nochim\n        }\n        \n        seqs <- Biostrings::DNAStringSet(getSequences(seqtab_cut))\n        names(seqs) <- getSequences(seqtab_cut)\n        \n        # Align against phmm if provided    \n        if(file.info(\"${phmm}\")\\$size > 0){\n            model <- readRDS(\"${phmm}\")\n            phmm_filt <- taxreturn::map_to_model(seqs, model = model, min_score = 100, min_length = 100, shave = FALSE, check_frame = TRUE, kmer_threshold = 0.5, k=5, extra = \"fill\")\n            seqs <- Biostrings::DNAStringSet(names(phmm_filt))\n            names(seqs) <- names(phmm_filt)\n        }\n        \n        #Filter sequences containing stop codons        \n        codon_filt <- seqateurs::codon_filter(seqs, genetic.code = \"${params.genetic_code}\")\n        seqtab_final <- seqtab_cut[,colnames(seqtab_cut) %in% names(codon_filt)]                \n        \n        saveRDS(seqtab_final, \"seqtab_final.RDS\")\n        \n        # Summarise reads retained per sample\n        asv_read_tracker <- tibble::enframe(rowSums(seqtab_nochim), name=\"sample_id\", value=\"chimera_filt\") %>%\n            left_join(tibble::enframe(rowSums(seqtab_cut), name=\"sample_id\", value=\"asv_size_filt\")) %>%\n            left_join(tibble::enframe(rowSums(seqtab_final), name=\"sample_id\", value=\"asv_codon_filt\"))\n\n        if(file.info(\"${phmm}\")\\$size > 0){\n            asv_read_tracker <- asv_read_tracker %>%\n                left_join(tibble::enframe(rowSums(seqtab_cut[,colnames(seqtab_cut) %in% names(seqs)]), name=\"sample_id\", value=\"asv_phmm_filt\")) %>%\n                dplyr::select(sample_id, chimera_filt, asv_size_filt, asv_phmm_filt, asv_codon_filt)\n        }\n        write_csv(asv_read_tracker, \"sample_cleanup_summary.csv\")\n        \n        # Track fate of ASV's\n        cleanup <- st.all %>%\n          as.data.frame() %>%\n          tidyr::pivot_longer( everything(),\n            names_to = \"OTU\",\n            values_to = \"Abundance\") %>%\n          dplyr::group_by(OTU) %>%\n          dplyr::summarise(Abundance = sum(Abundance)) %>%\n          dplyr::mutate(length  = nchar(OTU)) %>%\n          dplyr::mutate(type = case_when(\n            !OTU %in% getSequences(seqtab_nochim) ~ \"Chimera\",\n            !OTU %in% getSequences(seqtab_cut) ~ \"Incorrect size\",\n            !OTU %in% getSequences(seqtab_final) ~ \"Stop codons\",\n            TRUE ~ \"Real\"\n          )) \n        write_csv(cleanup, \"ASV_cleanup_summary.csv\")\n        \n        # Output length distribution plots\n        gg.abundance <- ggplot(cleanup, aes(x=length, y=Abundance, fill=type))+\n            geom_bar(stat=\"identity\") + \n            labs(title = \"Abundance of sequences\")\n\n        gg.unique <- ggplot(cleanup, aes(x=length, fill=type))+\n            geom_histogram() + \n            labs(title = \"Number of unique sequences\")\n\n        pdf(paste0(\"seqtab_length_dist.pdf\"), width = 11, height = 8 , paper=\"a4r\")\n          plot(gg.abundance / gg.unique)\n        try(dev.off(), silent=TRUE)\n        \"\"\"\n    else if (params.coding == false) \n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(Biostrings); packageVersion(\"Biostrings\")\n        require(patchwork); packageVersion(\"patchwork\")\n        \n        st.all <- readRDS(\"${st}\")\n\n        # Remove chimeras\n        seqtab_nochim <- removeBimeraDenovo(\n            st.all, \n            method=\"consensus\", \n            multithread=${task.cpus}, \n            verbose=TRUE ${chimOpts} \n            )\n\n        #cut to expected size\n        min_asv_len <- as.numeric(${params.min_asv_len})\n        max_asv_len <- as.numeric(${params.max_asv_len})\n        \n        if(min_asv_len > 0 && max_asv_len > 0){\n            seqtab_final <- seqtab_nochim[,nchar(colnames(seqtab_nochim)) %in% as.numeric(${params.min_asv_len}):as.numeric(${params.max_asv_len})]\n        } else {\n            seqtab_final <- seqtab_nochim\n        }       \n        \n        saveRDS(seqtab_final, \"seqtab_final.RDS\")       \n\n        # Summarise reads retained per sample\n        asv_read_tracker <- tibble::enframe(rowSums(seqtab_nochim), name=\"sample_id\", value=\"chimera_filt\") %>%\n            left_join(tibble::enframe(rowSums(seqtab_final), name=\"sample_id\", value=\"asv_size_filt\"))\n\n        write_csv(asv_read_tracker, \"sample_cleanup_summary.csv\")\n        \n        # Track fate of ASV's\n        cleanup <- st.all %>%\n          as.data.frame() %>%\n          tidyr::pivot_longer( everything(),\n            names_to = \"OTU\",\n            values_to = \"Abundance\") %>%\n          dplyr::group_by(OTU) %>%\n          dplyr::summarise(Abundance = sum(Abundance)) %>%\n          dplyr::mutate(length  = nchar(OTU)) %>%\n          dplyr::mutate(type = case_when(\n            !OTU %in% getSequences(seqtab_nochim) ~ \"Chimera\",\n            !OTU %in% getSequences(seqtab_final) ~ \"Incorrect size\",\n            TRUE ~ \"Real\"\n          )) \n        readr::write_csv(cleanup, \"ASV_cleanup_summary.csv\")\n        \n        # Output length distribution plots\n        gg.abundance <- ggplot(cleanup, aes(x=length, y=Abundance, fill=type))+\n            geom_bar(stat=\"identity\") + \n            labs(title = \"Abundance of sequences\")\n\n        gg.unique <- ggplot(cleanup, aes(x=length, fill=type))+\n            geom_histogram() + \n            labs(title = \"Number of unique sequences\")\n\n        pdf(paste0(\"seqtab_length_dist.pdf\"), width = 11, height = 8 , paper=\"a4r\")\n          plot(gg.abundance / gg.unique)\n        try(dev.off(), silent=TRUE)\n        \"\"\"\n}",
+        "nb_lignes_process": 171,
+        "string_script": "    chimOpts = params.removeBimeraDenovoOptions != false ? \", ${params.removeBimeraDenovoOptions}\" : ''\n    \n    if (params.coding == true) \n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(Biostrings); packageVersion(\"Biostrings\")\n        require(taxreturn); packageVersion(\"taxreturn\")\n        require(patchwork); packageVersion(\"patchwork\")\n        st.all <- readRDS(\"${st}\")\n\n        # Remove chimeras\n        seqtab_nochim <- removeBimeraDenovo(\n            st.all, \n            method=\"consensus\", \n            multithread=${task.cpus}, \n            verbose=TRUE ${chimOpts} \n            )\n\n        #cut to expected size\n        min_asv_len <- as.numeric(${params.min_asv_len})\n        max_asv_len <- as.numeric(${params.max_asv_len})\n        \n        if(min_asv_len > 0 && max_asv_len > 0){\n            seqtab_cut <- seqtab_nochim[,nchar(colnames(seqtab_nochim)) %in% as.numeric(${params.min_asv_len}):as.numeric(${params.max_asv_len})]\n        } else {\n            seqtab_cut <- seqtab_nochim\n        }\n        \n        seqs <- Biostrings::DNAStringSet(getSequences(seqtab_cut))\n        names(seqs) <- getSequences(seqtab_cut)\n        \n        # Align against phmm if provided    \n        if(file.info(\"${phmm}\")\\$size > 0){\n            model <- readRDS(\"${phmm}\")\n            phmm_filt <- taxreturn::map_to_model(seqs, model = model, min_score = 100, min_length = 100, shave = FALSE, check_frame = TRUE, kmer_threshold = 0.5, k=5, extra = \"fill\")\n            seqs <- Biostrings::DNAStringSet(names(phmm_filt))\n            names(seqs) <- names(phmm_filt)\n        }\n        \n        #Filter sequences containing stop codons        \n        codon_filt <- seqateurs::codon_filter(seqs, genetic.code = \"${params.genetic_code}\")\n        seqtab_final <- seqtab_cut[,colnames(seqtab_cut) %in% names(codon_filt)]                \n        \n        saveRDS(seqtab_final, \"seqtab_final.RDS\")\n        \n        # Summarise reads retained per sample\n        asv_read_tracker <- tibble::enframe(rowSums(seqtab_nochim), name=\"sample_id\", value=\"chimera_filt\") %>%\n            left_join(tibble::enframe(rowSums(seqtab_cut), name=\"sample_id\", value=\"asv_size_filt\")) %>%\n            left_join(tibble::enframe(rowSums(seqtab_final), name=\"sample_id\", value=\"asv_codon_filt\"))\n\n        if(file.info(\"${phmm}\")\\$size > 0){\n            asv_read_tracker <- asv_read_tracker %>%\n                left_join(tibble::enframe(rowSums(seqtab_cut[,colnames(seqtab_cut) %in% names(seqs)]), name=\"sample_id\", value=\"asv_phmm_filt\")) %>%\n                dplyr::select(sample_id, chimera_filt, asv_size_filt, asv_phmm_filt, asv_codon_filt)\n        }\n        write_csv(asv_read_tracker, \"sample_cleanup_summary.csv\")\n        \n        # Track fate of ASV's\n        cleanup <- st.all %>%\n          as.data.frame() %>%\n          tidyr::pivot_longer( everything(),\n            names_to = \"OTU\",\n            values_to = \"Abundance\") %>%\n          dplyr::group_by(OTU) %>%\n          dplyr::summarise(Abundance = sum(Abundance)) %>%\n          dplyr::mutate(length  = nchar(OTU)) %>%\n          dplyr::mutate(type = case_when(\n            !OTU %in% getSequences(seqtab_nochim) ~ \"Chimera\",\n            !OTU %in% getSequences(seqtab_cut) ~ \"Incorrect size\",\n            !OTU %in% getSequences(seqtab_final) ~ \"Stop codons\",\n            TRUE ~ \"Real\"\n          )) \n        write_csv(cleanup, \"ASV_cleanup_summary.csv\")\n        \n        # Output length distribution plots\n        gg.abundance <- ggplot(cleanup, aes(x=length, y=Abundance, fill=type))+\n            geom_bar(stat=\"identity\") + \n            labs(title = \"Abundance of sequences\")\n\n        gg.unique <- ggplot(cleanup, aes(x=length, fill=type))+\n            geom_histogram() + \n            labs(title = \"Number of unique sequences\")\n\n        pdf(paste0(\"seqtab_length_dist.pdf\"), width = 11, height = 8 , paper=\"a4r\")\n          plot(gg.abundance / gg.unique)\n        try(dev.off(), silent=TRUE)\n        \"\"\"\n    else if (params.coding == false) \n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(dada2); packageVersion(\"dada2\")        \n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(Biostrings); packageVersion(\"Biostrings\")\n        require(patchwork); packageVersion(\"patchwork\")\n        \n        st.all <- readRDS(\"${st}\")\n\n        # Remove chimeras\n        seqtab_nochim <- removeBimeraDenovo(\n            st.all, \n            method=\"consensus\", \n            multithread=${task.cpus}, \n            verbose=TRUE ${chimOpts} \n            )\n\n        #cut to expected size\n        min_asv_len <- as.numeric(${params.min_asv_len})\n        max_asv_len <- as.numeric(${params.max_asv_len})\n        \n        if(min_asv_len > 0 && max_asv_len > 0){\n            seqtab_final <- seqtab_nochim[,nchar(colnames(seqtab_nochim)) %in% as.numeric(${params.min_asv_len}):as.numeric(${params.max_asv_len})]\n        } else {\n            seqtab_final <- seqtab_nochim\n        }       \n        \n        saveRDS(seqtab_final, \"seqtab_final.RDS\")       \n\n        # Summarise reads retained per sample\n        asv_read_tracker <- tibble::enframe(rowSums(seqtab_nochim), name=\"sample_id\", value=\"chimera_filt\") %>%\n            left_join(tibble::enframe(rowSums(seqtab_final), name=\"sample_id\", value=\"asv_size_filt\"))\n\n        write_csv(asv_read_tracker, \"sample_cleanup_summary.csv\")\n        \n        # Track fate of ASV's\n        cleanup <- st.all %>%\n          as.data.frame() %>%\n          tidyr::pivot_longer( everything(),\n            names_to = \"OTU\",\n            values_to = \"Abundance\") %>%\n          dplyr::group_by(OTU) %>%\n          dplyr::summarise(Abundance = sum(Abundance)) %>%\n          dplyr::mutate(length  = nchar(OTU)) %>%\n          dplyr::mutate(type = case_when(\n            !OTU %in% getSequences(seqtab_nochim) ~ \"Chimera\",\n            !OTU %in% getSequences(seqtab_final) ~ \"Incorrect size\",\n            TRUE ~ \"Real\"\n          )) \n        readr::write_csv(cleanup, \"ASV_cleanup_summary.csv\")\n        \n        # Output length distribution plots\n        gg.abundance <- ggplot(cleanup, aes(x=length, y=Abundance, fill=type))+\n            geom_bar(stat=\"identity\") + \n            labs(title = \"Abundance of sequences\")\n\n        gg.unique <- ggplot(cleanup, aes(x=length, fill=type))+\n            geom_histogram() + \n            labs(title = \"Number of unique sequences\")\n\n        pdf(paste0(\"seqtab_length_dist.pdf\"), width = 11, height = 8 , paper=\"a4r\")\n          plot(gg.abundance / gg.unique)\n        try(dev.off(), silent=TRUE)\n        \"\"\"",
+        "nb_lignes_script": 153,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqTable",
+            "phmm_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "seqtab_to_tax",
+            "seqtab_to_exact",
+            "seqtab_to_blast",
+            "seqtab_to_rename",
+            "seqtab_to_output",
+            "seqtab_read_tracking",
+            "asv_read_tracking"
+        ],
+        "nb_outputs": 7,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"asv_filter\" }",
+            "publishDir \"${params.outdir}/rds\", pattern: 'seqtab_final.rds', mode: \"copy\", overwrite: true",
+            "publishDir \"${params.outdir}/qc\", pattern: 'seqtab_length_dist.pdf', mode: \"copy\", overwrite: true",
+            "publishDir \"${params.outdir}/qc\", pattern: 'ASV_cleanup_summary.csv', mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assign_tax_rdp": {
+        "name_process": "assign_tax_rdp",
+        "string_process": " process assign_tax_rdp {\n            tag { \"assign_tax_rdp\" }\n            publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true\n\n            input:\n            file st from seqtab_to_tax\n            file ref from ref_file\n\n            output:\n            file \"tax_rdp.RDS\" into tax_to_combine\n            file \"bootstrap_final.RDS\" into bootstrapFinal\n\n            script:\n            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")             \n            \n            if (!stringr::str_detect(\"${ref_file}\", \".fasta|.fa|.fa.gz|.fasta.gz|.fas\")){\n                stop(\"reference file for RDP must be a fasta file\")\n            }\n            seqtab <- readRDS(\"${st}\")\n\n            # Assign taxonomy\n            tax <- assignTaxonomy(seqtab, \"${ref}\",\n                                    multithread=${task.cpus},\n                                    tryRC = TRUE,\n                                    outputBootstraps = TRUE,\n                                    minBoot = ${params.minBoot},\n                                    verbose = TRUE)\n            boots <- tax\\$boot\n                         \n            # Write original data\n            saveRDS(tax, \"tax_rdp.RDS\")\n            saveRDS(boots, \"bootstrap_final.RDS\")\n            \"\"\"\n        }",
+        "nb_lignes_process": 34,
+        "string_script": "            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")             \n            \n            if (!stringr::str_detect(\"${ref_file}\", \".fasta|.fa|.fa.gz|.fasta.gz|.fas\")){\n                stop(\"reference file for RDP must be a fasta file\")\n            }\n            seqtab <- readRDS(\"${st}\")\n\n            # Assign taxonomy\n            tax <- assignTaxonomy(seqtab, \"${ref}\",\n                                    multithread=${task.cpus},\n                                    tryRC = TRUE,\n                                    outputBootstraps = TRUE,\n                                    minBoot = ${params.minBoot},\n                                    verbose = TRUE)\n            boots <- tax\\$boot\n                         \n            # Write original data\n            saveRDS(tax, \"tax_rdp.RDS\")\n            saveRDS(boots, \"bootstrap_final.RDS\")\n            \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqtab_to_tax",
+            "ref_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "tax_to_combine",
+            "bootstrapFinal"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"assign_tax_rdp\" }",
+            "publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assign_tax_idtaxa": {
+        "name_process": "assign_tax_idtaxa",
+        "string_process": " process assign_tax_idtaxa {\n            tag { \"assign_tax_idtaxa\" }\n            publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true\n\n            input:\n            file st from seqtab_to_tax\n            file ref from ref_file\n\n            output:\n            file \"tax_idtaxa.RDS\" into tax_to_combine\n            file \"bootstrap_final.RDS\" into bootstrapFinal\n            file \"raw_idtaxa.RDS\"\n\n            script:\n            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(DECIPHER); packageVersion(\"DECIPHER\")\n            require(tidyverse); packageVersion(\"tidyverse\")\n            require(seqateurs); packageVersion(\"seqateurs\")\n            require(stringr); packageVersion(\"stringr\")\n            require(stringi); packageVersion(\"stringi\")\n            \n            seqtab <- readRDS(\"${st}\")\n\n            # Create a DNAStringSet from the ASVs\n            dna <- DNAStringSet(getSequences(seqtab))\n\n            # load database; this should be a RData file\n            if (stringr::str_detect(\"${ref_file}\", \".RData\")){\n                load(\"${ref_file}\")\n            } else if(stringr::str_detect(\"${ref_file}\", \".rds\")){\n                trainingSet <- readRDS(\"${ref_file}\")\n            } else {\n                stop(\"reference file for IDTAXA must be in .RData or .RDS format\")\n            }\n\n            ids <- IdTaxa(dna, trainingSet,\n                strand=\"top\",\n                processors=${task.cpus},\n                verbose=TRUE)\n                \n            # ranks of interest\n            ranks <-  c(\"root\", \"kingdom\", \"phylum\",\"class\", \"order\", \"family\", \"genus\",\"species\") \n            saveRDS(ids, 'raw_idtaxa.RDS')\n\n            #Convert the output object of class \"Taxa\" to a matrix analogous to the output from assignTaxonomy\n            tax <- t(sapply(ids, function(x) {\n              taxa <- paste0(x\\$taxon,\"_\", x\\$confidence)\n              taxa[startsWith(taxa, \"unclassified_\")] <- NA\n              taxa\n            })) %>%\n              purrr::map(unlist) %>%\n              stri_list2matrix(byrow=TRUE, fill=NA) %>%\n              magrittr::set_colnames(ranks) %>%\n              as.data.frame() %>%\n              magrittr::set_rownames(getSequences(seqtab)) %>%\n              mutate_all(str_replace,pattern=\"(?:.(?!_))+\\$\", replacement=\"\")\n\n            boots <- t(sapply(ids, function(x) {\n                    m <- match(ranks, x\\$rank)\n                    bs <- x\\$confidence[m]\n                    bs\n            }))\n            colnames(boots) <- ranks\n            rownames(boots) <- getSequences(seqtab)\n\n            # Write to disk\n            saveRDS(tax, \"tax_idtaxa.RDS\")\n            saveRDS(boots, \"bootstrap_final.RDS\")\n            \"\"\"\n        }",
+        "nb_lignes_process": 70,
+        "string_script": "            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(DECIPHER); packageVersion(\"DECIPHER\")\n            require(tidyverse); packageVersion(\"tidyverse\")\n            require(seqateurs); packageVersion(\"seqateurs\")\n            require(stringr); packageVersion(\"stringr\")\n            require(stringi); packageVersion(\"stringi\")\n            \n            seqtab <- readRDS(\"${st}\")\n\n            # Create a DNAStringSet from the ASVs\n            dna <- DNAStringSet(getSequences(seqtab))\n\n            # load database; this should be a RData file\n            if (stringr::str_detect(\"${ref_file}\", \".RData\")){\n                load(\"${ref_file}\")\n            } else if(stringr::str_detect(\"${ref_file}\", \".rds\")){\n                trainingSet <- readRDS(\"${ref_file}\")\n            } else {\n                stop(\"reference file for IDTAXA must be in .RData or .RDS format\")\n            }\n\n            ids <- IdTaxa(dna, trainingSet,\n                strand=\"top\",\n                processors=${task.cpus},\n                verbose=TRUE)\n                \n            # ranks of interest\n            ranks <-  c(\"root\", \"kingdom\", \"phylum\",\"class\", \"order\", \"family\", \"genus\",\"species\") \n            saveRDS(ids, 'raw_idtaxa.RDS')\n\n            #Convert the output object of class \"Taxa\" to a matrix analogous to the output from assignTaxonomy\n            tax <- t(sapply(ids, function(x) {\n              taxa <- paste0(x\\$taxon,\"_\", x\\$confidence)\n              taxa[startsWith(taxa, \"unclassified_\")] <- NA\n              taxa\n            })) %>%\n              purrr::map(unlist) %>%\n              stri_list2matrix(byrow=TRUE, fill=NA) %>%\n              magrittr::set_colnames(ranks) %>%\n              as.data.frame() %>%\n              magrittr::set_rownames(getSequences(seqtab)) %>%\n              mutate_all(str_replace,pattern=\"(?:.(?!_))+\\$\", replacement=\"\")\n\n            boots <- t(sapply(ids, function(x) {\n                    m <- match(ranks, x\\$rank)\n                    bs <- x\\$confidence[m]\n                    bs\n            }))\n            colnames(boots) <- ranks\n            rownames(boots) <- getSequences(seqtab)\n\n            # Write to disk\n            saveRDS(tax, \"tax_idtaxa.RDS\")\n            saveRDS(boots, \"bootstrap_final.RDS\")\n            \"\"\"",
+        "nb_lignes_script": 56,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqtab_to_tax",
+            "ref_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "tax_to_combine",
+            "bootstrapFinal"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"assign_tax_idtaxa\" }",
+            "publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assign_tax_exact": {
+        "name_process": "assign_tax_exact",
+        "string_process": " process assign_tax_exact {\n            tag { \"assign_tax_exact\" }\n            publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true\n            \n            input:\n            file st from seqtab_to_exact\n            file ref from species_file\n            \n            output:\n            file \"tax_exact.RDS\" into exact_to_combine\n            \n            script:\n            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(tidyverse); packageVersion(\"tidyverse\")\n            \n            seqtab <- readRDS(\"${st}\")\n            \n            # Assign species using exact matching\n            tax_exact <- assignSpecies(seqtab, \"${ref}\", allowMultiple = TRUE, tryRC = TRUE, verbose = FALSE) %>%\n                as_tibble(rownames = \"OTU\") %>%\n                filter(!is.na(Species)) %>%\n                dplyr::mutate(binomial = paste0(Genus,\" \",Species)) %>%\n                dplyr::rename(exact_genus = Genus, exact_species = Species)\n            \n            # Write to disk\n            saveRDS(tax_exact, \"tax_exact.RDS\")\n            \"\"\"\n            \n           }",
+        "nb_lignes_process": 29,
+        "string_script": "            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(tidyverse); packageVersion(\"tidyverse\")\n            \n            seqtab <- readRDS(\"${st}\")\n            \n            # Assign species using exact matching\n            tax_exact <- assignSpecies(seqtab, \"${ref}\", allowMultiple = TRUE, tryRC = TRUE, verbose = FALSE) %>%\n                as_tibble(rownames = \"OTU\") %>%\n                filter(!is.na(Species)) %>%\n                dplyr::mutate(binomial = paste0(Genus,\" \",Species)) %>%\n                dplyr::rename(exact_genus = Genus, exact_species = Species)\n            \n            # Write to disk\n            saveRDS(tax_exact, \"tax_exact.RDS\")\n            \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqtab_to_exact",
+            "species_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "exact_to_combine"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"assign_tax_exact\" }",
+            "publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assign_tax_blast": {
+        "name_process": "assign_tax_blast",
+        "string_process": " process assign_tax_blast {\n            tag { \"assign_tax_blast\" }\n            publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true\n            \n            input:\n            file st from seqtab_to_blast\n            file ref from blast_file\n            \n            output:\n            file \"tax_blast.RDS\" into blast_to_combine\n            \n            script:\n            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(DECIPHER); packageVersion(\"DECIPHER\")\n            require(tidyverse); packageVersion(\"tidyverse\")\n            require(seqateurs); packageVersion(\"seqateurs\")\n            require(taxreturn); packageVersion(\"taxreturn\")\n            \n            seqtab <- readRDS(\"${st}\")\n            \n            # Add species using BLAST\n            seqs <- taxreturn::char2DNAbin(colnames(seqtab))\n            names(seqs) <- colnames(seqtab) \n            \n            # TODO: allow editing of these BLAST parameters\n            tax_blast <- taxreturn::blast_assign_species(query=seqs, db=\"${ref}\", identity=97, coverage=95, evalue=1e06, max_target_seqs=5, max_hsp=5,\n                ranks=c(\"Root\", \"Kingdom\", \"Phylum\",\"Class\", \"Order\", \"Family\", \"Genus\",\"Species\"), delim=\";\") %>%\n                dplyr::rename(blast_genus = Genus, blast_spp = Species) %>%\n                dplyr::filter(!is.na(blast_spp))\n            \n            # Write to disk\n            saveRDS(tax_blast, \"tax_blast.RDS\")            \n            \"\"\"\n            \n           }",
+        "nb_lignes_process": 35,
+        "string_script": "            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(DECIPHER); packageVersion(\"DECIPHER\")\n            require(tidyverse); packageVersion(\"tidyverse\")\n            require(seqateurs); packageVersion(\"seqateurs\")\n            require(taxreturn); packageVersion(\"taxreturn\")\n            \n            seqtab <- readRDS(\"${st}\")\n            \n            # Add species using BLAST\n            seqs <- taxreturn::char2DNAbin(colnames(seqtab))\n            names(seqs) <- colnames(seqtab) \n            \n            # TODO: allow editing of these BLAST parameters\n            tax_blast <- taxreturn::blast_assign_species(query=seqs, db=\"${ref}\", identity=97, coverage=95, evalue=1e06, max_target_seqs=5, max_hsp=5,\n                ranks=c(\"Root\", \"Kingdom\", \"Phylum\",\"Class\", \"Order\", \"Family\", \"Genus\",\"Species\"), delim=\";\") %>%\n                dplyr::rename(blast_genus = Genus, blast_spp = Species) %>%\n                dplyr::filter(!is.na(blast_spp))\n            \n            # Write to disk\n            saveRDS(tax_blast, \"tax_blast.RDS\")            \n            \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqtab_to_blast",
+            "blast_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "blast_to_combine"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"assign_tax_blast\" }",
+            "publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_tax": {
+        "name_process": "combine_tax",
+        "string_process": " process combine_tax {\n            tag { \"combine_tax\" }\n            publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true\n\n            input:\n            file(tax) from tax_to_combine\n            file(exact) from exact_to_combine.ifEmpty( \"\" )\n            file(blast) from blast_to_combine.ifEmpty( \"\" )\n            \n            output:\n            file \"tax_final.RDS\" into taxtab_to_output\n\n            script:\n            \"\"\"\n            #!/usr/bin/env Rscript\n            require(tidyverse); packageVersion(\"tidyverse\")\n            require(seqateurs); packageVersion(\"seqateurs\")\n            \n            tax <- readRDS(\"${tax}\") %>%\n                  as_tibble(rownames = \"OTU\")\n            \n            #Join tax with blast\n            if(file.info(\"${blast}\")\\$size > 0){\n                blast_spp <- readRDS(\"${blast}\")\n                tax <- tax  %>%\n                  left_join(blast_spp , by=\"OTU\") %>%\n                  dplyr::mutate(species = case_when(\n                    is.na(species) & genus == blast_genus ~ blast_spp,\n                    !is.na(species) ~ species\n                  )) \n            }\n                  \n            #Join tax with exact matching\n            if(file.info(\"${exact}\")\\$size > 0){\n                exact <- readRDS(\"${exact}\")\n                tax <- tax %>%\n                  left_join(exact, by=\"OTU\") %>%\n                  dplyr::mutate(species = case_when(\n                    is.na(species) & genus == exact_genus ~ binomial,\n                    !is.na(species) ~ species\n                  )) \n            }\n            \n            # Make final tax object\n            ranks <-  c(\"root\", \"kingdom\", \"phylum\",\"class\", \"order\", \"family\", \"genus\",\"species\") \n            tax_final <- tax %>%\n                dplyr::select(OTU, all_of(ranks)) %>%\n                column_to_rownames(\"OTU\") %>%\n                seqateurs::na_to_unclassified() %>% #Propagate high order ranks to unassigned ASVs\n                as.matrix()\n             \n            # Write to disk\n            saveRDS(tax_final, \"tax_final.RDS\")\n            \"\"\"\n    }",
+        "nb_lignes_process": 53,
+        "string_script": "            \"\"\"\n            #!/usr/bin/env Rscript\n            require(tidyverse); packageVersion(\"tidyverse\")\n            require(seqateurs); packageVersion(\"seqateurs\")\n            \n            tax <- readRDS(\"${tax}\") %>%\n                  as_tibble(rownames = \"OTU\")\n            \n            #Join tax with blast\n            if(file.info(\"${blast}\")\\$size > 0){\n                blast_spp <- readRDS(\"${blast}\")\n                tax <- tax  %>%\n                  left_join(blast_spp , by=\"OTU\") %>%\n                  dplyr::mutate(species = case_when(\n                    is.na(species) & genus == blast_genus ~ blast_spp,\n                    !is.na(species) ~ species\n                  )) \n            }\n                  \n            #Join tax with exact matching\n            if(file.info(\"${exact}\")\\$size > 0){\n                exact <- readRDS(\"${exact}\")\n                tax <- tax %>%\n                  left_join(exact, by=\"OTU\") %>%\n                  dplyr::mutate(species = case_when(\n                    is.na(species) & genus == exact_genus ~ binomial,\n                    !is.na(species) ~ species\n                  )) \n            }\n            \n            # Make final tax object\n            ranks <-  c(\"root\", \"kingdom\", \"phylum\",\"class\", \"order\", \"family\", \"genus\",\"species\") \n            tax_final <- tax %>%\n                dplyr::select(OTU, all_of(ranks)) %>%\n                column_to_rownames(\"OTU\") %>%\n                seqateurs::na_to_unclassified() %>% #Propagate high order ranks to unassigned ASVs\n                as.matrix()\n             \n            # Write to disk\n            saveRDS(tax_final, \"tax_final.RDS\")\n            \"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tax_to_combine",
+            "exact_to_combine",
+            "blast_to_combine"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "taxtab_to_output"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"combine_tax\" }",
+            "publishDir \"${params.outdir}/rds\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output_asvs": {
+        "name_process": "output_asvs",
+        "string_process": "\nprocess output_asvs {\n    tag { \"output_asvs\" }\n\n    input:\n    file st from seqtab_to_rename\n    file rawst from rawSeqTableToRename\n\n    output:\n    file \"asvs.${params.idType}.nochim.fna\" into seqsToAln\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2)\n    require(Biostrings)    \n    require(digest)\n    \n    # read RDS w/ data\n    st <- readRDS(\"${st}\")\n    \n    # get sequences\n    seqs <- colnames(st)\n   \n    # generate FASTA\n    seqs.dna <- Biostrings::DNAStringSet(seqs)\n    names(seqs.dna) <- colnames(st)\n    # Write out fasta file\n    Biostrings::writeXStringSet(seqs.dna, filepath = 'asvs.${params.idType}.nochim.fna')\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2)\n    require(Biostrings)    \n    require(digest)\n    \n    # read RDS w/ data\n    st <- readRDS(\"${st}\")\n    \n    # get sequences\n    seqs <- colnames(st)\n   \n    # generate FASTA\n    seqs.dna <- Biostrings::DNAStringSet(seqs)\n    names(seqs.dna) <- colnames(st)\n    # Write out fasta file\n    Biostrings::writeXStringSet(seqs.dna, filepath = 'asvs.${params.idType}.nochim.fna')\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqtab_to_rename",
+            "rawSeqTableToRename"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "seqsToAln"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"output_asvs\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "align_seqs_decipher": {
+        "name_process": "align_seqs_decipher",
+        "string_process": " process align_seqs_decipher {\n            tag { \"align_seqs_decipher\" }\n            publishDir \"${params.outdir}/fasta\", mode: \"copy\", overwrite: true\n            errorStrategy 'ignore'\n\n            input:\n            file seqs from seqsToAln\n\n            output:\n            file \"aligned_seqs.fasta\" optional true into alnFile,aln_to_output\n            \n            script:\n            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(DECIPHER); packageVersion(\"DECIPHER\")\n\n            seqs <- readDNAStringSet(\"${seqs}\")\n            alignment <- AlignSeqs(seqs,\n                                   anchor=NA,\n                                   processors = ${task.cpus})\n            writeXStringSet(alignment, \"aligned_seqs.fasta\")\n            \"\"\"\n        }",
+        "nb_lignes_process": 22,
+        "string_script": "            \"\"\"\n            #!/usr/bin/env Rscript\n            require(dada2); packageVersion(\"dada2\")\n            require(DECIPHER); packageVersion(\"DECIPHER\")\n\n            seqs <- readDNAStringSet(\"${seqs}\")\n            alignment <- AlignSeqs(seqs,\n                                   anchor=NA,\n                                   processors = ${task.cpus})\n            writeXStringSet(alignment, \"aligned_seqs.fasta\")\n            \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqsToAln"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "alnFile",
+            "aln_to_output"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"align_seqs_decipher\" }",
+            "publishDir \"${params.outdir}/fasta\", mode: \"copy\", overwrite: true",
+            "errorStrategy 'ignore'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "make_tree_phangorn": {
+        "name_process": "make_tree_phangorn",
+        "string_process": " process make_tree_phangorn {\n            tag { \"make_tree_phangorn\" }\n            publishDir \"${params.outdir}/trees\", mode: \"copy\", overwrite: true\n\n            input:\n            file aln from alnFile\n\n            output:\n            file \"phangorn.tree.RDS\" into treeRDS\n            file \"tree.newick\" into treeFile\n            file \"tree.GTR.newick\" into treeGTRFile\n\n            script:\n            \"\"\"\n            #!/usr/bin/env Rscript\n            require(phangorn); packageVersion(\"phangorn\")\n\n            phang.align <- read.phyDat(\"aligned_seqs.fasta\",\n                                        format = \"fasta\",\n                                        type = \"DNA\")\n\n            dm <- dist.ml(phang.align)\n            treeNJ <- NJ(dm) # Note, tip order != sequence order\n            fit = pml(treeNJ, data=phang.align)\n            write.tree(fit\\$tree, file = \"tree.newick\")\n\n            ## negative edges length changed to 0!\n            fitGTR <- update(fit, k=4, inv=0.2)\n            fitGTR <- optim.pml(fitGTR, model=\"GTR\", optInv=TRUE, optGamma=TRUE,\n                                  rearrangement = \"stochastic\", control = pml.control(trace = 0))\n            saveRDS(fitGTR, \"phangorn.tree.RDS\")\n            write.tree(fitGTR\\$tree, file = \"tree.GTR.newick\")\n            \"\"\"\n        }",
+        "nb_lignes_process": 32,
+        "string_script": "            \"\"\"\n            #!/usr/bin/env Rscript\n            require(phangorn); packageVersion(\"phangorn\")\n\n            phang.align <- read.phyDat(\"aligned_seqs.fasta\",\n                                        format = \"fasta\",\n                                        type = \"DNA\")\n\n            dm <- dist.ml(phang.align)\n            treeNJ <- NJ(dm) # Note, tip order != sequence order\n            fit = pml(treeNJ, data=phang.align)\n            write.tree(fit\\$tree, file = \"tree.newick\")\n\n            ## negative edges length changed to 0!\n            fitGTR <- update(fit, k=4, inv=0.2)\n            fitGTR <- optim.pml(fitGTR, model=\"GTR\", optInv=TRUE, optGamma=TRUE,\n                                  rearrangement = \"stochastic\", control = pml.control(trace = 0))\n            saveRDS(fitGTR, \"phangorn.tree.RDS\")\n            write.tree(fitGTR\\$tree, file = \"tree.GTR.newick\")\n            \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alnFile"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "treeRDS",
+            "treeFile",
+            "treeGTRFile"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"make_tree_phangorn\" }",
+            "publishDir \"${params.outdir}/trees\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "make_tree_fasttree": {
+        "name_process": "make_tree_fasttree",
+        "string_process": " process make_tree_fasttree {\n            tag { \"make_tree_fasttree\" }\n            publishDir \"${params.outdir}/trees\", mode: \"copy\", overwrite: true\n\n            input:\n            file aln from alnFile\n\n            output:\n            file \"fasttree.tree\" into treeGTRFile\n                                                                       \n\n            script:\n            \"\"\"\n            OMP_NUM_THREADS=${task.cpus} FastTree -nt \\\\\n                -gtr -gamma -spr 4 -mlacc 2 -slownni \\\\\n                -out fasttree.tree \\\\\n                aligned_seqs.fasta\n            \"\"\"\n        }",
+        "nb_lignes_process": 17,
+        "string_script": "            \"\"\"\n            OMP_NUM_THREADS=${task.cpus} FastTree -nt \\\\\n                -gtr -gamma -spr 4 -mlacc 2 -slownni \\\\\n                -out fasttree.tree \\\\\n                aligned_seqs.fasta\n            \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alnFile"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "treeGTRFile"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"make_tree_fasttree\" }",
+            "publishDir \"${params.outdir}/trees\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "root_tree": {
+        "name_process": "root_tree",
+        "string_process": " process root_tree {\n        tag { \"root_tree\" }\n        publishDir \"${params.outdir}/trees\", mode: \"link\"\n\n        input:\n        file tree from treeGTRFile\n\n        output:\n        file \"rooted.newick\" into tree_to_output\n\n        script:\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(phangorn); packageVersion(\"phangorn\")\n        require(ape); packageVersion(\"ape\")\n\n        tree <- read.tree(file = \"${tree}\")\n\n        midtree <- midpoint(tree)\n\n        write.tree(midtree, file = \"rooted.newick\")\n        \"\"\"\n    }",
+        "nb_lignes_process": 21,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env Rscript\n        require(phangorn); packageVersion(\"phangorn\")\n        require(ape); packageVersion(\"ape\")\n\n        tree <- read.tree(file = \"${tree}\")\n\n        midtree <- midpoint(tree)\n\n        write.tree(midtree, file = \"rooted.newick\")\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "treeGTRFile"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "tree_to_output"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"root_tree\" }",
+            "publishDir \"${params.outdir}/trees\", mode: \"link\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "track_reads": {
+        "name_process": "track_reads",
+        "string_process": "\nprocess track_reads {\n    tag { \"track_reads\" }\n    publishDir \"${params.outdir}/qc\", mode: \"copy\", overwrite: true\n\n    input:\n    file(trimmed) from trimmed_read_tracking\n    file(mergers) from merged_read_tracking\n    file(dadaFs) from dada_for_read_tracking\n    file(dadaRs) from dada_rev_read_tracking\n    file(st) from seqtab_read_tracking\n    file(asv) from asv_read_tracking\n\n    output:\n    file \"all.readtracking.tsv\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n\n    getN <- function(x) sum(getUniques(x))\n\n    # the gsub here might be a bit brittle...\n    dadaFs <- as.data.frame(sapply(readRDS(\"${dadaFs}\"), getN))\n    rownames(dadaFs) <- stringr::str_remove(rownames(dadaFs), '.R1.filtered.fastq.gz')\n    colnames(dadaFs) <- c(\"denoisedF\")\n    dadaFs\\$sample_id <- rownames(dadaFs)\n\n    dadaRs <- as.data.frame(sapply(readRDS(\"${dadaRs}\"), getN))\n    rownames(dadaRs) <- stringr::str_remove(rownames(dadaRs), '.R2.filtered.fastq.gz')\n    colnames(dadaRs) <- c(\"denoisedR\")\n    dadaRs\\$sample_id <- rownames(dadaRs)\n\n    all.mergers <- readRDS(\"${mergers}\")\n    mergers <- as.data.frame(sapply(all.mergers, function(x) sum(getUniques(x %>% dplyr::filter(accept)))))\n    rownames(mergers) <- stringr::str_remove(rownames(mergers), '.R1.filtered.fastq.gz')\n    colnames(mergers) <- c(\"merged\")\n    mergers\\$sample_id <- rownames(mergers)\n\n    trimmed <- read.csv(\"${trimmed}\")\n    \n    asv_cleanup <- read.csv(\"${asv}\") %>%\n        dplyr::mutate(sample_id = stringr::str_remove(sample_id, '.R1.filtered.fastq.gz'))\n\n    track <- Reduce(function(...) merge(..., by = \"sample_id\",  all.x=TRUE),  list(trimmed, dadaFs, dadaRs, mergers, asv_cleanup))\n    # dropped data in later steps gets converted to NA on the join\n    # these are effectively 0\n    track[is.na(track)] <- 0\n\n    write_tsv(track, \"all.readtracking.tsv\")\n    \"\"\"\n}",
+        "nb_lignes_process": 52,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(dada2); packageVersion(\"dada2\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n\n    getN <- function(x) sum(getUniques(x))\n\n    # the gsub here might be a bit brittle...\n    dadaFs <- as.data.frame(sapply(readRDS(\"${dadaFs}\"), getN))\n    rownames(dadaFs) <- stringr::str_remove(rownames(dadaFs), '.R1.filtered.fastq.gz')\n    colnames(dadaFs) <- c(\"denoisedF\")\n    dadaFs\\$sample_id <- rownames(dadaFs)\n\n    dadaRs <- as.data.frame(sapply(readRDS(\"${dadaRs}\"), getN))\n    rownames(dadaRs) <- stringr::str_remove(rownames(dadaRs), '.R2.filtered.fastq.gz')\n    colnames(dadaRs) <- c(\"denoisedR\")\n    dadaRs\\$sample_id <- rownames(dadaRs)\n\n    all.mergers <- readRDS(\"${mergers}\")\n    mergers <- as.data.frame(sapply(all.mergers, function(x) sum(getUniques(x %>% dplyr::filter(accept)))))\n    rownames(mergers) <- stringr::str_remove(rownames(mergers), '.R1.filtered.fastq.gz')\n    colnames(mergers) <- c(\"merged\")\n    mergers\\$sample_id <- rownames(mergers)\n\n    trimmed <- read.csv(\"${trimmed}\")\n    \n    asv_cleanup <- read.csv(\"${asv}\") %>%\n        dplyr::mutate(sample_id = stringr::str_remove(sample_id, '.R1.filtered.fastq.gz'))\n\n    track <- Reduce(function(...) merge(..., by = \"sample_id\",  all.x=TRUE),  list(trimmed, dadaFs, dadaRs, mergers, asv_cleanup))\n    # dropped data in later steps gets converted to NA on the join\n    # these are effectively 0\n    track[is.na(track)] <- 0\n\n    write_tsv(track, \"all.readtracking.tsv\")\n    \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "trimmed_read_tracking",
+            "merged_read_tracking",
+            "dada_for_read_tracking",
+            "dada_rev_read_tracking",
+            "seqtab_read_tracking",
+            "asv_read_tracking"
+        ],
+        "nb_inputs": 6,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"track_reads\" }",
+            "publishDir \"${params.outdir}/qc\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "create_samdf": {
+        "name_process": "create_samdf",
+        "string_process": "\nprocess create_samdf {\n    tag { \"create_samdf\" }\n    publishDir \"${params.outdir}/sample_info\", mode: \"copy\", overwrite: true\n\n    input:\n    file(samplesheet) from samplesheet_ch\n    file(runparams) from runparams_ch\n    file(fastq_names) from samples_to_validate.collectFile(name: 'fastq_list.txt', newLine: true)\n    file(fastq_names) from demux_to_validate.collectFile(name: 'demux_list.txt', newLine: true)\n    \n    output:\n    file \"*.csv\" into samdf_to_output\n    \n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(seqateurs)\n    require(tidyverse)\n    SampleSheet <- normalizePath( \"${samplesheet}\")\n    runParameters <- normalizePath( \"${runparams}\")\n    \n    # Create samplesheet containing samples and run parameters for all runs\n    samdf <- dplyr::distinct(seqateurs::create_samplesheet(SampleSheet = SampleSheet, runParameters = runParameters, template = \"V4\"))\n\n    # Add fcid if not present\n    samdf <- samdf %>%\n      dplyr::mutate(\n      sample_id = case_when(\n        !stringr::str_detect(sample_id, fcid) ~ paste0(fcid,\"_\", sample_id),\n        TRUE ~ sample_id\n      ))\n\n    # Check if samples match samplesheet\n    fastqFs <- read_delim(\"fastq_list.txt\", delim=\" \", col_names=c(\"sample_id\", \"fcid\", \"sample_name\", \"extraction_rep\", \"amp_rep\")) %>%\n        dplyr::filter(!stringr::str_detect(sample_id, \"Undetermined\")) %>%\n        dplyr::mutate(sample_id = str_remove(sample_id, pattern = \"(?:.(?!_S))+\\$\"))\n    \n    #Check missing in samplesheet\n    if (length(setdiff(fastqFs\\$sample_id, samdf\\$sample_id)) > 0) {warning(\"The fastq file/s: \", setdiff(fastqFs\\$sample_id, samdf\\$sample_id), \" are not in the sample sheet\") }\n\n    #Check missing fastqs\n    if (length(setdiff(samdf\\$sample_id, fastqFs\\$sample_id)) > 0) {\n      samdf <- samdf %>%\n        filter(!sample_id %in% setdiff(samdf\\$sample_id, fastqFs\\$sample_id))\n    }\n\n    # Add mising fields\n    primer_names <- purrr::map2(unlist(str_split(\"${params.fwdprimer_name}\", \";\")), unlist(str_split(\"${params.revprimer_name}\", \";\")), ~{\n            paste0(.x, \"-\", .y)\n        }) %>%\n        unlist() %>%\n        paste0(collapse=\";\")\n    \n    samdf <- samdf %>%\n      dplyr::mutate(\n      for_primer_seq = \"${params.fwdprimer}\",\n      rev_primer_seq = \"${params.revprimer}\",\n      pcr_primers = primer_names,\n      sample_name = NA_character_\n      ) %>%\n      seqateurs::coalesce_join(fastqFs, by=\"sample_id\")\n\n    #Update the sample sheet and logging sheet to deal with any newly demultiplexed files\n    samdf <- samdf %>%\n     group_by(sample_id) %>%\n     group_split() %>%\n     purrr::map(function(x){\n       #if(any(str_detect(x\\$pcr_primers, \";\"))){\n         primer_names <- unlist(str_split(unique(x\\$pcr_primers), \";\"))\n         x %>%\n           mutate(count = length(primer_names)) %>% #Replicate the samples\n           uncount(count) %>%\n           mutate(pcr_primers = unlist(str_split(unique(x\\$pcr_primers), \";\")),\n                  for_primer_seq = unlist(str_split(unique(x\\$for_primer_seq), \";\")),\n                  rev_primer_seq = unlist(str_split(unique(x\\$rev_primer_seq), \";\")),\n                  sample_id = paste0(sample_id, \"_\", pcr_primers)\n                )\n       #} else (x)\n     }) %>%\n      bind_rows()\n\n    # Check f these samples are present in the demultiplexed fastq list\n    demux_fastqFs <- readLines(\"demux_list.txt\")  %>%\n        stringr::str_remove(\".R[1-2].cutadapt.fastq.gz\")%>%\n        stringr::str_replace(\"_S[0-9].*\\\\\\\\.\", \"_\")\n    demux_fastqFs <- demux_fastqFs[!demux_fastqFs == \"\"]\n    demux_fastqFs <- demux_fastqFs[!stringr::str_detect(demux_fastqFs, \"_unknown\\$\")]\n\n    #Check missing in samplesheet\n    if (length(setdiff(demux_fastqFs, samdf\\$sample_id)) > 0) {warning(\"The fastq file/s: \", setdiff(demux_fastqFs, samdf\\$sample_id), \" are not in the sample sheet\") }\n\n    #Check missing fastqs\n    if (length(setdiff(samdf\\$sample_id, demux_fastqFs)) > 0) {\n      samdf <- samdf %>%\n        filter(!sample_id %in% setdiff(samdf\\$sample_id, demux_fastqFs))\n    }\n    \n    #Write out updated sample CSV for use\n    write_csv(samdf, \"Sample_info.csv\")\n    \"\"\"\n}",
+        "nb_lignes_process": 100,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(seqateurs)\n    require(tidyverse)\n    SampleSheet <- normalizePath( \"${samplesheet}\")\n    runParameters <- normalizePath( \"${runparams}\")\n    \n    # Create samplesheet containing samples and run parameters for all runs\n    samdf <- dplyr::distinct(seqateurs::create_samplesheet(SampleSheet = SampleSheet, runParameters = runParameters, template = \"V4\"))\n\n    # Add fcid if not present\n    samdf <- samdf %>%\n      dplyr::mutate(\n      sample_id = case_when(\n        !stringr::str_detect(sample_id, fcid) ~ paste0(fcid,\"_\", sample_id),\n        TRUE ~ sample_id\n      ))\n\n    # Check if samples match samplesheet\n    fastqFs <- read_delim(\"fastq_list.txt\", delim=\" \", col_names=c(\"sample_id\", \"fcid\", \"sample_name\", \"extraction_rep\", \"amp_rep\")) %>%\n        dplyr::filter(!stringr::str_detect(sample_id, \"Undetermined\")) %>%\n        dplyr::mutate(sample_id = str_remove(sample_id, pattern = \"(?:.(?!_S))+\\$\"))\n    \n    #Check missing in samplesheet\n    if (length(setdiff(fastqFs\\$sample_id, samdf\\$sample_id)) > 0) {warning(\"The fastq file/s: \", setdiff(fastqFs\\$sample_id, samdf\\$sample_id), \" are not in the sample sheet\") }\n\n    #Check missing fastqs\n    if (length(setdiff(samdf\\$sample_id, fastqFs\\$sample_id)) > 0) {\n      samdf <- samdf %>%\n        filter(!sample_id %in% setdiff(samdf\\$sample_id, fastqFs\\$sample_id))\n    }\n\n    # Add mising fields\n    primer_names <- purrr::map2(unlist(str_split(\"${params.fwdprimer_name}\", \";\")), unlist(str_split(\"${params.revprimer_name}\", \";\")), ~{\n            paste0(.x, \"-\", .y)\n        }) %>%\n        unlist() %>%\n        paste0(collapse=\";\")\n    \n    samdf <- samdf %>%\n      dplyr::mutate(\n      for_primer_seq = \"${params.fwdprimer}\",\n      rev_primer_seq = \"${params.revprimer}\",\n      pcr_primers = primer_names,\n      sample_name = NA_character_\n      ) %>%\n      seqateurs::coalesce_join(fastqFs, by=\"sample_id\")\n\n    #Update the sample sheet and logging sheet to deal with any newly demultiplexed files\n    samdf <- samdf %>%\n     group_by(sample_id) %>%\n     group_split() %>%\n     purrr::map(function(x){\n       #if(any(str_detect(x\\$pcr_primers, \";\"))){\n         primer_names <- unlist(str_split(unique(x\\$pcr_primers), \";\"))\n         x %>%\n           mutate(count = length(primer_names)) %>% #Replicate the samples\n           uncount(count) %>%\n           mutate(pcr_primers = unlist(str_split(unique(x\\$pcr_primers), \";\")),\n                  for_primer_seq = unlist(str_split(unique(x\\$for_primer_seq), \";\")),\n                  rev_primer_seq = unlist(str_split(unique(x\\$rev_primer_seq), \";\")),\n                  sample_id = paste0(sample_id, \"_\", pcr_primers)\n                )\n       #} else (x)\n     }) %>%\n      bind_rows()\n\n    # Check f these samples are present in the demultiplexed fastq list\n    demux_fastqFs <- readLines(\"demux_list.txt\")  %>%\n        stringr::str_remove(\".R[1-2].cutadapt.fastq.gz\")%>%\n        stringr::str_replace(\"_S[0-9].*\\\\\\\\.\", \"_\")\n    demux_fastqFs <- demux_fastqFs[!demux_fastqFs == \"\"]\n    demux_fastqFs <- demux_fastqFs[!stringr::str_detect(demux_fastqFs, \"_unknown\\$\")]\n\n    #Check missing in samplesheet\n    if (length(setdiff(demux_fastqFs, samdf\\$sample_id)) > 0) {warning(\"The fastq file/s: \", setdiff(demux_fastqFs, samdf\\$sample_id), \" are not in the sample sheet\") }\n\n    #Check missing fastqs\n    if (length(setdiff(samdf\\$sample_id, demux_fastqFs)) > 0) {\n      samdf <- samdf %>%\n        filter(!sample_id %in% setdiff(samdf\\$sample_id, demux_fastqFs))\n    }\n    \n    #Write out updated sample CSV for use\n    write_csv(samdf, \"Sample_info.csv\")\n    \"\"\"",
+        "nb_lignes_script": 85,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samplesheet_ch",
+            "runparams_ch",
+            "samples_to_validate",
+            "demux_to_validate"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "samdf_to_output"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"create_samdf\" }",
+            "publishDir \"${params.outdir}/sample_info\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "make_phyloseq": {
+        "name_process": "make_phyloseq",
+        "string_process": "\nprocess make_phyloseq {\n    tag { \"make_phyloseq\" }\n    publishDir \"${params.outdir}/results/unfiltered\", mode: \"link\", overwrite: true\n\n    input:\n    file st from seqtab_to_output\n    file samdf from samdf_to_output\n    file tax from taxtab_to_output\n    file bt from bootstrapFinal\n    file tree from tree_to_output\n    file aln from aln_to_output\n    \n    output:\n    file \"ps.rds\" into ps_to_filter,ps_to_export\n    \n    script:\n    if (tree_to_output != false)\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(phyloseq); packageVersion(\"phyloseq\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(ape); packageVersion(\"ape\")\n                \n        # Read in files\n        seqtab <- readRDS(\"${st}\")\n        \n        #Extract start of sample names only\n        rownames(seqtab) <- rownames(seqtab) %>%\n                stringr::str_remove(\".R[1-2]\\\\\\\\..*\\\\\\\\.fastq.gz\") %>%\n                stringr::str_replace(\"_S[0-9].*\\\\\\\\.\", \"_\")\n                \n        tax <- readRDS(\"${tax}\")\n        colnames(tax) <- stringr::str_to_lower(colnames(tax))\n        seqs <- Biostrings::readDNAStringSet(\"${aln}\")\n        tree <- read.tree(file = \"${tree}\")\n\n        samdf <- read.csv(\"${samdf}\", header=TRUE) %>%\n          filter(!duplicated(sample_id)) %>%\n          magrittr::set_rownames(.\\$sample_id) \n        \n        # Create phyloseq object\n        ps <- phyloseq(tax_table(tax), \n                       sample_data(samdf),\n                       otu_table(seqtab, taxa_are_rows = FALSE),\n                       phy_tree(tree),\n                       refseq(seqs))\n                       \n        saveRDS(ps, \"ps.rds\")\n        \"\"\"\n    else\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(phyloseq); packageVersion(\"phyloseq\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(ape); packageVersion(\"ape\")\n        \n        # Read in files\n        seqtab <- readRDS(\"${st}\")\n        \n        #Extract start of sample names only\n        rownames(seqtab) <- rownames(seqtab) %>%\n                stringr::str_remove(\".R[1-2]\\\\\\\\..*\\\\\\\\.fastq.gz\") %>%\n                stringr::str_replace(\"_S[0-9].*\\\\\\\\.\", \"_\")\n                \n        tax <- readRDS(\"${tax}\")\n        colnames(tax) <- stringr::str_to_lower(colnames(tax))\n        \n        seqs <- Biostrings::DNAStringSet(colnames(seqtab))\n        names(seqs) <- colnames(seqtab)\n\n        samdf <- read.csv(\"${samdf}\", header=TRUE) %>%\n          filter(!duplicated(sample_id)) %>%\n          magrittr::set_rownames(.\\$sample_id) \n        \n        # Create phyloseq object\n        ps <- phyloseq(tax_table(tax), \n                       sample_data(samdf),\n                       otu_table(seqtab, taxa_are_rows = FALSE),\n                       refseq(seqs))\n        \n        saveRDS(ps, \"ps.rds\")\n        \"\"\"\n}",
+        "nb_lignes_process": 82,
+        "string_script": "    if (tree_to_output != false)\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(phyloseq); packageVersion(\"phyloseq\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(ape); packageVersion(\"ape\")\n                \n        # Read in files\n        seqtab <- readRDS(\"${st}\")\n        \n        #Extract start of sample names only\n        rownames(seqtab) <- rownames(seqtab) %>%\n                stringr::str_remove(\".R[1-2]\\\\\\\\..*\\\\\\\\.fastq.gz\") %>%\n                stringr::str_replace(\"_S[0-9].*\\\\\\\\.\", \"_\")\n                \n        tax <- readRDS(\"${tax}\")\n        colnames(tax) <- stringr::str_to_lower(colnames(tax))\n        seqs <- Biostrings::readDNAStringSet(\"${aln}\")\n        tree <- read.tree(file = \"${tree}\")\n\n        samdf <- read.csv(\"${samdf}\", header=TRUE) %>%\n          filter(!duplicated(sample_id)) %>%\n          magrittr::set_rownames(.\\$sample_id) \n        \n        # Create phyloseq object\n        ps <- phyloseq(tax_table(tax), \n                       sample_data(samdf),\n                       otu_table(seqtab, taxa_are_rows = FALSE),\n                       phy_tree(tree),\n                       refseq(seqs))\n                       \n        saveRDS(ps, \"ps.rds\")\n        \"\"\"\n    else\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(phyloseq); packageVersion(\"phyloseq\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(ape); packageVersion(\"ape\")\n        \n        # Read in files\n        seqtab <- readRDS(\"${st}\")\n        \n        #Extract start of sample names only\n        rownames(seqtab) <- rownames(seqtab) %>%\n                stringr::str_remove(\".R[1-2]\\\\\\\\..*\\\\\\\\.fastq.gz\") %>%\n                stringr::str_replace(\"_S[0-9].*\\\\\\\\.\", \"_\")\n                \n        tax <- readRDS(\"${tax}\")\n        colnames(tax) <- stringr::str_to_lower(colnames(tax))\n        \n        seqs <- Biostrings::DNAStringSet(colnames(seqtab))\n        names(seqs) <- colnames(seqtab)\n\n        samdf <- read.csv(\"${samdf}\", header=TRUE) %>%\n          filter(!duplicated(sample_id)) %>%\n          magrittr::set_rownames(.\\$sample_id) \n        \n        # Create phyloseq object\n        ps <- phyloseq(tax_table(tax), \n                       sample_data(samdf),\n                       otu_table(seqtab, taxa_are_rows = FALSE),\n                       refseq(seqs))\n        \n        saveRDS(ps, \"ps.rds\")\n        \"\"\"",
+        "nb_lignes_script": 65,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqtab_to_output",
+            "samdf_to_output",
+            "taxtab_to_output",
+            "bootstrapFinal",
+            "tree_to_output",
+            "aln_to_output"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "ps_to_filter",
+            "ps_to_export"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"make_phyloseq\" }",
+            "publishDir \"${params.outdir}/results/unfiltered\", mode: \"link\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_phyloseq": {
+        "name_process": "filter_phyloseq",
+        "string_process": "\nprocess filter_phyloseq {\n    tag { \"filter_phyloseq\" }\n    publishDir \"${params.outdir}/results/filtered\", mode: \"link\", overwrite: true\n\n    input:\n    file ps from ps_to_filter\n    \n    output:\n    file \"ps_filtered.rds\" into tax_check_ala,tax_check_afd,ps_to_export2\n    file \"rarefaction.pdf\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(phyloseq); packageVersion(\"phyloseq\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n    require(ape); packageVersion(\"ape\")\n    require(vegan); packageVersion(\"vegan\")\n    \n    # Taxonomic filters\n    ps0 <- readRDS(\"${ps}\")\n    \n    # Phylum - Change all to lowercase at the taxtable step\n    if(nchar(as.character(\"${params.phylum}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, phylum %in% unlist(stringr::str_split(as.character(\"${params.phylum}\"), \";\",  n=Inf)))\n    }\n    # Order\n    if(nchar(as.character(\"${params.order}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, order %in% unlist(stringr::str_split(as.character(\"${params.order}\"), \";\",  n=Inf)))\n    }\n    # Family\n    if(nchar(as.character(\"${params.family}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, family %in% unlist(stringr::str_split(as.character(\"${params.family}\"), \";\",  n=Inf)))\n    }\n    # Family\n    if(nchar(as.character(\"${params.family}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, family %in% unlist(stringr::str_split(as.character(\"${params.family}\"), \";\",  n=Inf)))\n    }\n    # Genus\n    if(nchar(as.character(\"${params.genus}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, genus %in% unlist(stringr::str_split(as.character(\"${params.genus}\"), \";\",  n=Inf)))\n    }\n    # Species\n    if(nchar(as.character(\"${params.species}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, species %in% unlist(stringr::str_split(as.character(\"${params.species}\"), \";\",  n=Inf)))\n    }\n    \n    # Drop missing taxa\n    ps0 <- ps0 %>%\n      phyloseq::filter_taxa(function(x) mean(x) > 0, TRUE) %>%\n      phyloseq::prune_samples(sample_sums(.) >0, .) \n\n    #Set a threshold for minimum reads per sample\n    threshold <- as.numeric(\"${params.min_sample_reads}\")\n    \n    #Create rarefaction curve\n    rare <- phyloseq::otu_table(ps0) %>%\n      as(\"matrix\") %>%\n      vegan::rarecurve(step=max(sample_sums(ps0))/100) %>%\n      purrr::map(function(x){\n        b <- as.data.frame(x)\n        b <- data.frame(OTU = b[,1], count = rownames(b))\n        b\\$count <- as.numeric(gsub(\"N\", \"\",  b\\$count))\n        return(b)\n      }) %>%\n      purrr::set_names(sample_names(ps0)) %>%\n      dplyr::bind_rows(.id=\"sample_id\")\n\n    # Write out rarefaction curve\n    pdf(file=\"rarefaction.pdf\", width = 11, height = 8 , paper=\"a4r\")\n    ggplot(data = rare)+\n      geom_line(aes(x = count, y = OTU, group=sample_id), alpha=0.5)+\n      geom_point(data = rare %>% \n                   group_by(sample_id) %>% \n                   top_n(1, count),\n                 aes(x = count, y = OTU, colour=(count > threshold))) +\n      geom_label(data = rare %>% \n                   group_by(sample_id) %>% \n                   top_n(1, count),\n                 aes(x = count, y = OTU,label=sample_id, colour=(count > threshold)),\n                 hjust=-0.05)+\n      scale_x_continuous(labels =  scales::scientific_format()) +\n      geom_vline(xintercept=threshold, linetype=\"dashed\") +\n      labs(colour = \"Sample kept?\") +\n      xlab(\"Sequence reads\") +\n      ylab(\"Observed ASV's\")\n    try(dev.off(), silent=TRUE)\n\n    #Remove all samples under the minimum read threshold \n    ps1 <- ps0 %>%\n      phyloseq::prune_samples(sample_sums(.)>=threshold, .) %>% \n      phyloseq::filter_taxa(function(x) mean(x) > 0, TRUE) #Drop missing taxa from table\n     \n    # output filtered phyloseq object\n    saveRDS(ps1, \"ps_filtered.rds\") \n    \"\"\"\n}",
+        "nb_lignes_process": 96,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(phyloseq); packageVersion(\"phyloseq\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n    require(ape); packageVersion(\"ape\")\n    require(vegan); packageVersion(\"vegan\")\n    \n    # Taxonomic filters\n    ps0 <- readRDS(\"${ps}\")\n    \n    # Phylum - Change all to lowercase at the taxtable step\n    if(nchar(as.character(\"${params.phylum}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, phylum %in% unlist(stringr::str_split(as.character(\"${params.phylum}\"), \";\",  n=Inf)))\n    }\n    # Order\n    if(nchar(as.character(\"${params.order}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, order %in% unlist(stringr::str_split(as.character(\"${params.order}\"), \";\",  n=Inf)))\n    }\n    # Family\n    if(nchar(as.character(\"${params.family}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, family %in% unlist(stringr::str_split(as.character(\"${params.family}\"), \";\",  n=Inf)))\n    }\n    # Family\n    if(nchar(as.character(\"${params.family}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, family %in% unlist(stringr::str_split(as.character(\"${params.family}\"), \";\",  n=Inf)))\n    }\n    # Genus\n    if(nchar(as.character(\"${params.genus}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, genus %in% unlist(stringr::str_split(as.character(\"${params.genus}\"), \";\",  n=Inf)))\n    }\n    # Species\n    if(nchar(as.character(\"${params.species}\")) > 0){\n        ps0 <- phyloseq::subset_taxa(ps0, species %in% unlist(stringr::str_split(as.character(\"${params.species}\"), \";\",  n=Inf)))\n    }\n    \n    # Drop missing taxa\n    ps0 <- ps0 %>%\n      phyloseq::filter_taxa(function(x) mean(x) > 0, TRUE) %>%\n      phyloseq::prune_samples(sample_sums(.) >0, .) \n\n    #Set a threshold for minimum reads per sample\n    threshold <- as.numeric(\"${params.min_sample_reads}\")\n    \n    #Create rarefaction curve\n    rare <- phyloseq::otu_table(ps0) %>%\n      as(\"matrix\") %>%\n      vegan::rarecurve(step=max(sample_sums(ps0))/100) %>%\n      purrr::map(function(x){\n        b <- as.data.frame(x)\n        b <- data.frame(OTU = b[,1], count = rownames(b))\n        b\\$count <- as.numeric(gsub(\"N\", \"\",  b\\$count))\n        return(b)\n      }) %>%\n      purrr::set_names(sample_names(ps0)) %>%\n      dplyr::bind_rows(.id=\"sample_id\")\n\n    # Write out rarefaction curve\n    pdf(file=\"rarefaction.pdf\", width = 11, height = 8 , paper=\"a4r\")\n    ggplot(data = rare)+\n      geom_line(aes(x = count, y = OTU, group=sample_id), alpha=0.5)+\n      geom_point(data = rare %>% \n                   group_by(sample_id) %>% \n                   top_n(1, count),\n                 aes(x = count, y = OTU, colour=(count > threshold))) +\n      geom_label(data = rare %>% \n                   group_by(sample_id) %>% \n                   top_n(1, count),\n                 aes(x = count, y = OTU,label=sample_id, colour=(count > threshold)),\n                 hjust=-0.05)+\n      scale_x_continuous(labels =  scales::scientific_format()) +\n      geom_vline(xintercept=threshold, linetype=\"dashed\") +\n      labs(colour = \"Sample kept?\") +\n      xlab(\"Sequence reads\") +\n      ylab(\"Observed ASV's\")\n    try(dev.off(), silent=TRUE)\n\n    #Remove all samples under the minimum read threshold \n    ps1 <- ps0 %>%\n      phyloseq::prune_samples(sample_sums(.)>=threshold, .) %>% \n      phyloseq::filter_taxa(function(x) mean(x) > 0, TRUE) #Drop missing taxa from table\n     \n    # output filtered phyloseq object\n    saveRDS(ps1, \"ps_filtered.rds\") \n    \"\"\"",
+        "nb_lignes_script": 83,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ps_to_filter"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "tax_check_ala",
+            "tax_check_afd",
+            "ps_to_export2"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"filter_phyloseq\" }",
+            "publishDir \"${params.outdir}/results/filtered\", mode: \"link\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output_unfiltered": {
+        "name_process": "output_unfiltered",
+        "string_process": "\nprocess output_unfiltered {\n    tag { \"output_unfiltered\" }\n    publishDir \"${params.outdir}/results/unfiltered\", mode: \"link\", overwrite: true\n\n    input:\n    file ps from ps_to_export\n    \n    output:\n    file \"*.csv\"\n    file \"*.fasta\"\n    file \"*.nwk\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(phyloseq); packageVersion(\"phyloseq\")\n    require(seqateurs); packageVersion(\"seqateurs\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n    require(ape); packageVersion(\"ape\")\n    \n    ps <- readRDS(\"${ps}\")\n    \n    #Export raw csv\n    speedyseq::psmelt(ps) %>%\n      dplyr::filter(Abundance > 0) %>%\n      dplyr::select(-Sample) %>%\n      write_csv(\"raw_combined.csv\")\n  \n    #Export species level summary\n    seqateurs::summarise_taxa(ps, \"species\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"spp_sum_unfiltered.csv\")\n      \n    #Export genus level summary\n    seqateurs::summarise_taxa(ps, \"genus\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"gen_sum_unfiltered.csv\")\n\n    #Output newick tree\n    if(!is.null(phy_tree(ps, errorIfNULL=FALSE))){\n        write.tree(phy_tree(ps), file=\"tree_filtered.nwk\")\n    } else {\n        cat(\"\", file = \"tree_filtered.nwk\")\n    }\n\n    #Output fasta of all ASV's\n    seqateurs::ps_to_fasta(ps, out.file = \"asvs_unfiltered.fasta\", seqnames = \"species\")\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(phyloseq); packageVersion(\"phyloseq\")\n    require(seqateurs); packageVersion(\"seqateurs\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n    require(ape); packageVersion(\"ape\")\n    \n    ps <- readRDS(\"${ps}\")\n    \n    #Export raw csv\n    speedyseq::psmelt(ps) %>%\n      dplyr::filter(Abundance > 0) %>%\n      dplyr::select(-Sample) %>%\n      write_csv(\"raw_combined.csv\")\n  \n    #Export species level summary\n    seqateurs::summarise_taxa(ps, \"species\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"spp_sum_unfiltered.csv\")\n      \n    #Export genus level summary\n    seqateurs::summarise_taxa(ps, \"genus\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"gen_sum_unfiltered.csv\")\n\n    #Output newick tree\n    if(!is.null(phy_tree(ps, errorIfNULL=FALSE))){\n        write.tree(phy_tree(ps), file=\"tree_filtered.nwk\")\n    } else {\n        cat(\"\", file = \"tree_filtered.nwk\")\n    }\n\n    #Output fasta of all ASV's\n    seqateurs::ps_to_fasta(ps, out.file = \"asvs_unfiltered.fasta\", seqnames = \"species\")\n    \"\"\"",
+        "nb_lignes_script": 34,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ps_to_export"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"output_unfiltered\" }",
+            "publishDir \"${params.outdir}/results/unfiltered\", mode: \"link\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output_filtered": {
+        "name_process": "output_filtered",
+        "string_process": "\nprocess output_filtered {\n    tag { \"output_filtered\" }\n    publishDir \"${params.outdir}/results/filtered\", mode: \"link\", overwrite: true\n\n    input:\n    file ps from ps_to_export2\n    \n    output:\n    file \"*.csv\"\n    file \"*.fasta\"\n    file \"*.nwk\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n    require(phyloseq); packageVersion(\"phyloseq\")\n    require(seqateurs); packageVersion(\"seqateurs\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n    require(ape); packageVersion(\"ape\")\n    require(vegan); packageVersion(\"vegan\")\n    \n    # Taxonomic filters\n    ps1 <- readRDS(\"${ps}\")\n    \n    # Export summary of filtered results\n    seqateurs::summarise_taxa(ps1, \"species\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"spp_sum_filtered.csv\")\n\n    seqateurs::summarise_taxa(ps1, \"genus\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"gen_sum_filtered.csv\")\n\n    #Output fasta of all ASV's\n    seqateurs::ps_to_fasta(ps1, \"asvs_filtered.fasta\", seqnames=\"species\")\n\n    #Output newick tree\n    if(!is.null(phy_tree(ps1, errorIfNULL=FALSE))){\n        ape::write.tree(phy_tree(ps1), file=\"tree_filtered.nwk\")\n    } else {\n        cat(\"\", file = \"tree_filtered.nwk\")\n    }\n    \n    # output filtered phyloseq object\n    saveRDS(ps1, \"ps_filtered.rds\") \n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n    require(phyloseq); packageVersion(\"phyloseq\")\n    require(seqateurs); packageVersion(\"seqateurs\")\n    require(tidyverse); packageVersion(\"tidyverse\")\n    require(ape); packageVersion(\"ape\")\n    require(vegan); packageVersion(\"vegan\")\n    \n    # Taxonomic filters\n    ps1 <- readRDS(\"${ps}\")\n    \n    # Export summary of filtered results\n    seqateurs::summarise_taxa(ps1, \"species\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"spp_sum_filtered.csv\")\n\n    seqateurs::summarise_taxa(ps1, \"genus\", \"sample_id\") %>%\n      tidyr::spread(key=\"sample_id\", value=\"totalRA\") %>%\n      write.csv(file = \"gen_sum_filtered.csv\")\n\n    #Output fasta of all ASV's\n    seqateurs::ps_to_fasta(ps1, \"asvs_filtered.fasta\", seqnames=\"species\")\n\n    #Output newick tree\n    if(!is.null(phy_tree(ps1, errorIfNULL=FALSE))){\n        ape::write.tree(phy_tree(ps1), file=\"tree_filtered.nwk\")\n    } else {\n        cat(\"\", file = \"tree_filtered.nwk\")\n    }\n    \n    # output filtered phyloseq object\n    saveRDS(ps1, \"ps_filtered.rds\") \n    \"\"\"",
+        "nb_lignes_script": 32,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ps_to_export2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"output_filtered\" }",
+            "publishDir \"${params.outdir}/results/filtered\", mode: \"link\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "check_ala": {
+        "name_process": "check_ala",
+        "string_process": " process check_ala {\n        tag { \"check_ala\" }\n        publishDir \"${params.outdir}/results/filtered\", mode: \"copy\", overwrite: true\n\n        input:\n        file ps from tax_check_ala\n\n        output:\n        file \"*.csv\"\n\n        script:\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(galah); packageVersion(\"galah\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        \n        ps1 <- readRDS(\"${ps}\")    \n        \n        # Check presence on ALA\n        # First we need to set some data quality filters for ALA\n        # To view available filters, run: find_field_values(\"basis_of_record\")\n        ala_quality_filter <- galah::select_filters(\n              basisOfRecord = c(\"PreservedSpecimen\", \"LivingSpecimen\",\n                              \"MaterialSample\", \"NomenclaturalChecklist\"),\n              profile = \"ALA\")\n\n        spp_to_check <- ps1 %>%\n          speedyseq::psmelt() %>%\n          dplyr::group_by(family, genus, species) %>%\n          dplyr::summarise(metabarcoding_reads = sum(Abundance)) %>%\n          dplyr::filter(!str_detect(species, \"__\")) %>%\n          dplyr::mutate(species = species %>% str_replace_all(\"_\", \" \")) \n          \n        if(nrow(spp_to_check) > 0 ){\n            ala_check <- spp_to_check %>%\n              dplyr::mutate(\n                species_present = purrr::map(species, function(x){\n                # first check name\n                query <- galah::select_taxa(x) %>% \n                  tibble::as_tibble()%>%\n                  dplyr::filter(across(any_of(\"match_type\"), ~!.x == \"higherMatch\"))\n                # Then get occurance counts\n                if(!is.null(query\\$scientific_name)){\n                  ala_occur <- galah::ala_counts(taxa=query, filters=ala_quality_filter)\n                  return(data.frame(species_present = ifelse(ala_occur > 0, TRUE, FALSE), ALA_counts = ala_occur))\n                } else {\n                  return(data.frame(species_present = FALSE, ALA_counts = 0))\n                }\n                })) %>%\n              tidyr::unnest(species_present) %>%\n              dplyr::select(family, genus, species, species_present, ALA_counts, metabarcoding_reads)\n            \n            write_csv(ala_check, \"ala_check.csv\")    \n        } else {\n            # Write out empty csv so nextflow doesnt fail\n            write_csv(as.data.frame(\"\"), \"ala_check.csv\")\n        }\n        \"\"\"\n    }",
+        "nb_lignes_process": 57,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env Rscript\n        require(galah); packageVersion(\"galah\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        \n        ps1 <- readRDS(\"${ps}\")    \n        \n        # Check presence on ALA\n        # First we need to set some data quality filters for ALA\n        # To view available filters, run: find_field_values(\"basis_of_record\")\n        ala_quality_filter <- galah::select_filters(\n              basisOfRecord = c(\"PreservedSpecimen\", \"LivingSpecimen\",\n                              \"MaterialSample\", \"NomenclaturalChecklist\"),\n              profile = \"ALA\")\n\n        spp_to_check <- ps1 %>%\n          speedyseq::psmelt() %>%\n          dplyr::group_by(family, genus, species) %>%\n          dplyr::summarise(metabarcoding_reads = sum(Abundance)) %>%\n          dplyr::filter(!str_detect(species, \"__\")) %>%\n          dplyr::mutate(species = species %>% str_replace_all(\"_\", \" \")) \n          \n        if(nrow(spp_to_check) > 0 ){\n            ala_check <- spp_to_check %>%\n              dplyr::mutate(\n                species_present = purrr::map(species, function(x){\n                # first check name\n                query <- galah::select_taxa(x) %>% \n                  tibble::as_tibble()%>%\n                  dplyr::filter(across(any_of(\"match_type\"), ~!.x == \"higherMatch\"))\n                # Then get occurance counts\n                if(!is.null(query\\$scientific_name)){\n                  ala_occur <- galah::ala_counts(taxa=query, filters=ala_quality_filter)\n                  return(data.frame(species_present = ifelse(ala_occur > 0, TRUE, FALSE), ALA_counts = ala_occur))\n                } else {\n                  return(data.frame(species_present = FALSE, ALA_counts = 0))\n                }\n                })) %>%\n              tidyr::unnest(species_present) %>%\n              dplyr::select(family, genus, species, species_present, ALA_counts, metabarcoding_reads)\n            \n            write_csv(ala_check, \"ala_check.csv\")    \n        } else {\n            # Write out empty csv so nextflow doesnt fail\n            write_csv(as.data.frame(\"\"), \"ala_check.csv\")\n        }\n        \"\"\"",
+        "nb_lignes_script": 46,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tax_check_ala"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"check_ala\" }",
+            "publishDir \"${params.outdir}/results/filtered\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "check_afd": {
+        "name_process": "check_afd",
+        "string_process": " process check_afd {\n        tag { \"check_afd\" }\n        publishDir \"${params.outdir}/results/filtered\", mode: \"copy\", overwrite: true\n\n        input:\n        file ps from tax_check_afd\n\n        output:\n        file \"*.csv\"\n\n        script:\n        \"\"\"\n        #!/usr/bin/env Rscript\n        require(afdscraper); packageVersion(\"afdscraper\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(speedyseq); packageVersion(\"speedyseq\")\n        \n        ps1 <- readRDS(\"${ps}\")    \n        \n        # Check presence on AFD\n        spp_to_check <- ps1 %>%\n          speedyseq::psmelt() %>%\n          dplyr::group_by(family, genus, species) %>%\n          dplyr::summarise(metabarcoding_reads = sum(Abundance)) %>%\n          dplyr::filter(!str_detect(species, \"__\")) %>%\n          dplyr::mutate(species = species %>% str_replace_all(\"_\", \" \")) \n          \n        if(nrow(spp_to_check) > 0 ){\n              afd_check <- spp_to_check %>%\n              dplyr::mutate(\n                family_present = afdscraper::check_afd_presence(family),\n                genus_present = afdscraper::check_afd_presence(genus),\n                species_present = afdscraper::check_afd_presence(species)\n              ) %>%\n              dplyr::select(family, family_present, genus, genus_present, \n                            species, species_present, metabarcoding_reads)\n                \n            write_csv(afd_check, \"afd_check.csv\")    \n        } else {\n            # Write out empty csv so nextflow doesnt fail\n            write_csv(as.data.frame(\"\"), \"afd_check.csv\")\n        }\n        \"\"\"\n    }",
+        "nb_lignes_process": 42,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env Rscript\n        require(afdscraper); packageVersion(\"afdscraper\")\n        require(tidyverse); packageVersion(\"tidyverse\")\n        require(speedyseq); packageVersion(\"speedyseq\")\n        \n        ps1 <- readRDS(\"${ps}\")    \n        \n        # Check presence on AFD\n        spp_to_check <- ps1 %>%\n          speedyseq::psmelt() %>%\n          dplyr::group_by(family, genus, species) %>%\n          dplyr::summarise(metabarcoding_reads = sum(Abundance)) %>%\n          dplyr::filter(!str_detect(species, \"__\")) %>%\n          dplyr::mutate(species = species %>% str_replace_all(\"_\", \" \")) \n          \n        if(nrow(spp_to_check) > 0 ){\n              afd_check <- spp_to_check %>%\n              dplyr::mutate(\n                family_present = afdscraper::check_afd_presence(family),\n                genus_present = afdscraper::check_afd_presence(genus),\n                species_present = afdscraper::check_afd_presence(species)\n              ) %>%\n              dplyr::select(family, family_present, genus, genus_present, \n                            species, species_present, metabarcoding_reads)\n                \n            write_csv(afd_check, \"afd_check.csv\")    \n        } else {\n            # Write out empty csv so nextflow doesnt fail\n            write_csv(as.data.frame(\"\"), \"afd_check.csv\")\n        }\n        \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tax_check_afd"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "alexpiper__piperline",
+        "directive": [
+            "tag { \"check_afd\" }",
+            "publishDir \"${params.outdir}/results/filtered\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,654 @@
+{
+    "p1_run": {
+        "name_process": "p1_run",
+        "string_process": "\nprocess p1_run {\n  scratch true\n\n  memory { dataFile.getExtension() == 'gz' ? 4.GB * ((dataSize >> 30) + 1) :  2.GB * ((dataSize >> 30) + 1) }\n  storeDir \"${GWAS_STORE_DIR}/p1_run_cache\"\n  \n  input:\n                                                            \n                                                              \n                                                                                        \n    set dataID, dataSize, file(dataFile) from vfiles\n  output:\n                                                                                                    \n    file(\"${plink_prefix}.psam\") into p1_out_psam\n    file(\"${plink_prefix}.pgen\") into p1_out_pgen\n    file(\"${plink_prefix}.pvar\") into p1_out_pvar\n    val plink_prefix into mergelist_shred\n    file \"*.log\" into p1_log\n    \n  script:\n    def m = []\n    def chrnum = \"\"\n    def output = \"\"\n\n                                                                                              \n    if (params.chr == \"\")\n      m = dataID =~ /(?i)(chr)([0-9]+)/\n    else\n      m = params.chr =~ /(?i)(chr)([0-9]+)/\n\n                                                \n    if (m.size() != 1 || m[0].size() < 3)\n      error \"Failed to identify chromosome from filename ${dataFile}, please rename or use the --chr argument\"\n    \n    chrnum = m[0][2]\n    output = \"chr${chrnum}_${params.dataset}\"\n    plink_prefix = \"${output}_p1out\"    \n\n    \"\"\"\n    echo \"Processing - ${dataFile}\"\n    echo \"Assigned cpus: ${task.cpus}\"\n\n    set +x\n    /srv/GWAS-Pipeline/References/Scripts/process1.sh ${task.cpus} \\\n      ${dataFile} ${params.r2thres} ${params.assembly} ${chrnum} ${output}\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    def m = []\n    def chrnum = \"\"\n    def output = \"\"\n\n                                                                                              \n    if (params.chr == \"\")\n      m = dataID =~ /(?i)(chr)([0-9]+)/\n    else\n      m = params.chr =~ /(?i)(chr)([0-9]+)/\n\n                                                \n    if (m.size() != 1 || m[0].size() < 3)\n      error \"Failed to identify chromosome from filename ${dataFile}, please rename or use the --chr argument\"\n    \n    chrnum = m[0][2]\n    output = \"chr${chrnum}_${params.dataset}\"\n    plink_prefix = \"${output}_p1out\"    \n\n    \"\"\"\n    echo \"Processing - ${dataFile}\"\n    echo \"Assigned cpus: ${task.cpus}\"\n\n    set +x\n    /srv/GWAS-Pipeline/References/Scripts/process1.sh ${task.cpus} \\\n      ${dataFile} ${params.r2thres} ${params.assembly} ${chrnum} ${output}\n    \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [
+            "wossoutput"
+        ],
+        "tools_url": [
+            "https://bio.tools/wossoutput"
+        ],
+        "tools_dico": [
+            {
+                "name": "wossoutput",
+                "uri": "https://bio.tools/wossoutput",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0219",
+                            "term": "Data submission, annotation and curation"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0958",
+                                "term": "Tool metadata"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Find programs by EDAM output data.",
+                "homepage": "http://emboss.open-bio.org/rel/rel6/apps/wossoutput.html"
+            }
+        ],
+        "inputs": [
+            "vfiles"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "p1_out_psam",
+            "p1_out_pgen",
+            "p1_out_pvar",
+            "mergelist_shred",
+            "p1_log"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "memory { dataFile.getExtension() == 'gz' ? 4.GB * ((dataSize >> 30) + 1) : 2.GB * ((dataSize >> 30) + 1) }",
+            "storeDir \"${GWAS_STORE_DIR}/p1_run_cache\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "p2_merge_list": {
+        "name_process": "p2_merge_list",
+        "string_process": "\nprocess p2_merge_list {\n  scratch true\n  storeDir \"${GWAS_STORE_DIR}/p2_merged_cache/${params.dataset}\"\n\n  label 'small'\n\n  input:\n    file mergelist from mergelist_file\n    file \"chr*_${params.dataset}_p1out.pgen\" from p2_in_pgen.collect()\n    file \"chr*_${params.dataset}_p1out.pvar\" from p2_in_pvar.collect()\n    file \"chr*_${params.dataset}_p1out.psam\" from p2_in_psam.collect()\n  output:\n    tuple file(\"${plink_prefix}.bed\"), file(\"${plink_prefix}.fam\"), file(\"${plink_prefix}.bim\") into p2_in_plink1\n    tuple file(\"${plink_prefix}.pgen\"), file(\"${plink_prefix}.pvar\"), file(\"${plink_prefix}.psam\") into p2_in_plink2\n    file \"*.log\" into p2_mergelist_log\n\n  script:\n    \"\"\"\n    set -x\n    ls *.pgen | sed 's/.pgen//g' > tmp_mergefile.txt\n    plink2 --pmerge-list \"tmp_mergefile.txt\" --make-bed --out \"${plink_prefix}\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    set -x\n    ls *.pgen | sed 's/.pgen//g' > tmp_mergefile.txt\n    plink2 --pmerge-list \"tmp_mergefile.txt\" --make-bed --out \"${plink_prefix}\"\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mergelist_file",
+            "p2_in_pgen",
+            "p2_in_pvar",
+            "p2_in_psam"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "p2_in_plink1",
+            "p2_in_plink2",
+            "p2_mergelist_log"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "storeDir \"${GWAS_STORE_DIR}/p2_merged_cache/${params.dataset}\"",
+            "label 'small'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "p2_qc_pipeline": {
+        "name_process": "p2_qc_pipeline",
+        "string_process": "\nprocess p2_qc_pipeline {\n  scratch true\n\n  label 'medium'\n  storeDir \"${GWAS_STORE_DIR}/p2_qc_pipeline_cache\"\n\n  publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}/Plots\", mode: 'copy', overwrite: true\n\n  input:\n    set file(\"${plink_prefix}.bed\"), file(\"${plink_prefix}.fam\"), file(\"${plink_prefix}.bim\") from p2_in_plink1\n    set file(\"${plink_prefix}.pgen\"), file(\"${plink_prefix}.pvar\"), file(\"${plink_prefix}.psam\") from p2_qcin_plink2\n                                                                               \n                                             \n  output:\n    file \"${params.ancestry}_${params.dataset}_samplelist_p2out.h5\" into p2_out_file\n    file \"*.html\" into p2_out_html\n    file \"*.png\" into p2_out_png\n\n  script:\n    \"\"\"\n    set -x\n    python3 ${ADDI_QC_PIPELINE} \\\n      --geno \"${plink_prefix}\" \\\n      --ref \"/srv/GWAS-Pipeline/References/ref_panel/1kg_ashkj_ref_panel_gp2_pruned_hg38_newids\" \\\n      --ref_labels \"/srv/GWAS-Pipeline/References/ref_panel/ancestry_ref_labels.txt\" \\\n      --pop \"${params.ancestry}\" \\\n      --out \"${params.ancestry}_${params.dataset}_samplelist_p2out\"\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    \"\"\"\n    set -x\n    python3 ${ADDI_QC_PIPELINE} \\\n      --geno \"${plink_prefix}\" \\\n      --ref \"/srv/GWAS-Pipeline/References/ref_panel/1kg_ashkj_ref_panel_gp2_pruned_hg38_newids\" \\\n      --ref_labels \"/srv/GWAS-Pipeline/References/ref_panel/ancestry_ref_labels.txt\" \\\n      --pop \"${params.ancestry}\" \\\n      --out \"${params.ancestry}_${params.dataset}_samplelist_p2out\"\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "p2_in_plink1",
+            "p2_qcin_plink2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "p2_out_file",
+            "p2_out_html",
+            "p2_out_png"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'medium'",
+            "storeDir \"${GWAS_STORE_DIR}/p2_qc_pipeline_cache\"",
+            "publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}/Plots\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "p3_cohort_samplelist": {
+        "name_process": "p3_cohort_samplelist",
+        "string_process": "\nprocess p3_cohort_samplelist {\n  scratch true\n  label 'small'\n\n  input:\n    file samplelist from p2_out_file\n    path covarfile, stageAs: 'covariates.tsv' from \"${params.covarfile}\"\n  output:\n    file \"${params.ancestry}_*_filtered.tsv\" into gwas_samplelist\n\n  script:\n                                                              \n    \"\"\"\n    #!/usr/bin/env python3\n    import pandas as pd\n    import time\n\n    ancestry = \"${params.ancestry}\"\n    study_id_colname = \"${params.study_id}\"\n\n    ancestry_df = pd.read_hdf(\"${samplelist}\", key=\"ancestry_keep\")\n    outlier_df = pd.read_hdf(\"${samplelist}\", key=\"outliers\")\n    pcs_df = pd.read_hdf(\"${samplelist}\", key=\"pcs\")\n    kin_df = pd.read_hdf(\"${samplelist}\", key=\"kin\")\n    data_df = pd.read_csv('covariates.tsv', sep=\"\\\\t\", engine='c')\n\n    cohorts = data_df[study_id_colname].unique().tolist()\n\n    kin_df = kin_df[kin_df.KINSHIP >= ${params.kinship}]\n    # TODO: address case when single cohort present\n    # TODO: currently does not address longitudinal covariates\n    for cohort in cohorts:\n      print(f'---- {cohort} ----')\n      samples = data_df[ (data_df.IID.isin(ancestry_df.IID)) &\n                         (data_df[study_id_colname] == cohort) &\n                        ~(data_df.IID.isin(outlier_df.IID)) ].copy(deep=True)\n      #samples = samples.merge(pcs_df, left_on=\"IID\", right_on=\"#IID\", how=\"inner\")\n      #samples.drop(columns=\"#IID\", inplace=True)\n      r = kin_df[(kin_df['#IID1'].isin(samples.IID)) & (kin_df.IID2.isin(samples.IID))].copy()\n      samples = samples[~samples.IID.isin(r.IID2)].copy()\n      samples.to_csv(f\"{ancestry}_{cohort}_filtered.tsv\", sep=\"\\t\", index=False)\n      print(f'Samples removed (outliers) = {data_df.IID.isin(outlier_df.IID).sum()}')\n      print(f'Samples removed (kinship) = {r.shape[0]}')\n      print(f'Samples remaining = {len(samples)}')\n      print('')\n\n    time.sleep(5)\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    import pandas as pd\n    import time\n\n    ancestry = \"${params.ancestry}\"\n    study_id_colname = \"${params.study_id}\"\n\n    ancestry_df = pd.read_hdf(\"${samplelist}\", key=\"ancestry_keep\")\n    outlier_df = pd.read_hdf(\"${samplelist}\", key=\"outliers\")\n    pcs_df = pd.read_hdf(\"${samplelist}\", key=\"pcs\")\n    kin_df = pd.read_hdf(\"${samplelist}\", key=\"kin\")\n    data_df = pd.read_csv('covariates.tsv', sep=\"\\\\t\", engine='c')\n\n    cohorts = data_df[study_id_colname].unique().tolist()\n\n    kin_df = kin_df[kin_df.KINSHIP >= ${params.kinship}]\n    # TODO: address case when single cohort present\n    # TODO: currently does not address longitudinal covariates\n    for cohort in cohorts:\n      print(f'---- {cohort} ----')\n      samples = data_df[ (data_df.IID.isin(ancestry_df.IID)) &\n                         (data_df[study_id_colname] == cohort) &\n                        ~(data_df.IID.isin(outlier_df.IID)) ].copy(deep=True)\n      #samples = samples.merge(pcs_df, left_on=\"IID\", right_on=\"#IID\", how=\"inner\")\n      #samples.drop(columns=\"#IID\", inplace=True)\n      r = kin_df[(kin_df['#IID1'].isin(samples.IID)) & (kin_df.IID2.isin(samples.IID))].copy()\n      samples = samples[~samples.IID.isin(r.IID2)].copy()\n      samples.to_csv(f\"{ancestry}_{cohort}_filtered.tsv\", sep=\"\\t\", index=False)\n      print(f'Samples removed (outliers) = {data_df.IID.isin(outlier_df.IID).sum()}')\n      print(f'Samples removed (kinship) = {r.shape[0]}')\n      print(f'Samples remaining = {len(samples)}')\n      print('')\n\n    time.sleep(5)\n    \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "p2_out_file",
+            "\"${params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "gwas_samplelist"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'small'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "p3_cohort_pca": {
+        "name_process": "p3_cohort_pca",
+        "string_process": "\nprocess p3_cohort_pca {\n  scratch true\n  label 'medium'\n   \n  storeDir \"${GWAS_STORE_DIR}/p3_cohort_pca_cache\"\n  \n  input:\n    each file(samplelist) from gwas_samplelist.flatten()\n    set file(\"${plink_prefix}.pgen\"), file(\"${plink_prefix}.pvar\"), file(\"${plink_prefix}.psam\") from p3_pcain_plink2\n    \n  output:\n    tuple file(samplelist), file(\"${cohort_prefix}.pca.eigenvec\") into p3_cohort_pca_out\n   \n  script:\n    def m = []\n    def cohort = \"\"\n    cohort = samplelist.getName()\n    m = cohort =~ /(.*)_filtered.tsv/\n    cohort = m[0][1]\n    cohort_prefix = \"${cohort}\"\n    \n    \"\"\"\n    plink2 \\\n          --indep-pairwise 50 .2 \\\n          --maf ${params.minor_allele_freq} \\\n          --keep ${samplelist} \\\n          --out ${cohort}.pca \\\n          --pca 10 \\\n          --threads ${task.cpus} \\\n          --pfile \"${plink_prefix}\"\n    \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "    def m = []\n    def cohort = \"\"\n    cohort = samplelist.getName()\n    m = cohort =~ /(.*)_filtered.tsv/\n    cohort = m[0][1]\n    cohort_prefix = \"${cohort}\"\n    \n    \"\"\"\n    plink2 \\\n          --indep-pairwise 50 .2 \\\n          --maf ${params.minor_allele_freq} \\\n          --keep ${samplelist} \\\n          --out ${cohort}.pca \\\n          --pca 10 \\\n          --threads ${task.cpus} \\\n          --pfile \"${plink_prefix}\"\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "cohorts"
+        ],
+        "tools_url": [
+            "https://bio.tools/cohorts"
+        ],
+        "tools_dico": [
+            {
+                "name": "cohorts",
+                "uri": "https://bio.tools/cohorts",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Biomarkers"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Experimental medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Clinical medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Biomedical research"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Diagnostic markers"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Read binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning shotgun reads"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Package for standardized and reproducible processing, analysis, and integration of clinical proteomics data.",
+                "homepage": "http://www.github.com/ngiangre/cohorts"
+            }
+        ],
+        "inputs": [
+            "gwas_samplelist",
+            "p3_pcain_plink2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "p3_cohort_pca_out"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'medium'",
+            "storeDir \"${GWAS_STORE_DIR}/p3_cohort_pca_cache\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "p3_merge_pca": {
+        "name_process": "p3_merge_pca",
+        "string_process": "\nprocess p3_merge_pca {\n  scratch true\n  label 'small'\n  \n  input:\n    \n    set file(samplelist), file(cohort_pca) from p3_cohort_pca_out\n    \n  output:\n    file \"${params.ancestry}_*_filtered.pca.tsv\" into gwas_samplelist_pca\n   \n   script:\n     \n     \"\"\"\n     #!/usr/bin/env python3\n     import pandas as pd\n     import time   \n     import os\n     \n     print(os.listdir())\n     sample_fn = \"${samplelist.getName()}\"\n     cohort = sample_fn[:-(len('_filtered.tsv'))]\n     pc_fn = cohort + '.pca.eigenvec'\n\n     print(pc_fn, cohort)\n     pc_df = pd.read_csv(pc_fn, sep=\"\\t\")\n     samples_df = pd.read_csv(sample_fn, sep=\"\\t\")\n     pc_df.rename(columns={\"#IID\": \"IID\"}, inplace=True)\n     samples_df = samples_df.merge(pc_df, on=\"IID\")\n     \n     samples_df.to_csv(cohort + '_filtered.pca.tsv', sep=\"\\t\", index=False)\n     time.sleep(5)\n     \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "     \"\"\"\n     #!/usr/bin/env python3\n     import pandas as pd\n     import time   \n     import os\n     \n     print(os.listdir())\n     sample_fn = \"${samplelist.getName()}\"\n     cohort = sample_fn[:-(len('_filtered.tsv'))]\n     pc_fn = cohort + '.pca.eigenvec'\n\n     print(pc_fn, cohort)\n     pc_df = pd.read_csv(pc_fn, sep=\"\\t\")\n     samples_df = pd.read_csv(sample_fn, sep=\"\\t\")\n     pc_df.rename(columns={\"#IID\": \"IID\"}, inplace=True)\n     samples_df = samples_df.merge(pc_df, on=\"IID\")\n     \n     samples_df.to_csv(cohort + '_filtered.pca.tsv', sep=\"\\t\", index=False)\n     time.sleep(5)\n     \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "p3_cohort_pca_out"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "gwas_samplelist_pca"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'small'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "p3_export_rawfile": {
+        "name_process": "p3_export_rawfile",
+        "string_process": "\nprocess p3_export_rawfile {\n  scratch true\n  label 'small'\n\n  input:\n    set val(plink_prefix), file(psam), file(pgen), file(pvar) from p3_in_files_gallop\n    each file(samplelist) from gwas_samplelist_gallop.flatten()\n  output:\n    tuple file(samplelist), file('*.raw') into gwas_rawfile \n  when:\n    params.longitudinal_flag\n\n  script:\n    def m = []\n    def cohort = \"\"\n    cohort = samplelist.getName()\n    m = cohort =~ /(.*)_filtered.pca.tsv/\n    cohort = m[0][1]\n\n    m = []\n    def chrnum = \"\"\n\n                                                                                              \n    if (params.chr == \"\")\n      m = plink_prefix  =~ /(?i)(chr)([0-9]+)/\n    else\n      m = params.chr =~ /(?i)(chr)([0-9]+)/\n\n                                                \n    if (m.size() != 1 || m[0].size() < 3)\n      error \"Failed to identify chromosome from filename ${dataFile}, please rename or use the --chr argument\"\n    \n    chrnum = \"chr${m[0][2]}\"\n    def outfile = \"${cohort}_${chrnum}\"\n\n    \"\"\"\n    set -x\n    plink2 --pfile ${plink_prefix} \\\n           --keep ${samplelist} \\\n           --export A \\\n           --mac 20 \\\n           --update-sex ${samplelist} \\\n           --pheno ${samplelist} \\\n           --pheno-col-nums 4 \\\n           --hwe 1e-6 \\\n           --geno ${params.missing_geno_rate} \\\n           --out \"${outfile}\"  \\\n           --threads ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 49,
+        "string_script": "    def m = []\n    def cohort = \"\"\n    cohort = samplelist.getName()\n    m = cohort =~ /(.*)_filtered.pca.tsv/\n    cohort = m[0][1]\n\n    m = []\n    def chrnum = \"\"\n\n                                                                                              \n    if (params.chr == \"\")\n      m = plink_prefix  =~ /(?i)(chr)([0-9]+)/\n    else\n      m = params.chr =~ /(?i)(chr)([0-9]+)/\n\n                                                \n    if (m.size() != 1 || m[0].size() < 3)\n      error \"Failed to identify chromosome from filename ${dataFile}, please rename or use the --chr argument\"\n    \n    chrnum = \"chr${m[0][2]}\"\n    def outfile = \"${cohort}_${chrnum}\"\n\n    \"\"\"\n    set -x\n    plink2 --pfile ${plink_prefix} \\\n           --keep ${samplelist} \\\n           --export A \\\n           --mac 20 \\\n           --update-sex ${samplelist} \\\n           --pheno ${samplelist} \\\n           --pheno-col-nums 4 \\\n           --hwe 1e-6 \\\n           --geno ${params.missing_geno_rate} \\\n           --out \"${outfile}\"  \\\n           --threads ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "bash",
+        "tools": [
+            "cohorts"
+        ],
+        "tools_url": [
+            "https://bio.tools/cohorts"
+        ],
+        "tools_dico": [
+            {
+                "name": "cohorts",
+                "uri": "https://bio.tools/cohorts",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Biomarkers"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Experimental medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Clinical medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Biomedical research"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Diagnostic markers"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Read binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning shotgun reads"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Package for standardized and reproducible processing, analysis, and integration of clinical proteomics data.",
+                "homepage": "http://www.github.com/ngiangre/cohorts"
+            }
+        ],
+        "inputs": [
+            "p3_in_files_gallop",
+            "gwas_samplelist_gallop"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "gwas_rawfile"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'small'"
+        ],
+        "when": "params.longitudinal_flag",
+        "stub": ""
+    },
+    "p3_gwas_gallop": {
+        "name_process": "p3_gwas_gallop",
+        "string_process": "\nprocess p3_gwas_gallop {\n  scratch true\n  label 'small'\n\n  publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}\", mode: 'copy', overwrite: true\n\n  input:\n    set file(samplelist), file(rawfile) from gwas_rawfile\n    path x, stageAs: 'phenotypes.tsv' from \"${params.phenofile}\"\n  output:\n    file \"*.gallop\" into gallop_results\n  when:\n    params.longitudinal_flag\n  \n  script:\n    def m = []\n    def cohort = rawfile.getName()\n    m = cohort =~ /(.*).raw/\n    outfile = \"${m[0][1]}.${params.out}\"\n\n    def model = \"\"\n    def pheno_name = \"\"\n    def pheno_name_file = \"\"\n\n    if (params.model != '') {\n      model = \"--model '${params.model}'\"\n    }\n    \n    if (params.pheno_name != '') {\n      pheno_name = \"--pheno-name '${params.pheno_name}'\"\n    }\n\n    if (params.pheno_name_file != '') {\n      pheno_name_file = \"--pheno-name-file '${params.pheno_name_file}'\"\n    }\n\n    \"\"\"\n    set -x\n    gallop --gallop \\\n           --rawfile ${rawfile} \\\n           --pheno \"phenotypes.tsv\" \\\n           --covar ${samplelist} \\\n           --covar-name ${params.covariates} \\\n           ${model} ${pheno_name} ${pheno_name_file} \\\n           --time-name 'study_days' \\\n           --out \"${outfile}\"\n    \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "    def m = []\n    def cohort = rawfile.getName()\n    m = cohort =~ /(.*).raw/\n    outfile = \"${m[0][1]}.${params.out}\"\n\n    def model = \"\"\n    def pheno_name = \"\"\n    def pheno_name_file = \"\"\n\n    if (params.model != '') {\n      model = \"--model '${params.model}'\"\n    }\n    \n    if (params.pheno_name != '') {\n      pheno_name = \"--pheno-name '${params.pheno_name}'\"\n    }\n\n    if (params.pheno_name_file != '') {\n      pheno_name_file = \"--pheno-name-file '${params.pheno_name_file}'\"\n    }\n\n    \"\"\"\n    set -x\n    gallop --gallop \\\n           --rawfile ${rawfile} \\\n           --pheno \"phenotypes.tsv\" \\\n           --covar ${samplelist} \\\n           --covar-name ${params.covariates} \\\n           ${model} ${pheno_name} ${pheno_name_file} \\\n           --time-name 'study_days' \\\n           --out \"${outfile}\"\n    \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [
+            "MoDEL"
+        ],
+        "tools_url": [
+            "https://bio.tools/model"
+        ],
+        "tools_dico": [
+            {
+                "name": "MoDEL",
+                "uri": "https://bio.tools/model",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2426",
+                                    "term": "Modelling and simulation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0842",
+                                "term": "Identifier"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2080",
+                                "term": "Database search results"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Database of protein Molecular Dynamics simulations, with 1800 trajectories representing different structural clusters of the PDB.",
+                "homepage": "http://mmb.irbbarcelona.org/MoDEL"
+            }
+        ],
+        "inputs": [
+            "gwas_rawfile",
+            "\"${params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "gallop_results"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'small'",
+            "publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "params.longitudinal_flag",
+        "stub": ""
+    },
+    "p3_format_gwas_plink": {
+        "name_process": "p3_format_gwas_plink",
+        "string_process": "\nprocess p3_format_gwas_plink {\n  echo true\n  scratch true\n  label 'small'\n\n  input:\n    val samplelist from gwas_samplelist_plink.flatten()\n    path x, stageAs: 'phenotypes.tsv' from \"${params.phenofile}\"\n  output:\n    file \"*_analyzed.tsv\" into plink_samplelist\n  when:\n    ! params.longitudinal_flag\n\n  script:\n                                         \n                                          \n\n    def m = []\n    def cohort = \"\"\n    cohort = samplelist.getName()\n    m = cohort =~ /(.*)_filtered.pca.tsv/\n    outfile = \"${m[0][1]}\"\n\n    def pheno_name = \"y\"\n    if (params.pheno_name != '') {\n      pheno_name = \"${params.pheno_name}\"\n    }\n\n    \"\"\"\n    #!/usr/bin/env python3\n    import pandas as pd\n    import time\n\n    covars = \"${params.covariates}\"\n    covars = covars.split(' ')\n\n    d_pheno = pd.read_csv(\"phenotypes.tsv\", sep=\"\\t\", engine='c')\n    d_sample = pd.read_csv(\"${samplelist}\", sep=\"\\t\", engine='c')\n\n    d_result = pd.merge(d_pheno, d_sample, on='IID', how='inner')\n    d_set = d_result.loc[:, [\"#FID\", \"IID\", \"${pheno_name}\"] + covars].copy()\n    d_set.to_csv(\"${outfile}_analyzed.tsv\", sep=\"\\t\", index=False)\n\n    time.sleep(10)\n    \"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "    def m = []\n    def cohort = \"\"\n    cohort = samplelist.getName()\n    m = cohort =~ /(.*)_filtered.pca.tsv/\n    outfile = \"${m[0][1]}\"\n\n    def pheno_name = \"y\"\n    if (params.pheno_name != '') {\n      pheno_name = \"${params.pheno_name}\"\n    }\n\n    \"\"\"\n    #!/usr/bin/env python3\n    import pandas as pd\n    import time\n\n    covars = \"${params.covariates}\"\n    covars = covars.split(' ')\n\n    d_pheno = pd.read_csv(\"phenotypes.tsv\", sep=\"\\t\", engine='c')\n    d_sample = pd.read_csv(\"${samplelist}\", sep=\"\\t\", engine='c')\n\n    d_result = pd.merge(d_pheno, d_sample, on='IID', how='inner')\n    d_set = d_result.loc[:, [\"#FID\", \"IID\", \"${pheno_name}\"] + covars].copy()\n    d_set.to_csv(\"${outfile}_analyzed.tsv\", sep=\"\\t\", index=False)\n\n    time.sleep(10)\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gwas_samplelist_plink",
+            "\"${params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "plink_samplelist"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "echo true",
+            "scratch true",
+            "label 'small'"
+        ],
+        "when": "! params.longitudinal_flag",
+        "stub": ""
+    },
+    "p3_gwas_plink": {
+        "name_process": "p3_gwas_plink",
+        "string_process": "\nprocess p3_gwas_plink{\n  scratch true\n  label 'small'\n  publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}\", mode: 'copy', overwrite: true\n\n  input:\n    set val(plink_prefix), file(psam), file(pgen), file(pvar) from p3_in_files_plink\n    each samplelist from plink_samplelist\n  output:\n    file \"*.linear\" into gwas_results\n    file \"*.log\" into p3_log\n  when:\n    ! params.longitudinal_flag\n\n  script:\n    def covariates = \"${params.covariates}\".replaceAll(/ /, \",\")\n    def m = []\n    def cohort = samplelist.getName()\n    m = cohort =~ /(.*)_analyzed.tsv/\n    cohort = m[0][1]\n\n    m = []\n    def chrnum = \"\"\n\n                                                                                              \n    if (params.chr == \"\")\n      m = plink_prefix  =~ /(?i)(chr)([0-9]+)/\n    else\n      m = params.chr =~ /(?i)(chr)([0-9]+)/\n\n                                                \n    if (m.size() != 1 || m[0].size() < 3)\n      error \"Failed to identify chromosome from filename ${dataFile}, please rename or use the --chr argument\"\n    \n    chrnum = \"chr${m[0][2]}\"\n    def outfile = \"${cohort}_${chrnum}.${params.out}\"\n\n    def pheno_name = \"y\"\n    if (params.pheno_name != '') {\n      pheno_name = \"${params.pheno_name}\"\n    }\n\n    \"\"\"\n    plink2 --pfile ${plink_prefix} \\\n           --glm hide-covar omit-ref cols=+beta,+a1freq \\\n           --pheno ${samplelist} \\\n           --pheno-name ${pheno_name} \\\n           --covar ${samplelist} \\\n           --covar-name ${covariates} \\\n           --covar-variance-standardize \\\n           --keep ${samplelist} \\\n           --output-chr chrM \\\n           --mac 20 \\\n           --hwe 1e-6 \\\n           --threads ${task.cpus} \\\n           --out ${outfile}\n    \"\"\"\n}",
+        "nb_lignes_process": 57,
+        "string_script": "    def covariates = \"${params.covariates}\".replaceAll(/ /, \",\")\n    def m = []\n    def cohort = samplelist.getName()\n    m = cohort =~ /(.*)_analyzed.tsv/\n    cohort = m[0][1]\n\n    m = []\n    def chrnum = \"\"\n\n                                                                                              \n    if (params.chr == \"\")\n      m = plink_prefix  =~ /(?i)(chr)([0-9]+)/\n    else\n      m = params.chr =~ /(?i)(chr)([0-9]+)/\n\n                                                \n    if (m.size() != 1 || m[0].size() < 3)\n      error \"Failed to identify chromosome from filename ${dataFile}, please rename or use the --chr argument\"\n    \n    chrnum = \"chr${m[0][2]}\"\n    def outfile = \"${cohort}_${chrnum}.${params.out}\"\n\n    def pheno_name = \"y\"\n    if (params.pheno_name != '') {\n      pheno_name = \"${params.pheno_name}\"\n    }\n\n    \"\"\"\n    plink2 --pfile ${plink_prefix} \\\n           --glm hide-covar omit-ref cols=+beta,+a1freq \\\n           --pheno ${samplelist} \\\n           --pheno-name ${pheno_name} \\\n           --covar ${samplelist} \\\n           --covar-name ${covariates} \\\n           --covar-variance-standardize \\\n           --keep ${samplelist} \\\n           --output-chr chrM \\\n           --mac 20 \\\n           --hwe 1e-6 \\\n           --threads ${task.cpus} \\\n           --out ${outfile}\n    \"\"\"",
+        "nb_lignes_script": 41,
+        "language_script": "bash",
+        "tools": [
+            "cohorts"
+        ],
+        "tools_url": [
+            "https://bio.tools/cohorts"
+        ],
+        "tools_dico": [
+            {
+                "name": "cohorts",
+                "uri": "https://bio.tools/cohorts",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Biomarkers"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Experimental medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Clinical medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Biomedical research"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Diagnostic markers"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Read binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning shotgun reads"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Package for standardized and reproducible processing, analysis, and integration of clinical proteomics data.",
+                "homepage": "http://www.github.com/ngiangre/cohorts"
+            }
+        ],
+        "inputs": [
+            "p3_in_files_plink",
+            "plink_samplelist"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "gwas_results",
+            "p3_log"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'small'",
+            "publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "! params.longitudinal_flag",
+        "stub": ""
+    },
+    "p3_gwas_viz": {
+        "name_process": "p3_gwas_viz",
+        "string_process": "\nprocess p3_gwas_viz {\n  scratch true\n  label 'medium'\n\n  publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}/Plots\", mode: 'copy', overwrite: true\n\n  input:\n    file x from gwas_results.mix(gallop_results).collect()\n  output:\n    file \"*.png\" into gwas_plots\n\n  script:\n    \"\"\"\n    #!/usr/bin/env python3\n    import pandas as pd\n    import matplotlib.pyplot as plt\n    import os\n    from qmplot import manhattanplot\n    from qmplot import qqplot\n    from multiprocessing import Pool\n\n    files = list(filter(lambda x: os.path.splitext(x)[-1] in ['.gallop', '.linear'], os.listdir()))\n    dfs = []\n  \n    # group by phenotype\n    lt_flag = \"${params.longitudinal_flag}\" == \"true\"\n    suffix = \"${params.out}\"\n    threads = int(\"${task.cpus}\")\n\n    def plot_summary_stats(data, cohort, outcome, lt_flag=False):\n      xtick = set(['chr' + i for i in list(map(str, range(1, 10))) + ['11', '13', '15', '18', '21', 'X']])\n      if lt_flag:\n        manhattanplot(data=data,\n                      title=f\"Manhattan Intercept {cohort} {outcome}\",\n                      pv=\"Pi\",\n                      figname=f\"{cohort}_{outcome}_manhattan_intercept.gallop.png\",\n                      xtick_label_set=xtick)\n        \n        manhattanplot(data=data,\n                      title=f\"Manhattan Slope {cohort} {outcome}\",\n                      pv=\"P\",\n                      figname=f\"{cohort}_{outcome}_manhattan_slope.gallop.png\",\n                      xtick_label_set=xtick)\n        f, ax = plt.subplots(figsize=(6, 6), facecolor=\"w\", edgecolor=\"k\")\n        qqplot(data=data[\"Pi\"],\n               marker=\"o\",\n               title=f\"QQ Intercept {cohort} {outcome}\",\n               xlabel=r\"Expected -log(P)\",\n               ylabel=r\"Observed -log(P)\",\n               dpi=300,\n               ax=ax,\n               figname=f\"{cohort}_{outcome}_qq_intercept.gallop.png\")\n        f, ax = plt.subplots(figsize=(6, 6), facecolor=\"w\", edgecolor=\"k\")\n        qqplot(data=data[\"P\"],\n               marker=\"o\",\n               title=f\"QQ Slope {cohort} {outcome}\",\n               xlabel=r\"Expected -log(P)\",\n               ylabel=r\"Observed -log(P)\",\n               dpi=300,\n               ax=ax,\n               figname=f\"{cohort}_{outcome}_qq_slope.gallop.png\")\n      else:\n        manhattanplot(data=data,\n                      title=f\"Manhattan Intercept {cohort} {outcome}\",\n                      pv=\"P\",\n                      figname=f\"{cohort}_{outcome}_manhattan.linear.png\",\n                      xtick_label_set=xtick)\n        f, ax = plt.subplots(figsize=(6, 6), facecolor=\"w\", edgecolor=\"k\")\n        qqplot(data=data[\"P\"],\n               marker=\"o\",\n               title=f\"QQ Intercept {cohort} {outcome}\",\n               xlabel=r\"Expected -log(P)\",\n               ylabel=r\"Observed -log(P)\",\n               dpi=300,\n               ax=ax,\n               figname=f\"{cohort}_{outcome}_qq.linear.png\")\n\n    plot_df = dict()\n    for f in files:\n      fc = f.split('.')\n      pheno = fc[-2]\n      cohort = '_'.join(fc[0].split('_')[:-1])\n      try:\n        plot_df[f'{cohort}+{pheno}'].append(f)\n      except KeyError:\n        plot_df[f'{cohort}+{pheno}'] = [f]\n\n    def read_table(fn):\n      'converts a filename to a pandas dataframe'\n      return pd.read_table(fn, sep=\"\\t\")\n\n    for cohort in plot_df.keys():\n      df = None\n      c, outcome = cohort.split('+')\n      \n      with Pool(processes=threads) as pool:\n\n        # have your pool map the file names to dataframes\n        df_list = pool.map(read_table, plot_df[cohort])\n\n        # reduce the list of dataframes to a single dataframe\n        df = pd.concat(df_list, ignore_index=True)\n      \n      df = df.dropna(how=\"any\", axis=0)  # clean data\n      df['chr_order'] = df['#CHROM'].str.replace('chr', '')\n      df['chr_order'] = df['chr_order'].astype(int)\n      df = df.sort_values(by=['chr_order', 'POS'])\n\n      # generate manhattan plot and set an output file.\n      plot_summary_stats(data=df, cohort=f'{c}.{suffix}', outcome=outcome, lt_flag=lt_flag)\n    \"\"\"\n}",
+        "nb_lignes_process": 111,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    import pandas as pd\n    import matplotlib.pyplot as plt\n    import os\n    from qmplot import manhattanplot\n    from qmplot import qqplot\n    from multiprocessing import Pool\n\n    files = list(filter(lambda x: os.path.splitext(x)[-1] in ['.gallop', '.linear'], os.listdir()))\n    dfs = []\n  \n    # group by phenotype\n    lt_flag = \"${params.longitudinal_flag}\" == \"true\"\n    suffix = \"${params.out}\"\n    threads = int(\"${task.cpus}\")\n\n    def plot_summary_stats(data, cohort, outcome, lt_flag=False):\n      xtick = set(['chr' + i for i in list(map(str, range(1, 10))) + ['11', '13', '15', '18', '21', 'X']])\n      if lt_flag:\n        manhattanplot(data=data,\n                      title=f\"Manhattan Intercept {cohort} {outcome}\",\n                      pv=\"Pi\",\n                      figname=f\"{cohort}_{outcome}_manhattan_intercept.gallop.png\",\n                      xtick_label_set=xtick)\n        \n        manhattanplot(data=data,\n                      title=f\"Manhattan Slope {cohort} {outcome}\",\n                      pv=\"P\",\n                      figname=f\"{cohort}_{outcome}_manhattan_slope.gallop.png\",\n                      xtick_label_set=xtick)\n        f, ax = plt.subplots(figsize=(6, 6), facecolor=\"w\", edgecolor=\"k\")\n        qqplot(data=data[\"Pi\"],\n               marker=\"o\",\n               title=f\"QQ Intercept {cohort} {outcome}\",\n               xlabel=r\"Expected -log(P)\",\n               ylabel=r\"Observed -log(P)\",\n               dpi=300,\n               ax=ax,\n               figname=f\"{cohort}_{outcome}_qq_intercept.gallop.png\")\n        f, ax = plt.subplots(figsize=(6, 6), facecolor=\"w\", edgecolor=\"k\")\n        qqplot(data=data[\"P\"],\n               marker=\"o\",\n               title=f\"QQ Slope {cohort} {outcome}\",\n               xlabel=r\"Expected -log(P)\",\n               ylabel=r\"Observed -log(P)\",\n               dpi=300,\n               ax=ax,\n               figname=f\"{cohort}_{outcome}_qq_slope.gallop.png\")\n      else:\n        manhattanplot(data=data,\n                      title=f\"Manhattan Intercept {cohort} {outcome}\",\n                      pv=\"P\",\n                      figname=f\"{cohort}_{outcome}_manhattan.linear.png\",\n                      xtick_label_set=xtick)\n        f, ax = plt.subplots(figsize=(6, 6), facecolor=\"w\", edgecolor=\"k\")\n        qqplot(data=data[\"P\"],\n               marker=\"o\",\n               title=f\"QQ Intercept {cohort} {outcome}\",\n               xlabel=r\"Expected -log(P)\",\n               ylabel=r\"Observed -log(P)\",\n               dpi=300,\n               ax=ax,\n               figname=f\"{cohort}_{outcome}_qq.linear.png\")\n\n    plot_df = dict()\n    for f in files:\n      fc = f.split('.')\n      pheno = fc[-2]\n      cohort = '_'.join(fc[0].split('_')[:-1])\n      try:\n        plot_df[f'{cohort}+{pheno}'].append(f)\n      except KeyError:\n        plot_df[f'{cohort}+{pheno}'] = [f]\n\n    def read_table(fn):\n      'converts a filename to a pandas dataframe'\n      return pd.read_table(fn, sep=\"\\t\")\n\n    for cohort in plot_df.keys():\n      df = None\n      c, outcome = cohort.split('+')\n      \n      with Pool(processes=threads) as pool:\n\n        # have your pool map the file names to dataframes\n        df_list = pool.map(read_table, plot_df[cohort])\n\n        # reduce the list of dataframes to a single dataframe\n        df = pd.concat(df_list, ignore_index=True)\n      \n      df = df.dropna(how=\"any\", axis=0)  # clean data\n      df['chr_order'] = df['#CHROM'].str.replace('chr', '')\n      df['chr_order'] = df['chr_order'].astype(int)\n      df = df.sort_values(by=['chr_order', 'POS'])\n\n      # generate manhattan plot and set an output file.\n      plot_summary_stats(data=df, cohort=f'{c}.{suffix}', outcome=outcome, lt_flag=lt_flag)\n    \"\"\"",
+        "nb_lignes_script": 98,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gwas_results",
+            "gallop_results"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "gwas_plots"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "michael-ta__longitudinal-GWAS-pipeline",
+        "directive": [
+            "scratch true",
+            "label 'medium'",
+            "publishDir \"${GWAS_OUTPUT_DIR}/${params.out}_${params.datetime}/Plots\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

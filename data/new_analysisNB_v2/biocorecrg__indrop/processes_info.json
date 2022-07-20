@@ -1,0 +1,545 @@
+{
+    "QConRawReads": {
+        "name_process": "QConRawReads",
+        "string_process": "\nprocess QConRawReads {\n    publishDir outputQC\n\n    tag { read }\n\n    input:\n    file(read) from reads_for_fastqc\n\n    output:\n    file(\"*_fastqc.*\") into raw_fastqc_files\n\n    script:\n    def qc = new QualityChecker(input:read, cpus:task.cpus)\n    qc.fastqc()\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    def qc = new QualityChecker(input:read, cpus:task.cpus)\n    qc.fastqc()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reads_for_fastqc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "raw_fastqc_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "publishDir outputQC",
+            "tag { read }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dropTag": {
+        "name_process": "dropTag",
+        "string_process": "\nprocess dropTag {    \n    publishDir filt_folder\n    label 'indrop_multi_cpus'\n\n    tag { pair_id }\n\n    input:\n    set pair_id, file(seqs) from reads\n    file configFile\n    \n    output:\n    set pair_id, file(\"*.tagged.fastq.gz\") into tagged_files_for_alignment\n    file(\"*.tagged.fastq.gz\") into tagged_files_for_fastqc\n    set pair_id, file(\"*.tagged.params.gz\") into params_files_for_estimation\n    set pair_id, file(\"*.tagged.rds\") into tagged_rds_for_report\n  \n                                                   \n                                   \n    script:\n    def v3_params = \"\"\n    if (params.library_tag != \"\") {\n    \tv3_params = \"-t ${params.library_tag}\"\n    }\n    \"\"\"\n        droptag -r 0 -S -s ${v3_params} -p ${task.cpus} -c ${configFile} ${seqs}\n    \"\"\"\n    \n}",
+        "nb_lignes_process": 27,
+        "string_script": "    def v3_params = \"\"\n    if (params.library_tag != \"\") {\n    \tv3_params = \"-t ${params.library_tag}\"\n    }\n    \"\"\"\n        droptag -r 0 -S -s ${v3_params} -p ${task.cpus} -c ${configFile} ${seqs}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reads",
+            "configFile"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "tagged_files_for_alignment",
+            "tagged_files_for_fastqc",
+            "params_files_for_estimation",
+            "tagged_rds_for_report"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "publishDir filt_folder",
+            "label 'indrop_multi_cpus'",
+            "tag { pair_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "QCFiltReads": {
+        "name_process": "QCFiltReads",
+        "string_process": "\nprocess QCFiltReads {\n    publishDir outputQC\n\n    tag { filtered_read }\n\n    input:\n    file(filtered_read) from tagged_files_for_fastqc.flatten()\n\n    output:\n    file(\"*_fastqc.*\") into trimmed_fastqc_files\n\n    script:\n    def qc = new QualityChecker(input:filtered_read, cpus:task.cpus)\n    qc.fastqc()\n   }",
+        "nb_lignes_process": 14,
+        "string_script": "    def qc = new QualityChecker(input:filtered_read, cpus:task.cpus)\n    qc.fastqc()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tagged_files_for_fastqc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trimmed_fastqc_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "publishDir outputQC",
+            "tag { filtered_read }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "getReadLength": {
+        "name_process": "getReadLength",
+        "string_process": "\nprocess getReadLength {   \n    tag { pairid }\n\n    input: \n    \n    set pairid, file(fastq_file) from fastq_file_for_size_est\n \n    output: \n    stdout into read_length\n\n    script:\n    def qc = new QualityChecker(input:fastq_file)\n    qc.getReadSize()\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    def qc = new QualityChecker(input:fastq_file)\n    qc.getReadSize()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastq_file_for_size_est"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "read_length"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "tag { pairid }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "buildIndex": {
+        "name_process": "buildIndex",
+        "string_process": "\nprocess buildIndex {\n    tag { genomeFile }\n                        \n    \n    label 'index_mem_cpus'\n\n    input:\n    file genomeFile\n    file annotationFile\n    val read_size from read_length.map {  it.trim().toInteger() } \n\n    output:\n    file (\"STARgenome\") into STARgenomeIndex\n    \n    script:\n    def aligner = new NGSaligner(reference_file:genomeFile, index:\"STARgenome\", annotation_file:annotationFile, read_size:read_size-1, cpus:task.cpus)\n    aligner.doIndexing(\"STAR\")\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    def aligner = new NGSaligner(reference_file:genomeFile, index:\"STARgenome\", annotation_file:annotationFile, read_size:read_size-1, cpus:task.cpus)\n    aligner.doIndexing(\"STAR\")",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genomeFile",
+            "annotationFile",
+            "read_length"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "STARgenomeIndex"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "tag { genomeFile }",
+            "label 'index_mem_cpus'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mapping": {
+        "name_process": "mapping",
+        "string_process": "\nprocess mapping {\n    label 'big_mem_cpus'\n    tag { pair_id }\n\n    input:\n    file STARgenome from STARgenomeIndex\n    set pair_id, file(reads) from tagged_files_for_alignment    \n\n    output:\n    set pair_id, file(\"STAR_${pair_id}/${pair_id}*.bam\") into STARmappedTags_for_filter\n    set pair_id, file(\"STAR_${pair_id}\") into STARmappedFolders_for_qualimap\n    set pair_id, file(\"STAR_${pair_id}\") into STARmappedFolders_for_multiQC\n\n                                    \n    script:\n    \"\"\"\n    STAR   --runThreadN ${task.cpus} \\\n    --genomeDir ${STARgenome}   --readFilesIn ${reads}  --readFilesCommand zcat \\\n    --outFileNamePrefix ${pair_id}  --outSAMtype BAM Unsorted --outSAMunmapped None\n        mkdir STAR_${pair_id} \n        mv ${pair_id}Aligned* STAR_${pair_id}/. \n        mv ${pair_id}SJ* STAR_${pair_id}/. \n        mv ${pair_id}Log* STAR_${pair_id}/. \n        if test -f \"${pair_id}ReadsPerGene*\"; \n           then mv ${pair_id}ReadsPerGene* STAR_${pair_id}/.\n        fi       \n    \"\"\"\n                                                                                                                         \n                                   \n\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    STAR   --runThreadN ${task.cpus} \\\n    --genomeDir ${STARgenome}   --readFilesIn ${reads}  --readFilesCommand zcat \\\n    --outFileNamePrefix ${pair_id}  --outSAMtype BAM Unsorted --outSAMunmapped None\n        mkdir STAR_${pair_id} \n        mv ${pair_id}Aligned* STAR_${pair_id}/. \n        mv ${pair_id}SJ* STAR_${pair_id}/. \n        mv ${pair_id}Log* STAR_${pair_id}/. \n        if test -f \"${pair_id}ReadsPerGene*\"; \n           then mv ${pair_id}ReadsPerGene* STAR_${pair_id}/.\n        fi       \n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "STARgenomeIndex",
+            "tagged_files_for_alignment"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "STARmappedTags_for_filter",
+            "STARmappedFolders_for_qualimap",
+            "STARmappedFolders_for_multiQC"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "label 'big_mem_cpus'",
+            "tag { pair_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "removeMultimapping": {
+        "name_process": "removeMultimapping",
+        "string_process": "\tprocess removeMultimapping {\n\t\tpublishDir outputMapping\n\t\tlabel 'big_mem_cpus'\n\t\ttag { pair_id }\n\n\t\tinput:\n\t\tset pair_id, file(aln) from STARmappedTags_for_filter    \n\n\t\toutput:\n\t\tset pair_id, file (\"${pair_id}_univoc_s.bam\") into STARmappedTags_for_est\n\t\n\t\tscript:\n\t\t\"\"\"\n\t\tsamtools view -H ${aln} > ${pair_id}_univoc_s.sam\n\t\tsamtools view -@ ${task.cpus} ${aln} | grep \\\"\\\\<NH:i:1\\\\>\\\" >> ${pair_id}_univoc_s.sam\n\t\tsamtools view -@ ${task.cpus} -Sb ${pair_id}_univoc_s.sam > ${pair_id}_univoc_s.bam \n\t\trm ${pair_id}_univoc_s.sam\n\t\t\"\"\"\n \n\t}",
+        "nb_lignes_process": 18,
+        "string_script": "\t\t\"\"\"\n\t\tsamtools view -H ${aln} > ${pair_id}_univoc_s.sam\n\t\tsamtools view -@ ${task.cpus} ${aln} | grep \\\"\\\\<NH:i:1\\\\>\\\" >> ${pair_id}_univoc_s.sam\n\t\tsamtools view -@ ${task.cpus} -Sb ${pair_id}_univoc_s.sam > ${pair_id}_univoc_s.bam \n\t\trm ${pair_id}_univoc_s.sam\n\t\t\"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "STARmappedTags_for_filter"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "STARmappedTags_for_est"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "publishDir outputMapping",
+            "label 'big_mem_cpus'",
+            "tag { pair_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dropEst": {
+        "name_process": "dropEst",
+        "string_process": "\nprocess dropEst {\n    label 'indrop_one_cpu'\n    publishDir est_folder\n    tag { pair_id }\n\n    input:\n    set pair_id, file(tags), file(params_est) from STARmappedTags_for_est.join(params_files_for_estimation)\n    file (\"barcode_file.txt\") from barcodeFile\n    file annotationFile\n    file configFile\n\n    output:\n    set pair_id, file (\"*.rds\")  into estimates_rds\n    set pair_id, file (\"*.tsv\")  into estimates_tsv\n    set pair_id, file (\"*.mtx\")  into estimates_mtx_for_plots\n    set pair_id, file (\"*.mtx\")  into estimates_mtx\n\n    script:     \n    \"\"\"\n    dropest -r ${params_est} -m -w -g ${annotationFile} -c ${configFile} -o ${pair_id}.est ${tags} \n    \"\"\"\n    \n\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    dropest -r ${params_est} -m -w -g ${annotationFile} -c ${configFile} -o ${pair_id}.est ${tags} \n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "STARmappedTags_for_est",
+            "params_files_for_estimation",
+            "barcodeFile",
+            "annotationFile",
+            "configFile"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "estimates_rds",
+            "estimates_tsv",
+            "estimates_mtx_for_plots",
+            "estimates_mtx"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "label 'indrop_one_cpu'",
+            "publishDir est_folder",
+            "tag { pair_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dropReport": {
+        "name_process": "dropReport",
+        "string_process": "\nprocess dropReport {\n    label 'dropreport'\n    errorStrategy = 'ignore'\n    publishDir rep_folder, mode: 'copy'\n    tag { pair_id }\n\n    input:\n    set pair_id, file(estimate), file (droptag) from estimates_rds.join(tagged_rds_for_report)\n    file (dropestScript)\n    \n    output:\n    set pair_id, file (\"${pair_id}_report.html\")  into outreport\n\n    script:\n    def mitopar = \"\"\n    def mitocmd = \"\"\n    if (params.mtgenes != \"\") {\n        mitopar = \" -m mitoc.rds\" \n        mitocmd = \"gene_to_rds.r ${mitocgenesFile} mitoc.rds\"\n    }\n    \"\"\"\n    ${mitocmd}\n    Rscript --vanilla ${dropestScript} -t ${droptag} -o ${pair_id}_report.html ${mitopar} ${estimate} \n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    def mitopar = \"\"\n    def mitocmd = \"\"\n    if (params.mtgenes != \"\") {\n        mitopar = \" -m mitoc.rds\" \n        mitocmd = \"gene_to_rds.r ${mitocgenesFile} mitoc.rds\"\n    }\n    \"\"\"\n    ${mitocmd}\n    Rscript --vanilla ${dropestScript} -t ${droptag} -o ${pair_id}_report.html ${mitopar} ${estimate} \n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "estimates_rds",
+            "tagged_rds_for_report",
+            "dropestScript"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "outreport"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "label 'dropreport'",
+            "errorStrategy = 'ignore'",
+            "publishDir rep_folder, mode: 'copy'",
+            "tag { pair_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiQC_unfiltered": {
+        "name_process": "multiQC_unfiltered",
+        "string_process": " process multiQC_unfiltered {\n        publishDir outputMultiQC\n\n        input:\n        file '*' from raw_fastqc_files.collect()\n        file '*' from STARmappedFolders_for_multiQC.collect()\n\n        output:\n        file(\"multiqc_report.html\") into multiQC \n    \n        script:\n           \n                   \n                                                                                                             \n           \n        \"\"\"\n        multiqc .\n        \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "        \"\"\"\n        multiqc .\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "raw_fastqc_files",
+            "STARmappedFolders_for_multiQC"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "multiQC"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__indrop",
+        "directive": [
+            "publishDir outputMultiQC"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

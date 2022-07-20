@@ -1,0 +1,183 @@
+{
+    "velocyto_run_10x": {
+        "name_process": "velocyto_run_10x",
+        "string_process": "\nprocess velocyto_run_10x {\n\n    label \"process_high\"\n\n    publishDir \"${params.outdir}\",\n        mode: 'copy',\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n    \n    container \"quay.io/biocontainers/velocyto.py:0.17.17--py37h97743b1_2\"\n\n    input:\n        tuple val(meta), path(reads)\n        path gtf\n\n    output:\n        tuple val(meta), path(\"*.loom\"), emit: velocyto_counts\n\n    script:\n        prefix = meta.run ? \"${meta.sample_name}_${meta.run}\" : \"${meta.sample_name}\"\n\n        velocyto_command = \"velocyto run10x ${options.args} ${reads} ${gtf}\"\n\n        if (params.verbose){\n            println (\"[MODULE] velocyto/run_10x command: \" + velocyto_command)\n        }\n\n        \"\"\"\n        ${velocyto_command}\n        mv ${reads}/velocyto/${reads}.loom ./${prefix}.loom\n        \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "        prefix = meta.run ? \"${meta.sample_name}_${meta.run}\" : \"${meta.sample_name}\"\n\n        velocyto_command = \"velocyto run10x ${options.args} ${reads} ${gtf}\"\n\n        if (params.verbose){\n            println (\"[MODULE] velocyto/run_10x command: \" + velocyto_command)\n        }\n\n        \"\"\"\n        ${velocyto_command}\n        mv ${reads}/velocyto/${reads}.loom ./${prefix}.loom\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads",
+            "gtf"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Streit-lab__streitlab-nf-modules",
+        "directive": [
+            "label \"process_high\"",
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "container \"quay.io/biocontainers/velocyto.py:0.17.17--py37h97743b1_2\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "velocyto_samtools": {
+        "name_process": "velocyto_samtools",
+        "string_process": "\nprocess velocyto_samtools {\n\n    label \"process_medium\"\n\n    publishDir \"${params.outdir}\",\n        mode: 'copy',\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n    \n    container \"quay.io/biocontainers/samtools:1.10--h2e538c0_3\"\n\n    input:\n        tuple val(meta), path(reads)\n\n    output:\n        tuple val(meta), path(reads), emit: sorted_cellranger_out\n\n    script:\n        velocyto_samtools_command = \"samtools sort -t CB -O BAM -@ ${task.cpus} -o cellsorted_possorted_genome_bam.bam possorted_genome_bam.bam\"\n\n        if (params.verbose){\n            println (\"[MODULE] velocyto/samtools command: \" + velocyto_samtools_command)\n        }\n\n        \"\"\"\n        cd ${reads}/outs/\n        ${velocyto_samtools_command}\n        \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "        velocyto_samtools_command = \"samtools sort -t CB -O BAM -@ ${task.cpus} -o cellsorted_possorted_genome_bam.bam possorted_genome_bam.bam\"\n\n        if (params.verbose){\n            println (\"[MODULE] velocyto/samtools command: \" + velocyto_samtools_command)\n        }\n\n        \"\"\"\n        cd ${reads}/outs/\n        ${velocyto_samtools_command}\n        \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Streit-lab__streitlab-nf-modules",
+        "directive": [
+            "label \"process_medium\"",
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "container \"quay.io/biocontainers/samtools:1.10--h2e538c0_3\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "gtf_tag_chroms": {
+        "name_process": "gtf_tag_chroms",
+        "string_process": "\nprocess gtf_tag_chroms {\n    \n    label 'process_low'\n\n    publishDir \"${params.outdir}\",\n        mode: 'copy',\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    container \"quay.io/biocontainers/bioframe:0.0.12--pyh3252c3a_0\"\n\n    input:\n        path gtf\n\n    output:\n        path \"${prefix}.gtf\", emit: gtf\n\n    script:\n        prefix = options.suffix ? \"${options.suffix}\" : \"tag_chroms\"\n\n    \"\"\"\n    #!/usr/local/bin/python\n    \n    import pandas as pd\n    import re\n  \n    # make array of chromosomes to tag\n    lab = [${options.args}]\n\n    # create output file to write to\n    outfile = open(\"${prefix}.gtf\", 'a')\n\n    with open(\"${gtf}\", 'rt') as gtf:\n        for line in gtf:\n            # only search lines with gene_id in order to skip header lines\n            if 'gene_id' in line:\n\n                # change names for genes from chroms of interest (lab)\n                chr = line.split()[0]\n                if chr in lab:\n                    match = [s for s in lab if chr in s]\n                    line = re.sub('gene_id \"', 'gene_id \"'+''.join(match)+'-', line)\n                    if 'gene_name' in line:\n                        line = re.sub('gene_name \"', 'gene_name \"'+''.join(match)+'-', line)\n\n            outfile.write(line)\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "        prefix = options.suffix ? \"${options.suffix}\" : \"tag_chroms\"\n\n    \"\"\"\n    #!/usr/local/bin/python\n    \n    import pandas as pd\n    import re\n  \n    # make array of chromosomes to tag\n    lab = [${options.args}]\n\n    # create output file to write to\n    outfile = open(\"${prefix}.gtf\", 'a')\n\n    with open(\"${gtf}\", 'rt') as gtf:\n        for line in gtf:\n            # only search lines with gene_id in order to skip header lines\n            if 'gene_id' in line:\n\n                # change names for genes from chroms of interest (lab)\n                chr = line.split()[0]\n                if chr in lab:\n                    match = [s for s in lab if chr in s]\n                    line = re.sub('gene_id \"', 'gene_id \"'+''.join(match)+'-', line)\n                    if 'gene_name' in line:\n                        line = re.sub('gene_name \"', 'gene_name \"'+''.join(match)+'-', line)\n\n            outfile.write(line)\n    \"\"\"",
+        "nb_lignes_script": 28,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gtf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Streit-lab__streitlab-nf-modules",
+        "directive": [
+            "label 'process_low'",
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "container \"quay.io/biocontainers/bioframe:0.0.12--pyh3252c3a_0\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "r": {
+        "name_process": "r",
+        "string_process": "\nprocess r {\n\n    publishDir \"${params.outdir}\",\n        mode: 'copy',\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    container \"streitlab/custom-nf-modules-r:latest\"\n\n    input:\n        tuple val(meta), path('input/*')\n\n    output:\n        tuple val(meta), file('*')\n\n    script:\n\n        \"\"\"\n        Rscript ${params.script} --cores ${task.cpus} --runtype nextflow ${options.args}\n        rm -r input\n        \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "        \"\"\"\n        Rscript ${params.script} --cores ${task.cpus} --runtype nextflow ${options.args}\n        rm -r input\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "meta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Streit-lab__streitlab-nf-modules",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "container \"streitlab/custom-nf-modules-r:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cellranger_count": {
+        "name_process": "cellranger_count",
+        "string_process": "\nprocess cellranger_count {\n\n    label 'process_high'\n\n    publishDir \"${params.outdir}\",\n        mode: 'copy',\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    container \"streitlab/custom-nf-modules-cellranger:latest\"\n\n    input:\n        tuple val(meta), path('fastqs/*')\n        path reference_genome\n\n    output:\n        tuple val(meta), path(\"${prefix}_cellranger\"), emit: cellranger_out\n        tuple val(meta), path(\"${prefix}/*\"), emit: read_counts\n\n    script:\n        prefix = meta.run ? \"${meta.sample_name}_${meta.run}\" : \"${meta.sample_name}\"\n\n        cellranger_count_command = \"cellranger count --id='${prefix}_cellranger' --fastqs='fastqs' --sample=${meta.sample_id} --transcriptome=${reference_genome} ${options.args}\"\n        \n              \n        if (params.verbose){\n            println (\"[MODULE] cellranger count command: \" + cellranger_count_command)\n        }\n\n              \n        \"\"\"\n        ${cellranger_count_command}\n        mkdir ${prefix}\n        cp ${prefix}_cellranger/outs/filtered_feature_bc_matrix/* ${prefix}\n        \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "        prefix = meta.run ? \"${meta.sample_name}_${meta.run}\" : \"${meta.sample_name}\"\n\n        cellranger_count_command = \"cellranger count --id='${prefix}_cellranger' --fastqs='fastqs' --sample=${meta.sample_id} --transcriptome=${reference_genome} ${options.args}\"\n        \n              \n        if (params.verbose){\n            println (\"[MODULE] cellranger count command: \" + cellranger_count_command)\n        }\n\n              \n        \"\"\"\n        ${cellranger_count_command}\n        mkdir ${prefix}\n        cp ${prefix}_cellranger/outs/filtered_feature_bc_matrix/* ${prefix}\n        \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reference_genome"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Streit-lab__streitlab-nf-modules",
+        "directive": [
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "container \"streitlab/custom-nf-modules-cellranger:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cellranger_mkgtf": {
+        "name_process": "cellranger_mkgtf",
+        "string_process": "\nprocess cellranger_mkgtf {\n\n    label 'process_low'\n\n    publishDir \"${params.outdir}\",\n        mode: 'copy',\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    container \"streitlab/custom-nf-modules-cellranger:latest\"\n\n    input:\n        path(gtf)\n\n    output:\n        path(\"*.gtf\")\n\n    script:\n        \n        mkgtf_command = \"cellranger mkgtf ${gtf} ${gtf.baseName}_mkgtf.gtf ${options.args}\"\n        \n              \n        if (params.verbose){\n            println (\"[MODULE] filter gtf command: \" + mkgtf_command)\n        }\n\n              \n        \"\"\"\n        ${mkgtf_command}\n        \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "        mkgtf_command = \"cellranger mkgtf ${gtf} ${gtf.baseName}_mkgtf.gtf ${options.args}\"\n        \n              \n        if (params.verbose){\n            println (\"[MODULE] filter gtf command: \" + mkgtf_command)\n        }\n\n              \n        \"\"\"\n        ${mkgtf_command}\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gtf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Streit-lab__streitlab-nf-modules",
+        "directive": [
+            "label 'process_low'",
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "container \"streitlab/custom-nf-modules-cellranger:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cellranger_mkref": {
+        "name_process": "cellranger_mkref",
+        "string_process": "\nprocess cellranger_mkref {\n\n    label 'process_medium'\n\n    publishDir \"${params.outdir}\",\n        mode: 'copy',\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    container \"streitlab/custom-nf-modules-cellranger:latest\"\n\n    input:\n        path(gtf)\n        path(fasta)\n\n    output:\n        path(\"reference_genome\")\n\n    script:\n        mkref_command = \"cellranger mkref --genome=reference_genome --genes=${gtf} --fasta=${fasta} --nthreads=${task.cpus}\"\n        \n              \n        if (params.verbose){\n            println (\"[MODULE] mkref command: \" + mkref_command)\n        }\n\n               \n        \"\"\"\n        ${mkref_command}\n        \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "        mkref_command = \"cellranger mkref --genome=reference_genome --genes=${gtf} --fasta=${fasta} --nthreads=${task.cpus}\"\n        \n              \n        if (params.verbose){\n            println (\"[MODULE] mkref command: \" + mkref_command)\n        }\n\n               \n        \"\"\"\n        ${mkref_command}\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gtf",
+            "fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Streit-lab__streitlab-nf-modules",
+        "directive": [
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "container \"streitlab/custom-nf-modules-cellranger:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

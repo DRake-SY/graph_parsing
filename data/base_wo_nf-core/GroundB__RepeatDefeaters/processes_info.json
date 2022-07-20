@@ -1,0 +1,773 @@
+{
+    "REANNOTATE_REPEATS": {
+        "name_process": "REANNOTATE_REPEATS",
+        "string_process": "process REANNOTATE_REPEATS {\n\n    conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    path repeat_library                                                \n    path unclassified_domain_table                              \n    path hmmscan_domain_table                                                        \n\n    output:\n    path \"*_reannotated.fasta\", emit: fasta\n    path \"domain_table.tsv\"   , emit: domain_table\n    path \"versions.yml\"       , emit: versions\n\n    script:\n    def prefix = repeat_library.baseName\n    \"\"\"\n    #! /usr/bin/env python\n\n    import os\n    import re\n    import platform\n\n    # Checklist determines if an annotation uses multiple hits or superfamily name\n    superfamily = [\n        \"Academ\",\n        \"CACTA\",\n        \"DIRS\",\n        \"Ginger\",\n        \"Harbinger\",\n        \"Helitron\",\n        \"Kolobok\",\n        \"MULE\",\n        \"Mariner\",\n        \"Merlin\",\n        \"Novosib\",\n        \"P\",\n        \"Piggybac\",\n        \"Sola1\",\n        \"Sola2\",\n        \"Sola3\",\n        \"Transib\",\n        \"Zator\"\n    ]\n\n    # domain_table format\n    # col field\n    #   1 <seq id>\n    #   2 <alignment start>\n    #   3 <alignment end>\n    #   4 <envelope start>\n    #   5 <envelope end>\n    #   6 <hmm acc>\n    #   7 <hmm name>\n    #   8 <type>\n    #   9 <hmm start>\n    #  10 <hmm end>\n    #  11 <hmm length>\n    #  12 <bit score>\n    #  13 <E-value>\n    #  14 <significance>\n    #  15 <clan>\n\n    header_lines = {}\n\n    # Concatenate the domain table and cut out relevant columns\n    with os.popen(\n        'cat $hmmscan_domain_table $unclassified_domain_table | tee domain_table.tsv | awk \\\\'{ print \\$1 \"\\\\t\" \\$7 \"\\\\t\" \\$12 }\\\\''\n    ) as domain_table:\n\n        # Parse domain table to form a lookup table.\n        for line in domain_table:\n            cols = line.split()\n            header = re.split(\"_(plus|minus)\", cols[0])[\n                0\n            ]  # e.g. cclaro4-779#Unknown_minus_qseq_1\n            hit = cols[1].partition(\".\")[0]  # PARA-PROT.uniq.fasta -> PARA-PROT\n            score = cols[2]  # bitscore\n            print(\"Lookup: \" + header + \" : \" + hit + \" : \" + score)\n\n            # make entries for both concatenated names and best hit for each header\n            if header in header_lines:\n                header_lines[header][\"concat\"].add(hit)\n                if score < header_lines[header][\"best_hit_score\"]:\n                    header_lines[header][\"best_hit_score\"] = score\n                    header_lines[header][\"best_hit\"] = hit\n            else:\n                header_lines.setdefault(header, {})[\"concat\"] = {hit}\n                header_lines[header][\"best_hit_score\"] = score\n                header_lines[header][\"best_hit\"] = hit\n\n    # Iterate over repeat library and update header information\n    with open(\"$repeat_library\", \"r\") as repeat_lib:\n        with open(\"${prefix}_reannotated.fasta\", \"w\") as renamed_repeats:\n            for line in repeat_lib:\n\n                # Get lines matching header e.g., cclaro4-1265#Unknown(/XXX)\n                line_match = re.match(\"^>(.+#Unknown)(/[A-Z]{3})?\\$\", line)\n                if line_match:\n                    print(\"Old header: \" + line_match.group(0))\n\n                    # Update header and print to file\n                    # Scan keys for matching substring\n                    key_found = None\n                    for key in header_lines:\n                        header_key = re.search(line_match.group(1), key)\n                        if header_key:\n                            key_found = key  # matches updated to be unique key\n\n                            # if best hit is superfamily use that, otherwise use concat\n                            if header_lines[key][\"best_hit\"] in superfamily:\n                                # Write superfamily name\n                                header = (\n                                    \">\"\n                                    + key.partition(\"#Unknown\")[0]\n                                    + \"#\"\n                                    + header_lines[key][\"best_hit\"]\n                                    + str(line_match.group(2) or \"\")\n                                )\n                                renamed_repeats.write(header + \"\\\\n\")\n                                print(\"New header: \" + header)\n                            else:\n                                # Write concatenation of names\n                                header = (\n                                    \">\"\n                                    + key.partition(\"#Unknown\")[0]\n                                    + \"#\"\n                                    + \"-\".join(\n                                        [str(hmm) for hmm in header_lines[key][\"concat\"]]\n                                    )\n                                    + str(line_match.group(2) or \"\")\n                                )\n                                renamed_repeats.write(header + \"\\\\n\")\n                                print(\"New header: \" + header)\n\n                    # If header is unmatched, write out header again.\n                    if not key_found:\n                        renamed_repeats.write(line)\n                        print(\"No match\")\n\n                else:\n                    # print to file\n                    renamed_repeats.write(line)\n\n    with open(\"versions.yml\",\"w\") as versions:\n        versions.write('\"${task.process}\":\\\\n    python: ' + platform.python_version() + '\\\\n')\n    \"\"\"\n}",
+        "nb_lignes_process": 149,
+        "string_script": "    def prefix = repeat_library.baseName\n    \"\"\"\n    #! /usr/bin/env python\n\n    import os\n    import re\n    import platform\n\n    # Checklist determines if an annotation uses multiple hits or superfamily name\n    superfamily = [\n        \"Academ\",\n        \"CACTA\",\n        \"DIRS\",\n        \"Ginger\",\n        \"Harbinger\",\n        \"Helitron\",\n        \"Kolobok\",\n        \"MULE\",\n        \"Mariner\",\n        \"Merlin\",\n        \"Novosib\",\n        \"P\",\n        \"Piggybac\",\n        \"Sola1\",\n        \"Sola2\",\n        \"Sola3\",\n        \"Transib\",\n        \"Zator\"\n    ]\n\n    # domain_table format\n    # col field\n    #   1 <seq id>\n    #   2 <alignment start>\n    #   3 <alignment end>\n    #   4 <envelope start>\n    #   5 <envelope end>\n    #   6 <hmm acc>\n    #   7 <hmm name>\n    #   8 <type>\n    #   9 <hmm start>\n    #  10 <hmm end>\n    #  11 <hmm length>\n    #  12 <bit score>\n    #  13 <E-value>\n    #  14 <significance>\n    #  15 <clan>\n\n    header_lines = {}\n\n    # Concatenate the domain table and cut out relevant columns\n    with os.popen(\n        'cat $hmmscan_domain_table $unclassified_domain_table | tee domain_table.tsv | awk \\\\'{ print \\$1 \"\\\\t\" \\$7 \"\\\\t\" \\$12 }\\\\''\n    ) as domain_table:\n\n        # Parse domain table to form a lookup table.\n        for line in domain_table:\n            cols = line.split()\n            header = re.split(\"_(plus|minus)\", cols[0])[\n                0\n            ]  # e.g. cclaro4-779#Unknown_minus_qseq_1\n            hit = cols[1].partition(\".\")[0]  # PARA-PROT.uniq.fasta -> PARA-PROT\n            score = cols[2]  # bitscore\n            print(\"Lookup: \" + header + \" : \" + hit + \" : \" + score)\n\n            # make entries for both concatenated names and best hit for each header\n            if header in header_lines:\n                header_lines[header][\"concat\"].add(hit)\n                if score < header_lines[header][\"best_hit_score\"]:\n                    header_lines[header][\"best_hit_score\"] = score\n                    header_lines[header][\"best_hit\"] = hit\n            else:\n                header_lines.setdefault(header, {})[\"concat\"] = {hit}\n                header_lines[header][\"best_hit_score\"] = score\n                header_lines[header][\"best_hit\"] = hit\n\n    # Iterate over repeat library and update header information\n    with open(\"$repeat_library\", \"r\") as repeat_lib:\n        with open(\"${prefix}_reannotated.fasta\", \"w\") as renamed_repeats:\n            for line in repeat_lib:\n\n                # Get lines matching header e.g., cclaro4-1265#Unknown(/XXX)\n                line_match = re.match(\"^>(.+#Unknown)(/[A-Z]{3})?\\$\", line)\n                if line_match:\n                    print(\"Old header: \" + line_match.group(0))\n\n                    # Update header and print to file\n                    # Scan keys for matching substring\n                    key_found = None\n                    for key in header_lines:\n                        header_key = re.search(line_match.group(1), key)\n                        if header_key:\n                            key_found = key  # matches updated to be unique key\n\n                            # if best hit is superfamily use that, otherwise use concat\n                            if header_lines[key][\"best_hit\"] in superfamily:\n                                # Write superfamily name\n                                header = (\n                                    \">\"\n                                    + key.partition(\"#Unknown\")[0]\n                                    + \"#\"\n                                    + header_lines[key][\"best_hit\"]\n                                    + str(line_match.group(2) or \"\")\n                                )\n                                renamed_repeats.write(header + \"\\\\n\")\n                                print(\"New header: \" + header)\n                            else:\n                                # Write concatenation of names\n                                header = (\n                                    \">\"\n                                    + key.partition(\"#Unknown\")[0]\n                                    + \"#\"\n                                    + \"-\".join(\n                                        [str(hmm) for hmm in header_lines[key][\"concat\"]]\n                                    )\n                                    + str(line_match.group(2) or \"\")\n                                )\n                                renamed_repeats.write(header + \"\\\\n\")\n                                print(\"New header: \" + header)\n\n                    # If header is unmatched, write out header again.\n                    if not key_found:\n                        renamed_repeats.write(line)\n                        print(\"No match\")\n\n                else:\n                    # print to file\n                    renamed_repeats.write(line)\n\n    with open(\"versions.yml\",\"w\") as versions:\n        versions.write('\"${task.process}\":\\\\n    python: ' + platform.python_version() + '\\\\n')\n    \"\"\"",
+        "nb_lignes_script": 131,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "repeat_library",
+            "unclassified_domain_table",
+            "hmmscan_domain_table"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "BLASTX_AND_FILTER": {
+        "name_process": "BLASTX_AND_FILTER",
+        "string_process": "process BLASTX_AND_FILTER {\n\n    conda (params.enable_conda ? 'bioconda::blast=2.10.1' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/blast:2.10.1--pl526he19e7b1_3' :\n        'quay.io/biocontainers/blast:2.10.1--pl526he19e7b1_3' }\"\n\n    input:\n    path query\n    path db\n    each strand\n\n    output:\n    path \"*.blastx.tsv\"       , emit: tsv\n    path \"*.predicted.fasta\"  , emit: fasta\n    path \"versions.yml\"       , emit: versions\n\n    script:\n    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: query.baseName\n    \"\"\"\n    BLASTDB=\\$( find -L ./ -name \"*.pdb\" | sed 's/.pdb//' )\n    blastx -num_threads ${task.cpus} \\\\\n        -query $query \\\\\n        -db \\$BLASTDB \\\\\n        $args \\\\\n        -outfmt \"6 qseqid qseq\" \\\\\n        -strand $strand \\\\\n        -out ${prefix}.${strand}.blastx.tsv\n    # Blast output is a two column table\n    # awk: Format two column output to fasta\n    #      Label sequence header with strand and\n    #      accumulator to form unique sequence headers\n    awk 'BEGIN {\n        seq = \"\"\n        i = 1\n    }\n    {\n        if (seq == \\$1) {\n            i++\n        } else {\n            i = 1\n            seq = \\$1\n        }\n        gsub(/[-X*]/,\"\",\\$2)\n        print \">\"\\$1\"_${strand}_qseq_\"i\"\\\\n\"\\$2\n    }' ${prefix}.${strand}.blastx.tsv > ${prefix}.${strand}.predicted.fasta\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        blastx: \\$( blastx -version | sed -e '/^blastx:/!d; s/^.*blastx: //' )\n        awk   : \\$( awk |& sed '1!d; s/.*\\\\(v[0-9]\\\\+\\\\.[0-9]\\\\+\\\\.[0-9]\\\\+\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"\n\n}",
+        "nb_lignes_process": 54,
+        "string_script": "    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: query.baseName\n    \"\"\"\n    BLASTDB=\\$( find -L ./ -name \"*.pdb\" | sed 's/.pdb//' )\n    blastx -num_threads ${task.cpus} \\\\\n        -query $query \\\\\n        -db \\$BLASTDB \\\\\n        $args \\\\\n        -outfmt \"6 qseqid qseq\" \\\\\n        -strand $strand \\\\\n        -out ${prefix}.${strand}.blastx.tsv\n    # Blast output is a two column table\n    # awk: Format two column output to fasta\n    #      Label sequence header with strand and\n    #      accumulator to form unique sequence headers\n    awk 'BEGIN {\n        seq = \"\"\n        i = 1\n    }\n    {\n        if (seq == \\$1) {\n            i++\n        } else {\n            i = 1\n            seq = \\$1\n        }\n        gsub(/[-X*]/,\"\",\\$2)\n        print \">\"\\$1\"_${strand}_qseq_\"i\"\\\\n\"\\$2\n    }' ${prefix}.${strand}.blastx.tsv > ${prefix}.${strand}.predicted.fasta\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        blastx: \\$( blastx -version | sed -e '/^blastx:/!d; s/^.*blastx: //' )\n        awk   : \\$( awk |& sed '1!d; s/.*\\\\(v[0-9]\\\\+\\\\.[0-9]\\\\+\\\\.[0-9]\\\\+\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "bash",
+        "tools": [
+            "rSeq"
+        ],
+        "tools_url": [
+            "https://bio.tools/rseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "rSeq",
+                "uri": "https://bio.tools/rseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0099",
+                            "term": "RNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3680",
+                                    "term": "RNA-Seq analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2871",
+                                    "term": "Sequence tagged site (STS) mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0230",
+                                    "term": "Sequence generation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2871",
+                                    "term": "Sequence mapping"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Set of tools for RNA-Seq data analysis. It consists of programs that deal with many aspects of RNA-Seq data analysis, such as reference sequence generation, sequence mapping, gene and isoform expressions (RPKMs) computation, etc.",
+                "homepage": "http://www-personal.umich.edu/~jianghui/rseq/"
+            }
+        ],
+        "inputs": [
+            "query",
+            "db",
+            "strand"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'bioconda::blast=2.10.1' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/blast:2.10.1--pl526he19e7b1_3' : 'quay.io/biocontainers/blast:2.10.1--pl526he19e7b1_3' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PFAM_SCAN": {
+        "name_process": "PFAM_SCAN",
+        "string_process": "process PFAM_SCAN {\n\n    conda (params.enable_conda ? 'bioconda::pfam_scan==1.6' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/pfam_scan:1.6--hdfd78af_4' :\n        'quay.io/biocontainers/pfam_scan:1.6--hdfd78af_4' }\"\n\n    input:\n    path fasta\n    path hmm_db\n\n    output:\n    path '*.pfamtbl'    , emit: pfam_table\n    path \"versions.yml\" , emit: versions\n\n    script:\n    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: fasta.baseName\n    \"\"\"\n    # Stage local copy of HMM DB\n    mkdir -p HMM_DB\n    printf \"%s\\\\n\" $hmm_db | \\\\\n        xargs -P $task.cpus -I {} \\\\\n        sh -c 'gzip -cdf {} > HMM_DB/\\$( basename {} .gz )'\n    find HMM_DB -name \"*.hmm\" -exec hmmpress {} \\\\;\n\n    pfam_scan.pl \\\\\n        -fasta $fasta \\\\\n        -dir HMM_DB \\\\\n        -cpu ${task.cpus} \\\\\n        -outfile ${prefix}.pfamtbl \\\\\n        $args\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        pfam_scan: 1.6\n    END_VERSIONS\n    \"\"\"\n\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: fasta.baseName\n    \"\"\"\n    # Stage local copy of HMM DB\n    mkdir -p HMM_DB\n    printf \"%s\\\\n\" $hmm_db | \\\\\n        xargs -P $task.cpus -I {} \\\\\n        sh -c 'gzip -cdf {} > HMM_DB/\\$( basename {} .gz )'\n    find HMM_DB -name \"*.hmm\" -exec hmmpress {} \\\\;\n\n    pfam_scan.pl \\\\\n        -fasta $fasta \\\\\n        -dir HMM_DB \\\\\n        -cpu ${task.cpus} \\\\\n        -outfile ${prefix}.pfamtbl \\\\\n        $args\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        pfam_scan: 1.6\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "RASH"
+        ],
+        "tools_url": [
+            "https://bio.tools/RASH"
+        ],
+        "tools_dico": [
+            {
+                "name": "RASH",
+                "uri": "https://bio.tools/RASH",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature and language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Mathematics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Maths"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3778",
+                                    "term": "Text annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a Web-first format for HTML-based scholarly articles.\n\nResearch Articles in Simplified HTML (RASH) Framework includes a markup language defined as a subset of HTML+RDF for writing scientific articles, and related tools to convert it into different formats, to extract data from it, etc.\n\nHow to cite: Peroni, S., Osborne, F., Di Iorio, A., Nuzzolese, A. G., Poggi, F., Vitali, F., Motta, E. (2017). Research Articles in Simplified HTML: a Web-first format for HTML-based scholarly articles. PeerJ Computer Science 3: e132. e2513. DOI: https://doi.org/10.7717/peerj-cs.132.\n\n# rash-check.sh - fully check RASH documents.\n\nThe odt2rash.jar executable converts an ODT file into the RASH format.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Research Articles Simplified HTML', 'SAVE-SD'",
+                "homepage": "https://w3id.org/people/essepuntato/papers/rash-peerj2016.html"
+            }
+        ],
+        "inputs": [
+            "fasta",
+            "hmm_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'bioconda::pfam_scan==1.6' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/pfam_scan:1.6--hdfd78af_4' : 'quay.io/biocontainers/pfam_scan:1.6--hdfd78af_4' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "BLASTN": {
+        "name_process": "BLASTN",
+        "string_process": "process BLASTN {\n\n    conda (params.enable_conda ? 'bioconda::blast=2.10.1' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/blast:2.10.1--pl526he19e7b1_3' :\n        'quay.io/biocontainers/blast:2.10.1--pl526he19e7b1_3' }\"\n\n    input:\n    path query\n    path db\n\n    output:\n    path \"*.blastn.tsv\"       , emit: tsv\n    path \"versions.yml\"       , emit: versions\n\n    script:\n    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: query.baseName\n    \"\"\"\n    BLASTDB=\\$( find -L ./ -name \"*.ndb\" | sed 's/.ndb//' )\n    blastn -num_threads ${task.cpus} \\\\\n        -query $query \\\\\n        -db \\$BLASTDB \\\\\n        $args \\\\\n        -out ${prefix}.blastn.tsv\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        blastn: \\$( blastn -version | sed -e '/^blastn:/!d; s/^.*blastn: //' )\n    END_VERSIONS\n    \"\"\"\n\n}",
+        "nb_lignes_process": 31,
+        "string_script": "    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: query.baseName\n    \"\"\"\n    BLASTDB=\\$( find -L ./ -name \"*.ndb\" | sed 's/.ndb//' )\n    blastn -num_threads ${task.cpus} \\\\\n        -query $query \\\\\n        -db \\$BLASTDB \\\\\n        $args \\\\\n        -out ${prefix}.blastn.tsv\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        blastn: \\$( blastn -version | sed -e '/^blastn:/!d; s/^.*blastn: //' )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "G-BLASTN"
+        ],
+        "tools_url": [
+            "https://bio.tools/g-blastn"
+        ],
+        "tools_dico": [
+            {
+                "name": "G-BLASTN",
+                "uri": "https://bio.tools/g-blastn",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acids"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0346",
+                                    "term": "Sequence similarity search"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2976",
+                                "term": "Protein sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0857",
+                                "term": "Sequence search results"
+                            }
+                        ]
+                    }
+                ],
+                "description": "GPU-accelerated nucleotide alignment tool based on the widely used NCBI-BLAST.",
+                "homepage": "http://www.comp.hkbu.edu.hk/~chxw/software/G-BLASTN.html"
+            }
+        ],
+        "inputs": [
+            "query",
+            "db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'bioconda::blast=2.10.1' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/blast:2.10.1--pl526he19e7b1_3' : 'quay.io/biocontainers/blast:2.10.1--pl526he19e7b1_3' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HMMSCAN": {
+        "name_process": "HMMSCAN",
+        "string_process": "process HMMSCAN {\n\n    conda (params.enable_conda ? 'bioconda::pfam_scan==1.6' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/pfam_scan:1.6--hdfd78af_4' :\n        'quay.io/biocontainers/pfam_scan:1.6--hdfd78af_4' }\"\n\n    input:\n    path fasta\n    path hmm_db\n\n    output:\n    path '*.hmmscan.out',                   emit: hmmscan_out\n    tuple path('*.tbl'), path('*.pfamtbl'), emit: hmmscan_tables\n    path \"versions.yml\",                    emit: versions\n\n    script:\n    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: fasta.baseName\n    \"\"\"\n    # Stage local copy of HMM DB\n    mkdir -p HMM_DB\n    gzip -cdf $hmm_db > HMM_DB/\\$( basename $hmm_db .gz )\n    find HMM_DB -name \"*.hmm\" -exec hmmpress {} \\\\;\n\n    hmmscan $args \\\\\n        --cpu $task.cpus \\\\\n        --pfamtblout ${prefix}.pfamtbl \\\\\n        --tblout ${prefix}.tbl \\\\\n        -o ${prefix}.hmmscan.out \\\\\n        HMM_DB/*.hmm \\\\\n        $fasta\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        hmmscan: \\$( hmmscan -h | sed '2 !d;s/[^0-9]*\\\\(\\\\([0-9]\\\\.\\\\)\\\\{0,4\\\\}[0-9][^.]\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"\n\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: fasta.baseName\n    \"\"\"\n    # Stage local copy of HMM DB\n    mkdir -p HMM_DB\n    gzip -cdf $hmm_db > HMM_DB/\\$( basename $hmm_db .gz )\n    find HMM_DB -name \"*.hmm\" -exec hmmpress {} \\\\;\n\n    hmmscan $args \\\\\n        --cpu $task.cpus \\\\\n        --pfamtblout ${prefix}.pfamtbl \\\\\n        --tblout ${prefix}.tbl \\\\\n        -o ${prefix}.hmmscan.out \\\\\n        HMM_DB/*.hmm \\\\\n        $fasta\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        hmmscan: \\$( hmmscan -h | sed '2 !d;s/[^0-9]*\\\\(\\\\([0-9]\\\\.\\\\)\\\\{0,4\\\\}[0-9][^.]\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "hmm_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'bioconda::pfam_scan==1.6' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/pfam_scan:1.6--hdfd78af_4' : 'quay.io/biocontainers/pfam_scan:1.6--hdfd78af_4' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "RENAME_SEQUENCES": {
+        "name_process": "RENAME_SEQUENCES",
+        "string_process": "process RENAME_SEQUENCES {\n\n    conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    path fasta                             \n    val sci_name                                    \n\n    output:\n    path '*.fasta'      , emit: fasta\n    path \"versions.yml\" , emit: versions\n\n    script:\n    \"\"\"\n    if ! grep -c \"#Unknown\" $fasta; then\n        echo \"Key word #Unknown not found.\"\n        echo \"Please check your output is from RepeatModeler2.\"\n        exit 1\n    fi\n\n    renameRMDLconsensi.pl $fasta $sci_name ${sci_name}.fasta\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        perl : \\$( perl -v |& sed '/This is perl/!d; s/.*\\\\(v[0-9]\\\\+\\\\.[0-9]\\\\+\\\\.[0-9]\\\\+\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    if ! grep -c \"#Unknown\" $fasta; then\n        echo \"Key word #Unknown not found.\"\n        echo \"Please check your output is from RepeatModeler2.\"\n        exit 1\n    fi\n\n    renameRMDLconsensi.pl $fasta $sci_name ${sci_name}.fasta\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        perl : \\$( perl -v |& sed '/This is perl/!d; s/.*\\\\(v[0-9]\\\\+\\\\.[0-9]\\\\+\\\\.[0-9]\\\\+\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "sci_name"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ANNOTATE_REPEATS": {
+        "name_process": "ANNOTATE_REPEATS",
+        "string_process": "process ANNOTATE_REPEATS {\n\n    conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    path repeat_library                                               \n    path pfam_table                                          \n    path pfam_keyword_accession                                          \n    val prefix                              \n\n    output:\n    path \"${prefix}.renamed.fasta\"              , emit: fasta\n    path \"${prefix}.Unclassified_consensus_TEs\" , emit: unclassified_with_te_domains\n    path \"${prefix}.consensus.both.strand\"      , emit: unclassified_with_non_te_domains_both_strands\n    path \"versions.yml\"                         , emit: versions\n\n    script:\n    \"\"\"\n    #\u00a0Find unclassified consensus with TE domains\n    for TBL in $pfam_table; do\n        # grep #1    : Find unclassified consensus\n        # grep #2    : which have TE domains\n        # cut + uniq : and extract their id's\n        grep -i \"#unknown\" \"\\$TBL\" | \\\\\n            tee \"\\${TBL}.unclassified\" | \\\\\n            grep -i -w -f $pfam_keyword_accession | \\\\\n            tee -a ${prefix}.Unclassified_consensus_TEs | \\\\\n            cut -f1 -d\"#\" | uniq > \"\\${TBL/.pfamtbl/.unclassified_ids}\"\n    done\n\n    # Concatenate ids of consensus with TE domains from both strands\n    cat *.unclassified_ids | uniq > ${prefix}.Unclassified_consensus_TEs.ids\n\n    # Find unclassified consensus without TE domains\n    for UNCLASSIFIED in *.unclassified; do\n        #\u00a0grep       : Remove consensus which have TE domains\n        # cut + uniq : and extract their id's\n        grep -v -f ${prefix}.Unclassified_consensus_TEs.ids \"\\$UNCLASSIFIED\" | \\\\\n            tee \"\\${UNCLASSIFIED}.TEpurged\" | \\\\\n            cut -f1 -d'#' | uniq > \"\\${UNCLASSIFIED}.TEpurged.ids\"\n    done\n\n    # Use shell expansion to expand plus and minus strand files for unsorted inner join\n    grep -f *.TEpurged.ids > ${prefix}.consensus.both.strand\n    # ${prefix}.consensus.both.strand : Unclassified consensus sequences that have\n    # non-TE domains detected in both strands.\n    # These are tricky to annotate.\n\n    # In consensus without TE domains, remove consensus with non-TE domains on both strands\n    # (leaving consensus with non-TE domains on a single-strand)\n    for TEPURGED in *.TEpurged; do\n        # grep       : Remove consensus with non-TE domains on both strands\n        # awk        : then remove consensus shorter than 100 amino acids\n        # cut + uniq : and extract their id's\n        grep -v -f ${prefix}.consensus.both.strand \"\\$TEPURGED\" | \\\\\n            awk '\\$11 >= 100' | tee \"\\$TEPURGED.mono\" | \\\\\n            cut -f1 -d'#' | uniq > \"\\$TEPURGED.mono.ids\"\n    done\n\n    # Make a copy of repeat library to be modified.\n    cp $repeat_library ${prefix}.renamed.fasta\n\n    # Rename repeat model based on strand evidence.\n    for CONSENSUS in *.mono.ids; do\n        # while       : for each consensus id\n        # echo        : record id as renamed\n        # NAMEHASH    : create a name suffix from the pfam domain table\n        # OLDNAME     : find old name from repeat consensus library\n        # sed         : replace Unknown with NAMEHASH\n        while read -r SEQID; do\n            echo \"\\$SEQID\" >> ${prefix}.renamed\n            NAMEHASH=\\$( grep \"\\${SEQID}#\" \"\\${CONSENSUS/.ids/}\" | \\\\\n                tr -s \" \" \"\\t\" | cut -f7 | \\\\\n                sort | uniq | \\\\\n                paste -s -d '-' )\n            OLDNAME=\\$( grep \"\\${SEQID}#\" $repeat_library | cut -c2- )\n            sed -i \"s|\\$OLDNAME|\\${OLDNAME%Unknown}\\$NAMEHASH|g\" ${prefix}.renamed.fasta\n        done < \"\\$CONSENSUS\"\n    done\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        awk  : \\$( awk  -W version |& head -n1 )\n        cat  : \\$( cat   --version |& head -n1 )\n        cut  : \\$( cut   --version |& head -n1 )\n        grep : \\$( grep  --version |& head -n1 )\n        paste: \\$( paste --version |& head -n1 )\n        sed  : \\$( sed   --version |& head -n1 )\n        sort : \\$( sort  --version |& head -n1 )\n        tee  : \\$( tee   --version |& head -n1 )\n        uniq : \\$( uniq  --version |& head -n1 )\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 95,
+        "string_script": "    \"\"\"\n    #\u00a0Find unclassified consensus with TE domains\n    for TBL in $pfam_table; do\n        # grep #1    : Find unclassified consensus\n        # grep #2    : which have TE domains\n        # cut + uniq : and extract their id's\n        grep -i \"#unknown\" \"\\$TBL\" | \\\\\n            tee \"\\${TBL}.unclassified\" | \\\\\n            grep -i -w -f $pfam_keyword_accession | \\\\\n            tee -a ${prefix}.Unclassified_consensus_TEs | \\\\\n            cut -f1 -d\"#\" | uniq > \"\\${TBL/.pfamtbl/.unclassified_ids}\"\n    done\n\n    # Concatenate ids of consensus with TE domains from both strands\n    cat *.unclassified_ids | uniq > ${prefix}.Unclassified_consensus_TEs.ids\n\n    # Find unclassified consensus without TE domains\n    for UNCLASSIFIED in *.unclassified; do\n        #\u00a0grep       : Remove consensus which have TE domains\n        # cut + uniq : and extract their id's\n        grep -v -f ${prefix}.Unclassified_consensus_TEs.ids \"\\$UNCLASSIFIED\" | \\\\\n            tee \"\\${UNCLASSIFIED}.TEpurged\" | \\\\\n            cut -f1 -d'#' | uniq > \"\\${UNCLASSIFIED}.TEpurged.ids\"\n    done\n\n    # Use shell expansion to expand plus and minus strand files for unsorted inner join\n    grep -f *.TEpurged.ids > ${prefix}.consensus.both.strand\n    # ${prefix}.consensus.both.strand : Unclassified consensus sequences that have\n    # non-TE domains detected in both strands.\n    # These are tricky to annotate.\n\n    # In consensus without TE domains, remove consensus with non-TE domains on both strands\n    # (leaving consensus with non-TE domains on a single-strand)\n    for TEPURGED in *.TEpurged; do\n        # grep       : Remove consensus with non-TE domains on both strands\n        # awk        : then remove consensus shorter than 100 amino acids\n        # cut + uniq : and extract their id's\n        grep -v -f ${prefix}.consensus.both.strand \"\\$TEPURGED\" | \\\\\n            awk '\\$11 >= 100' | tee \"\\$TEPURGED.mono\" | \\\\\n            cut -f1 -d'#' | uniq > \"\\$TEPURGED.mono.ids\"\n    done\n\n    # Make a copy of repeat library to be modified.\n    cp $repeat_library ${prefix}.renamed.fasta\n\n    # Rename repeat model based on strand evidence.\n    for CONSENSUS in *.mono.ids; do\n        # while       : for each consensus id\n        # echo        : record id as renamed\n        # NAMEHASH    : create a name suffix from the pfam domain table\n        # OLDNAME     : find old name from repeat consensus library\n        # sed         : replace Unknown with NAMEHASH\n        while read -r SEQID; do\n            echo \"\\$SEQID\" >> ${prefix}.renamed\n            NAMEHASH=\\$( grep \"\\${SEQID}#\" \"\\${CONSENSUS/.ids/}\" | \\\\\n                tr -s \" \" \"\\t\" | cut -f7 | \\\\\n                sort | uniq | \\\\\n                paste -s -d '-' )\n            OLDNAME=\\$( grep \"\\${SEQID}#\" $repeat_library | cut -c2- )\n            sed -i \"s|\\$OLDNAME|\\${OLDNAME%Unknown}\\$NAMEHASH|g\" ${prefix}.renamed.fasta\n        done < \"\\$CONSENSUS\"\n    done\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        awk  : \\$( awk  -W version |& head -n1 )\n        cat  : \\$( cat   --version |& head -n1 )\n        cut  : \\$( cut   --version |& head -n1 )\n        grep : \\$( grep  --version |& head -n1 )\n        paste: \\$( paste --version |& head -n1 )\n        sed  : \\$( sed   --version |& head -n1 )\n        sort : \\$( sort  --version |& head -n1 )\n        tee  : \\$( tee   --version |& head -n1 )\n        uniq : \\$( uniq  --version |& head -n1 )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 75,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "repeat_library",
+            "pfam_table",
+            "pfam_keyword_accession",
+            "prefix"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MAKE_BLAST_DB": {
+        "name_process": "MAKE_BLAST_DB",
+        "string_process": "process MAKE_BLAST_DB {\n\n    conda (params.enable_conda ? 'bioconda::blast=2.10.1' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/blast:2.10.1--pl526he19e7b1_3' :\n        'quay.io/biocontainers/blast:2.10.1--pl526he19e7b1_3' }\"\n\n    input:\n    path fasta\n\n    output:\n    path \"*_blast_db\"    , emit: db\n    path \"versions.yml\"  , emit: versions\n\n    script:\n    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: fasta.baseName\n    \"\"\"\n    makeblastdb \\\\\n        $args \\\\\n        -in $fasta\n    mkdir ${prefix}_blast_db\n    mv ${fasta}* ${prefix}_blast_db\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        makeblastdb: \\$(makeblastdb -version | sed -e '/^makeblastdb:/!d; s/^.*makeblastdb: //' )\n    END_VERSIONS\n    \"\"\"\n\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: fasta.baseName\n    \"\"\"\n    makeblastdb \\\\\n        $args \\\\\n        -in $fasta\n    mkdir ${prefix}_blast_db\n    mv ${fasta}* ${prefix}_blast_db\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        makeblastdb: \\$(makeblastdb -version | sed -e '/^makeblastdb:/!d; s/^.*makeblastdb: //' )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'bioconda::blast=2.10.1' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/blast:2.10.1--pl526he19e7b1_3' : 'quay.io/biocontainers/blast:2.10.1--pl526he19e7b1_3' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "REDUNDANT_HITS": {
+        "name_process": "REDUNDANT_HITS",
+        "string_process": "process REDUNDANT_HITS {\n\n    conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    path blast_tsv\n\n    output:\n    path \"self_comparison.tsv\", emit: tsv\n    path \"versions.yml\"       , emit: versions\n\n    script:\n    \"\"\"\n    # Show redundancy in the annotated library\n    ## For queries and subjects that are both Unknown\n    ## Get total matched bases/query length, which\n    ## indicates the coverage of an overlap\n    ## Filter coverage using 0.6 as cut-off then dedup\n    grep Unknown $blast_tsv | \\\\\n        awk 'NR >= 1 {\n            \\$8=(\\$6)/(\\$2)\n        }\n        \\$8 > 0.6 && \\$1 != \\$3 && !a[\\$5\\$6]++ {\n            print \\$0\n        }' > self_comparison.tsv\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        grep : \\$( grep  --version |& head -n1 )\n        awk  : \\$( awk  -W version |& head -n1 )\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    \"\"\"\n    # Show redundancy in the annotated library\n    ## For queries and subjects that are both Unknown\n    ## Get total matched bases/query length, which\n    ## indicates the coverage of an overlap\n    ## Filter coverage using 0.6 as cut-off then dedup\n    grep Unknown $blast_tsv | \\\\\n        awk 'NR >= 1 {\n            \\$8=(\\$6)/(\\$2)\n        }\n        \\$8 > 0.6 && \\$1 != \\$3 && !a[\\$5\\$6]++ {\n            print \\$0\n        }' > self_comparison.tsv\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        grep : \\$( grep  --version |& head -n1 )\n        awk  : \\$( awk  -W version |& head -n1 )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "blast_tsv"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ADD_TREP_ANNOTATION": {
+        "name_process": "ADD_TREP_ANNOTATION",
+        "string_process": "process ADD_TREP_ANNOTATION {\n\n    conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    path repeat_library                                                   \n    path trep_blast_hits                                                 \n\n    output:\n    path \"*.trep.fasta\", emit: fasta\n    path \"versions.yml\", emit: versions\n\n    script:\n    def prefix = repeat_library.baseName\n    \"\"\"\n    # Expected blast outfmt 6\n    #\u00a0qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore\n    # Find queries ending in #Unknown and filter for smallest evalue\n\n    # Find hits with smallest e-value\n    awk 'BEGIN {\n            prev_seq = \"\"    # sequence name\n            prev_sfam = \"\"   # transposon superfamily\n            prev_evalue = 0\n        }\n        \\$1 ~ /#Unknown\\$/ {\n            # If current sequence is the same as previous sequence name\n            # and evalue is smaller, update evalue\n            if ( \\$1 == prev_seq && \\$11 < prev_evalue ) {\n                prev_evalue = \\$11\n            }\n            # If current sequence has a different name to previous, then\n            # print replacement info\n            if ( \\$1 != prev_seq && prev_seq != \"\") {\n                print prev_seq \"\\\\t\" prev_sfam\n            }\n            prev_seq = \\$1\n            prev_sfam = substr(\\$2,1,3)\n        }\n        # Process last sequence.\n        END {\n            if ( prev_seq != \"\" ) {\n                print prev_seq \"\\\\t\" prev_sfam\n            }\n        }' $trep_blast_hits > best_hits.tsv\n\n    if [ -s best_hits.tsv ]; then\n        # Read in annotations to memory, and use dictionary\n        # to update fasta headers with transposon superfamily\n        awk '\n            # Load best_hits.tsv into dictionary\n            FNR == NR {\n                annotation[\\$1] = \\$2\n                next\n            }\n            # Update annotation\n            # If a line begins with >\n            # and an annotation to add exists.\n            /^>/ {\n                seq_head = substr(\\$1,2)\n                if ( seq_head in annotation ) {\n                    \\$1 = \\$1 \"/\" annotation[seq_head]\n                }\n            }\n            # print each line\n            1\n            ' best_hits.tsv $repeat_library > ${prefix}.trep.fasta\n    else\n        cp $repeat_library ${prefix}.trep.fasta\n    fi\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        awk  : \\$( awk  -W version |& head -n1 )\n    END_VERSIONS\n    \"\"\"\n\n}",
+        "nb_lignes_process": 79,
+        "string_script": "    def prefix = repeat_library.baseName\n    \"\"\"\n    # Expected blast outfmt 6\n    #\u00a0qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore\n    # Find queries ending in #Unknown and filter for smallest evalue\n\n    # Find hits with smallest e-value\n    awk 'BEGIN {\n            prev_seq = \"\"    # sequence name\n            prev_sfam = \"\"   # transposon superfamily\n            prev_evalue = 0\n        }\n        \\$1 ~ /#Unknown\\$/ {\n            # If current sequence is the same as previous sequence name\n            # and evalue is smaller, update evalue\n            if ( \\$1 == prev_seq && \\$11 < prev_evalue ) {\n                prev_evalue = \\$11\n            }\n            # If current sequence has a different name to previous, then\n            # print replacement info\n            if ( \\$1 != prev_seq && prev_seq != \"\") {\n                print prev_seq \"\\\\t\" prev_sfam\n            }\n            prev_seq = \\$1\n            prev_sfam = substr(\\$2,1,3)\n        }\n        # Process last sequence.\n        END {\n            if ( prev_seq != \"\" ) {\n                print prev_seq \"\\\\t\" prev_sfam\n            }\n        }' $trep_blast_hits > best_hits.tsv\n\n    if [ -s best_hits.tsv ]; then\n        # Read in annotations to memory, and use dictionary\n        # to update fasta headers with transposon superfamily\n        awk '\n            # Load best_hits.tsv into dictionary\n            FNR == NR {\n                annotation[\\$1] = \\$2\n                next\n            }\n            # Update annotation\n            # If a line begins with >\n            # and an annotation to add exists.\n            /^>/ {\n                seq_head = substr(\\$1,2)\n                if ( seq_head in annotation ) {\n                    \\$1 = \\$1 \"/\" annotation[seq_head]\n                }\n            }\n            # print each line\n            1\n            ' best_hits.tsv $repeat_library > ${prefix}.trep.fasta\n    else\n        cp $repeat_library ${prefix}.trep.fasta\n    fi\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        awk  : \\$( awk  -W version |& head -n1 )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 62,
+        "language_script": "bash",
+        "tools": [
+            "ENdb",
+            "NextSV"
+        ],
+        "tools_url": [
+            "https://bio.tools/ENdb",
+            "https://bio.tools/nextsv"
+        ],
+        "tools_dico": [
+            {
+                "name": "ENdb",
+                "uri": "https://bio.tools/ENdb",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0219",
+                            "term": "Data submission, annotation and curation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0440",
+                                    "term": "Promoter prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0224",
+                                    "term": "Query and retrieval"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0224",
+                                    "term": "Database retrieval"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A manually curated database of experimentally supported enhancers for human and mouse. Enhancers are a class of cis-regulatory elements that can increase gene transcription by forming loops in intergenic regions, introns and exons",
+                "homepage": "http://www.licpathway.net/ENdb"
+            },
+            {
+                "name": "NextSV",
+                "uri": "https://bio.tools/nextsv",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Genomic structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "DNA structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation discovery"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A meta SV caller and a computational pipeline to perform SV calling from low coverage long-read sequencing data. It integrates three aligners and three SV callers and generates two integrated call sets (sensitive/stringent) for different analysis purpose.",
+                "homepage": "http://github.com/Nextomics/NextSV"
+            }
+        ],
+        "inputs": [
+            "repeat_library",
+            "trep_blast_hits"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PFAM_TRANSPOSIBLE_ELEMENT_SEARCH": {
+        "name_process": "PFAM_TRANSPOSIBLE_ELEMENT_SEARCH",
+        "string_process": "process PFAM_TRANSPOSIBLE_ELEMENT_SEARCH {\n\n    conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    path uniprot_db                             \n    path keywords\n    path blacklist\n\n    output:\n    path \"Pfam.Proteins_wTE_Domains.seqid\", emit: te_domain_proteins\n    path \"versions.yml\"                   , emit: versions\n\n    script:\n    \"\"\"\n    # Search for keywords and IDs\n    zgrep -i -e \"^#=GF ID\" -f $keywords $uniprot_db > pattern_matches.txt\n    # Remove blacklisted keywords\n    grep -i -v -f $blacklist pattern_matches.txt > pattern_matches_revised.txt\n    # Print closest ID above keyword match\n    awk '{\n        if (\\$0 ~ /#=GF ID/) {\n            id_line = \\$0\n        } else {\n            print id_line\n        }\n    }' pattern_matches_revised.txt | \\\\\n        uniq | cut -c11- > Pfam.Proteins_wTE_Domains.seqid\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        awk  : \\$( awk  -W version |& head -n1 )\n        cut  : \\$( cut   --version |& head -n1 )\n        uniq : \\$( uniq  --version |& head -n1 )\n        zgrep: \\$( zgrep --version |& head -n1 )\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    \"\"\"\n    # Search for keywords and IDs\n    zgrep -i -e \"^#=GF ID\" -f $keywords $uniprot_db > pattern_matches.txt\n    # Remove blacklisted keywords\n    grep -i -v -f $blacklist pattern_matches.txt > pattern_matches_revised.txt\n    # Print closest ID above keyword match\n    awk '{\n        if (\\$0 ~ /#=GF ID/) {\n            id_line = \\$0\n        } else {\n            print id_line\n        }\n    }' pattern_matches_revised.txt | \\\\\n        uniq | cut -c11- > Pfam.Proteins_wTE_Domains.seqid\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        awk  : \\$( awk  -W version |& head -n1 )\n        cut  : \\$( cut   --version |& head -n1 )\n        uniq : \\$( uniq  --version |& head -n1 )\n        zgrep: \\$( zgrep --version |& head -n1 )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uniprot_db",
+            "keywords",
+            "blacklist"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MERGE_DOMAIN_TABLE": {
+        "name_process": "MERGE_DOMAIN_TABLE",
+        "string_process": "process MERGE_DOMAIN_TABLE {\n\n    conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    tuple path ( hmmscan_tbl ), path ( hmmscan_pfamtbl )\n\n    output:\n    path '*.domtbl',     emit: domain_table\n    path \"versions.yml\", emit: versions\n\n    script:\n    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: hmmscan_tbl.baseName\n    \"\"\"\n    # Combine tbl and pfamtbl data to\n    # unclassified_domain_table format\n    # col field               file-index   join-output-col\n    #   1 <seq id>            1.4          1\n    #   2 <alignment start>   2.9          2\n    #   3 <alignment end>     2.10         3\n    #   4 <envelope start>    2.7          4\n    #   5 <envelope end>      2.8          5\n    #   6 <hmm acc>           \"-\"\n    #   7 <hmm name>          1.2          6\n    #   8 <type>              \"-\"\n    #   9 <hmm start>         2.11         7\n    #  10 <hmm end>           2.12         8\n    #  11 <hmm length>        `calculate`\n    #  12 <bit score>         1.10         9\n    #  13 <E-value>           1.9          10\n    #  14 <significance>      \"1\"\n    #  15 <clan>              \"-\"\n\n    join -1 1 -2 1 -o1.4,2.9,2.10,2.7,2.8,1.2,2.11,2.12,1.10,1.9 \\\\\n        <( grep -v -e '^[[:space:]]*\\$' -e '^#' \"$hmmscan_tbl\" | \\\\\n            awk '{ print \\$1\"-\"\\$8\"-\"\\$9\" \"\\$0 } ' | sort -k1,1 ) \\\\\n        <( grep -v -e '^[[:space:]]*\\$' -e '^#' \"$hmmscan_pfamtbl\" | \\\\\n            awk 'NF > 10 { print \\$1\"-\"\\$3\"-\"\\$2\" \"\\$0 } ' | sort -k1,1 ) | \\\\\n        awk '{ \\$5=\\$5 \"\\\\t-\\\\t\"; \\$6=\\$6 \"\\\\t-\\\\t\"; \\$8=\\$8 \"\\\\t-\\\\t\"; \\$10=\\$10 \"\\\\t1\\\\t-\"; print \\$0 }' \\\\\n        > ${prefix}.domtbl\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        join: \\$( join --version | sed '1 !d;s/[^0-9]*\\\\(\\\\([0-9]\\\\.\\\\)\\\\{0,4\\\\}[0-9][^.]\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"\n\n}",
+        "nb_lignes_process": 50,
+        "string_script": "    def args   = task.ext.args   ?: ''\n    def prefix = task.ext.prefix ?: hmmscan_tbl.baseName\n    \"\"\"\n    # Combine tbl and pfamtbl data to\n    # unclassified_domain_table format\n    # col field               file-index   join-output-col\n    #   1 <seq id>            1.4          1\n    #   2 <alignment start>   2.9          2\n    #   3 <alignment end>     2.10         3\n    #   4 <envelope start>    2.7          4\n    #   5 <envelope end>      2.8          5\n    #   6 <hmm acc>           \"-\"\n    #   7 <hmm name>          1.2          6\n    #   8 <type>              \"-\"\n    #   9 <hmm start>         2.11         7\n    #  10 <hmm end>           2.12         8\n    #  11 <hmm length>        `calculate`\n    #  12 <bit score>         1.10         9\n    #  13 <E-value>           1.9          10\n    #  14 <significance>      \"1\"\n    #  15 <clan>              \"-\"\n\n    join -1 1 -2 1 -o1.4,2.9,2.10,2.7,2.8,1.2,2.11,2.12,1.10,1.9 \\\\\n        <( grep -v -e '^[[:space:]]*\\$' -e '^#' \"$hmmscan_tbl\" | \\\\\n            awk '{ print \\$1\"-\"\\$8\"-\"\\$9\" \"\\$0 } ' | sort -k1,1 ) \\\\\n        <( grep -v -e '^[[:space:]]*\\$' -e '^#' \"$hmmscan_pfamtbl\" | \\\\\n            awk 'NF > 10 { print \\$1\"-\"\\$3\"-\"\\$2\" \"\\$0 } ' | sort -k1,1 ) | \\\\\n        awk '{ \\$5=\\$5 \"\\\\t-\\\\t\"; \\$6=\\$6 \"\\\\t-\\\\t\"; \\$8=\\$8 \"\\\\t-\\\\t\"; \\$10=\\$10 \"\\\\t1\\\\t-\"; print \\$0 }' \\\\\n        > ${prefix}.domtbl\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        join: \\$( join --version | sed '1 !d;s/[^0-9]*\\\\(\\\\([0-9]\\\\.\\\\)\\\\{0,4\\\\}[0-9][^.]\\\\).*/\\\\1/' )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [
+            "joineRML"
+        ],
+        "tools_url": [
+            "https://bio.tools/joinerml"
+        ],
+        "tools_dico": [
+            {
+                "name": "joineRML",
+                "uri": "https://bio.tools/joinerml",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3569",
+                            "term": "Applied mathematics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Joint Modelling of Multivariate Longitudinal Data and Time-to-Event Outcomes.",
+                "homepage": "https://cran.r-project.org/web/packages/joineRML/"
+            }
+        ],
+        "inputs": [
+            "hmmscan_tbl",
+            "hmmscan_pfamtbl"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "GroundB__RepeatDefeaters",
+        "directive": [
+            "conda (params.enable_conda ? 'conda-forge::sed=4.7' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

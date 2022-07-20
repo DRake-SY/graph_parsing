@@ -1,0 +1,1139 @@
+{
+    "EDIRECT_ESEARCH": {
+        "name_process": "EDIRECT_ESEARCH",
+        "string_process": "process EDIRECT_ESEARCH {\n    tag \"${ (query.length() > 100) ? query.substring(0, 100) + '...' : query }\"\n    label 'run_local'\n    label 'process_low'\n    label 'error_backoff'\n\n    conda (params.enable_conda ? \"bioconda::entrez-direct=16.2\" : null)\n    container 'docker.io/ncbi/edirect:12.5'\n\n                                                                                  \n                                                                    \n    maxForks 1\n\n    input:\n    val(query)\n    val(db)\n\n    output:\n    path \"search.xml\"   , emit: xml\n    path \"versions.yml\" , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    \"\"\"\n    esearch \\\\\n            -db ${db} \\\\\n            -query \"${query}\" \\\\\n            ${args} \\\\\n        > search.xml\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        esearch: \\$(esearch -version)\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    def args = task.ext.args ?: ''\n    \"\"\"\n    esearch \\\\\n            -db ${db} \\\\\n            -query \"${query}\" \\\\\n            ${args} \\\\\n        > search.xml\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        esearch: \\$(esearch -version)\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "QResearch"
+        ],
+        "tools_url": [
+            "https://bio.tools/QResearch"
+        ],
+        "tools_dico": [
+            {
+                "name": "QResearch",
+                "uri": "https://bio.tools/QResearch",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3399",
+                            "term": "Geriatric medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3399",
+                            "term": "https://en.wikipedia.org/wiki/Geriatrics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3399",
+                            "term": "Geriatrics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiovascular medicine"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3283",
+                                    "term": "Anonymisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Imputation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3283",
+                                    "term": "Data anonymisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Data imputation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "General practice database for research.",
+                "homepage": "http://www.qresearch.org"
+            }
+        ],
+        "inputs": [
+            "query",
+            "db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"${ (query.length() > 100) ? query.substring(0, 100) + '...' : query }\"",
+            "label 'run_local'",
+            "label 'process_low'",
+            "label 'error_backoff'",
+            "conda (params.enable_conda ? \"bioconda::entrez-direct=16.2\" : null)",
+            "container 'docker.io/ncbi/edirect:12.5'",
+            "maxForks 1"
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "MINIMAP2_ALIGN": {
+        "name_process": "MINIMAP2_ALIGN",
+        "string_process": "\nprocess MINIMAP2_ALIGN {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? 'bioconda::minimap2=2.21 bioconda::samtools=1.12' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/mulled-v2-66534bcbb7031a148b13e2ad42583020b9cd25c4:1679e915ddb9d6b4abda91880c4b48857d471bd8-0' :\n        'quay.io/biocontainers/mulled-v2-66534bcbb7031a148b13e2ad42583020b9cd25c4:1679e915ddb9d6b4abda91880c4b48857d471bd8-0' }\"\n\n    input:\n    tuple val(meta), path(reads), path(reference)\n    val bam_format\n    val cigar_paf_format\n    val cigar_bam\n\n    output:\n    tuple val(meta), path(\"*.paf\"), optional: true, emit: paf\n    tuple val(meta), path(\"*.bam\"), optional: true, emit: bam\n    path \"versions.yml\", emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def input_reads = meta.single_end ? \"$reads\" : \"${reads[0]} ${reads[1]}\"\n    def bam_output = bam_format ? \"-a | samtools sort | samtools view -@ ${task.cpus} -b -h -o ${prefix}.bam\" : \"-o ${prefix}.paf\"\n    def cigar_paf = cigar_paf_format && !bam_format ? \"-c\" : ''\n    def set_cigar_bam = cigar_bam && bam_format ? \"-L\" : ''\n    \"\"\"\n    minimap2 \\\\\n        $args \\\\\n        -t $task.cpus \\\\\n        $reference \\\\\n        $input_reads \\\\\n        $cigar_paf \\\\\n        $set_cigar_bam \\\\\n        $bam_output\n\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        minimap2: \\$(minimap2 --version 2>&1)\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def input_reads = meta.single_end ? \"$reads\" : \"${reads[0]} ${reads[1]}\"\n    def bam_output = bam_format ? \"-a | samtools sort | samtools view -@ ${task.cpus} -b -h -o ${prefix}.bam\" : \"-o ${prefix}.paf\"\n    def cigar_paf = cigar_paf_format && !bam_format ? \"-c\" : ''\n    def set_cigar_bam = cigar_bam && bam_format ? \"-L\" : ''\n    \"\"\"\n    minimap2 \\\\\n        $args \\\\\n        -t $task.cpus \\\\\n        $reference \\\\\n        $input_reads \\\\\n        $cigar_paf \\\\\n        $set_cigar_bam \\\\\n        $bam_output\n\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        minimap2: \\$(minimap2 --version 2>&1)\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools",
+            "Minimap2"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools",
+            "https://bio.tools/minimap2"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads",
+            "reference",
+            "bam_format",
+            "cigar_paf_format",
+            "cigar_bam"
+        ],
+        "nb_inputs": 6,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? 'bioconda::minimap2=2.21 bioconda::samtools=1.12' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/mulled-v2-66534bcbb7031a148b13e2ad42583020b9cd25c4:1679e915ddb9d6b4abda91880c4b48857d471bd8-0' : 'quay.io/biocontainers/mulled-v2-66534bcbb7031a148b13e2ad42583020b9cd25c4:1679e915ddb9d6b4abda91880c4b48857d471bd8-0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "TRIMMOMATIC": {
+        "name_process": "TRIMMOMATIC",
+        "string_process": "process TRIMMOMATIC {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::trimmomatic=0.39\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/trimmomatic:0.39--hdfd78af_2':\n        'quay.io/biocontainers/trimmomatic:0.39--hdfd78af_2' }\"\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"*.fastq.gz\"), emit: fastq\n    tuple val(meta), path(\"*.log\")     , emit: log\n    path \"versions.yml\"                , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args   = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def readtype = meta.single_end ? 'SE' : 'PE'\n    def trimmed = meta.single_end ?\n        \"${prefix}_trimmed.fastq.gz\" :\n        \"${prefix}_trimmed_R1.fastq.gz /dev/null ${prefix}_trimmed_R2.fastq.gz /dev/null\"\n    def jmemstring = task.memory.toMega() + 'M'\n    \"\"\"\n    trimmomatic \\\\\n            -Xmx${jmemstring} \\\\\n            ${readtype} \\\\\n            -threads ${task.cpus} \\\\\n            ${reads} \\\\\n            ${trimmed} \\\\\n            ${args} \\\\\n        2> >(tee ${prefix}.log >&2)\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        trimmomatic: \\$(trimmomatic -version)\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 42,
+        "string_script": "    def args   = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def readtype = meta.single_end ? 'SE' : 'PE'\n    def trimmed = meta.single_end ?\n        \"${prefix}_trimmed.fastq.gz\" :\n        \"${prefix}_trimmed_R1.fastq.gz /dev/null ${prefix}_trimmed_R2.fastq.gz /dev/null\"\n    def jmemstring = task.memory.toMega() + 'M'\n    \"\"\"\n    trimmomatic \\\\\n            -Xmx${jmemstring} \\\\\n            ${readtype} \\\\\n            -threads ${task.cpus} \\\\\n            ${reads} \\\\\n            ${trimmed} \\\\\n            ${args} \\\\\n        2> >(tee ${prefix}.log >&2)\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        trimmomatic: \\$(trimmomatic -version)\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "Trimmomatic"
+        ],
+        "tools_url": [
+            "https://bio.tools/trimmomatic"
+        ],
+        "tools_dico": [
+            {
+                "name": "Trimmomatic",
+                "uri": "https://bio.tools/trimmomatic",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A flexible read trimming tool for Illumina NGS data",
+                "homepage": "http://www.usadellab.org/cms/index.php?page=trimmomatic"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::trimmomatic=0.39\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/trimmomatic:0.39--hdfd78af_2': 'quay.io/biocontainers/trimmomatic:0.39--hdfd78af_2' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "RAXMLNG_SUPPORT": {
+        "name_process": "RAXMLNG_SUPPORT",
+        "string_process": "process RAXMLNG_SUPPORT {\n    tag \"$tree\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0':\n        'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\"\n\n    input:\n    path tree\n    path bootstraps\n\n    output:\n    path \"*.raxml.support\", emit: support\n    path \"versions.yml\"   , emit: versions\n\n    script:\n    def args = task.ext.args ?: ''\n    \"\"\"\n    raxml-ng \\\\\n        --support \\\\\n        --threads auto{${task.cpus}} \\\\\n        --tree ${tree} \\\\\n        --bs-trees ${bootstraps} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "    def args = task.ext.args ?: ''\n    \"\"\"\n    raxml-ng \\\\\n        --support \\\\\n        --threads auto{${task.cpus}} \\\\\n        --tree ${tree} \\\\\n        --bs-trees ${bootstraps} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "RAxML-NG"
+        ],
+        "tools_url": [
+            "https://bio.tools/RAxML-NG"
+        ],
+        "tools_dico": [
+            {
+                "name": "RAxML-NG",
+                "uri": "https://bio.tools/RAxML-NG",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3810",
+                            "term": "Agricultural science"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0194",
+                            "term": "Phylogenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3293",
+                            "term": "Phylogenetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic inference (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0552",
+                                    "term": "Phylogenetic tree bootstrapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree construction (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree generation (maximum likelihood and Bayesian methods)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Phylogenetic tree inference tool which uses maximum-likelihood (ML) optimality criterion.",
+                "homepage": "https://raxml-ng.vital-it.ch/"
+            }
+        ],
+        "inputs": [
+            "tree",
+            "bootstraps"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$tree\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0': 'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "CLIQUESNV_ILLUMINAVC": {
+        "name_process": "CLIQUESNV_ILLUMINAVC",
+        "string_process": "process CLIQUESNV_ILLUMINAVC {\n    tag \"$meta.id\"\n    label 'process_high'\n\n    conda (params.enable_conda ? \"bioconda::cliquesnv=2.0.3\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/cliquesnv:2.0.3--hdfd78af_0':\n        'quay.io/biocontainers/cliquesnv:2.0.3--hdfd78af_0' }\"\n\n    input:\n    tuple val(meta), path(bam)\n\n    output:\n    tuple val(meta), path(\"*.vcf\"), emit: vcf\n    path \"versions.yml\"           , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def jmemstring = task.memory.toMega() + 'M'\n    \"\"\"\n    cliquesnv \\\\\n        -Xmx${jmemstring} \\\\\n        -threads ${task.cpus} \\\\\n        -m snv-illumina-vc \\\\\n        -in ${bam} \\\\\n        ${args} \\\\\n        -outDir .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        cliquesnv: \\$(cliquesnv | head -n1 | sed 's/CliqueSNV version: //')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    def args = task.ext.args ?: ''\n    def jmemstring = task.memory.toMega() + 'M'\n    \"\"\"\n    cliquesnv \\\\\n        -Xmx${jmemstring} \\\\\n        -threads ${task.cpus} \\\\\n        -m snv-illumina-vc \\\\\n        -in ${bam} \\\\\n        ${args} \\\\\n        -outDir .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        cliquesnv: \\$(cliquesnv | head -n1 | sed 's/CliqueSNV version: //')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "conda (params.enable_conda ? \"bioconda::cliquesnv=2.0.3\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/cliquesnv:2.0.3--hdfd78af_0': 'quay.io/biocontainers/cliquesnv:2.0.3--hdfd78af_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "NANOSTAT": {
+        "name_process": "NANOSTAT",
+        "string_process": "process NANOSTAT {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? 'bioconda::nanostat=1.6.0' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/nanostat:1.6.0--pyhdfd78af_0' :\n        'quay.io/biocontainers/nanostat:1.6.0--pyhdfd78af_0' }\"\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"*_NanoStats\"), emit: log\n    path \"versions.yml\"           , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n                                                              \n                                                                   \n                         \n    def analysis_flag = 'summary'\n    analysis_flag = (reads.getName().contains('.fa') || reads.getName().contains('.fasta')) ? 'fasta' : analysis_flag\n    analysis_flag = (reads.getName().contains('.fq') || reads.getName().contains('.fastq')) ? 'fastq' : analysis_flag\n    analysis_flag = (reads.getName().contains('.bam')) ? 'bam' : analysis_flag\n    \"\"\"\n    NanoStat \\\\\n            -t ${task.cpus} \\\\\n            --${analysis_flag} ${reads} \\\\\n            ${args} \\\\\n        > ${prefix}_NanoStats\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        nanostat: \\$(NanoStat -v | sed 's/NanoStat //')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n                                                              \n                                                                   \n                         \n    def analysis_flag = 'summary'\n    analysis_flag = (reads.getName().contains('.fa') || reads.getName().contains('.fasta')) ? 'fasta' : analysis_flag\n    analysis_flag = (reads.getName().contains('.fq') || reads.getName().contains('.fastq')) ? 'fastq' : analysis_flag\n    analysis_flag = (reads.getName().contains('.bam')) ? 'bam' : analysis_flag\n    \"\"\"\n    NanoStat \\\\\n            -t ${task.cpus} \\\\\n            --${analysis_flag} ${reads} \\\\\n            ${args} \\\\\n        > ${prefix}_NanoStats\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        nanostat: \\$(NanoStat -v | sed 's/NanoStat //')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? 'bioconda::nanostat=1.6.0' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/nanostat:1.6.0--pyhdfd78af_0' : 'quay.io/biocontainers/nanostat:1.6.0--pyhdfd78af_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "UNTAR": {
+        "name_process": "UNTAR",
+        "string_process": "\nprocess UNTAR {\n    tag \"$archive\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"conda-forge::sed=4.7\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' :\n        'biocontainers/biocontainers:v1.2.0_cv1' }\"\n\n    input:\n    path archive\n\n    output:\n    path \"$untar\"      , emit: untar\n    path \"versions.yml\", emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def args2 = task.ext.args2 ?: ''\n    untar        = archive.toString() - '.tar.gz'\n    \"\"\"\n    tar \\\\\n        -xzvf \\\\\n        $args \\\\\n        $archive \\\\\n        $args2 \\\\\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        untar: \\$(echo \\$(tar --version 2>&1) | sed 's/^.*(GNU tar) //; s/ Copyright.*\\$//')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    def args = task.ext.args ?: ''\n    def args2 = task.ext.args2 ?: ''\n    untar        = archive.toString() - '.tar.gz'\n    \"\"\"\n    tar \\\\\n        -xzvf \\\\\n        $args \\\\\n        $archive \\\\\n        $args2 \\\\\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        untar: \\$(echo \\$(tar --version 2>&1) | sed 's/^.*(GNU tar) //; s/ Copyright.*\\$//')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "archive"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$archive\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"conda-forge::sed=4.7\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.2.0_cv1/biocontainers_v1.2.0_cv1.img' : 'biocontainers/biocontainers:v1.2.0_cv1' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "KRAKENTOOLS_KREPORT2KRONA": {
+        "name_process": "KRAKENTOOLS_KREPORT2KRONA",
+        "string_process": "\nprocess KRAKENTOOLS_KREPORT2KRONA {\n    tag \"$meta.id\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::krakentools=1.2\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/krakentools:1.2--pyh5e36f6f_0':\n        'quay.io/biocontainers/krakentools:1.2--pyh5e36f6f_0' }\"\n\n    input:\n    tuple val(meta), path(kreport)\n\n    output:\n    tuple val(meta), path(\"*.krona\"), emit: krona\n    path \"versions.yml\", emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    \"\"\"\n    kreport2krona.py \\\\\n        -r ${kreport} \\\\\n        -o ${prefix}.krona \\\\\n        ${args}\n\n    # Remove ugly 'x__' prefixes for each of the taxonomic levels\n    LEVELS=(d k p c o f g s)\n    for L in \"\\${LEVELS[@]}\"; do\n        sed -i \"s/\\${L}__//g\" ${prefix}.krona\n    done\n\n    # Remove underscores that are standing in place of spaces\n    sed -i \"s/_/ /g\" ${prefix}.krona\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        kreport2krona.py: ${VERSION}\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 42,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    \"\"\"\n    kreport2krona.py \\\\\n        -r ${kreport} \\\\\n        -o ${prefix}.krona \\\\\n        ${args}\n\n    # Remove ugly 'x__' prefixes for each of the taxonomic levels\n    LEVELS=(d k p c o f g s)\n    for L in \"\\${LEVELS[@]}\"; do\n        sed -i \"s/\\${L}__//g\" ${prefix}.krona\n    done\n\n    # Remove underscores that are standing in place of spaces\n    sed -i \"s/_/ /g\" ${prefix}.krona\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        kreport2krona.py: ${VERSION}\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "kreport"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::krakentools=1.2\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/krakentools:1.2--pyh5e36f6f_0': 'quay.io/biocontainers/krakentools:1.2--pyh5e36f6f_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "NANOFILT": {
+        "name_process": "NANOFILT",
+        "string_process": "process NANOFILT {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::nanofilt=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/nanofilt:2.8.0--py_0':\n        'quay.io/biocontainers/nanofilt:2.8.0--py_0' }\"\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"*.fastq.gz\"), emit: fastq\n    tuple val(meta), path(\"*.log\")     , emit: log\n    path \"versions.yml\"                , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    \"\"\"\n    gzip -cdf ${reads} \\\\\n        | NanoFilt \\\\\n            --logfile ${prefix}.nanofilt.log \\\\\n            ${args} \\\\\n        | gzip \\\\\n        > ${prefix}_trimmed.fastq.gz\n\n    # Workaround for no log file output\n    # See https://github.com/wdecoster/nanofilt/issues/50\n    echo \" \" >> ${prefix}.nanofilt.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        nanofilt: \\$(NanoFilt -v | sed 's/NanoFilt //')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    \"\"\"\n    gzip -cdf ${reads} \\\\\n        | NanoFilt \\\\\n            --logfile ${prefix}.nanofilt.log \\\\\n            ${args} \\\\\n        | gzip \\\\\n        > ${prefix}_trimmed.fastq.gz\n\n    # Workaround for no log file output\n    # See https://github.com/wdecoster/nanofilt/issues/50\n    echo \" \" >> ${prefix}.nanofilt.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        nanofilt: \\$(NanoFilt -v | sed 's/NanoFilt //')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::nanofilt=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/nanofilt:2.8.0--py_0': 'quay.io/biocontainers/nanofilt:2.8.0--py_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "CAT_FASTQ": {
+        "name_process": "CAT_FASTQ",
+        "string_process": "\nprocess CAT_FASTQ {\n    tag \"$meta.id\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"conda-forge::sed=4.7\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.1.0_cv2/biocontainers_v1.1.0_cv2.img' :\n        'docker.io/biocontainers/biocontainers:v1.1.0_cv2' }\"\n\n    input:\n    tuple val(meta), path(reads, stageAs: \"input*/*\")\n    val(gzipped)\n\n    output:\n    tuple val(meta), path(\"*.merged.fastq*\"), emit: reads\n    path \"versions.yml\"                       , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def zipcmd = (gzipped) ? '| gzip' : ''\n    def ext = (gzipped) ? 'fastq.gz' : 'fastq'\n    def readList = reads.collect{ it.toString() }\n                                                                               \n                         \n    def joiner = (readList[0] == 'input1') ? '/' : ' '\n    if (meta.single_end) {\n        \"\"\"\n        zcat -f ${readList.join(joiner)} ${zipcmd} > ${prefix}.merged.${ext}\n\n        cat <<-END_VERSIONS > versions.yml\n        \"${task.process}\":\n            gzip: echo \\$(gzip --version | head -n1 | sed 's/^gzip //')\n        END_VERSIONS\n        \"\"\"\n    } else {\n        def read1 = []\n        def read2 = []\n        readList.eachWithIndex{ v, ix -> ( ix & 1 ? read2 : read1 ) << v }\n        \"\"\"\n        zcat -f ${read1.join(joiner)} ${zipcmd} > ${prefix}_1.merged.${ext}\n        zcat -f ${read2.join(joiner)} ${zipcmd} > ${prefix}_2.merged.${ext}\n\n        cat <<-END_VERSIONS > versions.yml\n        \"${task.process}\":\n            gzip: \\$(gzip --version | head -n1 | sed 's/^gzip //')\n        END_VERSIONS\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 52,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def zipcmd = (gzipped) ? '| gzip' : ''\n    def ext = (gzipped) ? 'fastq.gz' : 'fastq'\n    def readList = reads.collect{ it.toString() }\n                                                                               \n                         \n    def joiner = (readList[0] == 'input1') ? '/' : ' '\n    if (meta.single_end) {\n        \"\"\"\n        zcat -f ${readList.join(joiner)} ${zipcmd} > ${prefix}.merged.${ext}\n\n        cat <<-END_VERSIONS > versions.yml\n        \"${task.process}\":\n            gzip: echo \\$(gzip --version | head -n1 | sed 's/^gzip //')\n        END_VERSIONS\n        \"\"\"\n    } else {\n        def read1 = []\n        def read2 = []\n        readList.eachWithIndex{ v, ix -> ( ix & 1 ? read2 : read1 ) << v }\n        \"\"\"\n        zcat -f ${read1.join(joiner)} ${zipcmd} > ${prefix}_1.merged.${ext}\n        zcat -f ${read2.join(joiner)} ${zipcmd} > ${prefix}_2.merged.${ext}\n\n        cat <<-END_VERSIONS > versions.yml\n        \"${task.process}\":\n            gzip: \\$(gzip --version | head -n1 | sed 's/^gzip //')\n        END_VERSIONS\n        \"\"\"\n    }",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads",
+            "gzipped"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"conda-forge::sed=4.7\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://containers.biocontainers.pro/s3/SingImgsRepo/biocontainers/v1.1.0_cv2/biocontainers_v1.1.0_cv2.img' : 'docker.io/biocontainers/biocontainers:v1.1.0_cv2' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "KRONA_IMPORTTEXT": {
+        "name_process": "KRONA_IMPORTTEXT",
+        "string_process": "\nprocess KRONA_IMPORTTEXT {\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::krona=2.8.1\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/krona:2.8.1--pl5321hdfd78af_1':\n        'quay.io/biocontainers/krona:2.8.1--pl5321hdfd78af_1' }\"\n\n    input:\n    path '*'\n\n    output:\n    path \"krona.html\", emit: html\n    path \"versions.yml\", emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    \"\"\"\n    ktImportText * \\\\\n        -o krona.html \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        KronaTools: ${VERSION}\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    def args = task.ext.args ?: ''\n    \"\"\"\n    ktImportText * \\\\\n        -o krona.html \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        KronaTools: ${VERSION}\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::krona=2.8.1\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/krona:2.8.1--pl5321hdfd78af_1': 'quay.io/biocontainers/krona:2.8.1--pl5321hdfd78af_1' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "KRAKENTOOLS_EXTRACT": {
+        "name_process": "KRAKENTOOLS_EXTRACT",
+        "string_process": "\nprocess KRAKENTOOLS_EXTRACT {\n    tag \"$meta.id\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::krakentools=1.2\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/krakentools:1.2--pyh5e36f6f_0':\n        'quay.io/biocontainers/krakentools:1.2--pyh5e36f6f_0' }\"\n\n    input:\n    tuple val(meta), path(reads), path(krakenfile), path(kreport)\n    val(taxids)\n\n    output:\n    tuple val(meta), path(\"*.fastq.gz\"), emit: fastq\n    path 'versions.yml'                , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def readsFlag = (meta.single_end) ? \"-s ${reads}\" : \"-s1 ${reads[0]} -s2 ${reads[1]}\"\n    def filteredFlag = (meta.single_end) ? \"-o ${prefix}_filtered.fastq\" : \"-o ${prefix}_filtered_R1.fastq -o2 ${prefix}_filtered_R2.fastq\"\n    def kreportFlag = kreport ? \"-r ${kreport}\" : ''\n    \"\"\"\n    # Kraken files should be gzipped, and are **VERY** large, so use a named pipe to\n    # prevent storage overload\n    mkfifo krakenfile\n    gzip -cdf ${krakenfile} > krakenfile &\n    extract_kraken_reads.py \\\\\n        -k krakenfile \\\\\n        ${readsFlag} \\\\\n        ${filteredFlag} \\\\\n        -t ${taxids} \\\\\n        --fastq-output \\\\\n        ${kreportFlag} \\\\\n        ${args}\n    gzip *.fastq\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        extract_kraken_reads.py: ${VERSION}\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def readsFlag = (meta.single_end) ? \"-s ${reads}\" : \"-s1 ${reads[0]} -s2 ${reads[1]}\"\n    def filteredFlag = (meta.single_end) ? \"-o ${prefix}_filtered.fastq\" : \"-o ${prefix}_filtered_R1.fastq -o2 ${prefix}_filtered_R2.fastq\"\n    def kreportFlag = kreport ? \"-r ${kreport}\" : ''\n    \"\"\"\n    # Kraken files should be gzipped, and are **VERY** large, so use a named pipe to\n    # prevent storage overload\n    mkfifo krakenfile\n    gzip -cdf ${krakenfile} > krakenfile &\n    extract_kraken_reads.py \\\\\n        -k krakenfile \\\\\n        ${readsFlag} \\\\\n        ${filteredFlag} \\\\\n        -t ${taxids} \\\\\n        --fastq-output \\\\\n        ${kreportFlag} \\\\\n        ${args}\n    gzip *.fastq\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        extract_kraken_reads.py: ${VERSION}\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads",
+            "krakenfile",
+            "kreport",
+            "taxids"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::krakentools=1.2\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/krakentools:1.2--pyh5e36f6f_0': 'quay.io/biocontainers/krakentools:1.2--pyh5e36f6f_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "RAXMLNG_PARSE": {
+        "name_process": "RAXMLNG_PARSE",
+        "string_process": "process RAXMLNG_PARSE {\n    tag \"$msa\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0':\n        'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\"\n\n    input:\n    path(msa)\n\n    output:\n    path \"*.raxml.rba\" , emit: rba\n    path \"versions.yml\", emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    \"\"\"\n    raxml-ng \\\\\n        --parse \\\\\n        --threads auto{${task.cpus}} \\\\\n        --msa ${msa} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    def args = task.ext.args ?: ''\n    \"\"\"\n    raxml-ng \\\\\n        --parse \\\\\n        --threads auto{${task.cpus}} \\\\\n        --msa ${msa} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "RAxML-NG"
+        ],
+        "tools_url": [
+            "https://bio.tools/RAxML-NG"
+        ],
+        "tools_dico": [
+            {
+                "name": "RAxML-NG",
+                "uri": "https://bio.tools/RAxML-NG",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3810",
+                            "term": "Agricultural science"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0194",
+                            "term": "Phylogenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3293",
+                            "term": "Phylogenetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic inference (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0552",
+                                    "term": "Phylogenetic tree bootstrapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree construction (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree generation (maximum likelihood and Bayesian methods)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Phylogenetic tree inference tool which uses maximum-likelihood (ML) optimality criterion.",
+                "homepage": "https://raxml-ng.vital-it.ch/"
+            }
+        ],
+        "inputs": [
+            "msa"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$msa\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0': 'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "KRAKEN2": {
+        "name_process": "KRAKEN2",
+        "string_process": "\nprocess KRAKEN2 {\n    tag \"$meta.id\"\n    label 'process_high'\n    label 'process_high_memory'\n\n    conda (params.enable_conda ? 'bioconda::kraken2=2.1.2 conda-forge::pigz=2.6' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/mulled-v2-5799ab18b5fc681e75923b2450abaa969907ec98:87fc08d11968d081f3e8a37131c1f1f6715b6542-0' :\n        'quay.io/biocontainers/mulled-v2-5799ab18b5fc681e75923b2450abaa969907ec98:87fc08d11968d081f3e8a37131c1f1f6715b6542-0' }\"\n\n    input:\n    tuple val(meta), path(reads)\n    path(db)\n\n    output:\n    tuple val(meta), path(\"*classified*\")  , emit: classified\n    tuple val(meta), path(\"*unclassified*\"), emit: unclassified\n    tuple val(meta), path(\"*.kraken.gz\")   , emit: kraken\n    tuple val(meta), path(\"*.kreport\")     , emit: kreport\n    path \"versions.yml\"                    , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def pairedFlag = meta.single_end ? '' : '--paired'\n    def classifiedFlag = meta.single_end ? \"${prefix}_classified.fastq\" : \"${prefix}_classified#.fastq\"\n    def unclassifiedFlag = meta.single_end ? \"${prefix}_unclassified.fastq\" : \"${prefix}_unclassified#.fastq\"\n    \"\"\"\n    kraken2 \\\\\n            --db ${db} \\\\\n            --threads ${task.cpus} \\\\\n            --classified-out ${classifiedFlag} \\\\\n            --unclassified-out ${unclassifiedFlag} \\\\\n            --report ${prefix}.kreport \\\\\n            ${pairedFlag} \\\\\n            ${args} \\\\\n            ${reads} \\\\\n        | gzip \\\\\n        > ${prefix}.kraken.gz\n\n    pigz -p${task.cpus} *.fastq\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        kraken2: \\$(echo \\$(kraken2 --version 2>&1) | sed 's/^.*Kraken version //; s/ .*\\$//')\n        pigz: \\$( pigz --version 2>&1 | sed 's/pigz //g' )\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 51,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    def pairedFlag = meta.single_end ? '' : '--paired'\n    def classifiedFlag = meta.single_end ? \"${prefix}_classified.fastq\" : \"${prefix}_classified#.fastq\"\n    def unclassifiedFlag = meta.single_end ? \"${prefix}_unclassified.fastq\" : \"${prefix}_unclassified#.fastq\"\n    \"\"\"\n    kraken2 \\\\\n            --db ${db} \\\\\n            --threads ${task.cpus} \\\\\n            --classified-out ${classifiedFlag} \\\\\n            --unclassified-out ${unclassifiedFlag} \\\\\n            --report ${prefix}.kreport \\\\\n            ${pairedFlag} \\\\\n            ${args} \\\\\n            ${reads} \\\\\n        | gzip \\\\\n        > ${prefix}.kraken.gz\n\n    pigz -p${task.cpus} *.fastq\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        kraken2: \\$(echo \\$(kraken2 --version 2>&1) | sed 's/^.*Kraken version //; s/ .*\\$//')\n        pigz: \\$( pigz --version 2>&1 | sed 's/pigz //g' )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [
+            "kraken2"
+        ],
+        "tools_url": [
+            "https://bio.tools/kraken2"
+        ],
+        "tools_dico": [
+            {
+                "name": "kraken2",
+                "uri": "https://bio.tools/kraken2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0637",
+                            "term": "Taxonomy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3028",
+                                "term": "Taxonomy"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Kraken 2 is the newest version of Kraken, a taxonomic classification system using exact k-mer matches to achieve high accuracy and fast classification speeds. This classifier matches each k-mer within a query sequence to the lowest common ancestor (LCA) of all genomes containing the given k-mer. The k-mer assignments inform the classification algorithm.",
+                "homepage": "https://ccb.jhu.edu/software/kraken2/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads",
+            "db"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "label 'process_high_memory'",
+            "conda (params.enable_conda ? 'bioconda::kraken2=2.1.2 conda-forge::pigz=2.6' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/mulled-v2-5799ab18b5fc681e75923b2450abaa969907ec98:87fc08d11968d081f3e8a37131c1f1f6715b6542-0' : 'quay.io/biocontainers/mulled-v2-5799ab18b5fc681e75923b2450abaa969907ec98:87fc08d11968d081f3e8a37131c1f1f6715b6542-0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "EDIRECT_EFETCH": {
+        "name_process": "EDIRECT_EFETCH",
+        "string_process": "process EDIRECT_EFETCH {\n    tag \"$search\"\n    label 'run_local'\n    label 'process_low'\n    label 'error_backoff'\n\n    conda (params.enable_conda ? \"bioconda::entrez-direct=16.2\" : null)\n    container 'docker.io/ncbi/edirect:12.5'\n\n    input:\n    path(search)\n    val(format)\n    val(mode)\n\n    output:\n    path \"*.${mode ?: format ?: 'txt'}\", emit: txt\n    path \"versions.yml\"                , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def ext = mode ?: format ?: 'txt'\n    def format_flag = format ? \"-format ${format}\" : ''\n    def mode_flag = mode ? \"-mode ${mode}\" : ''\n    \"\"\"\n    efetch \\\\\n            < ${search} \\\\\n            ${format_flag} \\\\\n            ${mode_flag} \\\\\n            ${args} \\\\\n        > result.${ext}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        efetch: \\$(efetch -version)\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    def args = task.ext.args ?: ''\n    def ext = mode ?: format ?: 'txt'\n    def format_flag = format ? \"-format ${format}\" : ''\n    def mode_flag = mode ? \"-mode ${mode}\" : ''\n    \"\"\"\n    efetch \\\\\n            < ${search} \\\\\n            ${format_flag} \\\\\n            ${mode_flag} \\\\\n            ${args} \\\\\n        > result.${ext}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        efetch: \\$(efetch -version)\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "eFetch Snp"
+        ],
+        "tools_url": [
+            "https://bio.tools/efetch_snp"
+        ],
+        "tools_dico": [
+            {
+                "name": "eFetch Snp",
+                "uri": "https://bio.tools/efetch_snp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Get SNPs information given SNP ID list.",
+                "homepage": "http://www.ncbi.nlm.nih.gov/corehtml/query/static/efetchseq_help.html"
+            }
+        ],
+        "inputs": [
+            "search",
+            "format",
+            "mode"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$search\"",
+            "label 'run_local'",
+            "label 'process_low'",
+            "label 'error_backoff'",
+            "conda (params.enable_conda ? \"bioconda::entrez-direct=16.2\" : null)",
+            "container 'docker.io/ncbi/edirect:12.5'"
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "RAXMLNG_SEARCH": {
+        "name_process": "RAXMLNG_SEARCH",
+        "string_process": "process RAXMLNG_SEARCH {\n    tag \"$msa\"\n    label 'process_high'\n\n    conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0':\n        'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\"\n\n    input:\n    path msa\n\n    output:\n    path \"*.raxml.bestTree\", emit: best_tree\n    path \"versions.yml\"    , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    raxml-ng \\\\\n        --threads auto{${task.cpus}} \\\\\n        --workers auto \\\\\n        --msa ${msa} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    raxml-ng \\\\\n        --threads auto{${task.cpus}} \\\\\n        --workers auto \\\\\n        --msa ${msa} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "RAxML-NG"
+        ],
+        "tools_url": [
+            "https://bio.tools/RAxML-NG"
+        ],
+        "tools_dico": [
+            {
+                "name": "RAxML-NG",
+                "uri": "https://bio.tools/RAxML-NG",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3810",
+                            "term": "Agricultural science"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0194",
+                            "term": "Phylogenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3293",
+                            "term": "Phylogenetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic inference (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0552",
+                                    "term": "Phylogenetic tree bootstrapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree construction (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree generation (maximum likelihood and Bayesian methods)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Phylogenetic tree inference tool which uses maximum-likelihood (ML) optimality criterion.",
+                "homepage": "https://raxml-ng.vital-it.ch/"
+            }
+        ],
+        "inputs": [
+            "msa"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$msa\"",
+            "label 'process_high'",
+            "conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0': 'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "CLIQUESNV_ILLUMINA": {
+        "name_process": "CLIQUESNV_ILLUMINA",
+        "string_process": "process CLIQUESNV_ILLUMINA {\n    tag \"$meta.id\"\n    label 'process_high'\n\n    conda (params.enable_conda ? \"bioconda::cliquesnv=2.0.3\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/cliquesnv:2.0.3--hdfd78af_0':\n        'quay.io/biocontainers/cliquesnv:2.0.3--hdfd78af_0' }\"\n\n    input:\n    tuple val(meta), path(bam)\n\n    output:\n    tuple val(meta), path(\"*.json\") , emit: json\n    tuple val(meta), path(\"*.fasta\"), emit: fasta\n    path \"versions.yml\"             , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    def jmemstring = task.memory.toMega() + 'M'\n    \"\"\"\n    cliquesnv \\\\\n        -Xmx${jmemstring} \\\\\n        -threads ${task.cpus} \\\\\n        -m snv-illumina \\\\\n        -in ${bam} \\\\\n        ${args} \\\\\n        -outDir .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        cliquesnv: \\$(cliquesnv | head -n1 | sed 's/CliqueSNV version: //')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    def args = task.ext.args ?: ''\n    def jmemstring = task.memory.toMega() + 'M'\n    \"\"\"\n    cliquesnv \\\\\n        -Xmx${jmemstring} \\\\\n        -threads ${task.cpus} \\\\\n        -m snv-illumina \\\\\n        -in ${bam} \\\\\n        ${args} \\\\\n        -outDir .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        cliquesnv: \\$(cliquesnv | head -n1 | sed 's/CliqueSNV version: //')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "conda (params.enable_conda ? \"bioconda::cliquesnv=2.0.3\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/cliquesnv:2.0.3--hdfd78af_0': 'quay.io/biocontainers/cliquesnv:2.0.3--hdfd78af_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "RAXMLNG_BOOTSTRAP": {
+        "name_process": "RAXMLNG_BOOTSTRAP",
+        "string_process": "process RAXMLNG_BOOTSTRAP {\n    tag \"$msa\"\n    label 'process_high'\n\n    conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0':\n        'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\"\n\n    input:\n    path msa\n\n    output:\n    path \"*.raxml.bootstraps\", emit: bootstraps\n    path \"versions.yml\"      , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    \"\"\"\n    raxml-ng \\\\\n        --bootstrap \\\\\n        --threads auto{${task.cpus}} \\\\\n        --workers auto \\\\\n        --msa ${msa} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    def args = task.ext.args ?: ''\n    \"\"\"\n    raxml-ng \\\\\n        --bootstrap \\\\\n        --threads auto{${task.cpus}} \\\\\n        --workers auto \\\\\n        --msa ${msa} \\\\\n        ${args}\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        raxmlng: \\$(echo \\$(raxml-ng --version 2>&1) | sed 's/^.*RAxML-NG v. //; s/released.*\\$//')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "RAxML-NG"
+        ],
+        "tools_url": [
+            "https://bio.tools/RAxML-NG"
+        ],
+        "tools_dico": [
+            {
+                "name": "RAxML-NG",
+                "uri": "https://bio.tools/RAxML-NG",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3810",
+                            "term": "Agricultural science"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0194",
+                            "term": "Phylogenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3293",
+                            "term": "Phylogenetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic inference (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0552",
+                                    "term": "Phylogenetic tree bootstrapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree construction (maximum likelihood and Bayesian methods)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0547",
+                                    "term": "Phylogenetic tree generation (maximum likelihood and Bayesian methods)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Phylogenetic tree inference tool which uses maximum-likelihood (ML) optimality criterion.",
+                "homepage": "https://raxml-ng.vital-it.ch/"
+            }
+        ],
+        "inputs": [
+            "msa"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ksumngs__nf-modules",
+        "directive": [
+            "tag \"$msa\"",
+            "label 'process_high'",
+            "conda (params.enable_conda ? \"bioconda::raxml-ng=1.1.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/raxml-ng:1.1.0--h32fcf60_0': 'quay.io/biocontainers/raxml-ng:1.1.0--h32fcf60_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    }
+}

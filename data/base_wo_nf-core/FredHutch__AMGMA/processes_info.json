@@ -1,0 +1,1426 @@
+{
+    "fetchFTP": {
+        "name_process": "fetchFTP",
+        "string_process": "\nprocess fetchFTP {\n    container 'quay.io/fhcrc-microbiome/wget:latest'\n    label 'io_limited'\n    errorStrategy \"retry\"\n\n    input:\n        val uri_id_list\n    \n    output:\n        file \"${params.tar_prefix}.*.tar\"\n    \n\"\"\"\n#!/bin/bash\n\nset -e\n\nfor uri_id in ${uri_id_list.join(\" \")}; do\n\n    uri=\\$(echo \\$uri_id | sed 's/:::.*//')\n    id=\\$(echo \\$uri_id | sed 's/.*::://')\n\n    echo \"Downloading \\$id from \\$uri\"\n\n    # Try to download, and also save the log\n    # If the system call returns non-zero, make sure to escape it\n    wget -o \\$id.log -O \\$id${params.file_suffix} \\$uri || echo \"Encountered problem downloading\"\n\n    # Make sure the file is gzip compressed\n    gzip -t \\$id${params.file_suffix} && echo \"\\$id is downloaded in proper gzip format\" && continue\n\n    # Now it seems that the file was not downloaded in proper gzip format\n\n    # First check to see if the file even exists on the server by looking at the log file\n    if (( \\$(cat \\$id.log | grep -c \"No such file\") == 1 )); then\n\n        echo \"File does not exist on server, skipping \\$uri\"\n\n    else\n\n        echo \"File does exist on server, but was not downloaded correctly (\\$uri)\"\n        exit 1\n\n    fi\n\ndone\n\necho \"Making a tar with all genomes in this batch\"\ntar cfh \\$(mktemp ${params.tar_prefix}.XXXXXXXXX).tar *${params.file_suffix}\n\necho \"done\"\n\"\"\"\n}",
+        "nb_lignes_process": 51,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -e\n\nfor uri_id in ${uri_id_list.join(\" \")}; do\n\n    uri=\\$(echo \\$uri_id | sed 's/:::.*//')\n    id=\\$(echo \\$uri_id | sed 's/.*::://')\n\n    echo \"Downloading \\$id from \\$uri\"\n\n    # Try to download, and also save the log\n    # If the system call returns non-zero, make sure to escape it\n    wget -o \\$id.log -O \\$id${params.file_suffix} \\$uri || echo \"Encountered problem downloading\"\n\n    # Make sure the file is gzip compressed\n    gzip -t \\$id${params.file_suffix} && echo \"\\$id is downloaded in proper gzip format\" && continue\n\n    # Now it seems that the file was not downloaded in proper gzip format\n\n    # First check to see if the file even exists on the server by looking at the log file\n    if (( \\$(cat \\$id.log | grep -c \"No such file\") == 1 )); then\n\n        echo \"File does not exist on server, skipping \\$uri\"\n\n    else\n\n        echo \"File does exist on server, but was not downloaded correctly (\\$uri)\"\n        exit 1\n\n    fi\n\ndone\n\necho \"Making a tar with all genomes in this batch\"\ntar cfh \\$(mktemp ${params.tar_prefix}.XXXXXXXXX).tar *${params.file_suffix}\n\necho \"done\"\n\"\"\"",
+        "nb_lignes_script": 39,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uri_id_list"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container 'quay.io/fhcrc-microbiome/wget:latest'",
+            "label 'io_limited'",
+            "errorStrategy \"retry\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "renameRemoteFiles": {
+        "name_process": "renameRemoteFiles",
+        "string_process": "\nprocess renameRemoteFiles {\n    container 'ubuntu:20.04'\n    label 'io_limited'\n    errorStrategy 'retry'\n\n    input:\n        tuple val(id), file(genome_fasta)\n\n    output:\n        file \"${id}${params.file_suffix}\"\n\n\"\"\"\n#!/bin/bash\n\nset -e\n\nls -lahtr\n\nmv ${genome_fasta} TEMP && mv TEMP ${id}${params.file_suffix}\n\n(gzip -t ${id}${params.file_suffix} && echo \"${genome_fasta} is in gzip format\") || ( echo \"${genome_fasta} is NOT in gzip format\" && exit 1 )\n\n\"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -e\n\nls -lahtr\n\nmv ${genome_fasta} TEMP && mv TEMP ${id}${params.file_suffix}\n\n(gzip -t ${id}${params.file_suffix} && echo \"${genome_fasta} is in gzip format\") || ( echo \"${genome_fasta} is NOT in gzip format\" && exit 1 )\n\n\"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "genome_fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container 'ubuntu:20.04'",
+            "label 'io_limited'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prokka": {
+        "name_process": "prokka",
+        "string_process": "\nprocess prokka {\n\n    container \"quay.io/biocontainers/prokka:1.14.6--pl526_0\"\n    label \"mem_medium\"\n    errorStrategy 'retry'\n    maxRetries 2\n    publishDir \"${params.output_folder}\", mode: 'copy', overwrite: true\n\n    input:\n    file fasta\n\n    output:\n    file \"${fasta.name}/${fasta.name}.gff.gz\"\n\n\"\"\"\n#!/bin/bash\n\nset -euxo pipefail\n\necho Decompressing input FASTA\ngunzip -c \"${fasta}\" > \"${fasta}.fasta\"\n\n# Remove the input file\nrm \"${fasta}\"\n\necho Running Prokka\nprokka \\\n    --outdir \"${fasta.name}\" \\\n    --prefix \"${fasta.name}\" \\\n    --cpus ${task.cpus} \\\n    \"${fasta}.fasta\"\n\necho Compressing outputs\n\ngzip \"${fasta.name}\"/*\n\necho Done\n\"\"\"\n\n}",
+        "nb_lignes_process": 39,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -euxo pipefail\n\necho Decompressing input FASTA\ngunzip -c \"${fasta}\" > \"${fasta}.fasta\"\n\n# Remove the input file\nrm \"${fasta}\"\n\necho Running Prokka\nprokka \\\n    --outdir \"${fasta.name}\" \\\n    --prefix \"${fasta.name}\" \\\n    --cpus ${task.cpus} \\\n    \"${fasta}.fasta\"\n\necho Compressing outputs\n\ngzip \"${fasta.name}\"/*\n\necho Done\n\"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [
+            "Prokka"
+        ],
+        "tools_url": [
+            "https://bio.tools/prokka"
+        ],
+        "tools_dico": [
+            {
+                "name": "Prokka",
+                "uri": "https://bio.tools/prokka",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0781",
+                            "term": "Virology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0362",
+                                    "term": "Genome annotation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software tool to annotate bacterial, archaeal and viral genomes quickly and produce standards-compliant output files.",
+                "homepage": "https://github.com/tseemann/prokka"
+            }
+        ],
+        "inputs": [
+            "fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"quay.io/biocontainers/prokka:1.14.6--pl526_0\"",
+            "label \"mem_medium\"",
+            "errorStrategy 'retry'",
+            "maxRetries 2",
+            "publishDir \"${params.output_folder}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "preprocessFASTA": {
+        "name_process": "preprocessFASTA",
+        "string_process": "\nprocess preprocessFASTA {\n\n    container \"quay.io/fhcrc-microbiome/integrate-metagenomic-assemblies:v0.5\"\n    label \"io_limited\"\n    \n    input:\n    file fasta\n\n    output:\n    file \"${fasta}\"\n\n    \"\"\"\n#!/usr/bin/env python3\n# Following criteria from https://github.com/ncbi/pgap/wiki/Input-Files\nfrom Bio.SeqIO.FastaIO import SimpleFastaParser\nimport gzip\nimport re\n# Sanitize and write out\ndef preprocess_fasta(genome, handle):\n    seen_headers = set([])\n    \n    # Initialize the index counter\n    ix = 0\n\n    for header, seq in genome.items():\n        \n        # Make sure the sequence is >= 199 nucleotides\n        if len(seq) < 199:\n            continue\n        # Trim the header to 30 characters\n        if len(header) > 30:\n            header = header[:30]\n\n        # Only include letters, digits, hyphens (-), underscores (_), periods (.), colons (:), asterisks (*), and number signs (#)\n        header = re.sub('[^0-9a-zA-Z-.*#\\$_:]', '_', header)\n\n        # Add the index\n        header = \"%s_%d\" % (header, ix)\n\n        # Increment the index counter\n        ix += 1\n\n        # All headers are unique\n        assert header not in seen_headers, \"Duplicate header: %s (note truncation to first 30 characters)\" % header\n\n        seen_headers.add(header)\n\n        # Make sure there are no N's at the beginning or end\n        assert seq[0] != \"#\"\n        assert seq[-1] != \"#\"\n\n        handle.write(\">%s\\\\n%s\\\\n\" % (header, seq))\n\n# Parse the filepath\nfasta_fp = \"${fasta}\"\n\n# Read in all of the genome\nif fasta_fp.endswith(\".gz\"):\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(gzip.open(fasta_fp, \"rt\"))\n    ])\nelse:\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(open(fasta_fp, \"r\"))\n    ])\n\n# Gzip the output if appropriate\nif fasta_fp.endswith(\".gz\"):\n    with gzip.open(fasta_fp, \"wt\") as handle:\n        preprocess_fasta(genome, handle)\n\nelse:\n    with open(fasta_fp, \"w\") as handle:\n        preprocess_fasta(genome, handle)\n\n    \"\"\"\n\n}",
+        "nb_lignes_process": 79,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n# Following criteria from https://github.com/ncbi/pgap/wiki/Input-Files\nfrom Bio.SeqIO.FastaIO import SimpleFastaParser\nimport gzip\nimport re\n# Sanitize and write out\ndef preprocess_fasta(genome, handle):\n    seen_headers = set([])\n    \n    # Initialize the index counter\n    ix = 0\n\n    for header, seq in genome.items():\n        \n        # Make sure the sequence is >= 199 nucleotides\n        if len(seq) < 199:\n            continue\n        # Trim the header to 30 characters\n        if len(header) > 30:\n            header = header[:30]\n\n        # Only include letters, digits, hyphens (-), underscores (_), periods (.), colons (:), asterisks (*), and number signs (#)\n        header = re.sub('[^0-9a-zA-Z-.*#\\$_:]', '_', header)\n\n        # Add the index\n        header = \"%s_%d\" % (header, ix)\n\n        # Increment the index counter\n        ix += 1\n\n        # All headers are unique\n        assert header not in seen_headers, \"Duplicate header: %s (note truncation to first 30 characters)\" % header\n\n        seen_headers.add(header)\n\n        # Make sure there are no N's at the beginning or end\n        assert seq[0] != \"#\"\n        assert seq[-1] != \"#\"\n\n        handle.write(\">%s\\\\n%s\\\\n\" % (header, seq))\n\n# Parse the filepath\nfasta_fp = \"${fasta}\"\n\n# Read in all of the genome\nif fasta_fp.endswith(\".gz\"):\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(gzip.open(fasta_fp, \"rt\"))\n    ])\nelse:\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(open(fasta_fp, \"r\"))\n    ])\n\n# Gzip the output if appropriate\nif fasta_fp.endswith(\".gz\"):\n    with gzip.open(fasta_fp, \"wt\") as handle:\n        preprocess_fasta(genome, handle)\n\nelse:\n    with open(fasta_fp, \"w\") as handle:\n        preprocess_fasta(genome, handle)\n\n    \"\"\"",
+        "nb_lignes_script": 66,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/integrate-metagenomic-assemblies:v0.5\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineRemoteFiles": {
+        "name_process": "combineRemoteFiles",
+        "string_process": "\nprocess combineRemoteFiles {\n    container 'ubuntu:20.04'\n    label 'io_limited'\n    errorStrategy 'retry'\n\n    input:\n        file file_list\n\n    output:\n        file \"${params.tar_prefix}.*.tar\"\n\n\"\"\"\n#!/bin/bash\n\nset -e\n\ntar cvfh \\$(mktemp ${params.tar_prefix}.XXXXXXXXX).tar ${file_list}\n\n\"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -e\n\ntar cvfh \\$(mktemp ${params.tar_prefix}.XXXXXXXXX).tar ${file_list}\n\n\"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "file_list"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container 'ubuntu:20.04'",
+            "label 'io_limited'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "repackHDF": {
+        "name_process": "repackHDF",
+        "string_process": "\nprocess repackHDF {\n\n    container \"${container__pandas}\"\n    tag \"Compress HDF store\"\n    label \"mem_medium\"\n    errorStrategy \"retry\"\n    publishDir \"${params.output_folder}\"\n    \n    input:\n    file final_hdf\n        \n    output:\n    file \"${final_hdf}\"\n\n    \"\"\"\n#!/bin/bash\n\nset -Eeuxo pipefail\n\n[ -s ${final_hdf} ]\n\nh5repack -f GZIP=5 ${final_hdf} TEMP && mv TEMP ${final_hdf}\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -Eeuxo pipefail\n\n[ -s ${final_hdf} ]\n\nh5repack -f GZIP=5 ${final_hdf} TEMP && mv TEMP ${final_hdf}\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "final_hdf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"${container__pandas}\"",
+            "tag \"Compress HDF store\"",
+            "label \"mem_medium\"",
+            "errorStrategy \"retry\"",
+            "publishDir \"${params.output_folder}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "indexGeneshotResults": {
+        "name_process": "indexGeneshotResults",
+        "string_process": "\nprocess indexGeneshotResults {\n    container \"${container__glam}\"\n    label \"mem_veryhigh\"\n    errorStrategy 'retry'\n    publishDir \"${params.output_prefix}\", mode: 'copy', overwrite: true\n\n    input:\n    path summary_hdf\n    path details_hdf\n\n    output:\n    file \"OUTPUT/**\"\n\n    \"\"\"#!/bin/bash\n\nset -Eeuxo pipefail\n\nAWS_REGION=${params.aws_region} \\\nglam-cli index-dataset --fp \"${summary_hdf}\" --uri \"\\$PWD/OUTPUT\" --details \"${details_hdf}\"\n\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\"\"\"#!/bin/bash\n\nset -Eeuxo pipefail\n\nAWS_REGION=${params.aws_region} \\\nglam-cli index-dataset --fp \"${summary_hdf}\" --uri \"\\$PWD/OUTPUT\" --details \"${details_hdf}\"\n\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "summary_hdf",
+            "details_hdf"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"${container__glam}\"",
+            "label \"mem_veryhigh\"",
+            "errorStrategy 'retry'",
+            "publishDir \"${params.output_prefix}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "unpackDatabase": {
+        "name_process": "unpackDatabase",
+        "string_process": "\nprocess unpackDatabase {\n    tag \"Extract all files from database tarball\"\n    container \"ubuntu:20.04\"\n    label \"io_limited\"\n    errorStrategy 'retry'\n\n    input:\n        file db from db_ch\n    \n    output:\n        file \"${db}.manifest.csv\" into manifest_ch\n        file \"*tar\" into database_tar_list\n        file \"genome_annotations.hdf5\" into genome_annotations_hdf5\n\n\"\"\"\n#!/bin/bash \n\nset -e\n\nls -lahtr\n\ntar xvf ${db}\n\nmv database_manifest.csv ${db}.manifest.csv\n\n# Make a dummy file for the genome annotations\nif [[ ! -s genome_annotations.hdf5 ]]; then\n    touch genome_annotations.hdf5\nfi\n\necho \"Done\"\n\n\"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "\"\"\"\n#!/bin/bash \n\nset -e\n\nls -lahtr\n\ntar xvf ${db}\n\nmv database_manifest.csv ${db}.manifest.csv\n\n# Make a dummy file for the genome annotations\nif [[ ! -s genome_annotations.hdf5 ]]; then\n    touch genome_annotations.hdf5\nfi\n\necho \"Done\"\n\n\"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "db_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "manifest_ch",
+            "database_tar_list",
+            "genome_annotations_hdf5"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Extract all files from database tarball\"",
+            "container \"ubuntu:20.04\"",
+            "label \"io_limited\"",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "validateManifest": {
+        "name_process": "validateManifest",
+        "string_process": "\nprocess validateManifest {\n    tag \"Enforce unique genome IDs\"\n    container \"quay.io/fhcrc-microbiome/python-pandas:v1.0.3\"\n    label 'io_limited'\n    errorStrategy 'retry'\n\n    input:\n    file manifest\n\n    output:\n    file \"${manifest}\"\n\n\"\"\"\n#!/usr/bin/env python3\n\nimport pandas as pd\n\n# Read in the CSV\nmanifest = pd.read_csv(\"${manifest}\")\n\nfor k in ['uri', 'id', 'name']:\n    assert k in manifest, \"Please provide %s as a column in the manifest\" % k\n\n# Make sure that all genome IDs are unique\nall_unique = True\nfor n, v in manifest['uri'].value_counts().items():\n    if v > 1:\n        all_unique = False\n        print(\"%s is found %d times in the manifest\" % (n, v))\nassert all_unique, \"Must provide entirely unique genome IDs\"\n\n\"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n\nimport pandas as pd\n\n# Read in the CSV\nmanifest = pd.read_csv(\"${manifest}\")\n\nfor k in ['uri', 'id', 'name']:\n    assert k in manifest, \"Please provide %s as a column in the manifest\" % k\n\n# Make sure that all genome IDs are unique\nall_unique = True\nfor n, v in manifest['uri'].value_counts().items():\n    if v > 1:\n        all_unique = False\n        print(\"%s is found %d times in the manifest\" % (n, v))\nassert all_unique, \"Must provide entirely unique genome IDs\"\n\n\"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "manifest"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Enforce unique genome IDs\"",
+            "container \"quay.io/fhcrc-microbiome/python-pandas:v1.0.3\"",
+            "label 'io_limited'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extractFASTA": {
+        "name_process": "extractFASTA",
+        "string_process": " process extractFASTA {\n        container \"${container_diamond}\"\n        label \"io_limited\"\n\n        input:\n            file geneshot_dmnd\n        \n        output:\n            file \"ref.fasta.gz\" into ref_fasta\n\n\n        \"\"\"#!/bin/bash\n\n        set -Eeuxo pipefail\n\n        diamond getseq --db ${geneshot_dmnd} --out ref.fasta\n\n        gzip ref.fasta\n        \"\"\"\n    }",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"#!/bin/bash\n\n        set -Eeuxo pipefail\n\n        diamond getseq --db ${geneshot_dmnd} --out ref.fasta\n\n        gzip ref.fasta\n        \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "Diamond"
+        ],
+        "tools_url": [
+            "https://bio.tools/diamond"
+        ],
+        "tools_dico": [
+            {
+                "name": "Diamond",
+                "uri": "https://bio.tools/diamond",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0258",
+                                    "term": "Sequence alignment analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Sequence aligner for protein and translated DNA searches and functions as a drop-in replacement for the NCBI BLAST software tools. It is suitable for protein-protein search as well as DNA-protein search on short reads and longer sequences including contigs and assemblies, providing a speedup of BLAST ranging up to x20,000.",
+                "homepage": "https://github.com/bbuchfink/diamond"
+            }
+        ],
+        "inputs": [
+            "geneshot_dmnd"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ref_fasta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"${container_diamond}\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "makeBLASTdb": {
+        "name_process": "makeBLASTdb",
+        "string_process": " process makeBLASTdb {\n        container \"${container__blast}\"\n        label \"mem_medium\"\n\n        input:\n            file ref_fasta\n        \n        output:\n            file \"blastDB*\" into blastDB\n\n\n        \"\"\"#!/bin/bash\n\n        set -Eeuxo pipefail\n\n        echo \"Decompressing gene catalog FASTA\"\n        gunzip -c ${ref_fasta} > ref.fasta\n\n        echo \"Head of gene catalog FASTA\"\n        head ref.fasta\n\n        echo \"Building database\"\n        makeblastdb -in ref.fasta -dbtype prot -out blastDB\n\n        echo \"Done\"\n        \"\"\"\n    }",
+        "nb_lignes_process": 25,
+        "string_script": "\"\"\"#!/bin/bash\n\n        set -Eeuxo pipefail\n\n        echo \"Decompressing gene catalog FASTA\"\n        gunzip -c ${ref_fasta} > ref.fasta\n\n        echo \"Head of gene catalog FASTA\"\n        head ref.fasta\n\n        echo \"Building database\"\n        makeblastdb -in ref.fasta -dbtype prot -out blastDB\n\n        echo \"Done\"\n        \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ref_fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "blastDB"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"${container__blast}\"",
+            "label \"mem_medium\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alignGenomesBLAST": {
+        "name_process": "alignGenomesBLAST",
+        "string_process": " process alignGenomesBLAST {\n        tag \"Annotate reference genomes by alignment\"\n        container \"${container__blast}\"\n        label \"mem_medium\"\n        errorStrategy 'retry'\n\n        input:\n            file database_chunk_tar from database_tar_list.flatten()\n            file \"*\" from blastDB\n\n        output:\n            tuple file(\"${database_chunk_tar.name.replaceAll(/.tar/, \".aln.gz\")}\"), file(\"${database_chunk_tar.name.replaceAll(/.tar/, \".csv.gz\")}\") into raw_alignment_ch\n\n    \"\"\"\n    #!/bin/bash\n\n    set -Eeuxo pipefail\n\n    ls -lahtr\n\n    tar xvf ${database_chunk_tar}\n\n    blastx \\\n        -query <(gunzip -c ${database_chunk_tar.name.replaceAll(/.tar/, \".fasta.gz\")}) \\\n        -db blastDB \\\n        -query_gencode 11 \\\n        -outfmt \"6 qseqid sseqid pident length qstart qend qlen sstart send slen\" \\\n        -num_threads ${task.cpus} \\\n        -max_target_seqs 10000000 \\\n        -evalue 0.001 \\\n        | gzip -c > ${database_chunk_tar.name.replaceAll(/.tar/, \".aln.gz\")}\n\n    \"\"\"\n    }",
+        "nb_lignes_process": 32,
+        "string_script": "\"\"\"\n    #!/bin/bash\n\n    set -Eeuxo pipefail\n\n    ls -lahtr\n\n    tar xvf ${database_chunk_tar}\n\n    blastx \\\n        -query <(gunzip -c ${database_chunk_tar.name.replaceAll(/.tar/, \".fasta.gz\")}) \\\n        -db blastDB \\\n        -query_gencode 11 \\\n        -outfmt \"6 qseqid sseqid pident length qstart qend qlen sstart send slen\" \\\n        -num_threads ${task.cpus} \\\n        -max_target_seqs 10000000 \\\n        -evalue 0.001 \\\n        | gzip -c > ${database_chunk_tar.name.replaceAll(/.tar/, \".aln.gz\")}\n\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "database_tar_list",
+            "blastDB"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "raw_alignment_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Annotate reference genomes by alignment\"",
+            "container \"${container__blast}\"",
+            "label \"mem_medium\"",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filterBLASThits": {
+        "name_process": "filterBLASThits",
+        "string_process": " process filterBLASThits {\n        container \"${container__pandas}\"\n        label \"mem_medium\"\n        errorStrategy 'retry'\n\n        input:\n            tuple file(aln_tsv_gz), file(header_csv_gz) from raw_alignment_ch\n\n        output:\n            tuple file(\"${aln_tsv_gz}.filtered.tsv.gz\"), file(\"${header_csv_gz}\") into alignments_ch\n\n\"\"\"#!/usr/bin/env python3\n\nimport pandas as pd\n\n# Read in the table of hits\ndf = pd.read_csv(\"${aln_tsv_gz}\", sep=\"\\\\t\", header=None)\nprint(\"Read in %d alignments\" % df.shape[0])\n\n# Filter by percent identity\ndf = df.loc[\n    df[2] >= ${params.min_identity}\n]\nprint(\"Filtered down to %d alignments with identity >= ${params.min_identity}\" % df.shape[0])\n\n# Filter by coverage\ndf = df.assign(\n    coverage = 100 * df[3] / df[9]\n).query(\n    \"coverage >= ${params.min_coverage}\"\n).drop(\n    columns = \"coverage\"\n)\nprint(\"Filtered down to %d alignments with coverage >= ${params.min_coverage}\" % df.shape[0])\n\n# Write out\ndf.to_csv(\"${aln_tsv_gz}.filtered.tsv.gz\", sep=\"\\\\t\", index=None, header=None)\n\n\"\"\"\n    }",
+        "nb_lignes_process": 38,
+        "string_script": "\"\"\"#!/usr/bin/env python3\n\nimport pandas as pd\n\n# Read in the table of hits\ndf = pd.read_csv(\"${aln_tsv_gz}\", sep=\"\\\\t\", header=None)\nprint(\"Read in %d alignments\" % df.shape[0])\n\n# Filter by percent identity\ndf = df.loc[\n    df[2] >= ${params.min_identity}\n]\nprint(\"Filtered down to %d alignments with identity >= ${params.min_identity}\" % df.shape[0])\n\n# Filter by coverage\ndf = df.assign(\n    coverage = 100 * df[3] / df[9]\n).query(\n    \"coverage >= ${params.min_coverage}\"\n).drop(\n    columns = \"coverage\"\n)\nprint(\"Filtered down to %d alignments with coverage >= ${params.min_coverage}\" % df.shape[0])\n\n# Write out\ndf.to_csv(\"${aln_tsv_gz}.filtered.tsv.gz\", sep=\"\\\\t\", index=None, header=None)\n\n\"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "raw_alignment_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "alignments_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"${container__pandas}\"",
+            "label \"mem_medium\"",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alignGenomes": {
+        "name_process": "alignGenomes",
+        "string_process": " process alignGenomes {\n        tag \"Annotate reference genomes by alignment\"\n        container \"${container_diamond}\"\n        label \"mem_veryhigh\"\n        errorStrategy 'retry'\n\n        input:\n            file database_chunk_tar from database_tar_list.flatten()\n            file geneshot_dmnd\n\n        output:\n            tuple file(\"${database_chunk_tar.name.replaceAll(/.tar/, \".aln.gz\")}\"), file(\"${database_chunk_tar.name.replaceAll(/.tar/, \".csv.gz\")}\") into alignments_ch\n\n    \"\"\"\n    #!/bin/bash\n\n    set -Eeuxo pipefail\n\n    ls -lahtr\n\n    tar xvf ${database_chunk_tar}\n\n    diamond \\\n        blastx \\\n        --db ${geneshot_dmnd} \\\n        --query ${database_chunk_tar.name.replaceAll(/.tar/, \".fasta.gz\")} \\\n        --out ${database_chunk_tar.name.replaceAll(/.tar/, \".aln.gz\")} \\\n        --outfmt 6 qseqid sseqid pident length qstart qend qlen sstart send slen \\\n        --id ${params.min_identity} \\\n        --subject-cover ${params.min_coverage} \\\n        --top ${params.top} \\\n        --compress 1 \\\n        --unal 0 \\\n        --sensitive \\\n        --query-gencode 11 \\\n        --range-culling \\\n        -F 1 \\\n        --block-size ${task.memory.toMega() / (1024 * 6 * task.attempt)} \\\n        --threads ${task.cpus} \\\n\n    \"\"\"\n    }",
+        "nb_lignes_process": 40,
+        "string_script": "\"\"\"\n    #!/bin/bash\n\n    set -Eeuxo pipefail\n\n    ls -lahtr\n\n    tar xvf ${database_chunk_tar}\n\n    diamond \\\n        blastx \\\n        --db ${geneshot_dmnd} \\\n        --query ${database_chunk_tar.name.replaceAll(/.tar/, \".fasta.gz\")} \\\n        --out ${database_chunk_tar.name.replaceAll(/.tar/, \".aln.gz\")} \\\n        --outfmt 6 qseqid sseqid pident length qstart qend qlen sstart send slen \\\n        --id ${params.min_identity} \\\n        --subject-cover ${params.min_coverage} \\\n        --top ${params.top} \\\n        --compress 1 \\\n        --unal 0 \\\n        --sensitive \\\n        --query-gencode 11 \\\n        --range-culling \\\n        -F 1 \\\n        --block-size ${task.memory.toMega() / (1024 * 6 * task.attempt)} \\\n        --threads ${task.cpus} \\\n\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [
+            "Diamond"
+        ],
+        "tools_url": [
+            "https://bio.tools/diamond"
+        ],
+        "tools_dico": [
+            {
+                "name": "Diamond",
+                "uri": "https://bio.tools/diamond",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0258",
+                                    "term": "Sequence alignment analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Sequence aligner for protein and translated DNA searches and functions as a drop-in replacement for the NCBI BLAST software tools. It is suitable for protein-protein search as well as DNA-protein search on short reads and longer sequences including contigs and assemblies, providing a speedup of BLAST ranging up to x20,000.",
+                "homepage": "https://github.com/bbuchfink/diamond"
+            }
+        ],
+        "inputs": [
+            "database_tar_list",
+            "geneshot_dmnd"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "alignments_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Annotate reference genomes by alignment\"",
+            "container \"${container_diamond}\"",
+            "label \"mem_veryhigh\"",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filterAlignments": {
+        "name_process": "filterAlignments",
+        "string_process": "\nprocess filterAlignments {\n    \n    container \"ubuntu:20.04\"\n    label 'io_limited'\n    errorStrategy 'retry'\n\n    input:\n        tuple file(aln_tsv_gz), file(header_csv_gz) from alignments_ch\n\n    output:\n        tuple file(\"${aln_tsv_gz}\"), file(\"${header_csv_gz}\") optional true into alignments_ch_1, alignments_ch_2\n\n\"\"\"\n#!/bin/bash\n\nset -e\n\nif (( \\$( cat ${aln_tsv_gz} | wc -l ) > 0 )); then\n\n    echo \"Number of alignments: \\$( cat ${aln_tsv_gz} | wc -l )\"\n\nelse\n\n    echo \"No alignments found, filtering out\"\n\n    rm ${aln_tsv_gz} ${header_csv_gz}\n\nfi\n\n\"\"\"\n\n}",
+        "nb_lignes_process": 31,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -e\n\nif (( \\$( cat ${aln_tsv_gz} | wc -l ) > 0 )); then\n\n    echo \"Number of alignments: \\$( cat ${aln_tsv_gz} | wc -l )\"\n\nelse\n\n    echo \"No alignments found, filtering out\"\n\n    rm ${aln_tsv_gz} ${header_csv_gz}\n\nfi\n\n\"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignments_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "alignments_ch_1",
+            "alignments_ch_2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"ubuntu:20.04\"",
+            "label 'io_limited'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "calculateContainment": {
+        "name_process": "calculateContainment",
+        "string_process": "\nprocess calculateContainment {\n    tag \"Overlap between CAGs and genomes\"\n    container \"${container__pandas}\"\n    label 'mem_veryhigh'\n    errorStrategy 'retry'\n\n    input:\n        tuple file(aln_tsv_gz), file(header_csv_gz) from alignments_ch_2\n        file geneshot_hdf\n\n    output:\n        file \"genome_containment_shard.*.csv.gz\" optional true into containment_shard_csv_gz\n        file \"genome_containment_shard.*.hdf5\" optional true into genome_alignment_shards\n\n    script:\n        template \"calculateContainment.py\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "        template \"calculateContainment.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "alignments_ch_2",
+            "geneshot_hdf"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "containment_shard_csv_gz",
+            "genome_alignment_shards"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Overlap between CAGs and genomes\"",
+            "container \"${container__pandas}\"",
+            "label 'mem_veryhigh'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "parseAssociations": {
+        "name_process": "parseAssociations",
+        "string_process": " process parseAssociations {\n        tag \"Extract gene association data for the study\"\n        container \"${container__pandas}\"\n        label 'mem_veryhigh'\n        errorStrategy \"retry\"\n\n        input:\n            file geneshot_hdf\n        \n        output:\n            file \"gene_associations.*.csv.gz\" into gene_association_csv_ch\n        \n        script:\n            template \"parseAssociations.py\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "            template \"parseAssociations.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "geneshot_hdf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "gene_association_csv_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Extract gene association data for the study\"",
+            "container \"${container__pandas}\"",
+            "label 'mem_veryhigh'",
+            "errorStrategy \"retry\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "formatResults": {
+        "name_process": "formatResults",
+        "string_process": " process formatResults {\n        tag \"Use alignment information to summarize results\"\n        container \"${container__pandas}\"\n        label 'mem_medium'\n        errorStrategy \"retry\"\n\n        input:\n            tuple file(aln_tsv_gz), file(header_csv_gz) from alignments_ch_1\n            each file(gene_association_csv) from gene_association_csv_ch.flatten()\n        \n        output:\n            file \"genome_association_shard.*.hdf5\" optional true into association_shard_hdf\n        \n        script:\n            template \"formatResults.py\"\n    }",
+        "nb_lignes_process": 14,
+        "string_script": "            template \"formatResults.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "alignments_ch_1",
+            "gene_association_csv_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "association_shard_hdf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Use alignment information to summarize results\"",
+            "container \"${container__pandas}\"",
+            "label 'mem_medium'",
+            "errorStrategy \"retry\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "joinAssociationsRoundOne": {
+        "name_process": "joinAssociationsRoundOne",
+        "string_process": " process joinAssociationsRoundOne {\n        container \"${container__pandas}\"\n        label 'mem_medium'\n        errorStrategy \"retry\"\n\n        input:\n            file \"association_shard.*.hdf5\" from association_shard_hdf.toSortedList().flatten().collate(100)\n        \n        output:\n            file \"joined_associations.hdf5\" into joined_association_shard_hdf\n        \n        script:\n            template \"joinAssociations.py\"\n    }",
+        "nb_lignes_process": 12,
+        "string_script": "            template \"joinAssociations.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "association_shard_hdf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "joined_association_shard_hdf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"${container__pandas}\"",
+            "label 'mem_medium'",
+            "errorStrategy \"retry\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "joinAssociationsRoundTwo": {
+        "name_process": "joinAssociationsRoundTwo",
+        "string_process": " process joinAssociationsRoundTwo {\n        container \"${container__pandas}\"\n        label 'mem_medium'\n        errorStrategy \"retry\"\n\n        input:\n            file \"association_shard.*.hdf5\" from joined_association_shard_hdf.toSortedList()\n        \n        output:\n            file \"joined_associations.hdf5\" into joined_associations_hdf\n        \n        script:\n            template \"joinAssociations.py\"\n    }",
+        "nb_lignes_process": 12,
+        "string_script": "            template \"joinAssociations.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "joined_association_shard_hdf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "joined_associations_hdf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"${container__pandas}\"",
+            "label 'mem_medium'",
+            "errorStrategy \"retry\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineResults": {
+        "name_process": "combineResults",
+        "string_process": " process combineResults {\n        tag \"Make a single output HDF\"\n        container \"${container__pandas}\"\n        label 'mem_veryhigh'\n        errorStrategy \"retry\"\n\n        input:\n            file \"containment_shard.*.csv.gz\" from containment_shard_csv_gz_list\n            file \"associations.hdf5\" from joined_associations_hdf\n            file geneshot_hdf\n            file manifest_csv from valid_manifest_ch\n            file \"genome_alignments.*.hdf5\" from genome_alignment_shards.toSortedList()\n            file \"genome_annotations.hdf5\" from genome_annotations_hdf5\n        \n        output:\n            file \"${params.output_hdf}\" into final_hdf\n\n        script:\n            template \"combineResults.py\"\n\n    }",
+        "nb_lignes_process": 19,
+        "string_script": "            template \"combineResults.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "containment_shard_csv_gz_list",
+            "joined_associations_hdf",
+            "geneshot_hdf",
+            "valid_manifest_ch",
+            "genome_alignment_shards",
+            "genome_annotations_hdf5"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "final_hdf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Make a single output HDF\"",
+            "container \"${container__pandas}\"",
+            "label 'mem_veryhigh'",
+            "errorStrategy \"retry\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineResultsNoAssoc": {
+        "name_process": "combineResultsNoAssoc",
+        "string_process": " process combineResultsNoAssoc {\n        tag \"Make a single output HDF\"\n        container \"${container__pandas}\"\n        label 'mem_veryhigh'\n        errorStrategy \"retry\"\n\n        input:\n            file containment_shard_csv_gz_list\n            file geneshot_hdf\n            file manifest_csv from valid_manifest_ch\n            file \"genome_alignments.*.hdf5\" from genome_alignment_shards.toSortedList()\n            file \"genome_annotations.hdf5\" from genome_annotations_hdf5\n        \n        output:\n            file \"${params.output_hdf}\" into final_hdf\n        \n        script:\n            template \"combineResultsNoAssoc.py\"\n    }",
+        "nb_lignes_process": 17,
+        "string_script": "            template \"combineResultsNoAssoc.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "containment_shard_csv_gz_list",
+            "geneshot_hdf",
+            "valid_manifest_ch",
+            "genome_alignment_shards",
+            "genome_annotations_hdf5"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "final_hdf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "tag \"Make a single output HDF\"",
+            "container \"${container__pandas}\"",
+            "label 'mem_veryhigh'",
+            "errorStrategy \"retry\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineGenomes": {
+        "name_process": "combineGenomes",
+        "string_process": "\nprocess combineGenomes {\n    container 'ubuntu:20.04'\n    label 'io_limited'\n    errorStrategy 'retry'\n\n    input:\n        file genome_tar\n\n    output:\n        file \"combined*.tar\"\n\n\"\"\"\n#!/bin/bash\n\nset -Eeuxo pipefail\n\n# Untar the set of genomes in this batch\necho -e \"\\\\nUnpacking input tarball\"\ntar xvf ${genome_tar}\n\necho -e \"\\\\nSetting up header CSV\"\necho genome,contig > combined_genomes.csv\n\necho -e \"\\\\nIterating over all unpacked FASTA files\"\nfor fp in *.fasta.gz; do\n\n    echo \\$fp\n\n    # Get the genome ID from the file name\n    genome_name=\\$( echo \\$fp | sed 's/.fasta.gz//' )\n\n    # Add the genome ID to the contig headers\n    gunzip -c \\$fp | \\\n        sed \"s/>/>\\${genome_name}_/\" | \\\n        gzip -c > \\$fp.TEMP\n    mv \\$fp.TEMP \\$fp\n\n    # Add the contigs to a concatenated file\n    cat \\$fp >> combined_genomes.fasta.gz\n\n    # Add a line to the CSV with the genome ID and the contig header name\n    gunzip -c \\$fp | fgrep '>' | sed \"s/>/\\$genome_name,/\" | sed 's/ .*//' >> combined_genomes.csv\n\ndone\n\n# Make sure that every '>' is the start of a new line\ngunzip -c combined_genomes.fasta.gz | \\\n    sed 's/>/\\\\n>/g' | \\\n    sed '/^\\$/d' | \\\n    gzip -c > temp.fasta.gz\nmv temp.fasta.gz combined_genomes.fasta.gz\n\necho -e \"\\\\nNumber of headers in CSV \\$( cat combined_genomes.csv | wc -l )\"\necho -e \"\\\\nNumber of headers in FASTA \\$( gunzip -c combined_genomes.fasta.gz | grep -c '>' )\"\n\n# Make sure that neither file is empty\n(( \\$( cat combined_genomes.csv | fgrep -v genome,contig | wc -l ) > 0 ))\necho -e \"\\\\nPass - Header file is not empty\"\n(( \\$( gunzip -c combined_genomes.fasta.gz | grep -c '>' ) > 0))\necho -e \"\\\\nPass - FASTA file is not empty\"\n\n# Make sure the two numbers match\n(( \\$( cat combined_genomes.csv | fgrep -v genome,contig | wc -l ) == \\$( gunzip -c combined_genomes.fasta.gz | grep -c '>' ) ))\necho -e \"\\\\nPass - Number of headers matches\"\n\necho -e \"\\\\nCompressing header CSV\"\ngzip combined_genomes.csv\n\necho -e \"\\\\nRenaming combined CSV and FASTA\"\nprefix=\\$(mktemp combined_genomes.XXXXXXXXX)\nmv combined_genomes.fasta.gz \\$prefix.fasta.gz\nmv combined_genomes.csv.gz \\$prefix.csv.gz\n\n# Make a tarball with both files\necho -e \"\\\\nMaking single output tarball\"\ntar cvfh \\$prefix.tar \\$prefix.csv.gz \\$prefix.fasta.gz\n\necho -e \"\\\\nDone\"\n\"\"\"\n}",
+        "nb_lignes_process": 79,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -Eeuxo pipefail\n\n# Untar the set of genomes in this batch\necho -e \"\\\\nUnpacking input tarball\"\ntar xvf ${genome_tar}\n\necho -e \"\\\\nSetting up header CSV\"\necho genome,contig > combined_genomes.csv\n\necho -e \"\\\\nIterating over all unpacked FASTA files\"\nfor fp in *.fasta.gz; do\n\n    echo \\$fp\n\n    # Get the genome ID from the file name\n    genome_name=\\$( echo \\$fp | sed 's/.fasta.gz//' )\n\n    # Add the genome ID to the contig headers\n    gunzip -c \\$fp | \\\n        sed \"s/>/>\\${genome_name}_/\" | \\\n        gzip -c > \\$fp.TEMP\n    mv \\$fp.TEMP \\$fp\n\n    # Add the contigs to a concatenated file\n    cat \\$fp >> combined_genomes.fasta.gz\n\n    # Add a line to the CSV with the genome ID and the contig header name\n    gunzip -c \\$fp | fgrep '>' | sed \"s/>/\\$genome_name,/\" | sed 's/ .*//' >> combined_genomes.csv\n\ndone\n\n# Make sure that every '>' is the start of a new line\ngunzip -c combined_genomes.fasta.gz | \\\n    sed 's/>/\\\\n>/g' | \\\n    sed '/^\\$/d' | \\\n    gzip -c > temp.fasta.gz\nmv temp.fasta.gz combined_genomes.fasta.gz\n\necho -e \"\\\\nNumber of headers in CSV \\$( cat combined_genomes.csv | wc -l )\"\necho -e \"\\\\nNumber of headers in FASTA \\$( gunzip -c combined_genomes.fasta.gz | grep -c '>' )\"\n\n# Make sure that neither file is empty\n(( \\$( cat combined_genomes.csv | fgrep -v genome,contig | wc -l ) > 0 ))\necho -e \"\\\\nPass - Header file is not empty\"\n(( \\$( gunzip -c combined_genomes.fasta.gz | grep -c '>' ) > 0))\necho -e \"\\\\nPass - FASTA file is not empty\"\n\n# Make sure the two numbers match\n(( \\$( cat combined_genomes.csv | fgrep -v genome,contig | wc -l ) == \\$( gunzip -c combined_genomes.fasta.gz | grep -c '>' ) ))\necho -e \"\\\\nPass - Number of headers matches\"\n\necho -e \"\\\\nCompressing header CSV\"\ngzip combined_genomes.csv\n\necho -e \"\\\\nRenaming combined CSV and FASTA\"\nprefix=\\$(mktemp combined_genomes.XXXXXXXXX)\nmv combined_genomes.fasta.gz \\$prefix.fasta.gz\nmv combined_genomes.csv.gz \\$prefix.csv.gz\n\n# Make a tarball with both files\necho -e \"\\\\nMaking single output tarball\"\ntar cvfh \\$prefix.tar \\$prefix.csv.gz \\$prefix.fasta.gz\n\necho -e \"\\\\nDone\"\n\"\"\"",
+        "nb_lignes_script": 67,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genome_tar"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container 'ubuntu:20.04'",
+            "label 'io_limited'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "makeDatabase": {
+        "name_process": "makeDatabase",
+        "string_process": "\nprocess makeDatabase {\n    container 'ubuntu:20.04'\n    label 'io_limited'\n    errorStrategy 'retry'\n    publishDir params.output_folder\n\n    input:\n        file tar_list\n        file \"database_manifest.csv\"\n        file genome_annotations_hdf\n\n    output:\n        file \"${params.output_prefix}.tar\"\n\n\"\"\"\n#!/bin/bash\n\nset -e\n\n# Make a tarball with all of the inputs\ntar cvfh ${params.output_prefix}.tar ${tar_list} ${genome_annotations_hdf} database_manifest.csv\n\n\"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -e\n\n# Make a tarball with all of the inputs\ntar cvfh ${params.output_prefix}.tar ${tar_list} ${genome_annotations_hdf} database_manifest.csv\n\n\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tar_list",
+            "genome_annotations_hdf"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container 'ubuntu:20.04'",
+            "label 'io_limited'",
+            "errorStrategy 'retry'",
+            "publishDir params.output_folder"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "formatAnnotations": {
+        "name_process": "formatAnnotations",
+        "string_process": "\nprocess formatAnnotations {\n    container \"quay.io/fhcrc-microbiome/python-pandas:v1.0.3\"\n    label 'mem_medium'\n    errorStrategy 'retry'\n\n    input:\n    file gff_tar_list\n\n    output:\n    file \"genome_annotations.hdf5\"\n\n\"\"\"\n#!/usr/bin/env python3\n\nimport os\nimport pandas as pd\nimport tarfile\n\ndef parse_gff(fp):\n    # Function to parse a GFF file\n    return pd.read_csv(\n        fp, \n        sep=\"\\\\t\", \n        comment=\"#\",\n        compression=\"gzip\",\n        names = [\n            \"contig\",\n            \"source\",\n            \"type\",\n            \"start\",\n            \"end\",\n            \"score\",\n            \"orientation\",\n            \"_\",\n            \"annotation\",\n        ]\n    ).assign(\n        to_keep = lambda df: df[\"type\"].isin([\"CDS\", \"gene\", \"mRNA\"])\n    ).query(\n        \"to_keep\"\n    ).reindex(\n        columns=[\n            \"contig\",\n            \"type\",\n            \"start\",\n            \"end\",\n            \"orientation\",\n            \"annotation\"\n        ]\n    ).reset_index(\n        drop=True\n    )\n\nwith pd.HDFStore(\"genome_annotations.hdf5\", \"w\") as store:\n\n    for fp in os.listdir(\".\"):\n        if fp.startswith(\"genomes_gff\") is False:\n            continue\n        if fp.endswith(\"tar\") is False:\n            continue\n\n        # implicit else\n        with tarfile.open(fp, \"r:*\") as tar:\n            for gff_path in tar.getnames():\n                df = parse_gff(\n                    tar.extractfile(gff_path)\n                )\n                id_string = gff_path.replace(\".gff.gz\", \"\")\n\n                # Write to the HDF5\n                df.to_hdf(\n                    store,\n                    \"/annotations/%s\" % id_string\n                )\n\n\"\"\"\n}",
+        "nb_lignes_process": 76,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n\nimport os\nimport pandas as pd\nimport tarfile\n\ndef parse_gff(fp):\n    # Function to parse a GFF file\n    return pd.read_csv(\n        fp, \n        sep=\"\\\\t\", \n        comment=\"#\",\n        compression=\"gzip\",\n        names = [\n            \"contig\",\n            \"source\",\n            \"type\",\n            \"start\",\n            \"end\",\n            \"score\",\n            \"orientation\",\n            \"_\",\n            \"annotation\",\n        ]\n    ).assign(\n        to_keep = lambda df: df[\"type\"].isin([\"CDS\", \"gene\", \"mRNA\"])\n    ).query(\n        \"to_keep\"\n    ).reindex(\n        columns=[\n            \"contig\",\n            \"type\",\n            \"start\",\n            \"end\",\n            \"orientation\",\n            \"annotation\"\n        ]\n    ).reset_index(\n        drop=True\n    )\n\nwith pd.HDFStore(\"genome_annotations.hdf5\", \"w\") as store:\n\n    for fp in os.listdir(\".\"):\n        if fp.startswith(\"genomes_gff\") is False:\n            continue\n        if fp.endswith(\"tar\") is False:\n            continue\n\n        # implicit else\n        with tarfile.open(fp, \"r:*\") as tar:\n            for gff_path in tar.getnames():\n                df = parse_gff(\n                    tar.extractfile(gff_path)\n                )\n                id_string = gff_path.replace(\".gff.gz\", \"\")\n\n                # Write to the HDF5\n                df.to_hdf(\n                    store,\n                    \"/annotations/%s\" % id_string\n                )\n\n\"\"\"",
+        "nb_lignes_script": 64,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gff_tar_list"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/python-pandas:v1.0.3\"",
+            "label 'mem_medium'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "joinAnnotations": {
+        "name_process": "joinAnnotations",
+        "string_process": "\nprocess joinAnnotations {\n    container \"quay.io/fhcrc-microbiome/python-pandas:latest\"\n    label 'mem_medium'\n    errorStrategy 'retry'\n\n    input:\n    file \"genome_annotations.*.hdf5\"\n\n    output:\n    file \"genome_annotations.hdf5\"\n\n\"\"\"\n#!/usr/bin/env python3\n\nimport os\nimport h5py\n\n# Get the list of input files\ninput_fp_list = [\n    fp for fp in os.listdir(\".\")\n    if fp.startswith(\"genome_annotations.\") and fp.endswith(\".hdf5\")\n]\nprint(\"Preparing to combine %d input files\" % len(input_fp_list))\n\n# Open a connection to the output file\noutput_store = h5py.File(\"genome_annotations.hdf5\", \"w\")\n\n# Function to copy objects to the output file\ndef copy_objects(fp):\n    # Try to open the file\n    try:\n        f = h5py.File(fp, \"r\")\n    except:\n        print(\"Could not open %s\" % fp)\n        return\n\n    # Make a group for the destination, if necessary\n    if \"annotations\" not in output_store.keys():\n        output_store.create_group(\"/annotations\")\n\n    # If successful, copy everything over from /annotations\n    for k in f[\"annotations\"]:\n        print(k)\n        f.copy(\"annotations/%s\" % k, output_store[\"/annotations/\"])\n\n    f.close()\n    print(\"Done processing %s\" % fp)\n\n# Copy the data\nfor fp in input_fp_list:\n    copy_objects(fp)\n\n# Close the output file\noutput_store.close()\n\n\"\"\"\n}",
+        "nb_lignes_process": 56,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n\nimport os\nimport h5py\n\n# Get the list of input files\ninput_fp_list = [\n    fp for fp in os.listdir(\".\")\n    if fp.startswith(\"genome_annotations.\") and fp.endswith(\".hdf5\")\n]\nprint(\"Preparing to combine %d input files\" % len(input_fp_list))\n\n# Open a connection to the output file\noutput_store = h5py.File(\"genome_annotations.hdf5\", \"w\")\n\n# Function to copy objects to the output file\ndef copy_objects(fp):\n    # Try to open the file\n    try:\n        f = h5py.File(fp, \"r\")\n    except:\n        print(\"Could not open %s\" % fp)\n        return\n\n    # Make a group for the destination, if necessary\n    if \"annotations\" not in output_store.keys():\n        output_store.create_group(\"/annotations\")\n\n    # If successful, copy everything over from /annotations\n    for k in f[\"annotations\"]:\n        print(k)\n        f.copy(\"annotations/%s\" % k, output_store[\"/annotations/\"])\n\n    f.close()\n    print(\"Done processing %s\" % fp)\n\n# Copy the data\nfor fp in input_fp_list:\n    copy_objects(fp)\n\n# Close the output file\noutput_store.close()\n\n\"\"\"",
+        "nb_lignes_script": 44,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__AMGMA",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/python-pandas:latest\"",
+            "label 'mem_medium'",
+            "errorStrategy 'retry'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

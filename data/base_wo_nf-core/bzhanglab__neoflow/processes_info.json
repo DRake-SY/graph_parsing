@@ -1,0 +1,1326 @@
+{
+    "split_file": {
+        "name_process": "split_file",
+        "string_process": "\nprocess split_file {\n    tag \"split_file\"\n\n    container \"proteomics/pga:latest\"\n\n    input:\n    file var_info_file\n\n    output:\n    file(\"var_info_*\") into var_info_file_list mode flatten\n\n    script:\n    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n\n    library(dplyr)\n    library(readr)\n    library(parallel)\n\n    ncpu <- detectCores()\n    use_ncpu <- 1\n    user_ncpu <- as.numeric(\"${cpu}\")\n    if(user_ncpu <= ncpu){\n      use_ncpu <- user_ncpu\n    }\n    if(use_ncpu <= 0){\n      use_ncpu <- ncpu\n    }\n    a <- read_tsv(\"${var_info_file}\")\n\n    if(use_ncpu > nrow(a)){\n        ## file is small\n        use_ncpu <- 1\n    }\n\n    #nlines_per_file <- ceiling(nrow(a)/use_ncpu)\n    nlines_per_file <- nrow(a) %/% use_ncpu\n    last_i <- 0\n    for(i in 1:use_ncpu){\n        i1 <- last_i + 1\n        if(i < use_ncpu){    \n            i2 <- i1 + nlines_per_file - 1\n        }else{\n            i2 <- nrow(a)\n        }\n        write_tsv(a[i1:i2,], paste(\"var_info_\",i,sep=\"\"))\n        last_i <- i2\n    }\n\n    \"\"\"\n\n}",
+        "nb_lignes_process": 51,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n\n    library(dplyr)\n    library(readr)\n    library(parallel)\n\n    ncpu <- detectCores()\n    use_ncpu <- 1\n    user_ncpu <- as.numeric(\"${cpu}\")\n    if(user_ncpu <= ncpu){\n      use_ncpu <- user_ncpu\n    }\n    if(use_ncpu <= 0){\n      use_ncpu <- ncpu\n    }\n    a <- read_tsv(\"${var_info_file}\")\n\n    if(use_ncpu > nrow(a)){\n        ## file is small\n        use_ncpu <- 1\n    }\n\n    #nlines_per_file <- ceiling(nrow(a)/use_ncpu)\n    nlines_per_file <- nrow(a) %/% use_ncpu\n    last_i <- 0\n    for(i in 1:use_ncpu){\n        i1 <- last_i + 1\n        if(i < use_ncpu){    \n            i2 <- i1 + nlines_per_file - 1\n        }else{\n            i2 <- nrow(a)\n        }\n        write_tsv(a[i1:i2,], paste(\"var_info_\",i,sep=\"\"))\n        last_i <- i2\n    }\n\n    \"\"\"",
+        "nb_lignes_script": 37,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "var_info_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "var_info_file_list"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"split_file\"",
+            "container \"proteomics/pga:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mhc_peptide_binding_prediction": {
+        "name_process": "mhc_peptide_binding_prediction",
+        "string_process": "\nprocess mhc_peptide_binding_prediction {\n    tag \"${var_info_file_list}\"\n\n                                                            \n                   \n    cpus 1\n\n    container \"proteomics/neoflow:latest\"\n    \n    input:\n    file hla_type_file\n    file var_db\n    file var_info_file_list\n    file netmhcpan_dir\n\n    output:\n    file(\"${var_info_file_list}_binding_prediction_result.csv\") into mhc_binding_prediction_i\n    file(\"${var_info_file_list}_binding_prediction_result.csv\") into mhc_binding_prediction_i_for_filtering\n\n    script:\n    \"\"\"\n    python ${baseDir}/bin/binding_prediction.py \\\n      -p ${var_info_file_list} \\\n      -hla_type ${hla_type_file} \\\n      -var_db ${var_db} \\\n      -var_info ${var_info_file_list} \\\n      -o ./ \\\n      -netmhcpan \"${netmhcpan_dir}/netMHCpan\" \\\n    \"\"\"\n\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    python ${baseDir}/bin/binding_prediction.py \\\n      -p ${var_info_file_list} \\\n      -hla_type ${hla_type_file} \\\n      -var_db ${var_db} \\\n      -var_info ${var_info_file_list} \\\n      -o ./ \\\n      -netmhcpan \"${netmhcpan_dir}/netMHCpan\" \\\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "hla_type_file",
+            "var_db",
+            "var_info_file_list",
+            "netmhcpan_dir"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "mhc_binding_prediction_i",
+            "mhc_binding_prediction_i_for_filtering"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"${var_info_file_list}\"",
+            "cpus 1",
+            "container \"proteomics/neoflow:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_prediction_results": {
+        "name_process": "combine_prediction_results",
+        "string_process": "\nprocess combine_prediction_results {\n    tag \"combine_prediction_results\"\n\n    container \"proteomics/pga:latest\"\n\n    input:\n    file \"*_binding_prediction_result.csv\" from mhc_binding_prediction_i.collect()\n\n    output:\n    file(\"${output_prefix}_binding_prediction_result.csv\") into mhc_binding_prediction_file\n    file(\"${output_prefix}_binding_prediction_result.csv\") into mhc_binding_prediction_file_for_filtering\n\n    script:\n    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    fs <- list.files(path=\"./\",pattern=\"*_binding_prediction_result.csv\")\n    a <- lapply(fs,read.csv,stringsAsFactors=FALSE, colClasses=c(\"Ref\"=\"character\", \"Alt\"=\"character\",\"AA_before\"=\"character\",\"AA_after\"=\"character\")) %>% bind_rows()\n    ofile <- paste(\"${output_prefix}\",\"_binding_prediction_result.csv\",sep=\"\")\n    write_csv(a, ofile)\n    \"\"\"\n\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    fs <- list.files(path=\"./\",pattern=\"*_binding_prediction_result.csv\")\n    a <- lapply(fs,read.csv,stringsAsFactors=FALSE, colClasses=c(\"Ref\"=\"character\", \"Alt\"=\"character\",\"AA_before\"=\"character\",\"AA_after\"=\"character\")) %>% bind_rows()\n    ofile <- paste(\"${output_prefix}\",\"_binding_prediction_result.csv\",sep=\"\")\n    write_csv(a, ofile)\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mhc_binding_prediction_i"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mhc_binding_prediction_file",
+            "mhc_binding_prediction_file_for_filtering"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"combine_prediction_results\"",
+            "container \"proteomics/pga:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_data_for_mapping": {
+        "name_process": "prepare_data_for_mapping",
+        "string_process": "\nprocess prepare_data_for_mapping {\n    tag \"map_to_reference\"  \n\n    container \"proteomics/pga:latest\"\n\n    input:\n    file mhc_binding_prediction_file\n\n    output:\n    file(\"all_neoepitope.txt\") into all_neoepitope_file\n\n    script:\n    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    a <- read_csv(\"${mhc_binding_prediction_file}\")\n    pep <- a %>% select(Neoepitope) %>% distinct()\n    write_tsv(pep,\"all_neoepitope.txt\",col_names=FALSE)\n    \"\"\"\n\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    a <- read_csv(\"${mhc_binding_prediction_file}\")\n    pep <- a %>% select(Neoepitope) %>% distinct()\n    write_tsv(pep,\"all_neoepitope.txt\",col_names=FALSE)\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mhc_binding_prediction_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "all_neoepitope_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"map_to_reference\"",
+            "container \"proteomics/pga:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "peptide_mapping": {
+        "name_process": "peptide_mapping",
+        "string_process": "\nprocess peptide_mapping {\n    tag \"peptide_mapping\"  \n\n    container \"proteomics/neoflow:latest\"\n\n    input:\n    file all_neoepitope_file\n    file ref_db\n\n    output:\n    file(\"pep2pro.tsv\") into pep2pro_file\n\n    script:\n    \"\"\"\n    java -jar /opt/pepmap.jar -i ${all_neoepitope_file} -d ${ref_db} -o pep2pro.tsv\n    \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    java -jar /opt/pepmap.jar -i ${all_neoepitope_file} -d ${ref_db} -o pep2pro.tsv\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_neoepitope_file",
+            "ref_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "pep2pro_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"peptide_mapping\"",
+            "container \"proteomics/neoflow:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filtering_by_reference": {
+        "name_process": "filtering_by_reference",
+        "string_process": "\nprocess filtering_by_reference {\n    tag \"map_to_reference\"  \n\n    container \"proteomics/pga:latest\"\n\n    input:\n    file pep2pro_file\n    file mhc_binding_prediction_file_for_filtering\n\n    output:\n    file(\"${output_prefix}_neoepitope_filtered_by_reference.csv\") into mhc_binding_prediction_filtered_file\n\n    script:\n    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    a <- read_csv(\"${mhc_binding_prediction_file_for_filtering}\")\n    pep2pro <- read_tsv(\"${pep2pro_file}\")\n    a_filter <- a %>% filter(!(Neoepitope %in% pep2pro\\$peptide))\n    write_csv(a_filter,\"${output_prefix}_neoepitope_filtered_by_reference.csv\")\n    \"\"\"\n\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    a <- read_csv(\"${mhc_binding_prediction_file_for_filtering}\")\n    pep2pro <- read_tsv(\"${pep2pro_file}\")\n    a_filter <- a %>% filter(!(Neoepitope %in% pep2pro\\$peptide))\n    write_csv(a_filter,\"${output_prefix}_neoepitope_filtered_by_reference.csv\")\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pep2pro_file",
+            "mhc_binding_prediction_file_for_filtering"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "mhc_binding_prediction_filtered_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"map_to_reference\"",
+            "container \"proteomics/pga:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "add_variant_pep_evidence": {
+        "name_process": "add_variant_pep_evidence",
+        "string_process": " process add_variant_pep_evidence {\n        tag \"add_variant_pep_evidence\"\n\n        container \"proteomics/pga:latest\"\n\n        publishDir \"${out_dir}/neoantigen_prediction/\", mode: \"copy\", overwrite: true\n\n        input:\n        file mhc_binding_prediction_filtered_file\n        file var_pep_file\n        file var_pep_info\n\n        output:\n        file(\"${output_prefix}_neoepitope_filtered_by_reference_add_variant_protein_evidence.tsv\") into final_res\n\n        script:\n        \"\"\"\n        #!/usr/bin/env /usr/local/bin/Rscript\n        library(dplyr)\n        library(readr)\n        library(tidyr)\n\n        a <- read.csv(\"${mhc_binding_prediction_filtered_file}\",stringsAsFactors=FALSE) %>%\n          mutate(Chr = as.character(Chr), \n                 Start = as.character(Start), \n                 End = as.character(End), \n                 Ref = as.character(Ref),\n                 Alt = as.character(Alt))\n\n        var_pep_psms <- read.delim(\"${var_pep_file}\",stringsAsFactors=FALSE)\n        var_pep_info <- read.delim(\"${var_pep_info}\",stringsAsFactors=FALSE) %>%\n          mutate(Chr = as.character(Chr))\n\n        var_pep_pro <- var_pep_psms %>% filter(pepquery==1) %>%\n          select(peptide,protein) %>% distinct() %>%\n          separate_rows(protein,sep=\";\")\n\n        var_pep_pro_info <- merge(var_pep_pro,var_pep_info,by.x=\"protein\",by.y=\"Variant_ID\") %>%\n          select(peptide,Chr,Start,End,Ref,Alt) %>%\n          mutate(Chr = as.character(Chr), \n                 Start = as.character(Start), \n                 End = as.character(End), \n                 Ref = as.character(Ref),\n                 Alt = as.character(Alt))\n\n        a_var <- left_join(a,var_pep_pro_info,by=c(\"Chr\",\"Start\",\"End\",\"Ref\", \"Alt\")) %>%\n          mutate(protein_var_evidence_pep=ifelse(is.na(peptide),\"-\",peptide)) %>%\n          mutate(peptide=NULL)\n\n        a_var %>% write_tsv(\"${output_prefix}_neoepitope_filtered_by_reference_add_variant_protein_evidence.tsv\")\n\n        \"\"\"\n\n\n    }",
+        "nb_lignes_process": 53,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env /usr/local/bin/Rscript\n        library(dplyr)\n        library(readr)\n        library(tidyr)\n\n        a <- read.csv(\"${mhc_binding_prediction_filtered_file}\",stringsAsFactors=FALSE) %>%\n          mutate(Chr = as.character(Chr), \n                 Start = as.character(Start), \n                 End = as.character(End), \n                 Ref = as.character(Ref),\n                 Alt = as.character(Alt))\n\n        var_pep_psms <- read.delim(\"${var_pep_file}\",stringsAsFactors=FALSE)\n        var_pep_info <- read.delim(\"${var_pep_info}\",stringsAsFactors=FALSE) %>%\n          mutate(Chr = as.character(Chr))\n\n        var_pep_pro <- var_pep_psms %>% filter(pepquery==1) %>%\n          select(peptide,protein) %>% distinct() %>%\n          separate_rows(protein,sep=\";\")\n\n        var_pep_pro_info <- merge(var_pep_pro,var_pep_info,by.x=\"protein\",by.y=\"Variant_ID\") %>%\n          select(peptide,Chr,Start,End,Ref,Alt) %>%\n          mutate(Chr = as.character(Chr), \n                 Start = as.character(Start), \n                 End = as.character(End), \n                 Ref = as.character(Ref),\n                 Alt = as.character(Alt))\n\n        a_var <- left_join(a,var_pep_pro_info,by=c(\"Chr\",\"Start\",\"End\",\"Ref\", \"Alt\")) %>%\n          mutate(protein_var_evidence_pep=ifelse(is.na(peptide),\"-\",peptide)) %>%\n          mutate(peptide=NULL)\n\n        a_var %>% write_tsv(\"${output_prefix}_neoepitope_filtered_by_reference_add_variant_protein_evidence.tsv\")\n\n        \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mhc_binding_prediction_filtered_file",
+            "var_pep_file",
+            "var_pep_info"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "final_res"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"add_variant_pep_evidence\"",
+            "container \"proteomics/pga:latest\"",
+            "publishDir \"${out_dir}/neoantigen_prediction/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pre_processing": {
+        "name_process": "pre_processing",
+        "string_process": "\nprocess pre_processing {\n\ttag \"${mapping_file}\"\n\n\tdebug true\n\n\tcontainer \"proteomics/pga:latest\"\n\n\tinput:\n\tfile mapping_file from mapping_f\n\n\toutput:\n\tfile \"*-mapping_file.tsv\" into single_experiment_map_files\n\n\tscript:\n\n\t\"\"\"\n\t#!/usr/bin/env /usr/local/bin/Rscript\n\n\tlibrary(dplyr)\n\tlibrary(readr)\n\t\n\ta = read.delim(\"${mapping_f}\")\n\texperiment_names = unique(a[,\"experiment\"])\n\tfor(f in experiment_names){\n\t\tdat = a %>% filter(experiment == f) \n\t\tout_file = paste(f,\"-mapping_file.tsv\",sep=\"\")\n\t\twrite_tsv(dat,out_file)\n\t}\n\t\n\t\"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\t\"\"\"\n\t#!/usr/bin/env /usr/local/bin/Rscript\n\n\tlibrary(dplyr)\n\tlibrary(readr)\n\t\n\ta = read.delim(\"${mapping_f}\")\n\texperiment_names = unique(a[,\"experiment\"])\n\tfor(f in experiment_names){\n\t\tdat = a %>% filter(experiment == f) \n\t\tout_file = paste(f,\"-mapping_file.tsv\",sep=\"\")\n\t\twrite_tsv(dat,out_file)\n\t}\n\t\n\t\"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mapping_f"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "single_experiment_map_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"${mapping_file}\" debug true",
+            "container \"proteomics/pga:latest\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "variant_annotation": {
+        "name_process": "variant_annotation",
+        "string_process": "\nprocess variant_annotation {\n\ttag \"${single_experiment_map_file}\"\n\n\tcontainer \"proteomics/neoflow:latest\"\n\n\tpublishDir \"${out_dir}/variant_annotation/\", mode: \"copy\", overwrite: true\n\n\tinput:\n\tfile single_experiment_map_file from single_experiment_map_files.flatten()\n\tfile annovar_dir\n\n\toutput:\n\tset val(experiment_name),file(\"${ofile}\") into anno_file\n\tfile(\"*_multianno.txt\") into v_multianno_file\n\n\tscript:\n\texperiment_name = \"${single_experiment_map_file}\".replaceFirst(/-mapping_file.tsv/, \"\")\n\tofile = experiment_name + \"_anno.txt\"\n\t               \n\t\"\"\"\n\t#!/bin/bash\n\t#!/usr/bin/env /usr/local/bin/python\n\tpython $baseDir/bin/variant_annotation.py -i ${single_experiment_map_file} \\\n\t\t-d ${annovar_anno_dir} \\\n\t\t-b ${annovar_buildver} \\\n\t\t-c ${cpus} \\\n\t\t-o ./ \\\n\t\t-f ${ofile} \\\n\t\t-a \"${annovar_dir}/table_annovar.pl\"\n\t\"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\texperiment_name = \"${single_experiment_map_file}\".replaceFirst(/-mapping_file.tsv/, \"\")\n\tofile = experiment_name + \"_anno.txt\"\n\t               \n\t\"\"\"\n\t#!/bin/bash\n\t#!/usr/bin/env /usr/local/bin/python\n\tpython $baseDir/bin/variant_annotation.py -i ${single_experiment_map_file} \\\n\t\t-d ${annovar_anno_dir} \\\n\t\t-b ${annovar_buildver} \\\n\t\t-c ${cpus} \\\n\t\t-o ./ \\\n\t\t-f ${ofile} \\\n\t\t-a \"${annovar_dir}/table_annovar.pl\"\n\t\"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "/usr/local/bin/python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "single_experiment_map_files",
+            "annovar_dir"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "anno_file",
+            "v_multianno_file"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"${single_experiment_map_file}\"",
+            "container \"proteomics/neoflow:latest\"",
+            "publishDir \"${out_dir}/variant_annotation/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "database_construction": {
+        "name_process": "database_construction",
+        "string_process": "\nprocess database_construction {\n\ttag \"$experiment_name\"\n\n\tcontainer \"proteomics/neoflow:latest\"\n\n\tpublishDir \"${out_dir}/customized_database/\", mode: \"copy\", overwrite: true, pattern: '*{.fasta,-varInfo.txt}'\n\n\tinput:\n\tset val(experiment_name), file(anno_f) from anno_file\n\tfile annovar_anno_dir\n\tfile v_multianno_file\n\n\toutput:\n\tfile(\"*-var.fasta\")\n\tset val(experiment_name), file(\"${experiment_name}_anno-var.fasta\") into target_customized_db_fa\n\t                                                                                                      \n\tfile(\"ref.fasta\")\n\tfile(\"*-varInfo.txt\")\n\t                                                                                      \n\n\tscript:\n\tmrna_fa   = \"${annovar_anno_dir}/${annovar_buildver}_${annovar_protocol}Mrna.fa\"\n\tgene_anno = \"${annovar_anno_dir}/${annovar_buildver}_${annovar_protocol}.txt\"\n\t\"\"\"\n\tjava -jar /opt/customprodbj.jar \\\n\t\t-f ${anno_f} \\\n\t\t-d ${mrna_fa} \\\n\t\t-r ${gene_anno} \\\n\t\t-t \\\n\t\t-o ./ \\\n\t\t-p2 ${experiment_name} \\\n\t\t-ref ref.fasta\n\t\"\"\"\n\n}",
+        "nb_lignes_process": 34,
+        "string_script": "\tmrna_fa   = \"${annovar_anno_dir}/${annovar_buildver}_${annovar_protocol}Mrna.fa\"\n\tgene_anno = \"${annovar_anno_dir}/${annovar_buildver}_${annovar_protocol}.txt\"\n\t\"\"\"\n\tjava -jar /opt/customprodbj.jar \\\n\t\t-f ${anno_f} \\\n\t\t-d ${mrna_fa} \\\n\t\t-r ${gene_anno} \\\n\t\t-t \\\n\t\t-o ./ \\\n\t\t-p2 ${experiment_name} \\\n\t\t-ref ref.fasta\n\t\"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "anno_file",
+            "annovar_anno_dir",
+            "v_multianno_file"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "target_customized_db_fa"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"$experiment_name\"",
+            "container \"proteomics/neoflow:latest\"",
+            "publishDir \"${out_dir}/customized_database/\", mode: \"copy\", overwrite: true, pattern: '*{.fasta,-varInfo.txt}'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "format_db": {
+        "name_process": "format_db",
+        "string_process": "\nprocess format_db {\n\ttag \"$experiment_name\"\n\n\tcontainer \"proteomics/neoflow:latest\"\n\n\tpublishDir \"${out_dir}/customized_database/\", mode: \"copy\", overwrite: true\n\n\tinput:\n\tset val(experiment_name), file(target_customized_db) from target_customized_db_fa\n\n\toutput:\n\tset val(experiment_name), file(\"*_format.fasta\") into format_db_set\n\n\tscript:\n\t\"\"\"\n\tpython $baseDir/bin/format_db.py ${target_customized_db}\n\t\"\"\"\n\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\t\"\"\"\n\tpython $baseDir/bin/format_db.py ${target_customized_db}\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "target_customized_db_fa"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "format_db_set"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"$experiment_name\"",
+            "container \"proteomics/neoflow:latest\"",
+            "publishDir \"${out_dir}/customized_database/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_decoy_db": {
+        "name_process": "generate_decoy_db",
+        "string_process": "\nprocess generate_decoy_db{\n\n\ttag \"$experiment_name\"\n\n\tcontainer \"proteomics/pga:latest\"\n\n\tpublishDir \"${out_dir}/customized_database/\", mode: \"copy\", overwrite: true\n\n\tinput:\n\tset val(experiment_name), file(format_db) from format_db_set\n\n\toutput:\n\tfile out_target_decoy_db \n\n\tscript:\n\tout_target_decoy_db = \"${experiment_name}_target_decoy.fasta\"\n\tcont_db = \"${baseDir}/database/contaminants.fasta\"\n\t\"\"\"\n\t#!/usr/bin/env /usr/local/bin/Rscript\n\tlibrary(PGA)\n\tbuildTargetDecoyDB(db=\"${format_db}\",\n\t\tdecoyPrefix=\"XXX_\",\n\t\tcont_file=\"${cont_db}\",\n\t\toutput=\"${out_target_decoy_db}\")\n\n\t\"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\tout_target_decoy_db = \"${experiment_name}_target_decoy.fasta\"\n\tcont_db = \"${baseDir}/database/contaminants.fasta\"\n\t\"\"\"\n\t#!/usr/bin/env /usr/local/bin/Rscript\n\tlibrary(PGA)\n\tbuildTargetDecoyDB(db=\"${format_db}\",\n\t\tdecoyPrefix=\"XXX_\",\n\t\tcont_file=\"${cont_db}\",\n\t\toutput=\"${out_target_decoy_db}\")\n\n\t\"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "format_db_set"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "out_target_decoy_db"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"$experiment_name\"",
+            "container \"proteomics/pga:latest\"",
+            "publishDir \"${out_dir}/customized_database/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "msms_searching": {
+        "name_process": "msms_searching",
+        "string_process": "\nprocess msms_searching{\n\n    tag \"${ms_file}\"\n\n    container \"proteomics/neoflow:latest\"\n    \n    cpus \"$params.cpu\"\n\n    publishDir \"${out_dir}/msms_searching/\", mode: \"copy\", overwrite: true\n\n    input:\n    file(ms_file) from ms_data_file\n    file(msms_para_file)\n    file(search_db)\n\n    output:\n    file(\"${res_file}\") into psm_raw_files\n    \n\n    script:\n\n    if (search_engine == \"msgf\") {\n        res_file = \"${ms_file.baseName}.mzid\"\n        \"\"\"\n        #!/bin/sh\n        java -Xmx10g -jar /opt/MSGFPlus.jar \\\n            -s ${ms_file} \\\n            -d ${search_db} \\\n            -conf ${msms_para_file} \\\n            -tda 0 \\\n            -o ${ms_file.baseName}.mzid\n        \"\"\"\n    }else if(search_engine == \"comet\") {\n        res_file = \"${ms_file.baseName}_rawResults.txt\"\n        \"\"\"\n        #!/bin/sh\n        /opt/comet.2018014.linux.exe -P${msms_para_file} -N${ms_file.baseName}_rawResults -D${search_db} ${ms_file}\n        sed -i '1d' ${ms_file.baseName}_rawResults.txt\n        sed -i '1 s/\\$/\\tna/' ${ms_file.baseName}_rawResults.txt\n        \"\"\"\n    }else if(search_engine == \"xtandem\"){\n\n        ms_file_name = \"${ms_file.baseName}\"\n        xml_input = \"${ms_file.baseName}_input.xml\"\n        res_file = \"${ms_file_name}.mzid\"\n        \"\"\"\n        #!/bin/sh\n        python3 ${baseDir}/bin/generate_xtandem_para_xml.py ${msms_para_file} ${ms_file} ${search_db} ${ms_file_name} ${xml_input}\n        \n        ## users must provide the main search parameter file for X!Tandem search\n        /opt/tandem-linux-17-02-01-4/bin/tandem.exe ${xml_input}\n\n        ## convert xml to mzid\n        java -Xmx10g -jar /opt/mzidlib-1.7/mzidlib-1.7.jar Tandem2mzid \\\n            ${ms_file_name}.xml \\\n            ${ms_file_name}.mzid \\\n            -outputFragmentation false \\\n            -decoyRegex XXX_ \\\n            -databaseFileFormatID MS:1001348 \\\n            -massSpecFileFormatID MS:1001062 \\\n            -idsStartAtZero false \\\n            -compress false \\\n            -proteinCodeRegex \"\\\\S+\"\n        \"\"\"\n    }\n\n}",
+        "nb_lignes_process": 66,
+        "string_script": "    if (search_engine == \"msgf\") {\n        res_file = \"${ms_file.baseName}.mzid\"\n        \"\"\"\n        #!/bin/sh\n        java -Xmx10g -jar /opt/MSGFPlus.jar \\\n            -s ${ms_file} \\\n            -d ${search_db} \\\n            -conf ${msms_para_file} \\\n            -tda 0 \\\n            -o ${ms_file.baseName}.mzid\n        \"\"\"\n    }else if(search_engine == \"comet\") {\n        res_file = \"${ms_file.baseName}_rawResults.txt\"\n        \"\"\"\n        #!/bin/sh\n        /opt/comet.2018014.linux.exe -P${msms_para_file} -N${ms_file.baseName}_rawResults -D${search_db} ${ms_file}\n        sed -i '1d' ${ms_file.baseName}_rawResults.txt\n        sed -i '1 s/\\$/\\tna/' ${ms_file.baseName}_rawResults.txt\n        \"\"\"\n    }else if(search_engine == \"xtandem\"){\n\n        ms_file_name = \"${ms_file.baseName}\"\n        xml_input = \"${ms_file.baseName}_input.xml\"\n        res_file = \"${ms_file_name}.mzid\"\n        \"\"\"\n        #!/bin/sh\n        python3 ${baseDir}/bin/generate_xtandem_para_xml.py ${msms_para_file} ${ms_file} ${search_db} ${ms_file_name} ${xml_input}\n        \n        ## users must provide the main search parameter file for X!Tandem search\n        /opt/tandem-linux-17-02-01-4/bin/tandem.exe ${xml_input}\n\n        ## convert xml to mzid\n        java -Xmx10g -jar /opt/mzidlib-1.7/mzidlib-1.7.jar Tandem2mzid \\\n            ${ms_file_name}.xml \\\n            ${ms_file_name}.mzid \\\n            -outputFragmentation false \\\n            -decoyRegex XXX_ \\\n            -databaseFileFormatID MS:1001348 \\\n            -massSpecFileFormatID MS:1001062 \\\n            -idsStartAtZero false \\\n            -compress false \\\n            -proteinCodeRegex \"\\\\S+\"\n        \"\"\"\n    }",
+        "nb_lignes_script": 43,
+        "language_script": "bash",
+        "tools": [
+            "RASH"
+        ],
+        "tools_url": [
+            "https://bio.tools/RASH"
+        ],
+        "tools_dico": [
+            {
+                "name": "RASH",
+                "uri": "https://bio.tools/RASH",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature and language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Mathematics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Maths"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3778",
+                                    "term": "Text annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a Web-first format for HTML-based scholarly articles.\n\nResearch Articles in Simplified HTML (RASH) Framework includes a markup language defined as a subset of HTML+RDF for writing scientific articles, and related tools to convert it into different formats, to extract data from it, etc.\n\nHow to cite: Peroni, S., Osborne, F., Di Iorio, A., Nuzzolese, A. G., Poggi, F., Vitali, F., Motta, E. (2017). Research Articles in Simplified HTML: a Web-first format for HTML-based scholarly articles. PeerJ Computer Science 3: e132. e2513. DOI: https://doi.org/10.7717/peerj-cs.132.\n\n# rash-check.sh - fully check RASH documents.\n\nThe odt2rash.jar executable converts an ODT file into the RASH format.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Research Articles Simplified HTML', 'SAVE-SD'",
+                "homepage": "https://w3id.org/people/essepuntato/papers/rash-peerj2016.html"
+            }
+        ],
+        "inputs": [
+            "ms_data_file",
+            "msms_para_file",
+            "search_db"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "psm_raw_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"${ms_file}\"",
+            "container \"proteomics/neoflow:latest\"",
+            "cpus \"$params.cpu\"",
+            "publishDir \"${out_dir}/msms_searching/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "calculate_fdr": {
+        "name_process": "calculate_fdr",
+        "string_process": "\nprocess calculate_fdr{\n\n    tag \"calculate_fdr\"\n\n    container \"proteomics/pga:latest\"\n    \n    cpus \"$params.cpu\"\n\n    publishDir \"${out_dir}/fdr_estimation/\", mode: \"copy\", overwrite: true\n\n    input:\n    file(psm_raw_file) from psm_raw_files.collect()\n    file(search_db)\n\n    output:\n    file(\"*_level\") into (pga_result_folder,pga_result_folder_for_autort)\n    file(\"*-rawPSMs.txt\") into raw_psm_file\n\n    script:\n    \"\"\"\n    mkdir -p peptide_level\n    mkdir -p psm_level\n    mkdir -p peptide_level/global_fdr\n    mkdir -p psm_level/global_fdr\n    Rscript ${baseDir}/bin/fdr_calc.R ./ ${search_db} ${out_prefix} ${search_engine} ./\n    \"\"\"\n    \n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    mkdir -p peptide_level\n    mkdir -p psm_level\n    mkdir -p peptide_level/global_fdr\n    mkdir -p psm_level/global_fdr\n    Rscript ${baseDir}/bin/fdr_calc.R ./ ${search_db} ${out_prefix} ${search_engine} ./\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "psm_raw_files",
+            "search_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "",
+            "raw_psm_file"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"calculate_fdr\"",
+            "container \"proteomics/pga:latest\"",
+            "cpus \"$params.cpu\"",
+            "publishDir \"${out_dir}/fdr_estimation/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_pepquery_input": {
+        "name_process": "prepare_pepquery_input",
+        "string_process": "\nprocess prepare_pepquery_input{\n\n    tag \"prepare_pepquery_input\"\n\n    container \"proteomics/pga:latest\"\n    \n    cpus \"$params.cpu\"\n\n    input:\n    file(pga_result_folder)\n\n    output:\n      \n    file(\"novel_peptides_psm.tsv\") into novel_psm_tsv\n    file(\"novel_peptides.tsv\") into novel_peptide_tsv\n\n    script:\n    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    library(stringr)\n\n    is_novel_peptides=function(protein_ids){\n        ids <- str_split(protein_ids,pattern=\";\") %>% unlist()\n        is_novel <- all(str_detect(ids,pattern=\"^VAR\"))\n        return(is_novel)\n    }\n    \n    psms <- read_tsv(\"peptide_level/global_fdr/pga-peptideSummary.txt\")\n\n\n    novel_psms <- psms %>% filter(Qvalue<=0.01) %>% \n        mutate(is_novel=sapply(protein,is_novel_peptides)) %>%\n        filter(is_novel==TRUE) %>%\n        filter(isdecoy==FALSE)\n\n    ## output\n    out_novel_psm_file <- \"novel_peptides_psm.tsv\"\n    novel_psms %>% write_tsv(out_novel_psm_file)\n\n    novel_psms %>% select(peptide) %>% distinct() %>% write_tsv(\"novel_peptides.tsv\",col_names=FALSE)\n    \"\"\"\n}",
+        "nb_lignes_process": 43,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    library(stringr)\n\n    is_novel_peptides=function(protein_ids){\n        ids <- str_split(protein_ids,pattern=\";\") %>% unlist()\n        is_novel <- all(str_detect(ids,pattern=\"^VAR\"))\n        return(is_novel)\n    }\n    \n    psms <- read_tsv(\"peptide_level/global_fdr/pga-peptideSummary.txt\")\n\n\n    novel_psms <- psms %>% filter(Qvalue<=0.01) %>% \n        mutate(is_novel=sapply(protein,is_novel_peptides)) %>%\n        filter(is_novel==TRUE) %>%\n        filter(isdecoy==FALSE)\n\n    ## output\n    out_novel_psm_file <- \"novel_peptides_psm.tsv\"\n    novel_psms %>% write_tsv(out_novel_psm_file)\n\n    novel_psms %>% select(peptide) %>% distinct() %>% write_tsv(\"novel_peptides.tsv\",col_names=FALSE)\n    \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pga_result_folder"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "novel_psm_tsv",
+            "novel_peptide_tsv"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"prepare_pepquery_input\"",
+            "container \"proteomics/pga:latest\"",
+            "cpus \"$params.cpu\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_pepquery": {
+        "name_process": "run_pepquery",
+        "string_process": "\nprocess run_pepquery{\n\n    tag \"run_pepquery\"\n\n    container \"proteomics/neoflow:latest\"\n    \n    cpus \"$params.cpu\"\n\n    publishDir \"${out_dir}/pepquery/\", mode: \"copy\", overwrite: true\n\n    input:\n    file(novel_peptide_tsv)\n    file(pv_refdb)\n    file(ms_data)\n\n    output:\n    file (\"pepquery\") into pepquery_res_folder\n\n    script:\n    if(ms_data.isFile()){\n                      \n        \"\"\"\n        #!/bin/sh\n        cat \n        java -Xmx10g -jar /opt/pepquery-1.6.2/pepquery-1.6.2.jar \\\n              -ms ${ms_data} \\\n              -pep ${novel_peptide_tsv} \\\n              -db ${pv_refdb} \\\n              -fixMod ${pv_fixmod} \\\n              -varMod ${pv_varmod} \\\n              -cpu 0 \\\n              -minScore 12 \\\n              -tol ${pv_tol} \\\n              -tolu ${pv_tolu} \\\n              -itol ${pv_itol} \\\n              -n 10000 \\\n              -um \\\n              -m 1 \\\n              -prefix neoflow \\\n              -o pepquery\n        \"\"\"\n    }else{\n                   \n        \"\"\"\n        #!/bin/sh\n        cat ${ms_data}/*.mgf > all_msms.mgf \n        java -Xmx10g -jar /opt/pepquery-1.6.2/pepquery-1.6.2.jar \\\n              -ms all_msms.mgf \\\n              -pep ${novel_peptide_tsv} \\\n              -db ${pv_refdb} \\\n              -fixMod ${pv_fixmod} \\\n              -varMod ${pv_varmod} \\\n              -cpu 0 \\\n              -minScore 12 \\\n              -tol ${pv_tol} \\\n              -tolu ${pv_tolu} \\\n              -itol ${pv_itol} \\\n              -n 10000 \\\n              -um \\\n              -m 1 \\\n              -prefix neoflow \\\n              -o pepquery\n        \"\"\"\n        \n    }\n    \n}",
+        "nb_lignes_process": 66,
+        "string_script": "    if(ms_data.isFile()){\n                      \n        \"\"\"\n        #!/bin/sh\n        cat \n        java -Xmx10g -jar /opt/pepquery-1.6.2/pepquery-1.6.2.jar \\\n              -ms ${ms_data} \\\n              -pep ${novel_peptide_tsv} \\\n              -db ${pv_refdb} \\\n              -fixMod ${pv_fixmod} \\\n              -varMod ${pv_varmod} \\\n              -cpu 0 \\\n              -minScore 12 \\\n              -tol ${pv_tol} \\\n              -tolu ${pv_tolu} \\\n              -itol ${pv_itol} \\\n              -n 10000 \\\n              -um \\\n              -m 1 \\\n              -prefix neoflow \\\n              -o pepquery\n        \"\"\"\n    }else{\n                   \n        \"\"\"\n        #!/bin/sh\n        cat ${ms_data}/*.mgf > all_msms.mgf \n        java -Xmx10g -jar /opt/pepquery-1.6.2/pepquery-1.6.2.jar \\\n              -ms all_msms.mgf \\\n              -pep ${novel_peptide_tsv} \\\n              -db ${pv_refdb} \\\n              -fixMod ${pv_fixmod} \\\n              -varMod ${pv_varmod} \\\n              -cpu 0 \\\n              -minScore 12 \\\n              -tol ${pv_tol} \\\n              -tolu ${pv_tolu} \\\n              -itol ${pv_itol} \\\n              -n 10000 \\\n              -um \\\n              -m 1 \\\n              -prefix neoflow \\\n              -o pepquery\n        \"\"\"\n        \n    }",
+        "nb_lignes_script": 45,
+        "language_script": "bash",
+        "tools": [
+            "RASH"
+        ],
+        "tools_url": [
+            "https://bio.tools/RASH"
+        ],
+        "tools_dico": [
+            {
+                "name": "RASH",
+                "uri": "https://bio.tools/RASH",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature and language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Mathematics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Maths"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3778",
+                                    "term": "Text annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a Web-first format for HTML-based scholarly articles.\n\nResearch Articles in Simplified HTML (RASH) Framework includes a markup language defined as a subset of HTML+RDF for writing scientific articles, and related tools to convert it into different formats, to extract data from it, etc.\n\nHow to cite: Peroni, S., Osborne, F., Di Iorio, A., Nuzzolese, A. G., Poggi, F., Vitali, F., Motta, E. (2017). Research Articles in Simplified HTML: a Web-first format for HTML-based scholarly articles. PeerJ Computer Science 3: e132. e2513. DOI: https://doi.org/10.7717/peerj-cs.132.\n\n# rash-check.sh - fully check RASH documents.\n\nThe odt2rash.jar executable converts an ODT file into the RASH format.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Research Articles Simplified HTML', 'SAVE-SD'",
+                "homepage": "https://w3id.org/people/essepuntato/papers/rash-peerj2016.html"
+            }
+        ],
+        "inputs": [
+            "novel_peptide_tsv",
+            "pv_refdb",
+            "ms_data"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "pepquery_res_folder"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"run_pepquery\"",
+            "container \"proteomics/neoflow:latest\"",
+            "cpus \"$params.cpu\"",
+            "publishDir \"${out_dir}/pepquery/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "add_pepquery_validation": {
+        "name_process": "add_pepquery_validation",
+        "string_process": "\nprocess add_pepquery_validation {\n\n    tag \"add_pepquery_validation\"\n\n    container \"proteomics/pga:latest\"\n    \n    cpus \"$params.cpu\"\n\n    publishDir \"${out_dir}/novel_peptide_identification/\", mode: \"copy\", overwrite: true\n\n    input:\n    file novel_psm_tsv\n    file pepquery_res_folder\n\n    output:\n    file(\"novel_peptides_psm_pepquery.tsv\") into novel_peptides_psm_pepquery\n\n    script:\n    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    library(stringr)\n\n    psms <- read_tsv(\"${novel_psm_tsv}\")\n\n    psm_rank_file = \"${pepquery_res_folder}/psm_rank.txt\"\n    if(file.exists(psm_rank_file)){\n        psm_rank <- read_tsv(psm_rank_file)\n\tif(\"n_ptm\" %in% names(psm_rank)){\n            psm_rank <- psm_rank %>% filter(pvalue<=0.01,n_ptm==0,rank==1)\n            psms\\$pepquery <- ifelse(psms\\$peptide %in% psm_rank\\$peptide,1,0)\n\t}else{\n\t    psms\\$pepquery <- 0\t\n\t}\n    }else{\n        psms\\$pepquery <- 0\n    }\n    psms %>% write_tsv(\"novel_peptides_psm_pepquery.tsv\")\n    \"\"\"\n\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env /usr/local/bin/Rscript\n    library(dplyr)\n    library(readr)\n    library(stringr)\n\n    psms <- read_tsv(\"${novel_psm_tsv}\")\n\n    psm_rank_file = \"${pepquery_res_folder}/psm_rank.txt\"\n    if(file.exists(psm_rank_file)){\n        psm_rank <- read_tsv(psm_rank_file)\n\tif(\"n_ptm\" %in% names(psm_rank)){\n            psm_rank <- psm_rank %>% filter(pvalue<=0.01,n_ptm==0,rank==1)\n            psms\\$pepquery <- ifelse(psms\\$peptide %in% psm_rank\\$peptide,1,0)\n\t}else{\n\t    psms\\$pepquery <- 0\t\n\t}\n    }else{\n        psms\\$pepquery <- 0\n    }\n    psms %>% write_tsv(\"novel_peptides_psm_pepquery.tsv\")\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "/usr/local/bin/Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "novel_psm_tsv",
+            "pepquery_res_folder"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "novel_peptides_psm_pepquery"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"add_pepquery_validation\"",
+            "container \"proteomics/pga:latest\"",
+            "cpus \"$params.cpu\"",
+            "publishDir \"${out_dir}/novel_peptide_identification/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_autort_data": {
+        "name_process": "prepare_autort_data",
+        "string_process": " process prepare_autort_data{\n\n        tag \"prepare_autort_data\"\n\n        container \"proteomics/pga:latest\"\n\t\n\tcpus \"$params.cpu\"\n\n        input:\n        file pga_re_dir from pga_result_folder_for_autort\n        file(ms_data)\n        file(pepquery_res_folder)\n        output:\n        file(\"autort_training_prediction_data\") into autort_input_data\n\n        script:\n        \"\"\"\n        #!/bin/sh\n        mkdir mgf_index\n        java -cp ${baseDir}/bin/PDV-1.5.4_generate_index/PDV-1.5.4_generate_index.jar PDVGUI.generate_index ${ms_data} mgf_index/\n        Rscript ${baseDir}/bin/rt_validation_data_preprocessing.R \\\n            psm_level/global_fdr/pga-peptideSummary.txt \\\n            peptide_level/global_fdr/pga-peptideSummary.txt \\\n            mgf_index/ \\\n            ${search_engine} \\\n            autort_training_prediction_data\n        \"\"\"\n    }",
+        "nb_lignes_process": 26,
+        "string_script": "        \"\"\"\n        #!/bin/sh\n        mkdir mgf_index\n        java -cp ${baseDir}/bin/PDV-1.5.4_generate_index/PDV-1.5.4_generate_index.jar PDVGUI.generate_index ${ms_data} mgf_index/\n        Rscript ${baseDir}/bin/rt_validation_data_preprocessing.R \\\n            psm_level/global_fdr/pga-peptideSummary.txt \\\n            peptide_level/global_fdr/pga-peptideSummary.txt \\\n            mgf_index/ \\\n            ${search_engine} \\\n            autort_training_prediction_data\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "RASH"
+        ],
+        "tools_url": [
+            "https://bio.tools/RASH"
+        ],
+        "tools_dico": [
+            {
+                "name": "RASH",
+                "uri": "https://bio.tools/RASH",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature and language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Mathematics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Maths"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3778",
+                                    "term": "Text annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a Web-first format for HTML-based scholarly articles.\n\nResearch Articles in Simplified HTML (RASH) Framework includes a markup language defined as a subset of HTML+RDF for writing scientific articles, and related tools to convert it into different formats, to extract data from it, etc.\n\nHow to cite: Peroni, S., Osborne, F., Di Iorio, A., Nuzzolese, A. G., Poggi, F., Vitali, F., Motta, E. (2017). Research Articles in Simplified HTML: a Web-first format for HTML-based scholarly articles. PeerJ Computer Science 3: e132. e2513. DOI: https://doi.org/10.7717/peerj-cs.132.\n\n# rash-check.sh - fully check RASH documents.\n\nThe odt2rash.jar executable converts an ODT file into the RASH format.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Research Articles Simplified HTML', 'SAVE-SD'",
+                "homepage": "https://w3id.org/people/essepuntato/papers/rash-peerj2016.html"
+            }
+        ],
+        "inputs": [
+            "pga_result_folder_for_autort",
+            "ms_data",
+            "pepquery_res_folder"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "autort_input_data"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"prepare_autort_data\"",
+            "container \"proteomics/pga:latest\"",
+            "cpus \"$params.cpu\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_autort": {
+        "name_process": "run_autort",
+        "string_process": " process run_autort{\n\n        tag \"run_autort\"\n\n        container \"proteomics/autort:latest\"\n\t\n\tcpus \"$params.cpu\"\n\n        publishDir \"${out_dir}/rt_validation/\", mode: \"copy\", overwrite: true\n\n        input:\n        file(autort_input_data)\n\n        output:\n                                       \n        file(\"rt_prediction\") into final_res\n\n        script:\n        \"\"\"\n        #!/bin/sh\n        python ${baseDir}/bin/run_autort.py ${autort_input_data} rt_prediction\n        \"\"\"\n    }",
+        "nb_lignes_process": 21,
+        "string_script": "        \"\"\"\n        #!/bin/sh\n        python ${baseDir}/bin/run_autort.py ${autort_input_data} rt_prediction\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "RASH"
+        ],
+        "tools_url": [
+            "https://bio.tools/RASH"
+        ],
+        "tools_dico": [
+            {
+                "name": "RASH",
+                "uri": "https://bio.tools/RASH",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature and language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Mathematics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Maths"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3778",
+                                    "term": "Text annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a Web-first format for HTML-based scholarly articles.\n\nResearch Articles in Simplified HTML (RASH) Framework includes a markup language defined as a subset of HTML+RDF for writing scientific articles, and related tools to convert it into different formats, to extract data from it, etc.\n\nHow to cite: Peroni, S., Osborne, F., Di Iorio, A., Nuzzolese, A. G., Poggi, F., Vitali, F., Motta, E. (2017). Research Articles in Simplified HTML: a Web-first format for HTML-based scholarly articles. PeerJ Computer Science 3: e132. e2513. DOI: https://doi.org/10.7717/peerj-cs.132.\n\n# rash-check.sh - fully check RASH documents.\n\nThe odt2rash.jar executable converts an ODT file into the RASH format.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Research Articles Simplified HTML', 'SAVE-SD'",
+                "homepage": "https://w3id.org/people/essepuntato/papers/rash-peerj2016.html"
+            }
+        ],
+        "inputs": [
+            "autort_input_data"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "final_res"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"run_autort\"",
+            "container \"proteomics/autort:latest\"",
+            "cpus \"$params.cpu\"",
+            "publishDir \"${out_dir}/rt_validation/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "reads_mapping": {
+        "name_process": "reads_mapping",
+        "string_process": "\nprocess reads_mapping {\n\n\techo true\n\n\ttag \"reads_mapping\"\n\n\tcontainer \"biocontainers/bwa:0.7.15\"\n\t\n\tcpus \"$params.cpu\"\n\n\tinput:\n\tfile hla_reference_dir\n\tset val(pattern), file(reads) from input_data\n\n\toutput:\n\tset val(pattern), \"mapped_{1,2}.sam\" into mapped_reads\n\n\tscript:\n\tif(params.singleEnd == true)\n\t\"\"\"\n\tbwa mem -t ${params.cpu} -M ${hla_reference_dir}/hla_reference_dna.fasta ${reads} > mapped_1.sam\n\t\"\"\"\n\telse\n\t\"\"\"\n\tbwa mem -t ${params.cpu} -M ${hla_reference_dir}/hla_reference_dna.fasta ${reads[0]} > mapped_1.sam\n\tbwa mem -t ${params.cpu} -M ${hla_reference_dir}/hla_reference_dna.fasta ${reads[1]} > mapped_2.sam\n\t\"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "\tif(params.singleEnd == true)\n\t\"\"\"\n\tbwa mem -t ${params.cpu} -M ${hla_reference_dir}/hla_reference_dna.fasta ${reads} > mapped_1.sam\n\t\"\"\"\n\telse\n\t\"\"\"\n\tbwa mem -t ${params.cpu} -M ${hla_reference_dir}/hla_reference_dna.fasta ${reads[0]} > mapped_1.sam\n\tbwa mem -t ${params.cpu} -M ${hla_reference_dir}/hla_reference_dna.fasta ${reads[1]} > mapped_2.sam\n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "BWA"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            }
+        ],
+        "inputs": [
+            "hla_reference_dir",
+            "input_data"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "mapped_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "echo true",
+            "tag \"reads_mapping\"",
+            "container \"biocontainers/bwa:0.7.15\"",
+            "cpus \"$params.cpu\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_samtools": {
+        "name_process": "run_samtools",
+        "string_process": "\nprocess run_samtools{\n\n\tcontainer \"zhanglab18/samtools:1.9\"\n\t\n\tcpus \"$params.cpu\"\n\n\tinput:\n\tfile hla_reference_dir\n\tset val(pattern), file(reads) from mapped_reads\n\n\toutput:\n\tset val(pattern), \"mapped_{1,2}.fastq\" into fished_reads\n\n\tscript:\n\tif(params.singleEnd == true)\n\t\"\"\"\n\t# samtools view -bS mapped_1.sam > mapped_1.bam\n\tsamtools view -@ ${params.cpu} -h -F 4 -b1 mapped_1.sam > mapped_1.bam\n\tsamtools fastq mapped_1.bam > mapped_1.fastq\n\t\"\"\"\n\telse\n\t\"\"\"\n\t# samtools view -bS mapped_1.sam > mapped_1.bam\n\t# samtools view -bS mapped_2.sam > mapped_2.bam\n\t\n\tsamtools view -@ ${params.cpu} -h -F 4 -b1 mapped_1.sam > mapped_1.bam\n        samtools view -@ ${params.cpu} -h -F 4 -b1 mapped_2.sam > mapped_2.bam\n\n\tsamtools fastq mapped_1.bam > mapped_1.fastq\n\tsamtools fastq mapped_2.bam > mapped_2.fastq\n\t\"\"\"\n\n}",
+        "nb_lignes_process": 32,
+        "string_script": "\tif(params.singleEnd == true)\n\t\"\"\"\n\t# samtools view -bS mapped_1.sam > mapped_1.bam\n\tsamtools view -@ ${params.cpu} -h -F 4 -b1 mapped_1.sam > mapped_1.bam\n\tsamtools fastq mapped_1.bam > mapped_1.fastq\n\t\"\"\"\n\telse\n\t\"\"\"\n\t# samtools view -bS mapped_1.sam > mapped_1.bam\n\t# samtools view -bS mapped_2.sam > mapped_2.bam\n\t\n\tsamtools view -@ ${params.cpu} -h -F 4 -b1 mapped_1.sam > mapped_1.bam\n        samtools view -@ ${params.cpu} -h -F 4 -b1 mapped_2.sam > mapped_2.bam\n\n\tsamtools fastq mapped_1.bam > mapped_1.fastq\n\tsamtools fastq mapped_2.bam > mapped_2.fastq\n\t\"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "hla_reference_dir",
+            "mapped_reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "fished_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "container \"zhanglab18/samtools:1.9\"",
+            "cpus \"$params.cpu\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_optitype": {
+        "name_process": "run_optitype",
+        "string_process": "\nprocess run_optitype {\n\ttag \"run_optitype\"\n\n\tcontainer \"zhanglab18/optitype:1.3.1\"\n\t\n\tcpus \"$params.cpu\"\n\n\tpublishDir \"${out_dir}/hla_type/\", mode: \"copy\", overwrite: true\n\n\tinput:\n\tset val(pattern), file(reads) from fished_reads\n\n\toutput:\n\tfile(\"${pattern}\") into res\n\n\tscript:\n\t\"\"\"\n\tpython /opt/OptiType/OptiTypePipeline.py \\\n\t\t--input ${reads} \\\n\t\t--prefix ${pattern} \\\n\t\t--outdir ${pattern} \\\n\t\t--${params.seqtype}\n\t\"\"\"\n\n\n}",
+        "nb_lignes_process": 25,
+        "string_script": "\t\"\"\"\n\tpython /opt/OptiType/OptiTypePipeline.py \\\n\t\t--input ${reads} \\\n\t\t--prefix ${pattern} \\\n\t\t--outdir ${pattern} \\\n\t\t--${params.seqtype}\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fished_reads"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "res"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "bzhanglab__neoflow",
+        "directive": [
+            "tag \"run_optitype\"",
+            "container \"zhanglab18/optitype:1.3.1\"",
+            "cpus \"$params.cpu\"",
+            "publishDir \"${out_dir}/hla_type/\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

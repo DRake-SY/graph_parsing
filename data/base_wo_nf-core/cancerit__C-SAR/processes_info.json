@@ -1,0 +1,643 @@
+{
+    "sequencing_qc": {
+        "name_process": "sequencing_qc",
+        "string_process": "\nprocess sequencing_qc {\n    tag \"QC: sequencing QC\"\n    errorStrategy 'ignore'\n\n    publishDir \"${params.resultDir}/QC/sequencing/\", mode: 'copy'\n\n    input:\n      tuple val( analysis_stage ), file( count_matrix ), file( library )\n      file sample_mapping\n      val count_indices\n\n    output:\n      path \"*.tsv\"\n      path \"*.png\"\n\n    when:\n      !params.no_qc\n\n    script:\n        script_path = \"${baseDir}/submodules/rcrispr/exec/raw_qc_statistics.R\"\n        cmd = \"${params.rscript_exec} ${script_path}\"\n\n        cmd = \"${cmd} -c ${count_matrix}\"\n        cmd = \"${cmd} -i ${sample_mapping}\"\n\n        cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n        cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n        cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n        cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n        cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n        cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n        cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n        cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n        cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n        cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n        cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n        cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n        cmd = ( params.info_group_column_index ) ? \"${cmd} --info_group_column_index ${params.info_group_column_index}\" : cmd\n        cmd = ( params.info_reads_column_index ) ? \"${cmd} --info_reads_column_index ${params.info_reads_column_index}\" : cmd\n\n        cmd = \"${cmd} --outdir \\\"${params.raw_qc_outdir}\\\"\"\n        cmd = \"${cmd} --rdata \\\"${params.raw_qc_rdata}\\\"\"\n\n        \"\"\"\n        $cmd\n        \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "        script_path = \"${baseDir}/submodules/rcrispr/exec/raw_qc_statistics.R\"\n        cmd = \"${params.rscript_exec} ${script_path}\"\n\n        cmd = \"${cmd} -c ${count_matrix}\"\n        cmd = \"${cmd} -i ${sample_mapping}\"\n\n        cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n        cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n        cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n        cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n        cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n        cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n        cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n        cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n        cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n        cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n        cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n        cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n        cmd = ( params.info_group_column_index ) ? \"${cmd} --info_group_column_index ${params.info_group_column_index}\" : cmd\n        cmd = ( params.info_reads_column_index ) ? \"${cmd} --info_reads_column_index ${params.info_reads_column_index}\" : cmd\n\n        cmd = \"${cmd} --outdir \\\"${params.raw_qc_outdir}\\\"\"\n        cmd = \"${cmd} --rdata \\\"${params.raw_qc_rdata}\\\"\"\n\n        \"\"\"\n        $cmd\n        \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "analysis_stage",
+            "count_matrix",
+            "library",
+            "sample_mapping",
+            "count_indices"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"QC: sequencing QC\"",
+            "errorStrategy 'ignore'",
+            "publishDir \"${params.resultDir}/QC/sequencing/\", mode: 'copy'"
+        ],
+        "when": "!params.no_qc",
+        "stub": ""
+    },
+    "intermediate_qc": {
+        "name_process": "intermediate_qc",
+        "string_process": "\nprocess intermediate_qc {\n    tag \"QC: intermediate QC\"\n    errorStrategy 'ignore'\n\n    publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"*.png\"\n    publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"intermediate_summary*.tsv\"\n\n    input:\n      tuple val( input_analysis_stage ), val( contrast ), file( library ), file( fc_input_count_matrix ), file( count_matrix ), file( sgrna_fold_change_matrix ), file( gene_fold_change_matrix ), file( sample_mapping )\n      val( analysis_indices )\n      val( counts_or_fc )\n\n    output:\n      path \"*.png\"\n      path \"intermediate_summary*.tsv\"\n\n    when:\n      !params.no_qc\n\n    script:\n        analysis_name = \"${input_analysis_stage}.${contrast}\"\n        infile_id_column_index = 0\n        no_check_names = false\n                                                                \n        if (counts_or_fc == \"counts\") {\n            input_data = \"${count_matrix}\"\n            count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n            infile_id_column_index = 1\n            infile_gene_column_index = 2\n        } else {\n            input_data = \"${gene_fold_change_matrix}\"\n            if (input_analysis_stage == \"corrected\") {\n                count_indices = 2\n                no_check_names = true\n            } else {\n                count_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment1\"]\n            }\n            infile_gene_column_index = 1\n        }\n\n        script_path = \"${baseDir}/submodules/rcrispr/exec/intermediate_qc.R\"\n\n        cmd = \"${params.rscript_exec} ${script_path}\"\n         cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --infile ${gene_fold_change_matrix}\" : \"${cmd} --infile ${count_matrix}\"\n        cmd = \"${cmd} --info ${sample_mapping}\"\n\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_gene\" : \"${cmd}\"\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_fc\" : \"${cmd}\"\n        cmd = ( no_check_names ) ? \"${cmd} --no_check_names\" : \"${cmd}\"\n\n        cmd = \"${cmd} --outdir \\\"${params.intermediate_qc_outdir}\\\"\"\n        cmd = \"${cmd} --outfile \\\"${params.intermediate_qc_outfile}\\\"\"\n        cmd = \"${cmd} --rdata \\\"${params.intermediate_qc_rdata}\\\"\"\n        cmd = \"${cmd} --suffix \\\"${analysis_name}\\\"\"\n\n        cmd = ( params.intermediate_qc_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n        cmd = \"${cmd} --infile_delim \\\"${params.intermediate_qc_infile_delim}\\\"\"\n        cmd = \"${cmd} --infile_id_column_index ${infile_id_column_index}\"\n        cmd = \"${cmd} --infile_gene_column_index ${infile_gene_column_index}\"\n        cmd = \"${cmd} --infile_data_column_index \\\"${count_indices}\\\"\"\n\n        cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n        cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n        cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n        cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n        cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n        cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n        cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n        cmd = ( params.info_group_column_index ) ? \"${cmd} --info_group_column_index ${params.info_group_column_index}\" : cmd\n\n        \"\"\"\n        $cmd\n        \"\"\"\n}",
+        "nb_lignes_process": 73,
+        "string_script": "        analysis_name = \"${input_analysis_stage}.${contrast}\"\n        infile_id_column_index = 0\n        no_check_names = false\n                                                                \n        if (counts_or_fc == \"counts\") {\n            input_data = \"${count_matrix}\"\n            count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n            infile_id_column_index = 1\n            infile_gene_column_index = 2\n        } else {\n            input_data = \"${gene_fold_change_matrix}\"\n            if (input_analysis_stage == \"corrected\") {\n                count_indices = 2\n                no_check_names = true\n            } else {\n                count_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment1\"]\n            }\n            infile_gene_column_index = 1\n        }\n\n        script_path = \"${baseDir}/submodules/rcrispr/exec/intermediate_qc.R\"\n\n        cmd = \"${params.rscript_exec} ${script_path}\"\n         cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --infile ${gene_fold_change_matrix}\" : \"${cmd} --infile ${count_matrix}\"\n        cmd = \"${cmd} --info ${sample_mapping}\"\n\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_gene\" : \"${cmd}\"\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_fc\" : \"${cmd}\"\n        cmd = ( no_check_names ) ? \"${cmd} --no_check_names\" : \"${cmd}\"\n\n        cmd = \"${cmd} --outdir \\\"${params.intermediate_qc_outdir}\\\"\"\n        cmd = \"${cmd} --outfile \\\"${params.intermediate_qc_outfile}\\\"\"\n        cmd = \"${cmd} --rdata \\\"${params.intermediate_qc_rdata}\\\"\"\n        cmd = \"${cmd} --suffix \\\"${analysis_name}\\\"\"\n\n        cmd = ( params.intermediate_qc_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n        cmd = \"${cmd} --infile_delim \\\"${params.intermediate_qc_infile_delim}\\\"\"\n        cmd = \"${cmd} --infile_id_column_index ${infile_id_column_index}\"\n        cmd = \"${cmd} --infile_gene_column_index ${infile_gene_column_index}\"\n        cmd = \"${cmd} --infile_data_column_index \\\"${count_indices}\\\"\"\n\n        cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n        cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n        cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n        cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n        cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n        cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n        cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n        cmd = ( params.info_group_column_index ) ? \"${cmd} --info_group_column_index ${params.info_group_column_index}\" : cmd\n\n        \"\"\"\n        $cmd\n        \"\"\"",
+        "nb_lignes_script": 52,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_analysis_stage",
+            "contrast",
+            "library",
+            "fc_input_count_matrix",
+            "count_matrix",
+            "sgrna_fold_change_matrix",
+            "gene_fold_change_matrix",
+            "sample_mapping",
+            "analysis_indices",
+            "counts_or_fc"
+        ],
+        "nb_inputs": 10,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"QC: intermediate QC\"",
+            "errorStrategy 'ignore'",
+            "publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"*.png\"",
+            "publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"intermediate_summary*.tsv\""
+        ],
+        "when": "!params.no_qc",
+        "stub": ""
+    },
+    "intermediate_bagel_classification_qc": {
+        "name_process": "intermediate_bagel_classification_qc",
+        "string_process": "\nprocess intermediate_bagel_classification_qc {\n    tag \"QC: intermediate BAGEL classification QC\"\n    errorStrategy 'ignore'\n\n    publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"*.png\"\n    publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"bagel_classification_summary*.tsv\", saveAs:  { \"bagel_classification_summary.${contrast}.${counts_or_fc}.tsv\" }\n\n    input:\n      tuple val( input_analysis_stage ), val( contrast ), file( library ), file( fc_input_count_matrix ), file( count_matrix ), file( sgrna_fold_change_matrix ), file( gene_fold_change_matrix ), file( sample_mapping )\n      val( analysis_indices )\n      val( counts_or_fc )\n\n    output:\n      path \"*.png\"\n      path \"bagel_classification_summary*.tsv\"\n\n    when:\n      !params.no_qc\n\n    script:\n        analysis_name = \"${input_analysis_stage}.${contrast}\"\n        infile_id_column_index = 0\n        no_check_names = false\n                                                                \n        if (counts_or_fc == \"counts\") {\n            input_data = \"${count_matrix}\"\n            count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n            infile_id_column_index = 1\n            infile_gene_column_index = 2\n        } else {\n            input_data = \"${gene_fold_change_matrix}\"\n            if (input_analysis_stage == \"corrected\") {\n                count_indices = 2\n                no_check_names = true\n            } else {\n                count_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment1\"]\n            }\n            infile_gene_column_index = 1\n        }\n\n        script_path = \"${baseDir}/submodules/rcrispr/exec/bagel_classification_qc.R\"\n\n        cmd = \"${params.rscript_exec} ${script_path}\"\n         cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --infile ${gene_fold_change_matrix}\" : \"${cmd} --infile ${count_matrix}\"\n        cmd = \"${cmd} --info ${sample_mapping}\"\n\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_gene\" : \"${cmd}\"\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_fc\" : \"${cmd}\"\n        cmd = ( no_check_names ) ? \"${cmd} --no_check_names\" : \"${cmd}\"\n\n        cmd = \"${cmd} --outdir \\\"${params.bagel_classification_qc_outdir}\\\"\"\n        cmd = \"${cmd} --outfile \\\"${params.bagel_classification_qc_outfile}\\\"\"\n        cmd = \"${cmd} --rdata \\\"${params.bagel_classification_qc_rdata}\\\"\"\n        cmd = \"${cmd} --suffix \\\"${analysis_name}\\\"\"\n\n        cmd = ( params.bagel_classification_qc_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n        cmd = \"${cmd} --infile_delim \\\"${params.bagel_classification_infile_delim}\\\"\"\n        cmd = \"${cmd} --infile_id_column_index ${infile_id_column_index}\"\n        cmd = \"${cmd} --infile_gene_column_index ${infile_gene_column_index}\"\n        cmd = \"${cmd} --infile_data_column_index \\\"${count_indices}\\\"\"\n\n        cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n        cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n        cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n        cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n        cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n        cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n        cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n        cmd = ( params.info_group_column_index ) ? \"${cmd} --info_group_column_index ${params.info_group_column_index}\" : cmd\n\n        cmd = \"${cmd} --ess \\\"${params.essential_genes}\\\"\"\n        cmd = \"${cmd} --ess_gene_column_index ${params.ess_gene_column_index}\"\n        cmd = \"${cmd} --no_ess_header\"\n        cmd = \"${cmd} --ess_delim \\\"${params.ess_delim}\\\"\"\n\n        cmd = \"${cmd} --noness \\\"${params.nonessential_genes}\\\"\"\n        cmd = \"${cmd} --noness_gene_column_index \\\"${params.noness_gene_column_index}\\\"\"\n        cmd = \"${cmd} --no_noness_header\"\n        cmd = \"${cmd} --noness_delim \\\"${params.noness_delim}\\\"\"\n\n        \"\"\"\n        $cmd\n        \"\"\"\n}",
+        "nb_lignes_process": 83,
+        "string_script": "        analysis_name = \"${input_analysis_stage}.${contrast}\"\n        infile_id_column_index = 0\n        no_check_names = false\n                                                                \n        if (counts_or_fc == \"counts\") {\n            input_data = \"${count_matrix}\"\n            count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n            infile_id_column_index = 1\n            infile_gene_column_index = 2\n        } else {\n            input_data = \"${gene_fold_change_matrix}\"\n            if (input_analysis_stage == \"corrected\") {\n                count_indices = 2\n                no_check_names = true\n            } else {\n                count_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment1\"]\n            }\n            infile_gene_column_index = 1\n        }\n\n        script_path = \"${baseDir}/submodules/rcrispr/exec/bagel_classification_qc.R\"\n\n        cmd = \"${params.rscript_exec} ${script_path}\"\n         cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --infile ${gene_fold_change_matrix}\" : \"${cmd} --infile ${count_matrix}\"\n        cmd = \"${cmd} --info ${sample_mapping}\"\n\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_gene\" : \"${cmd}\"\n        cmd = ( counts_or_fc == \"fc\" ) ? \"${cmd} --is_fc\" : \"${cmd}\"\n        cmd = ( no_check_names ) ? \"${cmd} --no_check_names\" : \"${cmd}\"\n\n        cmd = \"${cmd} --outdir \\\"${params.bagel_classification_qc_outdir}\\\"\"\n        cmd = \"${cmd} --outfile \\\"${params.bagel_classification_qc_outfile}\\\"\"\n        cmd = \"${cmd} --rdata \\\"${params.bagel_classification_qc_rdata}\\\"\"\n        cmd = \"${cmd} --suffix \\\"${analysis_name}\\\"\"\n\n        cmd = ( params.bagel_classification_qc_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n        cmd = \"${cmd} --infile_delim \\\"${params.bagel_classification_infile_delim}\\\"\"\n        cmd = \"${cmd} --infile_id_column_index ${infile_id_column_index}\"\n        cmd = \"${cmd} --infile_gene_column_index ${infile_gene_column_index}\"\n        cmd = \"${cmd} --infile_data_column_index \\\"${count_indices}\\\"\"\n\n        cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n        cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n        cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n        cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n        cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n        cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n        cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n        cmd = ( params.info_group_column_index ) ? \"${cmd} --info_group_column_index ${params.info_group_column_index}\" : cmd\n\n        cmd = \"${cmd} --ess \\\"${params.essential_genes}\\\"\"\n        cmd = \"${cmd} --ess_gene_column_index ${params.ess_gene_column_index}\"\n        cmd = \"${cmd} --no_ess_header\"\n        cmd = \"${cmd} --ess_delim \\\"${params.ess_delim}\\\"\"\n\n        cmd = \"${cmd} --noness \\\"${params.nonessential_genes}\\\"\"\n        cmd = \"${cmd} --noness_gene_column_index \\\"${params.noness_gene_column_index}\\\"\"\n        cmd = \"${cmd} --no_noness_header\"\n        cmd = \"${cmd} --noness_delim \\\"${params.noness_delim}\\\"\"\n\n        \"\"\"\n        $cmd\n        \"\"\"",
+        "nb_lignes_script": 62,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_analysis_stage",
+            "contrast",
+            "library",
+            "fc_input_count_matrix",
+            "count_matrix",
+            "sgrna_fold_change_matrix",
+            "gene_fold_change_matrix",
+            "sample_mapping",
+            "analysis_indices",
+            "counts_or_fc"
+        ],
+        "nb_inputs": 10,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"QC: intermediate BAGEL classification QC\"",
+            "errorStrategy 'ignore'",
+            "publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"*.png\"",
+            "publishDir \"${params.resultDir}/QC/intermediate/${input_analysis_stage}\", mode: 'copy', pattern: \"bagel_classification_summary*.tsv\", saveAs: { \"bagel_classification_summary.${contrast}.${counts_or_fc}.tsv\" }"
+        ],
+        "when": "!params.no_qc",
+        "stub": ""
+    },
+    "MAGeCK_normalisation": {
+        "name_process": "MAGeCK_normalisation",
+        "string_process": "\nprocess MAGeCK_normalisation {\n  tag \"MAGeCK: run MAGeCK test to get normalised counts\"\n\n  publishDir \"${params.resultDir}/normalised\", mode: 'copy', pattern: \"*normalised*\"\n\n  input:\n    tuple val( count_type ), path( count_matrix ), path( library )\n    val( norm_method )\n    val( treatment_indices )\n\n  output:\n    tuple val( 'normalised' ), path( \"${analysis_name}.normalised.tsv\" ), path( library ), emit: normalised_count_matrix\n\n  when:\n    !no_normalisation\n\n  script:\n    analysis_name = \"count_matrix.MAGeCK_${norm_method}\"\n    exec_name = \"mageck test\"\n\n    cmd = \"${exec_name} -k ${count_matrix}\"\n\n    cmd = \"${cmd} -t ${treatment_indices}\"\n    cmd = \"${cmd} -n ${analysis_name}\"\n\n    cmd = \"${cmd} --norm-method ${norm_method}\"\n    cmd = \"${cmd} --normcounts-to-file\"\n\n    cmd = \"${cmd} --remove-zero none\"\n    cmd = \"${cmd} --remove-zero-threshold 0\"\n\n    cmd = (params.mageck_extra_options) ? \"${cmd} ${params.mageck_extra_options}\" : cmd\n\n    \"\"\"\n    $cmd\n\n    mv \"${analysis_name}.normalized.txt\" \"${analysis_name}.normalised.tsv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    analysis_name = \"count_matrix.MAGeCK_${norm_method}\"\n    exec_name = \"mageck test\"\n\n    cmd = \"${exec_name} -k ${count_matrix}\"\n\n    cmd = \"${cmd} -t ${treatment_indices}\"\n    cmd = \"${cmd} -n ${analysis_name}\"\n\n    cmd = \"${cmd} --norm-method ${norm_method}\"\n    cmd = \"${cmd} --normcounts-to-file\"\n\n    cmd = \"${cmd} --remove-zero none\"\n    cmd = \"${cmd} --remove-zero-threshold 0\"\n\n    cmd = (params.mageck_extra_options) ? \"${cmd} ${params.mageck_extra_options}\" : cmd\n\n    \"\"\"\n    $cmd\n\n    mv \"${analysis_name}.normalized.txt\" \"${analysis_name}.normalised.tsv\"\n    \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_type",
+            "count_matrix",
+            "library",
+            "norm_method",
+            "treatment_indices"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"MAGeCK: run MAGeCK test to get normalised counts\"",
+            "publishDir \"${params.resultDir}/normalised\", mode: 'copy', pattern: \"*normalised*\""
+        ],
+        "when": "!no_normalisation",
+        "stub": ""
+    },
+    "MAGeCK_test": {
+        "name_process": "MAGeCK_test",
+        "string_process": "\nprocess MAGeCK_test {\n  tag \"MAGeCK: MAGeCK test\"\n\n  publishDir \"${params.resultDir}/MAGeCK/${contrast}\", mode: 'copy', pattern: \"*.txt\"\n\n  input:\n    tuple val( input_analysis_stage ), val( contrast ), file( library ), file( fc_input_count_matrix ), file( count_matrix ), path( sgrna_fold_change_matrix ), path( gene_fold_change_matrix )\n    val( norm_method )\n    val( analysis_indices )\n\n  output:\n    tuple val(contrast), path( \"${analysis_name }.sgrna_summary.txt\" ), emit: sgrna_summary\n    tuple val(contrast), path( \"${analysis_name }.gene_summary.txt\" ) , emit: gene_summary\n\n  when:\n    !params.no_mageck && !params.no_analysis\n\n  script:\n                           \n    contrast_to_split = contrast\n    (contrast_treatment, contrast_control) = contrast_to_split.split(\"_vs_\", 2 )\n    control_index_values = analysis_indices[\"${contrast}\"][\"${contrast_control}\"][\"base0\"]\n    treatment_index_values = analysis_indices[\"${contrast}\"][\"${contrast_treatment}\"][\"base0\"]\n    analysis_name = \"MAGeCK.${contrast}\"\n\n    exec_name = \"mageck test\"\n\n    cmd = \"${exec_name} -k ${count_matrix} -c ${control_index_values} -t ${treatment_index_values} -n ${analysis_name} --norm-method ${norm_method}\"\n\n    cmd = (params.mageck_normcounts_to_file) ? \"${cmd} --normcounts-to-file\" : cmd\n    cmd = \"${cmd} --remove-zero ${params.mageck_remove_zero}\"\n    cmd = \"${cmd} --remove-zero-threshold ${params.mageck_remove_zero_threshold}\"\n    cmd = (params.mageck_extra_options) ? \"${cmd} ${params.mageck_extra_options}\" : cmd\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    contrast_to_split = contrast\n    (contrast_treatment, contrast_control) = contrast_to_split.split(\"_vs_\", 2 )\n    control_index_values = analysis_indices[\"${contrast}\"][\"${contrast_control}\"][\"base0\"]\n    treatment_index_values = analysis_indices[\"${contrast}\"][\"${contrast_treatment}\"][\"base0\"]\n    analysis_name = \"MAGeCK.${contrast}\"\n\n    exec_name = \"mageck test\"\n\n    cmd = \"${exec_name} -k ${count_matrix} -c ${control_index_values} -t ${treatment_index_values} -n ${analysis_name} --norm-method ${norm_method}\"\n\n    cmd = (params.mageck_normcounts_to_file) ? \"${cmd} --normcounts-to-file\" : cmd\n    cmd = \"${cmd} --remove-zero ${params.mageck_remove_zero}\"\n    cmd = \"${cmd} --remove-zero-threshold ${params.mageck_remove_zero_threshold}\"\n    cmd = (params.mageck_extra_options) ? \"${cmd} ${params.mageck_extra_options}\" : cmd\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_analysis_stage",
+            "contrast",
+            "library",
+            "fc_input_count_matrix",
+            "count_matrix",
+            "sgrna_fold_change_matrix",
+            "gene_fold_change_matrix",
+            "norm_method",
+            "analysis_indices"
+        ],
+        "nb_inputs": 9,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"MAGeCK: MAGeCK test\"",
+            "publishDir \"${params.resultDir}/MAGeCK/${contrast}\", mode: 'copy', pattern: \"*.txt\""
+        ],
+        "when": "!params.no_mageck && !params.no_analysis",
+        "stub": ""
+    },
+    "MAGeCK_process_results": {
+        "name_process": "MAGeCK_process_results",
+        "string_process": "\nprocess MAGeCK_process_results {\n  tag \"MAGeCK: MAGeCK test\"\n\n  publishDir \"${params.resultDir}/MAGeCK/${gene_contrast}\", mode: 'copy', pattern: \"*.png\"\n  publishDir \"${params.resultDir}/MAGeCK/${gene_contrast}\", mode: 'copy', pattern: \"mageck_rra*.tsv\"\n\n\n  input:\n    tuple val( gene_contrast ), path( mageck_gene )\n    tuple val( sgrna_contrast ), path( mageck_sgrna )\n\n  output:\n    path \"MAGeCK*.png\", optional: true\n    path \"mageck_rra*.tsv\", optional: true\n\n  when:\n    !params.no_mageck && !params.no_analysis\n\n  script:\n    analysis_name = \"${gene_contrast}\"\n    script_path = \"${baseDir}/submodules/rcrispr/exec/process_mageck_rra_gene_summary.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --gene_summary ${mageck_gene}\"\n    cmd = \"${cmd} --sgrna_summary ${mageck_sgrna}\"\n    cmd = \"${cmd} --fdr ${params.mageck_fdr_threshold}\"\n    cmd = \"${cmd} --n_genes ${params.mageck_n_genes}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.mageck_processed_results_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${analysis_name}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.mageck_processed_results_rdata}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    analysis_name = \"${gene_contrast}\"\n    script_path = \"${baseDir}/submodules/rcrispr/exec/process_mageck_rra_gene_summary.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --gene_summary ${mageck_gene}\"\n    cmd = \"${cmd} --sgrna_summary ${mageck_sgrna}\"\n    cmd = \"${cmd} --fdr ${params.mageck_fdr_threshold}\"\n    cmd = \"${cmd} --n_genes ${params.mageck_n_genes}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.mageck_processed_results_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${analysis_name}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.mageck_processed_results_rdata}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gene_contrast",
+            "mageck_gene",
+            "sgrna_contrast",
+            "mageck_sgrna"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"MAGeCK: MAGeCK test\"",
+            "publishDir \"${params.resultDir}/MAGeCK/${gene_contrast}\", mode: 'copy', pattern: \"*.png\"",
+            "publishDir \"${params.resultDir}/MAGeCK/${gene_contrast}\", mode: 'copy', pattern: \"mageck_rra*.tsv\""
+        ],
+        "when": "!params.no_mageck && !params.no_analysis",
+        "stub": ""
+    },
+    "counts2matrix": {
+        "name_process": "counts2matrix",
+        "string_process": "\nprocess counts2matrix {\n    tag \"UTILS: convert count files to matrix\"\n\n    publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_count_matrix_outfile}\", overwrite: true\n    publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_library_outfile}\", overwrite: true\n    publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"*.Rdata\", overwrite: true\n\n    input:\n      path counts_directory\n      tuple val( library_label ), file( library )\n      file sample_mapping\n\n    output:\n      tuple val( 'raw' ), path ( \"${params.counts_to_matrix_count_matrix_outfile}\" ), path( \"${params.counts_to_matrix_library_outfile}\" ), emit: data\n      path \"${params.counts_to_matrix_rdata}\", emit: rdata\n\n    script:\n      script_path = \"${baseDir}/submodules/rcrispr/exec/sample_counts_to_matrix.R\"\n\n      cmd = \"${params.rscript_exec} ${script_path} -c ${counts_directory} -l ${library} -i ${sample_mapping}\"\n\n      cmd = \"${cmd} --outdir \\\"${params.counts_to_matrix_outdir}\\\"\"\n      cmd = \"${cmd} --count_matrix_outfile \\\"${params.counts_to_matrix_count_matrix_outfile}\\\"\"\n      cmd = \"${cmd} --library_outfile \\\"${params.counts_to_matrix_library_outfile}\\\"\"\n      cmd = \"${cmd} --rdata \\\"${params.counts_to_matrix_rdata}\\\"\"\n\n      cmd = ( params.counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n      cmd = \"${cmd} --counts_delim \\\"${params.counts_delim}\\\"\"\n      cmd = \"${cmd} --count_skip ${params.count_skip}\"\n      cmd = \"${cmd} --count_id_column_index ${params.count_id_column_index}\"\n      cmd = \"${cmd} --count_gene_column_index ${params.count_gene_column_index}\"\n      cmd = \"${cmd} --count_count_column_index ${params.count_count_column_index}\"\n\n      cmd = ( params.library_header ) ? cmd : \"${cmd} --no_library_header\"\n      cmd = \"${cmd} --library_delim \\\"${params.library_delim}\\\"\"\n      cmd = \"${cmd} --library_id_column_index ${params.library_id_column_index}\"\n      cmd = \"${cmd} --library_gene_column_index ${params.library_gene_column_index}\"\n      cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.library_chr_column_index}\"\n      cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.library_start_column_index}\"\n      cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.library_end_column_index}\"\n\n      cmd = ( params.strip_ids ) ? \"${cmd} --strip_ids\" : cmd\n\n      cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n      cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n      cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n      cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n      cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n      cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n      cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n\n      \"\"\"\n      $cmd\n      \"\"\"\n}",
+        "nb_lignes_process": 54,
+        "string_script": "      script_path = \"${baseDir}/submodules/rcrispr/exec/sample_counts_to_matrix.R\"\n\n      cmd = \"${params.rscript_exec} ${script_path} -c ${counts_directory} -l ${library} -i ${sample_mapping}\"\n\n      cmd = \"${cmd} --outdir \\\"${params.counts_to_matrix_outdir}\\\"\"\n      cmd = \"${cmd} --count_matrix_outfile \\\"${params.counts_to_matrix_count_matrix_outfile}\\\"\"\n      cmd = \"${cmd} --library_outfile \\\"${params.counts_to_matrix_library_outfile}\\\"\"\n      cmd = \"${cmd} --rdata \\\"${params.counts_to_matrix_rdata}\\\"\"\n\n      cmd = ( params.counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n      cmd = \"${cmd} --counts_delim \\\"${params.counts_delim}\\\"\"\n      cmd = \"${cmd} --count_skip ${params.count_skip}\"\n      cmd = \"${cmd} --count_id_column_index ${params.count_id_column_index}\"\n      cmd = \"${cmd} --count_gene_column_index ${params.count_gene_column_index}\"\n      cmd = \"${cmd} --count_count_column_index ${params.count_count_column_index}\"\n\n      cmd = ( params.library_header ) ? cmd : \"${cmd} --no_library_header\"\n      cmd = \"${cmd} --library_delim \\\"${params.library_delim}\\\"\"\n      cmd = \"${cmd} --library_id_column_index ${params.library_id_column_index}\"\n      cmd = \"${cmd} --library_gene_column_index ${params.library_gene_column_index}\"\n      cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.library_chr_column_index}\"\n      cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.library_start_column_index}\"\n      cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.library_end_column_index}\"\n\n      cmd = ( params.strip_ids ) ? \"${cmd} --strip_ids\" : cmd\n\n      cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n      cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n      cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n      cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n      cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n      cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n      cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n\n      \"\"\"\n      $cmd\n      \"\"\"",
+        "nb_lignes_script": 36,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "counts_directory",
+            "library_label",
+            "library",
+            "sample_mapping"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"UTILS: convert count files to matrix\"",
+            "publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_count_matrix_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_library_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"*.Rdata\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "read_count_matrix": {
+        "name_process": "read_count_matrix",
+        "string_process": "\nprocess read_count_matrix {\n    tag \"UTILS: read count matrix\"\n\n    publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_count_matrix_outfile}\", overwrite: true\n    publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_library_outfile}\", overwrite: true\n    publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"*.Rdata\", overwrite: true\n\n    input:\n      path counts_directory\n      tuple val( library_label ), file( library )\n      file sample_mapping\n\n    output:\n      tuple val( 'raw' ), path ( \"${params.counts_to_matrix_count_matrix_outfile}\" ), path( \"${params.counts_to_matrix_library_outfile}\" ), emit: data\n      path \"${params.counts_to_matrix_rdata}\", emit: rdata\n\n    script:\n      script_path = \"${baseDir}/submodules/rcrispr/exec/read_sample_count_matrix.R\"\n\n      cmd = \"${params.rscript_exec} ${script_path} -c ${counts_directory} -l ${library} -i ${sample_mapping}\"\n\n      cmd = \"${cmd} --outdir \\\"${params.counts_to_matrix_outdir}\\\"\"\n      cmd = \"${cmd} --count_matrix_outfile \\\"${params.counts_to_matrix_count_matrix_outfile}\\\"\"\n      cmd = \"${cmd} --library_outfile \\\"${params.counts_to_matrix_library_outfile}\\\"\"\n      cmd = \"${cmd} --rdata \\\"${params.counts_to_matrix_rdata}\\\"\"\n\n      cmd = ( params.counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n      cmd = \"${cmd} --counts_delim \\\"${params.counts_delim}\\\"\"\n      cmd = \"${cmd} --count_id_column_index ${params.count_id_column_index}\"\n      cmd = \"${cmd} --count_gene_column_index ${params.count_gene_column_index}\"\n      cmd = \"${cmd} --count_count_column_index ${params.count_count_column_index}\"\n\n      cmd = ( params.library_header ) ? cmd : \"${cmd} --no_library_header\"\n      cmd = \"${cmd} --library_delim \\\"${params.library_delim}\\\"\"\n      cmd = \"${cmd} --library_id_column_index ${params.library_id_column_index}\"\n      cmd = \"${cmd} --library_gene_column_index ${params.library_gene_column_index}\"\n      cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.library_chr_column_index}\"\n      cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.library_start_column_index}\"\n      cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.library_end_column_index}\"\n\n      cmd = ( params.strip_ids ) ? \"${cmd} --strip_ids\" : cmd\n\n      cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n      cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n      cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n      cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n      cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n      cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n      cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n\n      \"\"\"\n      $cmd\n      \"\"\"\n}",
+        "nb_lignes_process": 53,
+        "string_script": "      script_path = \"${baseDir}/submodules/rcrispr/exec/read_sample_count_matrix.R\"\n\n      cmd = \"${params.rscript_exec} ${script_path} -c ${counts_directory} -l ${library} -i ${sample_mapping}\"\n\n      cmd = \"${cmd} --outdir \\\"${params.counts_to_matrix_outdir}\\\"\"\n      cmd = \"${cmd} --count_matrix_outfile \\\"${params.counts_to_matrix_count_matrix_outfile}\\\"\"\n      cmd = \"${cmd} --library_outfile \\\"${params.counts_to_matrix_library_outfile}\\\"\"\n      cmd = \"${cmd} --rdata \\\"${params.counts_to_matrix_rdata}\\\"\"\n\n      cmd = ( params.counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n      cmd = \"${cmd} --counts_delim \\\"${params.counts_delim}\\\"\"\n      cmd = \"${cmd} --count_id_column_index ${params.count_id_column_index}\"\n      cmd = \"${cmd} --count_gene_column_index ${params.count_gene_column_index}\"\n      cmd = \"${cmd} --count_count_column_index ${params.count_count_column_index}\"\n\n      cmd = ( params.library_header ) ? cmd : \"${cmd} --no_library_header\"\n      cmd = \"${cmd} --library_delim \\\"${params.library_delim}\\\"\"\n      cmd = \"${cmd} --library_id_column_index ${params.library_id_column_index}\"\n      cmd = \"${cmd} --library_gene_column_index ${params.library_gene_column_index}\"\n      cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.library_chr_column_index}\"\n      cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.library_start_column_index}\"\n      cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.library_end_column_index}\"\n\n      cmd = ( params.strip_ids ) ? \"${cmd} --strip_ids\" : cmd\n\n      cmd = ( params.info_header ) ? cmd : \"${cmd} --no_info_header\"\n      cmd = \"${cmd} --info_delim \\\"${params.info_delim}\\\"\"\n      cmd = \"${cmd} --info_filename_column_index ${params.info_filename_column_index}\"\n      cmd = \"${cmd} --info_label_column_index ${params.info_label_column_index}\"\n      cmd = \"${cmd} --info_plasmid_column_index ${params.info_plasmid_column_index}\"\n      cmd = \"${cmd} --info_control_column_index ${params.info_control_column_index}\"\n      cmd = \"${cmd} --info_treatment_column_index ${params.info_treatment_column_index}\"\n\n      \"\"\"\n      $cmd\n      \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "counts_directory",
+            "library_label",
+            "library",
+            "sample_mapping"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"UTILS: read count matrix\"",
+            "publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_count_matrix_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"${params.counts_to_matrix_library_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/raw/\", mode: 'copy', pattern: \"*.Rdata\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "remove_user_defined_guides": {
+        "name_process": "remove_user_defined_guides",
+        "string_process": "\nprocess remove_user_defined_guides {\n  tag \"REMOVE GUIDES: removing user-defined guides\"\n\n  publishDir \"${params.resultDir}/user_removed\", mode: 'copy', pattern: \"${params.remove_user_guides_count_matrix_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/user_removed\", mode: 'copy', pattern: \"${params.remove_user_guides_library_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/user_removed/\", mode: 'copy', pattern: \"${params.remove_user_guides_rdata}\", overwrite: true\n\n  input:\n    tuple val( analysis_stage ), file( count_matrix ), file( library )\n    val count_indices\n\n  output:\n    tuple val('user_removed'), path( \"${params.remove_user_guides_count_matrix_outfile}\" ), path( \"${params.remove_user_guides_library_outfile}\" ), emit: user_removed_counts\n    path \"${params.remove_user_guides_rdata}\", emit: rdata\n\n  when:\n    params.remove_guides\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/remove_guides.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n    cmd = \"${cmd} --guides_to_remove ${params.remove_guides}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.remove_user_guides_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.remove_user_guides_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.remove_user_guides_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.remove_user_guides_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/remove_guides.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n    cmd = \"${cmd} --guides_to_remove ${params.remove_guides}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.remove_user_guides_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.remove_user_guides_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.remove_user_guides_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.remove_user_guides_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "analysis_stage",
+            "count_matrix",
+            "library",
+            "count_indices"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"REMOVE GUIDES: removing user-defined guides\"",
+            "publishDir \"${params.resultDir}/user_removed\", mode: 'copy', pattern: \"${params.remove_user_guides_count_matrix_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/user_removed\", mode: 'copy', pattern: \"${params.remove_user_guides_library_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/user_removed/\", mode: 'copy', pattern: \"${params.remove_user_guides_rdata}\", overwrite: true"
+        ],
+        "when": "params.remove_guides",
+        "stub": ""
+    },
+    "remove_duplicate_guides": {
+        "name_process": "remove_duplicate_guides",
+        "string_process": "\nprocess remove_duplicate_guides {\n  tag \"REMOVE DUPLICATES: removing guides with duplicate ids\"\n\n  publishDir \"${params.resultDir}/duplicates_removed\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_count_matrix_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/duplicates_removed\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_library_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/duplicates_removed/\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/duplicates_removed/\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_rdata}\", overwrite: true\n\n  input:\n    tuple val( analysis_stage ), file( count_matrix ), file( library )\n    val count_indices\n\n  output:\n    tuple val('duplicates_removed'), path( \"${params.remove_duplicate_guides_count_matrix_outfile}\" ), path( \"${params.remove_duplicate_guides_library_outfile}\" ), emit: duplicates_removed_counts\n    tuple val('duplicates_removed'), path( \"${params.remove_duplicate_guides_outfile}\" ), emit: duplicate_guides\n    path \"${params.remove_duplicate_guides_rdata}\", emit: rdata\n\n  when:\n    !params.no_duplicate_removal\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/remove_duplicate_guides.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.remove_duplicate_guides_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.remove_duplicate_guides_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.remove_duplicate_guides_library_outfile}\\\"\"\n    cmd = \"${cmd} --duplicate_guides_outfile \\\"${params.remove_duplicate_guides_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.remove_duplicate_guides_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/remove_duplicate_guides.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.remove_duplicate_guides_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.remove_duplicate_guides_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.remove_duplicate_guides_library_outfile}\\\"\"\n    cmd = \"${cmd} --duplicate_guides_outfile \\\"${params.remove_duplicate_guides_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.remove_duplicate_guides_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "analysis_stage",
+            "count_matrix",
+            "library",
+            "count_indices"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"REMOVE DUPLICATES: removing guides with duplicate ids\"",
+            "publishDir \"${params.resultDir}/duplicates_removed\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_count_matrix_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/duplicates_removed\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_library_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/duplicates_removed/\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/duplicates_removed/\", mode: 'copy', pattern: \"${params.remove_duplicate_guides_rdata}\", overwrite: true"
+        ],
+        "when": "!params.no_duplicate_removal",
+        "stub": ""
+    },
+    "filter_counts_by_indices": {
+        "name_process": "filter_counts_by_indices",
+        "string_process": "\nprocess filter_counts_by_indices {\n  tag \"FILTER: sample indices < min reads\"\n\n  publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_count_matrix_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_library_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_rdata}\", overwrite: true\n\n  input:\n    tuple val( count_label ), file( count_matrix ), file( library )\n    val( index_values )\n    val( analysis_stage )\n    val count_indices\n\n  output:\n    tuple val( analysis_stage ), path( \"${params.raw_filter_count_matrix_outfile}\" ), path( \"${params.raw_filter_library_outfile}\" ), emit: filtered_counts\n    tuple val( analysis_stage ), path( \"${params.raw_filter_outfile}\" ), emit: filtered_guides\n    path \"${params.raw_filter_rdata}\", emit: rdata\n\n  when:\n    !params.no_filter\n\n  script:\n\n    script_path = \"${baseDir}/submodules/rcrispr/exec/filter_by_column_indices.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n\n    cmd = \"${cmd} --min_reads ${params.min_reads}\"\n    cmd = \"${cmd} --filter_method \\\"${params.filter_method}\\\"\"\n    cmd = \"${cmd} --filter_indices \\\"${index_values}\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.raw_filter_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.raw_filter_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.raw_filter_library_outfile}\\\"\"\n    cmd = \"${cmd} --filtered_guides_outfile \\\"${params.raw_filter_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.raw_filter_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 55,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/filter_by_column_indices.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n\n    cmd = \"${cmd} --min_reads ${params.min_reads}\"\n    cmd = \"${cmd} --filter_method \\\"${params.filter_method}\\\"\"\n    cmd = \"${cmd} --filter_indices \\\"${index_values}\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.raw_filter_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.raw_filter_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.raw_filter_library_outfile}\\\"\"\n    cmd = \"${cmd} --filtered_guides_outfile \\\"${params.raw_filter_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.raw_filter_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_label",
+            "count_matrix",
+            "library",
+            "index_values",
+            "analysis_stage",
+            "count_indices"
+        ],
+        "nb_inputs": 6,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"FILTER: sample indices < min reads\"",
+            "publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_count_matrix_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_library_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/${analysis_stage}\", mode: 'copy', pattern: \"${params.raw_filter_rdata}\", overwrite: true"
+        ],
+        "when": "!params.no_filter",
+        "stub": ""
+    },
+    "remove_guides_with_no_coordinates": {
+        "name_process": "remove_guides_with_no_coordinates",
+        "string_process": "\nprocess remove_guides_with_no_coordinates {\n  tag \"UTILS: remove guides with no coordinates\"\n\n  publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_count_matrix_outfile}\"\n  publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_library_outfile}\"\n  publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_outfile}\"\n  publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_rdata}\"\n\n  input:\n    tuple val(count_type), path(count_matrix), path(library)\n    val( analysis_stage )\n    val count_indices\n\n  output:\n    tuple val( analysis_stage ), path( \"${params.coord_filter_count_matrix_outfile}\" ), path( \"${params.coord_filter_library_outfile}\" ) , emit: count_matrix\n    tuple val( analysis_stage ), path( \"${params.coord_filter_outfile}\" ), emit: excluded_guides\n    tuple val( analysis_stage ), path( \"${params.coord_filter_rdata}\" ), emit: rdata\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/remove_guides_without_coordinates.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.coord_filter_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.coord_filter_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.coord_filter_library_outfile}\\\"\"\n    cmd = \"${cmd} --excluded_guides_outfile \\\"${params.coord_filter_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.coord_filter_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/remove_guides_without_coordinates.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix} -l ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.coord_filter_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.coord_filter_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.coord_filter_library_outfile}\\\"\"\n    cmd = \"${cmd} --excluded_guides_outfile \\\"${params.coord_filter_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.coord_filter_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_type",
+            "count_matrix",
+            "library",
+            "analysis_stage",
+            "count_indices"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"UTILS: remove guides with no coordinates\"",
+            "publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_count_matrix_outfile}\"",
+            "publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_library_outfile}\"",
+            "publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_outfile}\"",
+            "publishDir \"${params.resultDir}/corrected/CRISPRcleanR/inputs\", mode: 'copy', pattern: \"${params.coord_filter_rdata}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "calculate_log_fold_changes": {
+        "name_process": "calculate_log_fold_changes",
+        "string_process": "\nprocess calculate_log_fold_changes {\n  tag \"UTILS: calculating log fold changes\"\n\n  publishDir \"${params.resultDir}/${analysis_stage}/${contrast}\", mode: 'copy', pattern: \"*_vs_*.tsv\"\n                                                                                                    \n\n\n  input:\n    tuple val( analysis_stage ), file( count_matrix ), file( library ), val( contrast )\n    val( analysis_indices )\n\n  output:\n    tuple val( analysis_stage ), val( contrast ), path( library ), path( count_matrix ), path( \"count_matrix.lfc.${contrast}.${analysis_stage}.tsv\" ), path( \"fold_change_matrix.sgrna.lfc.${contrast}.${analysis_stage}.tsv\" ), path( \"fold_change_matrix.gene.lfc.${contrast}.${analysis_stage}.tsv\" ), emit: contrast_fold_changes\n                                                                                                                  \n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/calculate_log_fold_changes.R\"\n\n                           \n    contrast_to_split = contrast\n    (contrast_treatment, contrast_control) = contrast_to_split.split(\"_vs_\", 2 )\n    control_index_values = analysis_indices[\"${contrast_control}\"][\"base1_increment2\"]\n    treatment_index_values = analysis_indices[\"${contrast_treatment}\"][\"base1_increment2\"]\n    count_indices = analysis_indices[\"all\"][\"base1_increment2\"]\n\n    output_file_suffix = \"lfc.${contrast}.${analysis_stage}\"\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} -c ${count_matrix}\"\n\n    cmd = \"${cmd} --control_indices \\\"$control_index_values\\\"\"\n    cmd = \"${cmd} --treatment_indices \\\"$treatment_index_values\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.calculate_log_fc_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${output_file_suffix}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.calculate_log_fc_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --sgrna_outfile \\\"${params.calculate_log_fc_sgrna_outfile}\\\"\"\n    cmd = \"${cmd} --gene_outfile \\\"${params.calculate_log_fc_gene_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.calculate_log_fc_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index \\\"${count_indices}\\\"\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 49,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/calculate_log_fold_changes.R\"\n\n                           \n    contrast_to_split = contrast\n    (contrast_treatment, contrast_control) = contrast_to_split.split(\"_vs_\", 2 )\n    control_index_values = analysis_indices[\"${contrast_control}\"][\"base1_increment2\"]\n    treatment_index_values = analysis_indices[\"${contrast_treatment}\"][\"base1_increment2\"]\n    count_indices = analysis_indices[\"all\"][\"base1_increment2\"]\n\n    output_file_suffix = \"lfc.${contrast}.${analysis_stage}\"\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} -c ${count_matrix}\"\n\n    cmd = \"${cmd} --control_indices \\\"$control_index_values\\\"\"\n    cmd = \"${cmd} --treatment_indices \\\"$treatment_index_values\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.calculate_log_fc_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${output_file_suffix}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.calculate_log_fc_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --sgrna_outfile \\\"${params.calculate_log_fc_sgrna_outfile}\\\"\"\n    cmd = \"${cmd} --gene_outfile \\\"${params.calculate_log_fc_gene_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.calculate_log_fc_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index \\\"${count_indices}\\\"\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 32,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "analysis_stage",
+            "contrast",
+            "count_matrix",
+            "library",
+            "analysis_indices"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"UTILS: calculating log fold changes\"",
+            "publishDir \"${params.resultDir}/${analysis_stage}/${contrast}\", mode: 'copy', pattern: \"*_vs_*.tsv\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "scale_gene_log_fold_changes": {
+        "name_process": "scale_gene_log_fold_changes",
+        "string_process": "\nprocess scale_gene_log_fold_changes {\n  tag \"UTILS: calculating scaled log fold changes\"\n\n  publishDir \"${params.resultDir}/${input_analysis_stage}/${contrast}/scaled\", mode: 'copy', pattern: '*ROC*'\n  publishDir \"${params.resultDir}/${input_analysis_stage}/${contrast}/scaled\", mode: 'copy', pattern: '*scaled*'\n  publishDir \"${params.resultDir}/${input_analysis_stage}/${contrast}/scaled\", mode: 'copy', pattern: '*Rdata'\n\n  input:\n    tuple val( input_analysis_stage ), val( contrast ), file( library ), file( fc_input_count_matrix ), file( count_matrix ), file( sgrna_fold_change_matrix ), file( gene_fold_change_matrix )\n    val( analysis_indices )\n\n  output:\n    tuple val( input_analysis_stage ), val( contrast ), file( gene_fold_change_matrix), path( \"fold_change.gene.ROC.${analysis_suffix}.png\" )\n    tuple val( input_analysis_stage ), val( contrast ), file( gene_fold_change_matrix), path( \"ROC_summary.${analysis_suffix}.tsv\" )\n    tuple val( input_analysis_stage ), val( contrast ), file( gene_fold_change_matrix), path( \"fold_change.scaled.gene.${analysis_suffix}.tsv\" )\n    tuple val( input_analysis_stage ), val( contrast ), file( gene_fold_change_matrix), path( \"fold_change.scaled_depletions_matrix.gene.${analysis_suffix}.tsv\" )\n    path \"scaled_lfc.${analysis_suffix}.Rdata\", emit: rdata\n\n  when:\n    params.scale_log_fold_changes\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/scale_lfcs_and_bfs.R\"\n    analysis_suffix = \"LFC.${input_analysis_stage}.${contrast}\"\n\n                           \n                                              \n                                                                                                           \n    if ( input_analysis_stage == 'corrected' ) {\n      treatment_index_values = 2\n    } else {\n      contrast_to_split = contrast\n      (contrast_treatment, contrast_control) = contrast_to_split.split(\"_vs_\", 2 )\n      treatment_index_values = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment1\"]\n    }\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --is_fc\"\n    cmd = \"${cmd} --threshold ${params.scaled_lfc_threshold}\"\n\n    cmd = \"${cmd} --infile \\\"${gene_fold_change_matrix}\\\"\"\n    cmd = ( params.scaled_lfc_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n    cmd = \"${cmd} --infile_delim \\\"${params.scaled_lfc_infile_delim}\\\"\"\n    cmd = \"${cmd} --infile_gene_column_index ${params.scaled_lfc_infile_gene_column_index}\"\n    cmd = \"${cmd} --infile_data_column_index \\\"$treatment_index_values\\\"\"\n\n    cmd = \"${cmd} --ess \\\"${params.essential_genes}\\\"\"\n    cmd = \"${cmd} --ess_gene_column_index ${params.ess_gene_column_index}\"\n    cmd = \"${cmd} --no_ess_header\"\n    cmd = \"${cmd} --ess_delim \\\"${params.ess_delim}\\\"\"\n\n    cmd = \"${cmd} --noness \\\"${params.nonessential_genes}\\\"\"\n    cmd = \"${cmd} --noness_gene_column_index ${params.noness_gene_column_index}\"\n    cmd = \"${cmd} --no_noness_header\"\n    cmd = \"${cmd} --noness_delim \\\"${params.noness_delim}\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.scaled_lfc_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${analysis_suffix}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.scaled_lfc_rdata}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 63,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/scale_lfcs_and_bfs.R\"\n    analysis_suffix = \"LFC.${input_analysis_stage}.${contrast}\"\n\n                           \n                                              \n                                                                                                           \n    if ( input_analysis_stage == 'corrected' ) {\n      treatment_index_values = 2\n    } else {\n      contrast_to_split = contrast\n      (contrast_treatment, contrast_control) = contrast_to_split.split(\"_vs_\", 2 )\n      treatment_index_values = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment1\"]\n    }\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --is_fc\"\n    cmd = \"${cmd} --threshold ${params.scaled_lfc_threshold}\"\n\n    cmd = \"${cmd} --infile \\\"${gene_fold_change_matrix}\\\"\"\n    cmd = ( params.scaled_lfc_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n    cmd = \"${cmd} --infile_delim \\\"${params.scaled_lfc_infile_delim}\\\"\"\n    cmd = \"${cmd} --infile_gene_column_index ${params.scaled_lfc_infile_gene_column_index}\"\n    cmd = \"${cmd} --infile_data_column_index \\\"$treatment_index_values\\\"\"\n\n    cmd = \"${cmd} --ess \\\"${params.essential_genes}\\\"\"\n    cmd = \"${cmd} --ess_gene_column_index ${params.ess_gene_column_index}\"\n    cmd = \"${cmd} --no_ess_header\"\n    cmd = \"${cmd} --ess_delim \\\"${params.ess_delim}\\\"\"\n\n    cmd = \"${cmd} --noness \\\"${params.nonessential_genes}\\\"\"\n    cmd = \"${cmd} --noness_gene_column_index ${params.noness_gene_column_index}\"\n    cmd = \"${cmd} --no_noness_header\"\n    cmd = \"${cmd} --noness_delim \\\"${params.noness_delim}\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.scaled_lfc_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${analysis_suffix}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.scaled_lfc_rdata}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_analysis_stage",
+            "contrast",
+            "library",
+            "fc_input_count_matrix",
+            "count_matrix",
+            "sgrna_fold_change_matrix",
+            "gene_fold_change_matrix",
+            "analysis_indices"
+        ],
+        "nb_inputs": 8,
+        "outputs": [
+            "contrast",
+            "contrast",
+            "contrast",
+            "contrast"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"UTILS: calculating scaled log fold changes\"",
+            "publishDir \"${params.resultDir}/${input_analysis_stage}/${contrast}/scaled\", mode: 'copy', pattern: '*ROC*'",
+            "publishDir \"${params.resultDir}/${input_analysis_stage}/${contrast}/scaled\", mode: 'copy', pattern: '*scaled*'",
+            "publishDir \"${params.resultDir}/${input_analysis_stage}/${contrast}/scaled\", mode: 'copy', pattern: '*Rdata'"
+        ],
+        "when": "params.scale_log_fold_changes",
+        "stub": ""
+    },
+    "write_pipeline_version": {
+        "name_process": "write_pipeline_version",
+        "string_process": "\nprocess write_pipeline_version {\n    publishDir \"${params.resultDir}\", mode: 'copy', pattern: \"c-sar.version\"\n    output:\n      path \"c-sar.version\"\n    script:\n      \"\"\"\n      echo \"${workflow.manifest.version}\" > c-sar.version\n      \"\"\"\n}",
+        "nb_lignes_process": 8,
+        "string_script": "      \"\"\"\n      echo \"${workflow.manifest.version}\" > c-sar.version\n      \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "publishDir \"${params.resultDir}\", mode: 'copy', pattern: \"c-sar.version\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "crisprcleanr_normalise_counts": {
+        "name_process": "crisprcleanr_normalise_counts",
+        "string_process": "\nprocess crisprcleanr_normalise_counts {\n  tag \"CRISPRcleanR: normalisation\"\n\n  publishDir \"${params.resultDir}/normalised\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_count_matrix_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_fc_matrix_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_library_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_rdata}\", overwrite: true\n\n  input:\n    tuple val( count_type ), path( count_matrix ), path( library )\n    val ncontrols\n    val count_indices\n\n  output:\n    tuple val('normalised'), path( \"${params.crisprcleanr_normalisation_count_matrix_outfile}\" ), path( \"${params.crisprcleanr_normalisation_library_outfile}\" ), emit: normalised_count_matrix\n    path \"${params.crisprcleanr_normalisation_fc_matrix_outfile}\", emit: fold_changes\n    path \"${params.crisprcleanr_normalisation_rdata}\", emit: rdata\n\n  when:\n    !params.no_normalisation && params.normalisation_method == 'crisprcleanr'\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/CRISPRcleanR_normalisation.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} -c ${count_matrix}\"\n    cmd = \"${cmd} -l ${library}\"\n    cmd = \"${cmd} --min_reads ${params.min_reads}\"\n    cmd = \"${cmd} --n_controls ${ncontrols}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.crisprcleanr_normalisation_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.crisprcleanr_normalisation_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_matrix_outfile \\\"${params.crisprcleanr_normalisation_fc_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.crisprcleanr_normalisation_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.crisprcleanr_normalisation_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 54,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/CRISPRcleanR_normalisation.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} -c ${count_matrix}\"\n    cmd = \"${cmd} -l ${library}\"\n    cmd = \"${cmd} --min_reads ${params.min_reads}\"\n    cmd = \"${cmd} --n_controls ${ncontrols}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.crisprcleanr_normalisation_outdir}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.crisprcleanr_normalisation_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_matrix_outfile \\\"${params.crisprcleanr_normalisation_fc_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.crisprcleanr_normalisation_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.crisprcleanr_normalisation_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_type",
+            "count_matrix",
+            "library",
+            "ncontrols",
+            "count_indices"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"CRISPRcleanR: normalisation\"",
+            "publishDir \"${params.resultDir}/normalised\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_count_matrix_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_fc_matrix_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_library_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.crisprcleanr_normalisation_rdata}\", overwrite: true"
+        ],
+        "when": "!params.no_normalisation && params.normalisation_method == 'crisprcleanr'",
+        "stub": ""
+    },
+    "format_library_and_matrices_for_crisprcleanr": {
+        "name_process": "format_library_and_matrices_for_crisprcleanr",
+        "string_process": "\nprocess format_library_and_matrices_for_crisprcleanr {\n  tag \"CRISPRcleanR: format library and counts for CRISPRcleanR\"\n\n  publishDir \"${params.resultDir}/corrected/CRISPRcleanR/formatted_inputs\", mode: 'copy', pattern: \"*_input*.tsv\", overwrite: true\n                                                                                                                                                               \n\n  input:\n    tuple val( analysis_stage ), val( contrast ), file( library ), path( fc_input_count_matrix ), path( count_matrix ), path( sgrna_fold_change_matrix ), path( gene_fold_change_matrix )\n    val( analysis_indices )\n\n  output:\n    tuple val( analysis_stage ), val( contrast ), file( \"library.${file_suffix}.tsv\" ), path( fc_input_count_matrix ), path( \"count_matrix.${file_suffix}.tsv\" ), path( \"fold_change_matrix.sgrna.${file_suffix}.tsv\" ), path( gene_fold_change_matrix ), emit: inputdata\n                                                                      \n\n  when:\n    !params.no_correction && !params.no_crisprcleanr\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/format_library_and_matrices_for_CRISPRcleanR.R\"\n    file_suffix = \"CRISPRcleanR_input.${contrast}.${analysis_stage}\"\n    count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n    lfc_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment2\"]\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --counts ${count_matrix}\"\n    cmd = \"${cmd} --lfc_matrix ${sgrna_fold_change_matrix}\"\n    cmd = \"${cmd} --library ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.crisprcleanr_formatting_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${file_suffix}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.crisprcleanr_formatting_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_matrix_outfile \\\"${params.crisprcleanr_formatting_fc_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.crisprcleanr_formatting_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.crisprcleanr_formatting_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --lfc_id_column_index ${params.processed_lfc_id_column_index}\"\n    cmd = \"${cmd} --lfc_gene_column_index ${params.processed_lfc_gene_column_index}\"\n    cmd = \"${cmd} --lfc_lfc_column_index ${lfc_indices}\"\n    cmd = ( params.processed_lfc_header ) ? cmd : \"${cmd} --no_lfc_header\"\n    cmd = \"${cmd} --lfc_delim \\\"${params.processed_lfc_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 58,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/format_library_and_matrices_for_CRISPRcleanR.R\"\n    file_suffix = \"CRISPRcleanR_input.${contrast}.${analysis_stage}\"\n    count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n    lfc_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment2\"]\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --counts ${count_matrix}\"\n    cmd = \"${cmd} --lfc_matrix ${sgrna_fold_change_matrix}\"\n    cmd = \"${cmd} --library ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.crisprcleanr_formatting_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${file_suffix}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.crisprcleanr_formatting_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_matrix_outfile \\\"${params.crisprcleanr_formatting_fc_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.crisprcleanr_formatting_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.crisprcleanr_formatting_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --lfc_id_column_index ${params.processed_lfc_id_column_index}\"\n    cmd = \"${cmd} --lfc_gene_column_index ${params.processed_lfc_gene_column_index}\"\n    cmd = \"${cmd} --lfc_lfc_column_index ${lfc_indices}\"\n    cmd = ( params.processed_lfc_header ) ? cmd : \"${cmd} --no_lfc_header\"\n    cmd = \"${cmd} --lfc_delim \\\"${params.processed_lfc_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 39,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "analysis_stage",
+            "contrast",
+            "library",
+            "fc_input_count_matrix",
+            "count_matrix",
+            "sgrna_fold_change_matrix",
+            "gene_fold_change_matrix",
+            "analysis_indices"
+        ],
+        "nb_inputs": 8,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"CRISPRcleanR: format library and counts for CRISPRcleanR\"",
+            "publishDir \"${params.resultDir}/corrected/CRISPRcleanR/formatted_inputs\", mode: 'copy', pattern: \"*_input*.tsv\", overwrite: true"
+        ],
+        "when": "!params.no_correction && !params.no_crisprcleanr",
+        "stub": ""
+    },
+    "crisprcleanr_correction": {
+        "name_process": "crisprcleanr_correction",
+        "string_process": "\nprocess crisprcleanr_correction {\n\n  tag \"CRISPRcleanR: CRISPRcleanR correction\"\n\n  publishDir \"${params.resultDir}/corrected/CRISPRcleanR/output\", mode: 'copy', pattern: \"*CRISPRcleanR_corrected*\", overwrite: true\n                                                                                                                     \n\n  input:\n    tuple val( input_analysis_stage ), val( contrast ), file( library ), file( fc_input_count_matrix ), file( count_matrix ), path( sgrna_fold_change_matrix ), path( gene_fold_change_matrix )\n    val( analysis_stage )\n    val(analysis_indices)\n\n  output:\n    tuple val( analysis_stage ), val( contrast ), file( library ), file( fc_input_count_matrix ), file( \"count_matrix.${file_suffix}.tsv\" ), file( \"fold_change_matrix.sgRNA.${file_suffix}.tsv\" ), file( \"fold_change_matrix.gene.${file_suffix}.tsv\" ), emit: fold_change_matrix\n\n  when:\n    !params.no_correction && !params.no_crisprcleanr\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/CRISPRcleanR_correction.R\"\n    file_suffix = \"CRISPRcleanR_corrected.${contrast}.${analysis_stage}\"\n    count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n    lfc_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment2\"]\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --counts ${count_matrix}\"\n    cmd = \"${cmd} --lfc_matrix ${sgrna_fold_change_matrix}\"\n    cmd = \"${cmd} --library ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.crisprcleanr_correction_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${file_suffix}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.crisprcleanr_correction_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_matrix_outfile \\\"${params.crisprcleanr_correction_lfc_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_gene_matrix_outfile \\\"${params.crisprcleanr_correction_lfc_gene_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.crisprcleanr_correction_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.crisprcleanr_correction_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --lfc_id_column_index ${params.processed_lfc_id_column_index}\"\n    cmd = \"${cmd} --lfc_gene_column_index ${params.processed_lfc_gene_column_index}\"\n    cmd = \"${cmd} --lfc_lfc_column_index ${lfc_indices}\"\n    cmd = ( params.processed_lfc_header ) ? cmd : \"${cmd} --no_lfc_header\"\n    cmd = \"${cmd} --lfc_delim \\\"${params.processed_lfc_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 60,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/CRISPRcleanR_correction.R\"\n    file_suffix = \"CRISPRcleanR_corrected.${contrast}.${analysis_stage}\"\n    count_indices = analysis_indices[\"${contrast}\"][\"count_lfc\"][\"base1_increment2\"]\n    lfc_indices = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1_increment2\"]\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --counts ${count_matrix}\"\n    cmd = \"${cmd} --lfc_matrix ${sgrna_fold_change_matrix}\"\n    cmd = \"${cmd} --library ${library}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.crisprcleanr_correction_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${file_suffix}\\\"\"\n    cmd = \"${cmd} --count_matrix_outfile \\\"${params.crisprcleanr_correction_count_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_matrix_outfile \\\"${params.crisprcleanr_correction_lfc_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --lfc_gene_matrix_outfile \\\"${params.crisprcleanr_correction_lfc_gene_matrix_outfile}\\\"\"\n    cmd = \"${cmd} --library_outfile \\\"${params.crisprcleanr_correction_library_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.crisprcleanr_correction_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.processed_count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.processed_count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n    cmd = ( params.processed_counts_header ) ? cmd : \"${cmd} --no_counts_header\"\n    cmd = \"${cmd} --counts_delim \\\"${params.processed_counts_delim}\\\"\"\n\n    cmd = \"${cmd} --lfc_id_column_index ${params.processed_lfc_id_column_index}\"\n    cmd = \"${cmd} --lfc_gene_column_index ${params.processed_lfc_gene_column_index}\"\n    cmd = \"${cmd} --lfc_lfc_column_index ${lfc_indices}\"\n    cmd = ( params.processed_lfc_header ) ? cmd : \"${cmd} --no_lfc_header\"\n    cmd = \"${cmd} --lfc_delim \\\"${params.processed_lfc_delim}\\\"\"\n\n    cmd = \"${cmd} --library_id_column_index ${params.processed_library_id_column_index}\"\n    cmd = \"${cmd} --library_gene_column_index ${params.processed_library_gene_column_index}\"\n    cmd = ( !params.library_chr_column_index ) ? cmd : \"${cmd} --library_chr_column_index ${params.processed_library_chr_column_index}\"\n    cmd = ( !params.library_start_column_index ) ? cmd : \"${cmd} --library_start_column_index ${params.processed_library_start_column_index}\"\n    cmd = ( !params.library_end_column_index ) ? cmd : \"${cmd} --library_end_column_index ${params.processed_library_end_column_index}\"\n    cmd = ( params.processed_library_header ) ? cmd : \"${cmd} --no_library_header\"\n    cmd = \"${cmd} --library_delim \\\"${params.processed_library_delim}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_analysis_stage",
+            "contrast",
+            "library",
+            "fc_input_count_matrix",
+            "count_matrix",
+            "sgrna_fold_change_matrix",
+            "gene_fold_change_matrix",
+            "analysis_stage",
+            "analysis_indices"
+        ],
+        "nb_inputs": 9,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"CRISPRcleanR: CRISPRcleanR correction\"",
+            "publishDir \"${params.resultDir}/corrected/CRISPRcleanR/output\", mode: 'copy', pattern: \"*CRISPRcleanR_corrected*\", overwrite: true"
+        ],
+        "when": "!params.no_correction && !params.no_crisprcleanr",
+        "stub": ""
+    },
+    "bagel_normalise_counts": {
+        "name_process": "bagel_normalise_counts",
+        "string_process": "\nprocess bagel_normalise_counts {\n  tag \"BAGEL: normalisation\"\n\n  publishDir \"${params.resultDir}/normalised\", mode: 'copy', pattern: \"${params.bagel_normalisation_outfile}\", overwrite: true\n  publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.bagel_normalisation_rdata}\", overwrite: true\n\n  input:\n    tuple val(count_type), path(count_matrix), path( library )\n    val count_indices\n\n  output:\n    tuple val('normalised'), path( \"${params.bagel_normalisation_outfile}\" ), path( library ), emit: normalised_count_matrix\n    path \"${params.bagel_normalisation_rdata}\", emit: rdata\n\n  when:\n    params.normalisation_method == 'bagel' && !params.no_normalisation\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/BAGEL_normalisation.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.bagel_normalisation_outdir}\\\"\"\n    cmd = \"${cmd} --outfile \\\"${params.bagel_normalisation_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.bagel_normalisation_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n\n    cmd = \"${cmd} --pseudocount ${params.bagel_normalisation_pseudocount}\"\n    cmd = \"${cmd} --scaling_factor ${params.bagel_normalisation_scaling_factor}\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/BAGEL_normalisation.R\"\n\n    cmd = \"${params.rscript_exec} ${script_path} -c ${count_matrix}\"\n\n    cmd = \"${cmd} --outdir \\\"${params.bagel_normalisation_outdir}\\\"\"\n    cmd = \"${cmd} --outfile \\\"${params.bagel_normalisation_outfile}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.bagel_normalisation_rdata}\\\"\"\n\n    cmd = \"${cmd} --count_id_column_index ${params.count_id_column_index}\"\n    cmd = \"${cmd} --count_gene_column_index ${params.count_gene_column_index}\"\n    cmd = \"${cmd} --count_count_column_index ${count_indices}\"\n\n    cmd = \"${cmd} --pseudocount ${params.bagel_normalisation_pseudocount}\"\n    cmd = \"${cmd} --scaling_factor ${params.bagel_normalisation_scaling_factor}\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_type",
+            "count_matrix",
+            "library",
+            "count_indices"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"BAGEL: normalisation\"",
+            "publishDir \"${params.resultDir}/normalised\", mode: 'copy', pattern: \"${params.bagel_normalisation_outfile}\", overwrite: true",
+            "publishDir \"${params.resultDir}/normalised/\", mode: 'copy', pattern: \"${params.bagel_normalisation_rdata}\", overwrite: true"
+        ],
+        "when": "params.normalisation_method == 'bagel' && !params.no_normalisation",
+        "stub": ""
+    },
+    "BAGEL_bf": {
+        "name_process": "BAGEL_bf",
+        "string_process": "\nprocess BAGEL_bf {\n  tag \"BAGEL: BAGEL bf\"\n\n  publishDir \"${params.resultDir}/BAGEL2/${contrast}\", mode: 'copy', pattern: '*.bf', overwrite: true\n\n  input:\n    tuple val( input_analysis_stage ), val( contrast ), file( library ), file( fc_input_count_matrix ), file( count_matrix ), path( sgrna_fold_change_matrix ), path( gene_fold_change_matrix )\n    val( analysis_indices )\n    val( analysis_type )\n\n  output:\n    tuple val( contrast ), path( \"BAGEL.${contrast}.${analysis_type}.bf\" ), emit: bagel_results\n\n  when:\n    !params.no_bagel && !params.no_analysis\n\n  script:\n    analysis_name = \"BAGEL.${contrast}.${analysis_type}\"\n    exec_name = \"BAGEL.py bf\"\n\n                           \n    if ( input_analysis_stage == 'corrected' ) {\n      treatment_index_values = 7\n    } else {\n      treatment_index_values = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1\"]\n    }\n\n    output_filename = \"${analysis_name}.bf\"\n\n    cmd = \"${exec_name} -i ${sgrna_fold_change_matrix}\"\n    cmd = \"${cmd} -o ${output_filename}\"\n    cmd = \"${cmd} -e ${params.essential_genes}\"\n    cmd = \"${cmd} -n ${params.nonessential_genes}\"\n    cmd = \"${cmd} -c ${treatment_index_values}\"\n    if ( \"${analysis_type}\" == \"sgrna\" ) { cmd = \"${cmd} -r\" }\n    cmd = (params.bagel_bf_extra_options) ? \"${cmd} ${params.bagel_bf_extra_options}\" : cmd\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    analysis_name = \"BAGEL.${contrast}.${analysis_type}\"\n    exec_name = \"BAGEL.py bf\"\n\n                           \n    if ( input_analysis_stage == 'corrected' ) {\n      treatment_index_values = 7\n    } else {\n      treatment_index_values = analysis_indices[\"${contrast}\"][\"lfc\"][\"base1\"]\n    }\n\n    output_filename = \"${analysis_name}.bf\"\n\n    cmd = \"${exec_name} -i ${sgrna_fold_change_matrix}\"\n    cmd = \"${cmd} -o ${output_filename}\"\n    cmd = \"${cmd} -e ${params.essential_genes}\"\n    cmd = \"${cmd} -n ${params.nonessential_genes}\"\n    cmd = \"${cmd} -c ${treatment_index_values}\"\n    if ( \"${analysis_type}\" == \"sgrna\" ) { cmd = \"${cmd} -r\" }\n    cmd = (params.bagel_bf_extra_options) ? \"${cmd} ${params.bagel_bf_extra_options}\" : cmd\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_analysis_stage",
+            "contrast",
+            "library",
+            "fc_input_count_matrix",
+            "count_matrix",
+            "sgrna_fold_change_matrix",
+            "gene_fold_change_matrix",
+            "analysis_indices",
+            "analysis_type"
+        ],
+        "nb_inputs": 9,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"BAGEL: BAGEL bf\"",
+            "publishDir \"${params.resultDir}/BAGEL2/${contrast}\", mode: 'copy', pattern: '*.bf', overwrite: true"
+        ],
+        "when": "!params.no_bagel && !params.no_analysis",
+        "stub": ""
+    },
+    "scale_gene_BFs": {
+        "name_process": "scale_gene_BFs",
+        "string_process": "\nprocess scale_gene_BFs {\n  tag \"UTILS: calculating scaled BFs\"\n\n  publishDir \"${params.resultDir}/BAGEL2/${contrast}/scaled\", mode: 'copy', pattern: '*ROC*', overwrite: true\n  publishDir \"${params.resultDir}/BAGEL2/${contrast}/scaled\", mode: 'copy', pattern: 'BF*', overwrite: true\n  publishDir \"${params.resultDir}/BAGEL2/${contrast}/scaled\", mode: 'copy', pattern: '*scaled*', overwrite: true\n\n  input:\n    tuple val( contrast ), file( bagel_bf_sgrna )\n    val( analysis_indices )\n\n  output:\n    tuple val( contrast ), path( \"BF.gene.ROC.${analysis_suffix}.png\" )\n    tuple val( contrast ), path( \"ROC_summary.${analysis_suffix}.tsv\" )\n    tuple val( contrast ), path( \"BF.scaled.gene.${analysis_suffix}.tsv\" )\n    tuple val( contrast ), path( \"BF.scaled_depletions_matrix.gene.${analysis_suffix}.tsv\" )\n    path \"scaled_BF.${analysis_suffix}.Rdata\", emit: rdata\n\n  when:\n    params.scale_bayes_factors\n\n  script:\n    script_path = \"${baseDir}/submodules/rcrispr/exec/scale_lfcs_and_bfs.R\"\n    analysis_suffix = \"BF.${contrast}\"\n\n    treatment_index_values = analysis_indices[\"${contrast}\"][\"bf\"][\"base1\"]\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --is_bf\"\n    cmd = \"${cmd} --threshold ${params.scaled_bf_threshold}\"\n\n    cmd = \"${cmd} --infile \\\"${bagel_bf_sgrna}\\\"\"\n    cmd = ( params.scaled_bf_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n    cmd = \"${cmd} --infile_delim \\\"${params.scaled_bf_infile_delim}\\\"\"\n    cmd = \"${cmd} --infile_gene_column_index ${params.scaled_bf_infile_gene_column_index}\"\n    cmd = \"${cmd} --infile_data_column_index \\\"${treatment_index_values}\\\"\"\n\n    cmd = \"${cmd} --ess \\\"${params.essential_genes}\\\"\"\n    cmd = \"${cmd} --ess_gene_column_index ${params.ess_gene_column_index}\"\n    cmd = \"${cmd} --no_ess_header\"\n    cmd = \"${cmd} --ess_delim \\\"${params.ess_delim}\\\"\"\n\n    cmd = \"${cmd} --noness \\\"${params.nonessential_genes}\\\"\"\n    cmd = \"${cmd} --noness_gene_column_index \\\"${params.noness_gene_column_index}\\\"\"\n    cmd = \"${cmd} --no_noness_header\"\n    cmd = \"${cmd} --noness_delim \\\"${params.noness_delim}\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.scaled_bf_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${analysis_suffix}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.scaled_bf_rdata}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"\n}",
+        "nb_lignes_process": 54,
+        "string_script": "    script_path = \"${baseDir}/submodules/rcrispr/exec/scale_lfcs_and_bfs.R\"\n    analysis_suffix = \"BF.${contrast}\"\n\n    treatment_index_values = analysis_indices[\"${contrast}\"][\"bf\"][\"base1\"]\n\n    cmd = \"${params.rscript_exec} ${script_path}\"\n    cmd = \"${cmd} --is_bf\"\n    cmd = \"${cmd} --threshold ${params.scaled_bf_threshold}\"\n\n    cmd = \"${cmd} --infile \\\"${bagel_bf_sgrna}\\\"\"\n    cmd = ( params.scaled_bf_infile_header ) ? cmd : \"${cmd} --no_infile_header\"\n    cmd = \"${cmd} --infile_delim \\\"${params.scaled_bf_infile_delim}\\\"\"\n    cmd = \"${cmd} --infile_gene_column_index ${params.scaled_bf_infile_gene_column_index}\"\n    cmd = \"${cmd} --infile_data_column_index \\\"${treatment_index_values}\\\"\"\n\n    cmd = \"${cmd} --ess \\\"${params.essential_genes}\\\"\"\n    cmd = \"${cmd} --ess_gene_column_index ${params.ess_gene_column_index}\"\n    cmd = \"${cmd} --no_ess_header\"\n    cmd = \"${cmd} --ess_delim \\\"${params.ess_delim}\\\"\"\n\n    cmd = \"${cmd} --noness \\\"${params.nonessential_genes}\\\"\"\n    cmd = \"${cmd} --noness_gene_column_index \\\"${params.noness_gene_column_index}\\\"\"\n    cmd = \"${cmd} --no_noness_header\"\n    cmd = \"${cmd} --noness_delim \\\"${params.noness_delim}\\\"\"\n\n    cmd = \"${cmd} --outdir \\\"${params.scaled_bf_outdir}\\\"\"\n    cmd = \"${cmd} --suffix \\\"${analysis_suffix}\\\"\"\n    cmd = \"${cmd} --rdata \\\"${params.scaled_bf_rdata}\\\"\"\n\n    \"\"\"\n    $cmd\n    \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "contrast",
+            "bagel_bf_sgrna",
+            "analysis_indices"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "contrast",
+            "contrast",
+            "contrast",
+            "contrast"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "cancerit__C-SAR",
+        "directive": [
+            "tag \"UTILS: calculating scaled BFs\"",
+            "publishDir \"${params.resultDir}/BAGEL2/${contrast}/scaled\", mode: 'copy', pattern: '*ROC*', overwrite: true",
+            "publishDir \"${params.resultDir}/BAGEL2/${contrast}/scaled\", mode: 'copy', pattern: 'BF*', overwrite: true",
+            "publishDir \"${params.resultDir}/BAGEL2/${contrast}/scaled\", mode: 'copy', pattern: '*scaled*', overwrite: true"
+        ],
+        "when": "params.scale_bayes_factors",
+        "stub": ""
+    }
+}

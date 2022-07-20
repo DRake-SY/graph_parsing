@@ -1,0 +1,2757 @@
+{
+    "FGBIO_SORT_BAM": {
+        "name_process": "FGBIO_SORT_BAM",
+        "string_process": "\nprocess FGBIO_SORT_BAM {\n    tag \"$meta.id\"\n    label 'process_high'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)\n                                                      \n\n    input:\n    tuple val(meta), file(bam)\n\n    output:\n    tuple val(meta), file(\"*sort*.bam\")\n\n    script:\n    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g SortBam \\\\\n    -i $bam \\\\\n    -o ${meta.id}_sort.bam \\\\\n    --sort-order TemplateCoordinate \\\\\n    --max-records-in-ram 8000000\n    \"\"\"\n    stub:\n    \"\"\"\n    touch ${meta.id}_sort.bam\n    \"\"\"\n    }",
+        "nb_lignes_process": 28,
+        "string_script": "    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g SortBam \\\\\n    -i $bam \\\\\n    -o ${meta.id}_sort.bam \\\\\n    --sort-order TemplateCoordinate \\\\\n    --max-records-in-ram 8000000\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "meta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch ${meta.id}_sort.bam\n    \"\"\""
+    },
+    "GROUP_READS_BY_UMI": {
+        "name_process": "GROUP_READS_BY_UMI",
+        "string_process": "\nprocess GROUP_READS_BY_UMI {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)\n                                                      \n\n    input:\n    tuple val(meta), file(bam)\n\n    output:\n    tuple val(meta), file(\"*umi_group.bam\"), emit: bam\n    tuple val(meta), file(\"*.metrics\"),      emit: group_metrics\n\n    script:\n    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g GroupReadsByUmi \\\\\n    -i ${meta.id}.bam \\\\\n    -f ${meta.id}_aln_merged_umi.metrics \\\\\n    -s adjacency -m 30 -t RX -T MI --min-umi-length 9 \\\\\n    -o ${meta.id}_umi_group.bam \n    \"\"\"\n    stub:\n    \"\"\"\n    touch ${meta.patient}_${meta.sample}_umi_group.bam\n    touch ${meta.patient}_${meta.sample}_aln_merged_umi.metrics\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g GroupReadsByUmi \\\\\n    -i ${meta.id}.bam \\\\\n    -f ${meta.id}_aln_merged_umi.metrics \\\\\n    -s adjacency -m 30 -t RX -T MI --min-umi-length 9 \\\\\n    -o ${meta.id}_umi_group.bam \n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch ${meta.patient}_${meta.sample}_umi_group.bam\n    touch ${meta.patient}_${meta.sample}_aln_merged_umi.metrics\n    \"\"\""
+    },
+    "PICARD_MERGE_BAMS": {
+        "name_process": "PICARD_MERGE_BAMS",
+        "string_process": "\nprocess PICARD_MERGE_BAMS {\n    tag \"$meta.id\"\n    label 'process_high'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n                                                        \n\n    input:\n    tuple val(meta), file(aligned_unmarked_sam), file(unaligned_marked_bam)\n    path fasta\n    path dict\n\n    output:\n    tuple val(meta), file(\"*merged.bam\"), emit: merged_bam\n    path  \"*.version.txt\"               , emit: version\n\n    script:\n    def max_records = task.memory.toGiga() * 100000\n    def software  = getSoftwareName(task.process)\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    def avail_mem = 3\n        if (!task.memory) {\n        log.info '[Picard MergeSamFiles] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    \"\"\"\n    picard -Xmx${avail_mem}g MergeBamAlignment \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    R=$fasta \\\\\n    ${options.args} \\\\\n    UNMAPPED_BAM=${unaligned_marked_bam} \\\\\n    ALIGNED_BAM=${aligned_unmarked_sam} \\\\\n    O=\"${prefix}.merged.bam\" \\\\\n    ADD_MATE_CIGAR=true CLIP_ADAPTERS=false \\\\\n    CLIP_OVERLAPPING_READS=true INCLUDE_SECONDARY_ALIGNMENTS=true \\\\\n    MAX_INSERTIONS_OR_DELETIONS=-1 PRIMARY_ALIGNMENT_STRATEGY=MostDistant \\\\\n    ATTRIBUTES_TO_RETAIN=XS\n    echo \\$(picard MergeSamFiles --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n    \"\"\"\n    stub:\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.merged.bam\n    touch software.version.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 49,
+        "string_script": "    def max_records = task.memory.toGiga() * 100000\n    def software  = getSoftwareName(task.process)\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    def avail_mem = 3\n        if (!task.memory) {\n        log.info '[Picard MergeSamFiles] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    \"\"\"\n    picard -Xmx${avail_mem}g MergeBamAlignment \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    R=$fasta \\\\\n    ${options.args} \\\\\n    UNMAPPED_BAM=${unaligned_marked_bam} \\\\\n    ALIGNED_BAM=${aligned_unmarked_sam} \\\\\n    O=\"${prefix}.merged.bam\" \\\\\n    ADD_MATE_CIGAR=true CLIP_ADAPTERS=false \\\\\n    CLIP_OVERLAPPING_READS=true INCLUDE_SECONDARY_ALIGNMENTS=true \\\\\n    MAX_INSERTIONS_OR_DELETIONS=-1 PRIMARY_ALIGNMENT_STRATEGY=MostDistant \\\\\n    ATTRIBUTES_TO_RETAIN=XS\n    echo \\$(picard MergeSamFiles --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "aligned_unmarked_sam",
+            "unaligned_marked_bam",
+            "fasta",
+            "dict"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.merged.bam\n    touch software.version.txt\n    \"\"\""
+    },
+    "FILTER_UMIS": {
+        "name_process": "FILTER_UMIS",
+        "string_process": "\nprocess FILTER_UMIS {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"*trimmed_?.fq.gz\"), emit: reads\n\n    script:\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    ln -s ${reads[0]} ${prefix}_trimmed_1.fq.gz\n    ln -s ${reads[2]} ${prefix}_trimmed_3.fq.gz\n    filter_umis.py -u ${prefix}_2.fq.gz -v ${prefix}_1_val_1.fq.gz\n    \"\"\"\n    \n    stub:\n    \"\"\"\n    touch fastq_trimmed_1.fq.gz\n    touch fastq_trimmed_2.fq.gz\n    touch fastq_trimmed_3.fq.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    ln -s ${reads[0]} ${prefix}_trimmed_1.fq.gz\n    ln -s ${reads[2]} ${prefix}_trimmed_3.fq.gz\n    filter_umis.py -u ${prefix}_2.fq.gz -v ${prefix}_1_val_1.fq.gz\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch fastq_trimmed_1.fq.gz\n    touch fastq_trimmed_2.fq.gz\n    touch fastq_trimmed_3.fq.gz\n    \"\"\""
+    },
+    "BWA_ALN": {
+        "name_process": "BWA_ALN",
+        "string_process": "\nprocess BWA_ALN {\n    label 'process_high'\n\n    tag \"${meta.id}\"\n    \n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::bwa=0.7.17 bioconda::samtools=1.10\" : null )\n                                                                                                                                     \n\n\n    input:\n    tuple val(meta), file(reads) \n    path index\n    path fasta\n    path fai\n\n    output:\n    tuple val(meta), file(\"*bam\"), emit: bam\n    path  \"*.version.txt\"   , emit: version\n\n    script:\n    def software   = getSoftwareName(task.process)\n    def CN = params.sequencing_center ? \"CN:${params.sequencing_center}\\\\t\" : \"\"\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    bwa mem \\\\\n    ${options.args} \\\\\n    -t ${task.cpus} \\\\\n    ${fasta} ${reads} | \\\\\n    samtools sort --threads ${task.cpus} -m 2G -o ${prefix}.bam\n    echo \\$(bwa 2>&1) | sed 's/^.*Version: //; s/Contact:.*\\$//' > ${software}.version.txt\n    \"\"\"\n    stub:\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.bam\n    touch bwa.version.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 41,
+        "string_script": "    def software   = getSoftwareName(task.process)\n    def CN = params.sequencing_center ? \"CN:${params.sequencing_center}\\\\t\" : \"\"\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    bwa mem \\\\\n    ${options.args} \\\\\n    -t ${task.cpus} \\\\\n    ${fasta} ${reads} | \\\\\n    samtools sort --threads ${task.cpus} -m 2G -o ${prefix}.bam\n    echo \\$(bwa 2>&1) | sed 's/^.*Version: //; s/Contact:.*\\$//' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "BWA",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads",
+            "index",
+            "fasta",
+            "fai"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "label 'process_high'",
+            "tag \"${meta.id}\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::bwa=0.7.17 bioconda::samtools=1.10\" : null )"
+        ],
+        "when": "",
+        "stub": "\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.bam\n    touch bwa.version.txt\n    \"\"\""
+    },
+    "MULTIQC_2": {
+        "name_process": "MULTIQC_2",
+        "string_process": "\nprocess MULTIQC_2 {\n    echo true\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    conda     (params.enable_conda ? \"bioconda::multiqc=1.9\" : null)\n                                                                 \n\n    input:\n    path multiqc_config\n    path multiqc_custom_config\n    path ('md_metrics/*')\n    path ('error_rate_2/*')\n\n    output:\n    path \"*multiqc_report.html\", emit: report\n    path \"*_data\"              , emit: data\n    path \"*_plots\"             , optional:true, emit: plots\n\n    script:\n                                                                   \n                                                                                                                                    \n    custom_config = params.multiqc_config ? \"--config ${multiqc_custom_config}\" : ''\n    \"\"\"\n    multiqc -f $options.args . --config $multiqc_config\n    \"\"\"\n    stub:\n    \"\"\"\n    touch stub_multiqc_report.html\n    touch stub_data\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    custom_config = params.multiqc_config ? \"--config ${multiqc_custom_config}\" : ''\n    \"\"\"\n    multiqc -f $options.args . --config $multiqc_config\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "multiqc_config",
+            "multiqc_custom_config"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "echo true",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "conda (params.enable_conda ? \"bioconda::multiqc=1.9\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch stub_multiqc_report.html\n    touch stub_data\n    \"\"\""
+    },
+    "MARK_ILLUMINA_ADAPTERS": {
+        "name_process": "MARK_ILLUMINA_ADAPTERS",
+        "string_process": "\nprocess MARK_ILLUMINA_ADAPTERS {\n    tag \"{$meta.id}\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n                                                        \n\n    input:\n    tuple val(meta), file(bam)\n\n    output:\n    tuple val(meta), file(\"*bam\"), emit : bam\n    tuple val(meta), file(\"*_mark_adapter.metrics\"), emit: mark_adaptor_log\n\n    script:\n    def max_records = task.memory.toGiga() * 100000\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    picard -Xmx${task.memory.toGiga()}g  MarkIlluminaAdapters \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    INPUT=$bam \\\\\n    OUTPUT=\"${prefix}_unaln_umi_marked.bam\" \\\\\n    METRICS=\"${prefix}_mark_adapter.metrics\"\n    \"\"\"\n    stub:\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}_unaln_umi_marked.bam\n    touch ${prefix}_mark_adapter.metrics\n\t\"\"\"\n    }",
+        "nb_lignes_process": 33,
+        "string_script": "    def max_records = task.memory.toGiga() * 100000\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    picard -Xmx${task.memory.toGiga()}g  MarkIlluminaAdapters \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    INPUT=$bam \\\\\n    OUTPUT=\"${prefix}_unaln_umi_marked.bam\" \\\\\n    METRICS=\"${prefix}_mark_adapter.metrics\"\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"{$meta.id}\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}_unaln_umi_marked.bam\n    touch ${prefix}_mark_adapter.metrics\n\t\"\"\""
+    },
+    "SAMTOOLS_MERGE_BAM": {
+        "name_process": "SAMTOOLS_MERGE_BAM",
+        "string_process": "\nprocess SAMTOOLS_MERGE_BAM {\n    echo true\n    label 'process_high'\n    tag \"${meta.id}\"\n\n    publishDir params.outdir, mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    input:\n        tuple val(meta), path(bam)\n\n    output:\n        tuple val(meta), path(\"${meta.id}.bam\"), emit: bam\n\n    script:\n    prefix = options.suffix ? \"${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    samtools merge --threads ${task.cpus} temp.bam ${bam}\n    samtools sort  --threads ${task.cpus} -o ${prefix}.bam  temp.bam\n    \"\"\"\n    stub:\n    prefix = options.suffix ? \"${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    touch ${prefix}.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    prefix = options.suffix ? \"${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    samtools merge --threads ${task.cpus} temp.bam ${bam}\n    samtools sort  --threads ${task.cpus} -o ${prefix}.bam  temp.bam\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "echo true",
+            "label 'process_high'",
+            "tag \"${meta.id}\"",
+            "publishDir params.outdir, mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }"
+        ],
+        "when": "",
+        "stub": "\n    prefix = options.suffix ? \"${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    touch ${prefix}.bam\n    \"\"\""
+    },
+    "MULTIQC": {
+        "name_process": "MULTIQC",
+        "string_process": "\nprocess MULTIQC {\n    echo true\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    conda     (params.enable_conda ? \"bioconda::multiqc=1.9\" : null)\n                                                                 \n\n    input:\n    path multiqc_config\n    path multiqc_custom_config\n    path  workflow_summary\n    path ('fastqc/*')\n    path ('hs_metrics/*')\n    path ('md_hs_metrics/*')\n    path ('error_rate/*')\n    path ('group_metrics/*')\n    path ('md_metrics/*')\n    path ('error_rate_2/*')\n    path ('bamqc_out/*')\n\n    output:\n    path \"*multiqc_report.html\", emit: report\n    path \"*_data\"              , emit: data\n    path \"*_plots\"             , optional:true, emit: plots\n\n    script:\n                                                                   \n                                                                                                                                    \n    custom_config = params.multiqc_config ? \"--config ${multiqc_custom_config}\" : ''\n    \"\"\"\n    multiqc -f $options.args . --config $multiqc_config\n    \"\"\"\n    stub:\n    \"\"\"\n    touch stub_multiqc_report.html\n    touch stub_data\n    \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    custom_config = params.multiqc_config ? \"--config ${multiqc_custom_config}\" : ''\n    \"\"\"\n    multiqc -f $options.args . --config $multiqc_config\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "multiqc_config",
+            "multiqc_custom_config",
+            "workflow_summary"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "echo true",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "conda (params.enable_conda ? \"bioconda::multiqc=1.9\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch stub_multiqc_report.html\n    touch stub_data\n    \"\"\""
+    },
+    "CALL_CONSENSUS": {
+        "name_process": "CALL_CONSENSUS",
+        "string_process": "\nprocess CALL_CONSENSUS {\n    tag \"$meta.id\"\n    label 'CALL_CONSENSUS'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)\n                                                      \n\n    input:\n    tuple val(meta), file(bam)\n\n    output:\n    tuple val(meta), file(\"*consensus.bam\")\n\n    script:\n    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g \\\\\n    -XX:+AggressiveOpts \\\\\n    -XX:+AggressiveHeap \\\\\n    -Dsamjdk.use_async_io_read_samtools=true \\\\\n    -Dsamjdk.use_async_io_write_samtools=true \\\\\n    CallMolecularConsensusReads \\\\\n    -i $bam \\\\\n    -o ${meta.id}_consensus.bam \\\\\n    --min-reads 1 \\\\\n    --min-input-base-quality 30 \\\\\n    --tag MI\n    \"\"\"\n    stub:\n    \"\"\"\n    touch ${meta.id}_consensus.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g \\\\\n    -XX:+AggressiveOpts \\\\\n    -XX:+AggressiveHeap \\\\\n    -Dsamjdk.use_async_io_read_samtools=true \\\\\n    -Dsamjdk.use_async_io_write_samtools=true \\\\\n    CallMolecularConsensusReads \\\\\n    -i $bam \\\\\n    -o ${meta.id}_consensus.bam \\\\\n    --min-reads 1 \\\\\n    --min-input-base-quality 30 \\\\\n    --tag MI\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "meta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'CALL_CONSENSUS'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch ${meta.id}_consensus.bam\n    \"\"\""
+    },
+    "PICARD_MERGESAMFILES": {
+        "name_process": "PICARD_MERGESAMFILES",
+        "string_process": "\nprocess PICARD_MERGESAMFILES {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n    container \"quay.io/biocontainers/picard:2.23.8--0\"\n\n    input:\n    tuple val(meta), path(bams)\n \n    output:\n    tuple val(meta), path(\"*.bam\"), emit: bam\n    path  \"*.version.txt\"         , emit: version\n\n    script:\n    def software  = getSoftwareName(task.process)\n    def prefix    = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def bam_files = bams.sort()\n    def avail_mem = 3\n    if (!task.memory) {\n        log.info '[Picard MergeSamFiles] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    if (bam_files.size() > 1) {\n        \"\"\"\n        picard \\\\\n            -Xmx${avail_mem}g \\\\\n            MergeSamFiles \\\\\n            $options.args \\\\\n            ${'INPUT='+bam_files.join(' INPUT=')} \\\\\n            OUTPUT=${prefix}.bam\n        echo \\$(picard MergeSamFiles --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        ln -s ${bam_files[0]} ${prefix}.bam\n        echo \\$(picard MergeSamFiles --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 43,
+        "string_script": "    def software  = getSoftwareName(task.process)\n    def prefix    = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def bam_files = bams.sort()\n    def avail_mem = 3\n    if (!task.memory) {\n        log.info '[Picard MergeSamFiles] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    if (bam_files.size() > 1) {\n        \"\"\"\n        picard \\\\\n            -Xmx${avail_mem}g \\\\\n            MergeSamFiles \\\\\n            $options.args \\\\\n            ${'INPUT='+bam_files.join(' INPUT=')} \\\\\n            OUTPUT=${prefix}.bam\n        echo \\$(picard MergeSamFiles --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        ln -s ${bam_files[0]} ${prefix}.bam\n        echo \\$(picard MergeSamFiles --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n        \"\"\"\n    }",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bams"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)",
+            "container \"quay.io/biocontainers/picard:2.23.8--0\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "BED_TO_INTERVAL_LIST": {
+        "name_process": "BED_TO_INTERVAL_LIST",
+        "string_process": "\nprocess BED_TO_INTERVAL_LIST {\n    tag \"intervals\"\n    label 'process_low'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n                                                        \n\n    input:\n    path target_bed\n    path dict\n\n    output:\n    path \"interval.list\",   emit: interval_list\n    path \"*.version.txt\",   emit: version\n\n    script:\n    def software  = getSoftwareName(task.process)\n    \"\"\"\n    picard -Xmx${task.memory.toGiga()}g BedToIntervalList \\\\\n    I=${target_bed} \\\\\n    SD=${dict} \\\\\n    O=interval.list\n    echo \\$(picard  BedToIntervalList --version 2>&1) > ${software}.version.txt\n    \"\"\"\n    stub:\n    \"\"\"\n    touch interval.list\n    touch software.version.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 32,
+        "string_script": "    def software  = getSoftwareName(task.process)\n    \"\"\"\n    picard -Xmx${task.memory.toGiga()}g BedToIntervalList \\\\\n    I=${target_bed} \\\\\n    SD=${dict} \\\\\n    O=interval.list\n    echo \\$(picard  BedToIntervalList --version 2>&1) > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "target_bed",
+            "dict"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"intervals\"",
+            "label 'process_low'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch interval.list\n    touch software.version.txt\n    \"\"\""
+    },
+    "ERRORRATE_BY_READ_POSITION": {
+        "name_process": "ERRORRATE_BY_READ_POSITION",
+        "string_process": "\nprocess ERRORRATE_BY_READ_POSITION {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)\n                                                      \n\n    input:\n    tuple val(meta), path(bam)\n    path fasta\n    path dict \n    path dbsnp\n    path dbsnp_index \n    path interval_list\n\n    output:\n    tuple val(meta), file(\"*.error_rate_by_read_position.txt\"), emit: error_rate\n\n    script:\n    output_options = params.second_file ? \"--output ${meta.patient}_${meta.sample}_st2_qc\" : \"--output ${meta.patient}_${meta.sample}_st1_qc\"\n    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g ErrorRateByReadPosition \\\\\n    --input ${meta.id}.bam \\\\\n    ${output_options} \\\\\n    --intervals ${interval_list} \\\\\n    --ref ${fasta} \\\\\n    --variants ${dbsnp}\n    \"\"\"\n    stub:\n    output_options = params.second_file ? \"--output ${meta.patient}_${meta.sample}_st2_qc\" : \"--output ${meta.patient}_${meta.sample}_st1_qc\"\n    \"\"\"\n    output=\"${output_options}\"\n    touch \\${output:8}.error_rate_by_read_position.txt\n    \"\"\"\n\n\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    output_options = params.second_file ? \"--output ${meta.patient}_${meta.sample}_st2_qc\" : \"--output ${meta.patient}_${meta.sample}_st1_qc\"\n    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g ErrorRateByReadPosition \\\\\n    --input ${meta.id}.bam \\\\\n    ${output_options} \\\\\n    --intervals ${interval_list} \\\\\n    --ref ${fasta} \\\\\n    --variants ${dbsnp}\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "bam",
+            "fasta",
+            "dict",
+            "dbsnp",
+            "dbsnp_index",
+            "interval_list"
+        ],
+        "nb_inputs": 7,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    output_options = params.second_file ? \"--output ${meta.patient}_${meta.sample}_st2_qc\" : \"--output ${meta.patient}_${meta.sample}_st1_qc\"\n    \"\"\"\n    output=\"${output_options}\"\n    touch \\${output:8}.error_rate_by_read_position.txt\n    \"\"\""
+    },
+    "PICARD_UMI_AWARE_MARKDUPLICATES_WITH_MATE_CIGAR": {
+        "name_process": "PICARD_UMI_AWARE_MARKDUPLICATES_WITH_MATE_CIGAR",
+        "string_process": "\nprocess PICARD_UMI_AWARE_MARKDUPLICATES_WITH_MATE_CIGAR {\n    tag \"${meta.id}\"\n    label 'process_high'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"bioconda::picard=2.26.2\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/picard:2.26.2--hdfd78af_0\"\n    } else {\n        container \"quay.io/picard:2.26.2--hdfd78af_0\"\n    }\n\n    input:\n    tuple val(meta), path(bam)\n\n    output:\n    tuple val(meta), path(\"*bam\"),      emit: md_bam\n    tuple val(meta), path(\"*bai\"),      emit: md_bai\n    val (meta),                         emit: tsv\n    tuple val(meta), path(\"*.metrics\"), emit: report \n\n    script:\n    def software = getSoftwareName(task.process)\n    def avail_mem = 3\n    if (!task.memory) {\n        log.info '[picard UmiAwareMarkDuplicatesWithMateCigar] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    picard -Xmx${avail_mem}g \\\\\n    UmiAwareMarkDuplicatesWithMateCigar \\\\\n    --INPUT  $bam \\\\\n    --OUTPUT ${prefix}_umi_aware_md.bam \\\\\n    --ASSUME_SORT_ORDER  coordinate \\\\\n    --METRICS_FILE ${prefix}_duplicate.metrics \\\\\n    --UMI_METRICS_FILE ${prefix}_umi.metrics \\\\\n    --CREATE_INDEX true\n    echo \\$(picard UmiAwareMarkDuplicatesWithMateCigar --version 2>&1) | sed 's/^.*Version://' > ${software}.version.txt\n    \"\"\"\n    \n    stub:\n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    touch ${prefix}_umi_aware_md.bam\n    touch ${prefix}_umi_aware_md.bam.bai\n    touch ${prefix}_duplicate.metrics\n    touch ${prefix}_umi.metrics\n\n    echo 2.6.2 > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 55,
+        "string_script": "    def software = getSoftwareName(task.process)\n    def avail_mem = 3\n    if (!task.memory) {\n        log.info '[picard UmiAwareMarkDuplicatesWithMateCigar] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    picard -Xmx${avail_mem}g \\\\\n    UmiAwareMarkDuplicatesWithMateCigar \\\\\n    --INPUT  $bam \\\\\n    --OUTPUT ${prefix}_umi_aware_md.bam \\\\\n    --ASSUME_SORT_ORDER  coordinate \\\\\n    --METRICS_FILE ${prefix}_duplicate.metrics \\\\\n    --UMI_METRICS_FILE ${prefix}_umi.metrics \\\\\n    --CREATE_INDEX true\n    echo \\$(picard UmiAwareMarkDuplicatesWithMateCigar --version 2>&1) | sed 's/^.*Version://' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"${meta.id}\"",
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.26.2\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/picard:2.26.2--hdfd78af_0\" } else { container \"quay.io/picard:2.26.2--hdfd78af_0\" }"
+        ],
+        "when": "",
+        "stub": "\n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    touch ${prefix}_umi_aware_md.bam\n    touch ${prefix}_umi_aware_md.bam.bai\n    touch ${prefix}_duplicate.metrics\n    touch ${prefix}_umi.metrics\n\n    echo 2.6.2 > ${software}.version.txt\n    \"\"\""
+    },
+    "SAMBAMBA_SORT": {
+        "name_process": "SAMBAMBA_SORT",
+        "string_process": "\nprocess SAMBAMBA_SORT {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::sambamba=0.8.1\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/sambamba:0.8.1--hadffe2f_1' :\n        'quay.io/biocontainers/sambamba:0.8.1--hadffe2f_1' }\"\n\n    input:\n    tuple val(meta), path(bam)\n\n    output:\n    tuple val(meta), path(\"*sorted.bam\"), emit: bam\n    path  \"*.version.txt\"               , emit: version\n\n    script:\n    def software = getSoftwareName(task.process)\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    if (\"$bam\" == \"${prefix}.bam\") error \"Input and output names are the same, use \\\"task.ext.prefix\\\" to disambiguate!\"\n    \"\"\"\n    sambamba sort  \\\n        $bam \\\n        --memory-limit=${task.memory.toGiga()}G \\\n        --tmpdir=./temp \\\n        --nthreads=${task.cpus}\n\n    cat <<-END_VERSIONS > ${software}.version.txt\n        sambamba: \\$(echo \\$(sambamba --version 2>&1) | sed 's/^.*sambamba //; s/ by.*//')\n    END_VERSIONS\n    \"\"\"\n    stub:\n    def software = getSoftwareName(task.process)\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    if (\"$bam\" == \"${prefix}.bam\") error \"Input and output names are the same, use \\\"task.ext.prefix\\\" to disambiguate!\"\n    \"\"\"\n    touch ${bam}.sorted.bam\n    touch ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    def software = getSoftwareName(task.process)\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    if (\"$bam\" == \"${prefix}.bam\") error \"Input and output names are the same, use \\\"task.ext.prefix\\\" to disambiguate!\"\n    \"\"\"\n    sambamba sort  \\\n        $bam \\\n        --memory-limit=${task.memory.toGiga()}G \\\n        --tmpdir=./temp \\\n        --nthreads=${task.cpus}\n\n    cat <<-END_VERSIONS > ${software}.version.txt\n        sambamba: \\$(echo \\$(sambamba --version 2>&1) | sed 's/^.*sambamba //; s/ by.*//')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "Sambamba",
+            "TEMP"
+        ],
+        "tools_url": [
+            "https://bio.tools/sambamba",
+            "https://bio.tools/temp"
+        ],
+        "tools_dico": [
+            {
+                "name": "Sambamba",
+                "uri": "https://bio.tools/sambamba",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This tool is a high performance modern robust and fast tool (and library), written in the D programming language, for working with SAM, BAM and CRAM formats.",
+                "homepage": "http://www.open-bio.org/wiki/Sambamba"
+            },
+            {
+                "name": "TEMP",
+                "uri": "https://bio.tools/temp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0427",
+                                    "term": "Transposon prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A software package for detecting transposable elements (TEs) insertions and excisions from pooled high-throughput sequencing data.",
+                "homepage": "https://github.com/JialiUMassWengLab/TEMP"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::sambamba=0.8.1\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/sambamba:0.8.1--hadffe2f_1' : 'quay.io/biocontainers/sambamba:0.8.1--hadffe2f_1' }\""
+        ],
+        "when": "",
+        "stub": "\n    def software = getSoftwareName(task.process)\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n    if (\"$bam\" == \"${prefix}.bam\") error \"Input and output names are the same, use \\\"task.ext.prefix\\\" to disambiguate!\"\n    \"\"\"\n    touch ${bam}.sorted.bam\n    touch ${software}.version.txt\n    \"\"\""
+    },
+    "BAM_TO_FASTQ": {
+        "name_process": "BAM_TO_FASTQ",
+        "string_process": "\nprocess BAM_TO_FASTQ {\n\ttag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n                                                        \n\n    input:\n    tuple val(meta), file(bam)\n\n    output:\n    tuple val(meta), file(\"*fastq.gz\"), emit: fastq\n\n    script:\n    def max_records = task.memory.toGiga() * 100000\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    [ ! -d \"./tmpdir\" ] && mkdir ./tmpdir || echo \"./tmpdir exists\"\n    picard -Xmx${task.memory.toGiga()}g \\\\\n\tSamToFastq \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    TMP_DIR=./tmpdir \\\\\n\tINPUT=$bam \\\\\n    FASTQ=\"${meta.id}.fastq.gz\" \\\\\n    CLIPPING_ATTRIBUTE=XT \\\\\n    CLIPPING_ACTION=2 \\\\\n    INTERLEAVE=true \\\\\n    NON_PF=true \n    \"\"\"\n    stub:\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.fastq.gz\n    \"\"\"\n    }",
+        "nb_lignes_process": 37,
+        "string_script": "    def max_records = task.memory.toGiga() * 100000\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    [ ! -d \"./tmpdir\" ] && mkdir ./tmpdir || echo \"./tmpdir exists\"\n    picard -Xmx${task.memory.toGiga()}g \\\\\n\tSamToFastq \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    TMP_DIR=./tmpdir \\\\\n\tINPUT=$bam \\\\\n    FASTQ=\"${meta.id}.fastq.gz\" \\\\\n    CLIPPING_ATTRIBUTE=XT \\\\\n    CLIPPING_ACTION=2 \\\\\n    INTERLEAVE=true \\\\\n    NON_PF=true \n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.fastq.gz\n    \"\"\""
+    },
+    "BWA_MEM": {
+        "name_process": "BWA_MEM",
+        "string_process": "\nprocess BWA_MEM {\n    tag \"$meta.id\"\n    label 'process_high'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::bwa=0.7.17 bioconda::samtools=1.10\" : null)\n    container \"quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:eabfac3657eda5818bae4090db989e3d41b01542-0\"\n    \n    input:\n    tuple val(meta), path(reads)\n    path  index\n    path  fasta\n    \n    output:\n    tuple val(meta), path(\"*.bam\"), emit: bam\n    path  \"*.version.txt\"         , emit: version\n\n    script:\n    def software   = getSoftwareName(task.process)\n    def prefix     = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def read_group = meta.read_group ? \"-R ${meta.read_group}\" : \"\"\n    \"\"\"\n    bwa mem \\\\\n        $options.args \\\\\n        $read_group \\\\\n        -t $task.cpus \\\\\n        $fasta \\\\\n        $reads | \\\\\n        samtools sort --threads ${task.cpus} -m 2G - > ${meta.id}.bam\n\n    echo \\$(bwa 2>&1) | sed 's/^.*Version: //; s/Contact:.*\\$//' > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    def software   = getSoftwareName(task.process)\n    def prefix     = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def read_group = meta.read_group ? \"-R ${meta.read_group}\" : \"\"\n    \"\"\"\n    bwa mem \\\\\n        $options.args \\\\\n        $read_group \\\\\n        -t $task.cpus \\\\\n        $fasta \\\\\n        $reads | \\\\\n        samtools sort --threads ${task.cpus} -m 2G - > ${meta.id}.bam\n\n    echo \\$(bwa 2>&1) | sed 's/^.*Version: //; s/Contact:.*\\$//' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "BWA",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads",
+            "index",
+            "fasta"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::bwa=0.7.17 bioconda::samtools=1.10\" : null)",
+            "container \"quay.io/biocontainers/mulled-v2-fe8faa35dbf6dc65a0f7f5d4ea12e31a79f73e40:eabfac3657eda5818bae4090db989e3d41b01542-0\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PICARD_ESTIMATELIBRARYCOMPLEXITY": {
+        "name_process": "PICARD_ESTIMATELIBRARYCOMPLEXITY",
+        "string_process": "\nprocess PICARD_ESTIMATELIBRARYCOMPLEXITY {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"bioconda::picard=2.26.2\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/picard:2.26.2--hdfd78af_0\"\n    } else {\n        container \"quay.io/biocontainers/YOUR-TOOL-HERE\"\n    }\n\n    input:\n    tuple val(meta), path(bam)\n\n    output:\n    tuple val(meta), path(\"*.library_complexity.txt\"), emit: metrics\n    path \"*.version.txt\"          , emit: version\n    \n    script:\n    def software = getSoftwareName(task.process)\n    def avail_mem = 3\n    if (!task.memory) {\n        log.info '[picard EstimateLibaryComplexity] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    def max_records = task.memory.toGiga() * 100000\n    \"\"\"\n    picard -Xmx${avail_mem}g \\\\\n    EstimateLibraryComplexity \\\\\n    --MAX_RECORDS_IN_RAM ${max_records} \\\\\n    --INPUT  $bam \\\\\n    --BARCODE_TAG RX \\\\\n    --OUTPUT ${prefix}.library_complexity.txt \n    echo \\$(picard EstimateLibraryComplexity --version 2>&1) | sed 's/^.*Version://' > ${software}.version.txt\n    \"\"\"\n    \n    stub:\n    def software = getSoftwareName(task.process)\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.library_complexity.txt \n    echo 2.6.2 > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    def software = getSoftwareName(task.process)\n    def avail_mem = 3\n    if (!task.memory) {\n        log.info '[picard EstimateLibaryComplexity] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    def max_records = task.memory.toGiga() * 100000\n    \"\"\"\n    picard -Xmx${avail_mem}g \\\\\n    EstimateLibraryComplexity \\\\\n    --MAX_RECORDS_IN_RAM ${max_records} \\\\\n    --INPUT  $bam \\\\\n    --BARCODE_TAG RX \\\\\n    --OUTPUT ${prefix}.library_complexity.txt \n    echo \\$(picard EstimateLibraryComplexity --version 2>&1) | sed 's/^.*Version://' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.26.2\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/picard:2.26.2--hdfd78af_0\" } else { container \"quay.io/biocontainers/YOUR-TOOL-HERE\" }"
+        ],
+        "when": "",
+        "stub": "\n    def software = getSoftwareName(task.process)\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    touch ${prefix}.library_complexity.txt \n    echo 2.6.2 > ${software}.version.txt\n    \"\"\""
+    },
+    "PICARD_COLLECT_HS_METRICS_2": {
+        "name_process": "PICARD_COLLECT_HS_METRICS_2",
+        "string_process": "\nprocess PICARD_COLLECT_HS_METRICS_2 {\n    tag \"${meta.id}\"\n\n    label 'process_high'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n                                                        \n\n    input:\n    tuple val(meta), file(bam)\n    tuple val(meta_bai), file(bai)\n    path fasta\n    path fai\n    path dict\n    path interval_list\n\n    output:\n    tuple val(meta), file(\"*metrics.txt\" ), emit: md_hs_metrics\n    path  \"*.version.txt\"                 , emit: version\n\n    script:\n    def software  = getSoftwareName(task.process)\n    def prefix    = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def avail_mem = 3\n        if (!task.memory) {\n        log.info '[Picard CollectHsMetrics] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    \"\"\"\n    picard -Xmx${avail_mem}g CollectHsMetrics \\\\\n    R=${fasta} \\\\\n    ${options.args} \\\\\n    I=${meta.id}.bam \\\\\n    O=${meta.id}_md_hs_metrics.txt \\\\\n    BAIT_INTERVALS=${interval_list} \\\\\n    TARGET_INTERVALS=${interval_list} \n    echo \\$(picard CollectHsMetrics --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n    \"\"\"\n    stub:\n    \"\"\"\n    touch ${meta.id}_md_hs_metrics.txt\n    touch software.version.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 47,
+        "string_script": "    def software  = getSoftwareName(task.process)\n    def prefix    = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def avail_mem = 3\n        if (!task.memory) {\n        log.info '[Picard CollectHsMetrics] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    \"\"\"\n    picard -Xmx${avail_mem}g CollectHsMetrics \\\\\n    R=${fasta} \\\\\n    ${options.args} \\\\\n    I=${meta.id}.bam \\\\\n    O=${meta.id}_md_hs_metrics.txt \\\\\n    BAIT_INTERVALS=${interval_list} \\\\\n    TARGET_INTERVALS=${interval_list} \n    echo \\$(picard CollectHsMetrics --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam",
+            "meta_bai",
+            "bai",
+            "fasta",
+            "fai",
+            "dict",
+            "interval_list"
+        ],
+        "nb_inputs": 8,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"${meta.id}\"",
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch ${meta.id}_md_hs_metrics.txt\n    touch software.version.txt\n    \"\"\""
+    },
+    "MARK_DUPLICATES": {
+        "name_process": "MARK_DUPLICATES",
+        "string_process": "\nprocess MARK_DUPLICATES {\n    tag \"${meta.id}\"\n    label 'process_medium'\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::gatk4=4.1.9\" : null)\n                                                      \n\n    input:\n    tuple val(meta), file(bam)\n\n    output:\n    tuple val(meta), path(\"*bam\"),      emit: md_bam\n    tuple val(meta), path(\"*bai\"),      emit: md_bai\n    val (meta),                         emit: tsv\n    tuple val(meta), path(\"*.metrics\"), emit: report\n\n    script:\n    markdup_java_options = task.memory.toGiga() < 8 ? params.markdup_java_options : \"\\\"-Xms\" +  (task.memory.toGiga() / 2).trunc() + \"g -Xmx\" + (task.memory.toGiga() - 1) + \"g\\\"\"\n    metrics = \"-M ${meta.patient}_${meta.sample}.md.bam.metrics\"\n\n    if (params.no_gatk_spark)\n    def max_records = task.memory.toGiga() * 100000\n    \"\"\"\n    gatk --java-options ${markdup_java_options} \\\\\n        MarkDuplicates \\\\\n        --MAX_RECORDS_IN_RAM ${max_records} \\\\\n        --INPUT $bam \\\\\n        --METRICS_FILE ${meta.patient}_${meta.sample}.md.bam.metrics \\\\\n        --TMP_DIR . \\\\\n        --ASSUME_SORT_ORDER coordinate \\\\\n        --CREATE_INDEX true \\\\\n        --OUTPUT ${meta.patient}_${meta.sample}.md.bam\n        mv ${meta.patient}_${meta.sample}.md.bai ${meta.patient}_${meta.sample}.md.bam.bai\n    \"\"\"\n    else\n    \"\"\"\n    gatk --java-options ${markdup_java_options} \\\\\n        MarkDuplicatesSpark \\\\\n        -I $bam \\\\\n        -O ${meta.patient}_${meta.sample}.md.bam \\\\\n        ${metrics} \\\\\n        --tmp-dir . \\\\\n        --create-output-bam-index true \\\\\n        --spark-master local[${task.cpus}]\n    \"\"\"\n    stub:\n    \"\"\"\n    touch ${meta.patient}_${meta.sample}.md.bam\n    touch ${meta.patient}_${meta.sample}.md.bam.bai\n    touch ${meta.patient}_${meta.sample}.bam.metrics\n    \"\"\"\n\n}",
+        "nb_lignes_process": 56,
+        "string_script": "    markdup_java_options = task.memory.toGiga() < 8 ? params.markdup_java_options : \"\\\"-Xms\" +  (task.memory.toGiga() / 2).trunc() + \"g -Xmx\" + (task.memory.toGiga() - 1) + \"g\\\"\"\n    metrics = \"-M ${meta.patient}_${meta.sample}.md.bam.metrics\"\n\n    if (params.no_gatk_spark)\n    def max_records = task.memory.toGiga() * 100000\n    \"\"\"\n    gatk --java-options ${markdup_java_options} \\\\\n        MarkDuplicates \\\\\n        --MAX_RECORDS_IN_RAM ${max_records} \\\\\n        --INPUT $bam \\\\\n        --METRICS_FILE ${meta.patient}_${meta.sample}.md.bam.metrics \\\\\n        --TMP_DIR . \\\\\n        --ASSUME_SORT_ORDER coordinate \\\\\n        --CREATE_INDEX true \\\\\n        --OUTPUT ${meta.patient}_${meta.sample}.md.bam\n        mv ${meta.patient}_${meta.sample}.md.bai ${meta.patient}_${meta.sample}.md.bam.bai\n    \"\"\"\n    else\n    \"\"\"\n    gatk --java-options ${markdup_java_options} \\\\\n        MarkDuplicatesSpark \\\\\n        -I $bam \\\\\n        -O ${meta.patient}_${meta.sample}.md.bam \\\\\n        ${metrics} \\\\\n        --tmp-dir . \\\\\n        --create-output-bam-index true \\\\\n        --spark-master local[${task.cpus}]\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [
+            "GRmetrics",
+            "GATK",
+            "MarkDuplicates (IP)"
+        ],
+        "tools_url": [
+            "https://bio.tools/grmetrics",
+            "https://bio.tools/gatk",
+            "https://bio.tools/markduplicates_ip"
+        ],
+        "tools_dico": [
+            {
+                "name": "GRmetrics",
+                "uri": "https://bio.tools/grmetrics",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3336",
+                            "term": "Drug discovery"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3438",
+                                    "term": "Calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Functions for calculating and visualizing growth-rate inhibition (GR) metrics.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/GRmetrics.html"
+            },
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            },
+            {
+                "name": "MarkDuplicates (IP)",
+                "uri": "https://bio.tools/markduplicates_ip",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature prediction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Marks all duplicate reads in a provided SAM or BAM file and either removes them or flags them.",
+                "homepage": "https://galaxy.pasteur.fr/tool_runner?tool_id=toolshed.pasteur.fr/repos/fmareuil/picard_pasteur_wrapper/rgPicardMarkDups/1.56.0"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"${meta.id}\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::gatk4=4.1.9\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch ${meta.patient}_${meta.sample}.md.bam\n    touch ${meta.patient}_${meta.sample}.md.bam.bai\n    touch ${meta.patient}_${meta.sample}.bam.metrics\n    \"\"\""
+    },
+    "FILTER_CONSENSUS": {
+        "name_process": "FILTER_CONSENSUS",
+        "string_process": "\nprocess FILTER_CONSENSUS {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)\n                                                      \n\n    input:\n    tuple val(meta), file(bam) \n    path fasta\n    val min_reads\n\n    output:\n    tuple val(meta), file(\"*_filt.bam\")\n\n    script:\n    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g FilterConsensusReads \\\\\n    -i ${meta.id}.bam \\\\\n    -o ${meta.id}_cons_filt.bam \\\\\n    -r ${fasta} \\\\\n    --min-reads ${min_reads} \\\\\n    --max-read-error-rate 0.05 \\\\\n    --min-base-quality 30 \\\\\n    --max-base-error-rate 0.1 \\\\\n    --max-no-call-fraction 0.1 \\\\\n    --reverse-per-base-tags true\n    \"\"\"\n    stub:\n    \"\"\"\n    touch ${meta.id}_cons_filt.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    fgbio -Xmx${task.memory.toGiga()}g FilterConsensusReads \\\\\n    -i ${meta.id}.bam \\\\\n    -o ${meta.id}_cons_filt.bam \\\\\n    -r ${fasta} \\\\\n    --min-reads ${min_reads} \\\\\n    --max-read-error-rate 0.05 \\\\\n    --min-base-quality 30 \\\\\n    --max-base-error-rate 0.1 \\\\\n    --max-no-call-fraction 0.1 \\\\\n    --reverse-per-base-tags true\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "bam",
+            "fasta",
+            "min_reads"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "meta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fgbio=1.3.0\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch ${meta.id}_cons_filt.bam\n    \"\"\""
+    },
+    "FASTQ_TO_BAM": {
+        "name_process": "FASTQ_TO_BAM",
+        "string_process": "\nprocess FASTQ_TO_BAM {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n    conda (params.enable_conda ? \"bioconda::fgbio=1.5.0\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/fgbio:1.5.0--hdfd78af_0\"\n    } else {\n        container \"quay.io/biocontainers/fgbio:1.5.0--hdfd78af_0\"\n    }\n\n    input:\n    tuple val(meta), path(reads)\n    val library\n    val rstructure \n\n    output:\n    tuple val(meta), file(\"*bam\"), emit: bam\n\n    script:\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"  \n    [ ! \"./tmpdir\" ] && mkdir tmpdir || echo \"./tmpdir exists\"\n    fgbio -Xmx${task.memory.toGiga()}g -XX:+AggressiveOpts -XX:+AggressiveHeap \\\\\n    --tmp-dir=./tmpdir FastqToBam \\\\\n    --input $reads \\\\\n    --output ${prefix}_unaln.bam \\\\\n    --sort true \\\\\n    --read-structures $rstructure \\\\\n    --umi-tag RX \\\\\n    --sample ${meta.id} \\\\\n    --library $library\n    \"\"\"\n    stub:\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    [ ! \"./tmpdir\" ] && mkdir tmpdir || echo \"./tmpdir exists\"\n    touch ${prefix}_unaln.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"  \n    [ ! \"./tmpdir\" ] && mkdir tmpdir || echo \"./tmpdir exists\"\n    fgbio -Xmx${task.memory.toGiga()}g -XX:+AggressiveOpts -XX:+AggressiveHeap \\\\\n    --tmp-dir=./tmpdir FastqToBam \\\\\n    --input $reads \\\\\n    --output ${prefix}_unaln.bam \\\\\n    --sort true \\\\\n    --read-structures $rstructure \\\\\n    --umi-tag RX \\\\\n    --sample ${meta.id} \\\\\n    --library $library\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads",
+            "library",
+            "rstructure"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fgbio=1.5.0\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/fgbio:1.5.0--hdfd78af_0\" } else { container \"quay.io/biocontainers/fgbio:1.5.0--hdfd78af_0\" }"
+        ],
+        "when": "",
+        "stub": "\n    def prefix   = params.stage == \"two\" ? \"${meta.id}\" : \"${meta.id}_${meta.run}\"\n    \"\"\"\n    [ ! \"./tmpdir\" ] && mkdir tmpdir || echo \"./tmpdir exists\"\n    touch ${prefix}_unaln.bam\n    \"\"\""
+    },
+    "TRIMGALORE": {
+        "name_process": "TRIMGALORE",
+        "string_process": "\nprocess TRIMGALORE {\n    tag \"$meta.id\"\n    label 'process_high'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }\n\n    conda (params.enable_conda ? \"bioconda::trim-galore=0.6.6\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/trim-galore:0.6.6--0\"\n    } else {\n        container \"quay.io/biocontainers/trim-galore:0.6.6--0\"\n    }\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"*.fq.gz\")    , emit: reads\n    tuple val(meta), path(\"*report.txt\"), emit: log\n    path \"*.version.txt\"                , emit: version\n    tuple val(meta), path(\"*.html\"), emit: html optional true\n    tuple val(meta), path(\"*.zip\") , emit: zip optional true\n\n    script:\n                                                                             \n                                                                                                                 \n                                                      \n    def cores = 1\n    if (task.cpus) {\n        cores = (task.cpus as int) - 4\n        if (meta.single_end) cores = (task.cpus as int) - 3\n        if (cores < 1) cores = 1\n        if (cores > 4) cores = 4\n    }\n\n                                                                    \n    def c_r1   = params.clip_r1 > 0             ? \"--clip_r1 ${params.clip_r1}\"                         : ''\n    def c_r2   = params.clip_r2 > 0             ? \"--clip_r2 ${params.clip_r2}\"                         : ''\n    def tpc_r1 = params.three_prime_clip_r1 > 0 ? \"--three_prime_clip_r1 ${params.three_prime_clip_r1}\" : ''\n    def tpc_r2 = params.three_prime_clip_r2 > 0 ? \"--three_prime_clip_r2 ${params.three_prime_clip_r2}\" : ''\n\n                                                                           \n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        trim_galore \\\\\n            $options.args \\\\\n            --cores $cores \\\\\n            --gzip \\\\\n            $c_r1 \\\\\n            $tpc_r1 \\\\\n            ${prefix}.fastq.gz\n        echo \\$(trim_galore --version 2>&1) | sed 's/^.*version //; s/Last.*\\$//' > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fq.gz\n        [ ! -f  ${prefix}_3.fastq.gz ] && ln -s ${reads[2]} ${prefix}_3.fastq.gz\n        trim_galore \\\\\n            $options.args \\\\\n            --cores $cores \\\\\n            --paired \\\\\n            --gzip \\\\\n            $c_r1 \\\\\n            $c_r2 \\\\\n            $tpc_r1 \\\\\n            $tpc_r2 \\\\\n            ${prefix}_1.fastq.gz \\\\\n            ${prefix}_3.fastq.gz\n        echo \\$(trim_galore --version 2>&1) | sed 's/^.*version //; s/Last.*\\$//' > ${software}.version.txt\n        \"\"\"\n    }\n    stub:\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    touch ${prefix}_1.fq.gz\n    touch ${prefix}_2.fq.gz\n    touch ${prefix}_3.fq.gz\n    touch ${prefix}.report.txt\n    touch ${prefix}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 85,
+        "string_script": "    def cores = 1\n    if (task.cpus) {\n        cores = (task.cpus as int) - 4\n        if (meta.single_end) cores = (task.cpus as int) - 3\n        if (cores < 1) cores = 1\n        if (cores > 4) cores = 4\n    }\n\n                                                                    \n    def c_r1   = params.clip_r1 > 0             ? \"--clip_r1 ${params.clip_r1}\"                         : ''\n    def c_r2   = params.clip_r2 > 0             ? \"--clip_r2 ${params.clip_r2}\"                         : ''\n    def tpc_r1 = params.three_prime_clip_r1 > 0 ? \"--three_prime_clip_r1 ${params.three_prime_clip_r1}\" : ''\n    def tpc_r2 = params.three_prime_clip_r2 > 0 ? \"--three_prime_clip_r2 ${params.three_prime_clip_r2}\" : ''\n\n                                                                           \n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        trim_galore \\\\\n            $options.args \\\\\n            --cores $cores \\\\\n            --gzip \\\\\n            $c_r1 \\\\\n            $tpc_r1 \\\\\n            ${prefix}.fastq.gz\n        echo \\$(trim_galore --version 2>&1) | sed 's/^.*version //; s/Last.*\\$//' > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fq.gz\n        [ ! -f  ${prefix}_3.fastq.gz ] && ln -s ${reads[2]} ${prefix}_3.fastq.gz\n        trim_galore \\\\\n            $options.args \\\\\n            --cores $cores \\\\\n            --paired \\\\\n            --gzip \\\\\n            $c_r1 \\\\\n            $c_r2 \\\\\n            $tpc_r1 \\\\\n            $tpc_r2 \\\\\n            ${prefix}_1.fastq.gz \\\\\n            ${prefix}_3.fastq.gz\n        echo \\$(trim_galore --version 2>&1) | sed 's/^.*version //; s/Last.*\\$//' > ${software}.version.txt\n        \"\"\"\n    }",
+        "nb_lignes_script": 47,
+        "language_script": "bash",
+        "tools": [
+            "CoreSlicer"
+        ],
+        "tools_url": [
+            "https://bio.tools/CoreSlicer"
+        ],
+        "tools_dico": [
+            {
+                "name": "CoreSlicer",
+                "uri": "https://bio.tools/CoreSlicer",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3384",
+                            "term": "Medical imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "Tomography"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "MRI"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "CT"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "Computed tomography"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "TDM"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "Nuclear magnetic resonance imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "Magnetic resonance imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "MRT"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "Magnetic resonance tomography"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "NMRI"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Enables extraction of morphomic markers from CT images by non-technically skilled clinicians.",
+                "homepage": "https://coreslicer.com/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }",
+            "conda (params.enable_conda ? \"bioconda::trim-galore=0.6.6\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/trim-galore:0.6.6--0\" } else { container \"quay.io/biocontainers/trim-galore:0.6.6--0\" }"
+        ],
+        "when": "",
+        "stub": "\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    touch ${prefix}_1.fq.gz\n    touch ${prefix}_2.fq.gz\n    touch ${prefix}_3.fq.gz\n    touch ${prefix}.report.txt\n    touch ${prefix}.version.txt\n    \"\"\""
+    },
+    "FASTQC": {
+        "name_process": "FASTQC",
+        "string_process": "\nprocess FASTQC {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::fastqc=0.11.9\" : null)\n    container \"quay.io/biocontainers/fastqc:0.11.9--0\"\n    \n    input:\n    tuple val(meta), path(reads)\n    \n    output:\n    tuple val(meta), path(\"*.html\"), emit: html\n    tuple val(meta), path(\"*.zip\") , emit: zip\n    path  \"*.version.txt\"          , emit: version\n\n    script:\n                                                                          \n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}.${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[2]} ${prefix}_3.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz ${prefix}_3.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}.${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[2]} ${prefix}_3.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz ${prefix}_3.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    }",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fastqc=0.11.9\" : null)",
+            "container \"quay.io/biocontainers/fastqc:0.11.9--0\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "QUALIMAP_BAMQC": {
+        "name_process": "QUALIMAP_BAMQC",
+        "string_process": "\nprocess QUALIMAP_BAMQC {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }\n\n    conda (params.enable_conda ? \"bioconda::qualimap=2.2.2d\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/qualimap:2.2.2d--1\"\n    } else {\n        container \"quay.io/biocontainers/qualimap:2.2.2d--1\"\n    }\n\n    input:\n    tuple val(meta), path(bam)\n    path (target_bed)\n\n    output:\n    tuple val(meta), path(\"${prefix}\"), emit: results\n    path  \"*.version.txt\"             , emit: version\n\n    script:\n    def software   = getSoftwareName(task.process)\n    prefix         = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n\n    def collect_pairs = meta.single_end ? '' : '--collect-overlap-pairs'\n    def memory     = task.memory.toGiga() + \"G\"\n    def regions = target_bed ? \"--gff $target_bed\" : ''\n\n    def strandedness = 'non-strand-specific'\n    if (meta.strandedness == 'forward') {\n        strandedness = 'strand-specific-forward'\n    } else if (meta.strandedness == 'reverse') {\n        strandedness = 'strand-specific-reverse'\n    }\n    \"\"\"\n    unset DISPLAY\n    [ ! -d \"./tmpdir\" ] && mkdir ./tmpdir || echo \"./tmpdir exists\"\n    export _JAVA_OPTIONS=-Djava.io.tmpdir=./tmpdir\n    qualimap \\\\\n        --java-mem-size=$memory \\\\\n        bamqc \\\\\n        $options.args \\\\\n        -bam $bam \\\\\n        $regions \\\\\n        -p $strandedness \\\\\n        $collect_pairs \\\\\n        -outdir $prefix \\\\\n        -nt $task.cpus\n\n    echo \\$(qualimap 2>&1) | sed 's/^.*QualiMap v.//; s/Built.*\\$//' > ${software}.version.txt\n    \"\"\"\n    stub:\n    prefix         = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mkdir $prefix\n    touch qualimap.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 59,
+        "string_script": "    def software   = getSoftwareName(task.process)\n    prefix         = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n\n    def collect_pairs = meta.single_end ? '' : '--collect-overlap-pairs'\n    def memory     = task.memory.toGiga() + \"G\"\n    def regions = target_bed ? \"--gff $target_bed\" : ''\n\n    def strandedness = 'non-strand-specific'\n    if (meta.strandedness == 'forward') {\n        strandedness = 'strand-specific-forward'\n    } else if (meta.strandedness == 'reverse') {\n        strandedness = 'strand-specific-reverse'\n    }\n    \"\"\"\n    unset DISPLAY\n    [ ! -d \"./tmpdir\" ] && mkdir ./tmpdir || echo \"./tmpdir exists\"\n    export _JAVA_OPTIONS=-Djava.io.tmpdir=./tmpdir\n    qualimap \\\\\n        --java-mem-size=$memory \\\\\n        bamqc \\\\\n        $options.args \\\\\n        -bam $bam \\\\\n        $regions \\\\\n        -p $strandedness \\\\\n        $collect_pairs \\\\\n        -outdir $prefix \\\\\n        -nt $task.cpus\n\n    echo \\$(qualimap 2>&1) | sed 's/^.*QualiMap v.//; s/Built.*\\$//' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 29,
+        "language_script": "bash",
+        "tools": [
+            "QualiMap"
+        ],
+        "tools_url": [
+            "https://bio.tools/qualimap"
+        ],
+        "tools_dico": [
+            {
+                "name": "QualiMap",
+                "uri": "https://bio.tools/qualimap",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Platform-independent application written in Java and R that provides both a Graphical User Inteface (GUI) and a command-line interface to facilitate the quality control of alignment sequencing data.",
+                "homepage": "http://qualimap.bioinfo.cipf.es/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam",
+            "target_bed"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }",
+            "conda (params.enable_conda ? \"bioconda::qualimap=2.2.2d\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/qualimap:2.2.2d--1\" } else { container \"quay.io/biocontainers/qualimap:2.2.2d--1\" }"
+        ],
+        "when": "",
+        "stub": "\n    prefix         = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mkdir $prefix\n    touch qualimap.version.txt\n    \"\"\""
+    },
+    "PICARD_SORT_BAM": {
+        "name_process": "PICARD_SORT_BAM",
+        "string_process": "\nprocess PICARD_SORT_BAM {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n                                                        \n\n    input:\n    tuple val(meta), file(bam)\n    path fasta\n    path dict\n\n    output:\n    tuple val(meta), file(\"*sort*.bam\")\n\n    script:\n    def picard_opts = params.second_file ? \"mv ${meta.id}_sort.bam ${meta.id}_sort_2.bam\" : \"\"\n    def max_records = task.memory.toGiga() * 100000\n    \"\"\"\n    [ ! -d \"./tmpdir ] && mkdir ./tmpdir || echo \"./tmpdir exists\"\n    picard -Xmx${task.memory.toGiga()}g SortSam \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    SORT_ORDER=queryname \\\\\n    TMP_DIR=./tmpdir \\\\\n    INPUT=${bam[0]} \\\\\n    OUTPUT=${meta.id}_sort.bam \\\\\n    VALIDATION_STRINGENCY=LENIENT\n    ${picard_opts}\n    \"\"\"\n    stub:\n    picard_opts = params.second_file ? \"mv ${meta.id}_sort.bam ${meta.id}_sort_2.bam\" : \"\"\n    \"\"\"\n    touch ${meta.id}_sort.bam\n    ${picard_opts}\n    \"\"\"\n    }",
+        "nb_lignes_process": 38,
+        "string_script": "    def picard_opts = params.second_file ? \"mv ${meta.id}_sort.bam ${meta.id}_sort_2.bam\" : \"\"\n    def max_records = task.memory.toGiga() * 100000\n    \"\"\"\n    [ ! -d \"./tmpdir ] && mkdir ./tmpdir || echo \"./tmpdir exists\"\n    picard -Xmx${task.memory.toGiga()}g SortSam \\\\\n    MAX_RECORDS_IN_RAM=${max_records} \\\\\n    SORT_ORDER=queryname \\\\\n    TMP_DIR=./tmpdir \\\\\n    INPUT=${bam[0]} \\\\\n    OUTPUT=${meta.id}_sort.bam \\\\\n    VALIDATION_STRINGENCY=LENIENT\n    ${picard_opts}\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam",
+            "fasta",
+            "dict"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "meta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    picard_opts = params.second_file ? \"mv ${meta.id}_sort.bam ${meta.id}_sort_2.bam\" : \"\"\n    \"\"\"\n    touch ${meta.id}_sort.bam\n    ${picard_opts}\n    \"\"\""
+    },
+    "PICARD_COLLECT_HS_METRICS": {
+        "name_process": "PICARD_COLLECT_HS_METRICS",
+        "string_process": "\nprocess PICARD_COLLECT_HS_METRICS {\n    tag \"$meta.id\"\n    label 'process_high'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda     (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)\n                                                        \n\n    input:\n    tuple val(meta), file(bam)\n    path fasta\n    path fai\n    path dict\n    path interval_list\n\n    output:\n    tuple val(meta), file(\"*metrics.txt\" ), emit: hs_metrics\n    path  \"*.version.txt\"                 , emit: version\n\n    script:\n    def software  = getSoftwareName(task.process)\n    def prefix    = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def avail_mem = 3\n        if (!task.memory) {\n        log.info '[Picard CollectHsMetrics] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    \"\"\"\n    picard -Xmx${avail_mem}g CollectHsMetrics \\\\\n    R=${fasta} \\\\\n    ${options.args} \\\\\n    I=${meta.id}.bam \\\\\n    O=${prefix}_hs_metrics.txt \\\\\n    BAIT_INTERVALS=${interval_list} \\\\\n    TARGET_INTERVALS=${interval_list} \n    echo \\$(picard CollectHsMetrics --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n    \"\"\"\n    stub:\n    \"\"\"\n    touch \"${meta.id}_hs_metrics.txt\"\n    touch software.version.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 45,
+        "string_script": "    def software  = getSoftwareName(task.process)\n    def prefix    = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def avail_mem = 3\n        if (!task.memory) {\n        log.info '[Picard CollectHsMetrics] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this.'\n    } else {\n        avail_mem = task.memory.giga\n    }\n    \"\"\"\n    picard -Xmx${avail_mem}g CollectHsMetrics \\\\\n    R=${fasta} \\\\\n    ${options.args} \\\\\n    I=${meta.id}.bam \\\\\n    O=${prefix}_hs_metrics.txt \\\\\n    BAIT_INTERVALS=${interval_list} \\\\\n    TARGET_INTERVALS=${interval_list} \n    echo \\$(picard CollectHsMetrics --version 2>&1) | grep -o 'Version:.*' | cut -f2- -d: > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "bam",
+            "fasta",
+            "fai",
+            "dict",
+            "interval_list"
+        ],
+        "nb_inputs": 6,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "chelauk__nf-core-umi_preprocessing",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_high'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::picard=2.23.8\" : null)"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    touch \"${meta.id}_hs_metrics.txt\"\n    touch software.version.txt\n    \"\"\""
+    }
+}

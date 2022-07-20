@@ -1,0 +1,215 @@
+{
+    "filter_length": {
+        "name_process": "filter_length",
+        "string_process": "\nprocess filter_length {\n    input:\n    tuple read_id, id , path(\"single_read.fastq\") from fastq_ch1\n    output:\n    tuple read_id, id, path(\"${id}.fastq\") into sequences_ch\n    \n    \"\"\"\n    awk 'BEGIN {OFS = \"\\\\n\"} {header = \\$0 ; getline seq ; getline qheader ; getline qseq ; if (length(seq) >= 10000) {print header, seq, qheader, qseq}}' < single_read.fastq > ${id}.fastq\n    \"\"\"\n}",
+        "nb_lignes_process": 9,
+        "string_script": "\"\"\"\n    awk 'BEGIN {OFS = \"\\\\n\"} {header = \\$0 ; getline seq ; getline qheader ; getline qseq ; if (length(seq) >= 10000) {print header, seq, qheader, qseq}}' < single_read.fastq > ${id}.fastq\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastq_ch1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sequences_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "philDTU__plasmidPublication",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "split_sequence": {
+        "name_process": "split_sequence",
+        "string_process": "\nprocess split_sequence {\n    errorStrategy 'ignore'\n    input:\n    tuple read_id, id, path(\"input.fastq\") from sequences_ch\n    output:\n    tuple read_id, id, path(\"${id}.fastq\") into split_ch\n \n    \"\"\"\n    split_sequence.py input.fastq ${id}.fastq 1500\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "\"\"\"\n    split_sequence.py input.fastq ${id}.fastq 1500\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sequences_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "split_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "philDTU__plasmidPublication",
+        "directive": [
+            "errorStrategy 'ignore'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_assembly": {
+        "name_process": "run_assembly",
+        "string_process": "\nprocess run_assembly {\n    input:\n    tuple read_id, id, path(\"input.fastq\") from split_ch\n \n    output:\n    tuple read_id, path(\"${id}.fasta\") into assembly_ch\n    tuple read_id, id, path(\"${id}.fasta\") into assembly_results_ch\n \n    \"\"\"\n    minimap2 -x ava-ont input.fastq input.fastq > ${id}.paf\n    miniasm -s 800 -f input.fastq ${id}.paf > ${id}.gfa\n    awk '/^S/{print \">\"\\$2\"\\\\n\"\\$3}' ${id}.gfa  > ${id}.fasta\n    sed -i \"s/>.*/&_${read_id}/\" ${id}.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    minimap2 -x ava-ont input.fastq input.fastq > ${id}.paf\n    miniasm -s 800 -f input.fastq ${id}.paf > ${id}.gfa\n    awk '/^S/{print \">\"\\$2\"\\\\n\"\\$3}' ${id}.gfa  > ${id}.fasta\n    sed -i \"s/>.*/&_${read_id}/\" ${id}.fasta\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            }
+        ],
+        "inputs": [
+            "split_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "assembly_ch",
+            "assembly_results_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "philDTU__plasmidPublication",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "run_map_back": {
+        "name_process": "run_map_back",
+        "string_process": "\nprocess run_map_back {\n    input:\n    tuple read_id, id, path(\"split.fastq\"), path(\"plasmid_candidat.fasta\") from fastq_ch2.join(assembly_ch)\n \n    output:\n    tuple read_id, id, path(\"${id}.tsv\") into remap_ch\n \n    \"\"\"\n    minimap2 -ax map-ont split.fastq plasmid_candidat.fasta -p 0.0 > ${id}.sam\n    bedtools bamtobed -i ${id}.sam | sort -nk 2 > ${id}.bed\n    Rscript ${baseDir}/scripts/filter_it.R ${id}.bed ${id}.tsv 50\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\n    minimap2 -ax map-ont split.fastq plasmid_candidat.fasta -p 0.0 > ${id}.sam\n    bedtools bamtobed -i ${id}.sam | sort -nk 2 > ${id}.bed\n    Rscript ${baseDir}/scripts/filter_it.R ${id}.bed ${id}.tsv 50\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2",
+            "BEDTools"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2",
+            "https://bio.tools/bedtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            },
+            {
+                "name": "BEDTools",
+                "uri": "https://bio.tools/bedtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BEDTools is an extensive suite of utilities for comparing genomic features in BED format.",
+                "homepage": "https://github.com/arq5x/bedtools2"
+            }
+        ],
+        "inputs": [
+            "fastq_ch2",
+            "assembly_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "remap_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "philDTU__plasmidPublication",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,1013 @@
+{
+    "FastQC": {
+        "name_process": "FastQC",
+        "string_process": "\nprocess FastQC {\n    tag { dataset_id }\n    \n    publishDir \"${params.output}/QualityMetrics\", mode: \"symlink\"\n    \n    input:\n        set dataset_id, file(forward), file(reverse) from fastqc_pairs\n    \n    output:\n        set dataset_id, file(\"*_fastqc.zip\") into (fastqc_logs)\n    \n    \"\"\"\n    mkdir output   \n    fastqc -f fastq ${forward} ${reverse} -t ${threads} -o output\n    mv output/*.zip .\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    mkdir output   \n    fastqc -f fastq ${forward} ${reverse} -t ${threads} -o output\n    mv output/*.zip .\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "fastqc_pairs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { dataset_id }",
+            "publishDir \"${params.output}/QualityMetrics\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "QualityControl": {
+        "name_process": "QualityControl",
+        "string_process": "\nprocess QualityControl {\n    tag { dataset_id }\n    \n    publishDir \"${params.output}/QualityControlOutput\", mode: \"symlink\",\n        saveAs: { filename ->\n            if(filename.indexOf(\"P.fastq\") > 0) \"Paired/$filename\"\n            else if(filename.indexOf(\"U.fastq\") > 0) \"Unpaired/$filename\"\n            else if(filename.indexOf(\".log\") > 0) \"Log/$filename\"\n            else {}\n        }\n    \n    input:\n        set dataset_id, file(forward), file(reverse) from read_pairs\n    \n    output:\n        set dataset_id, file(\"${dataset_id}.1P.fastq\"), file(\"${dataset_id}.2P.fastq\") into (paired_fastq_alignment, paired_fastq_assembly, paired_fastq_ariba)\n        set dataset_id, file(\"${dataset_id}.1U.fastq\"), file(\"${dataset_id}.2U.fastq\") into (unpaired_fastq)\n        set dataset_id, file(\"${dataset_id}.trimmomatic.stats.log\") into (trimmomatic_logs)\n    \n    \"\"\"\n    /usr/lib/jvm/java-7-openjdk-amd64/bin/java -jar ${TRIMMOMATIC}/trimmomatic-0.36.jar \\\n        PE \\\n        -threads ${threads} \\\n        $forward $reverse -baseout ${dataset_id} \\\n        ILLUMINACLIP:${adapters}:2:30:10:3:TRUE \\\n        LEADING:${leading} \\\n        TRAILING:${trailing} \\\n        SLIDINGWINDOW:${slidingwindow} \\\n        MINLEN:${minlen} \\\n        2> ${dataset_id}.trimmomatic.stats.log\n    \n    mv ${dataset_id}_1P ${dataset_id}.1P.fastq\n    mv ${dataset_id}_2P ${dataset_id}.2P.fastq\n    mv ${dataset_id}_1U ${dataset_id}.1U.fastq\n    mv ${dataset_id}_2U ${dataset_id}.2U.fastq\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "\"\"\"\n    /usr/lib/jvm/java-7-openjdk-amd64/bin/java -jar ${TRIMMOMATIC}/trimmomatic-0.36.jar \\\n        PE \\\n        -threads ${threads} \\\n        $forward $reverse -baseout ${dataset_id} \\\n        ILLUMINACLIP:${adapters}:2:30:10:3:TRUE \\\n        LEADING:${leading} \\\n        TRAILING:${trailing} \\\n        SLIDINGWINDOW:${slidingwindow} \\\n        MINLEN:${minlen} \\\n        2> ${dataset_id}.trimmomatic.stats.log\n    \n    mv ${dataset_id}_1P ${dataset_id}.1P.fastq\n    mv ${dataset_id}_2P ${dataset_id}.2P.fastq\n    mv ${dataset_id}_1U ${dataset_id}.1U.fastq\n    mv ${dataset_id}_2U ${dataset_id}.2U.fastq\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "PEC"
+        ],
+        "tools_url": [
+            "https://bio.tools/PEC"
+        ],
+        "tools_dico": [
+            {
+                "name": "PEC",
+                "uri": "https://bio.tools/PEC",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3384",
+                            "term": "Medical imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Medicine"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Experimental medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Clinical medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Biomedical research"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A novel approach to the program evaluation committee.\n\nBACKGROUND:The Accreditation Council for Graduate Medical Education requires each residency program to have a Program Evaluation Committee (PEC) but does not specify how the PEC should be designed. We sought to develop a PEC that promotes resident leadership and provides actionable feedback. METHODS:Participants were residents and faculty in the Traditional Internal Medicine residency program at Yale School of Medicine (YSM). One resident and one faculty member facilitated a 1-h structured group discussion to obtain resident feedback on each rotation. PEC co-facilitators summarized the feedback in written form, then met with faculty Firm Chiefs overseeing each rotation and with residency program leadership to discuss feedback and generate action plans. This PEC process was implemented in all inpatient and outpatient rotations over a 4-year period.\n\n||| HOMEPAGE MISSING!",
+                "homepage": "https://www.ncbi.nlm.nih.gov/pubmed/?term=31842868"
+            }
+        ],
+        "inputs": [
+            "read_pairs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "",
+            "",
+            ""
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { dataset_id }",
+            "publishDir \"${params.output}/QualityControlOutput\", mode: \"symlink\" , saveAs: { filename -> if(filename.indexOf(\"P.fastq\") > 0) \"Paired/$filename\" else if(filename.indexOf(\"U.fastq\") > 0) \"Unpaired/$filename\" else if(filename.indexOf(\".log\") > 0) \"Log/$filename\" else {} }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "BuildReferenceIndex": {
+        "name_process": "BuildReferenceIndex",
+        "string_process": "\nprocess BuildReferenceIndex {\n    tag { reference.baseName }\n    \n    publishDir \"${params.output}/BuildReferenceIndex\", mode: \"symlink\"\n    \n    input:\n        file(reference)\n    \n    output:\n        file 'genome.index*' into index\n    \n    \"\"\"\n    bwa index -p genome.index ${reference}\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    bwa index -p genome.index ${reference}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BWA"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            }
+        ],
+        "inputs": [
+            "reference"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "index"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { reference.baseName }",
+            "publishDir \"${params.output}/BuildReferenceIndex\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "AlignReadsToGenome": {
+        "name_process": "AlignReadsToGenome",
+        "string_process": "\nprocess AlignReadsToGenome {\n    tag { dataset_id }\n    \n    publishDir \"${params.output}/AlignedFiles\", mode: \"symlink\"\n    \n    input:\n        set dataset_id, file(forward), file(reverse) from paired_fastq_alignment\n        file ref_index from index.first()\n    \n    output:\n        set dataset_id, file(\"${dataset_id}.aligned.sam\") into prokka_sam\n        set dataset_id, file(\"${dataset_id}.aligned.sam\") into freebayes_sam\n    \n    \"\"\"\n    bwa mem genome.index ${forward} ${reverse} -t ${threads} > ${dataset_id}.aligned.sam\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    bwa mem genome.index ${forward} ${reverse} -t ${threads} > ${dataset_id}.aligned.sam\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BWA"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            }
+        ],
+        "inputs": [
+            "paired_fastq_alignment",
+            "index"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "prokka_sam",
+            "freebayes_sam"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { dataset_id }",
+            "publishDir \"${params.output}/AlignedFiles\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "AssembleReads": {
+        "name_process": "AssembleReads",
+        "string_process": "\nprocess AssembleReads {\n    tag { dataset_id }\n    \n    publishDir \"${params.output}/AssembledFiles\", mode: \"symlink\"\n    \n    input:\n        set dataset_id, file(forward), file(reverse) from paired_fastq_assembly\n    \n    output:\n        set dataset_id, file(\"${dataset_id}.contigs.fa\") into (spades_contigs_ariba, spades_contigs_phaster)\n        set dataset_id, file(\"${dataset_id}.gfa\") into (spades_graphs)\n        set dataset_id, file(\"${dataset_id}.unicycler.log\") into (spades_paths)\n    \n    script:\n    \"\"\"\n    unicycler -1 ${forward} -2 ${reverse} -o output -t ${threads}\n    mv output/assembly.fasta ./${dataset_id}.contigs.fa\n    mv output/assembly.gfa ./${dataset_id}.gfa\n    mv output/unicycler.log ./${dataset_id}.unicycler.log\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    unicycler -1 ${forward} -2 ${reverse} -o output -t ${threads}\n    mv output/assembly.fasta ./${dataset_id}.contigs.fa\n    mv output/assembly.gfa ./${dataset_id}.gfa\n    mv output/unicycler.log ./${dataset_id}.unicycler.log\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Unicycler"
+        ],
+        "tools_url": [
+            "https://bio.tools/unicycler"
+        ],
+        "tools_dico": [
+            {
+                "name": "Unicycler",
+                "uri": "https://bio.tools/unicycler",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0925",
+                                "term": "Sequence assembly"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for assembling bacterial genomes from a combination of short (2nd generation) and long (3rd generation) sequencing reads.",
+                "homepage": "https://github.com/rrwick/Unicycler"
+            }
+        ],
+        "inputs": [
+            "paired_fastq_assembly"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "",
+            "",
+            ""
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { dataset_id }",
+            "publishDir \"${params.output}/AssembledFiles\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FindAribaMarkers": {
+        "name_process": "FindAribaMarkers",
+        "string_process": "\nprocess FindAribaMarkers {\n    tag { dataset_id }\n    \n    publishDir \"${params.output}/AribaFiles\", mode: \"symlink\"\n    \n    input:\n        set dataset_id, file(forward), file(reverse) from paired_fastq_ariba\n    \n    output:\n        set dataset_id, file(\"${dataset_id}.card.assemblies.fa.gz\") into (ariba_card_assemblies)\n        set dataset_id, file(\"${dataset_id}.megares.assemblies.fa.gz\") into (ariba_megares_assemblies)\n        set dataset_id, file(\"${dataset_id}.plasmidfinder.assemblies.fa.gz\") into (ariba_plasmidfinder_assemblies)\n        set dataset_id, file(\"${dataset_id}.virulencefinder.assemblies.fa.gz\") into (ariba_virulencefinder_assemblies)\n        file(\"${dataset_id}.card.report.tsv\") into (ariba_card_reports)\n        file(\"${dataset_id}.megares.report.tsv\") into (ariba_megares_reports)\n        file(\"${dataset_id}.plasmidfinder.report.tsv\") into (ariba_plasmidfinder_reports)\n        file(\"${dataset_id}.virulencefinder.report.tsv\") into (ariba_virulencefinder_reports)\n        \n        \"\"\"\n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.card.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_card\n        mv ariba_out_card/assemblies.fa.gz ./${dataset_id}.card.assemblies.fa.gz\n        mv ariba_out_card/report.tsv ./${dataset_id}.card.report.tsv\n        \n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.megares.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_megares\n        mv ariba_out_megares/assemblies.fa.gz ./${dataset_id}.megares.assemblies.fa.gz\n        mv ariba_out_megares/report.tsv ./${dataset_id}.megares.report.tsv\n        \n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.plasmidfinder.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_plasmidfinder\n        mv ariba_out_plasmidfinder/assemblies.fa.gz ./${dataset_id}.plasmidfinder.assemblies.fa.gz\n        mv ariba_out_plasmidfinder/report.tsv ./${dataset_id}.plasmidfinder.report.tsv\n        \n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.virulencefinder.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_virulencefinder\n        mv ariba_out_virulencefinder/assemblies.fa.gz ./${dataset_id}.virulencefinder.assemblies.fa.gz\n        mv ariba_out_virulencefinder/report.tsv ./${dataset_id}.virulencefinder.report.tsv\n        \"\"\"\n}",
+        "nb_lignes_process": 51,
+        "string_script": "\"\"\"\n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.card.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_card\n        mv ariba_out_card/assemblies.fa.gz ./${dataset_id}.card.assemblies.fa.gz\n        mv ariba_out_card/report.tsv ./${dataset_id}.card.report.tsv\n        \n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.megares.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_megares\n        mv ariba_out_megares/assemblies.fa.gz ./${dataset_id}.megares.assemblies.fa.gz\n        mv ariba_out_megares/report.tsv ./${dataset_id}.megares.report.tsv\n        \n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.plasmidfinder.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_plasmidfinder\n        mv ariba_out_plasmidfinder/assemblies.fa.gz ./${dataset_id}.plasmidfinder.assemblies.fa.gz\n        mv ariba_out_plasmidfinder/report.tsv ./${dataset_id}.plasmidfinder.report.tsv\n        \n        ariba run \\\n        --threads ${threads} \\\n        /opt/out.virulencefinder.prepareref \\\n        ${forward} \\\n        ${reverse} ariba_out_virulencefinder\n        mv ariba_out_virulencefinder/assemblies.fa.gz ./${dataset_id}.virulencefinder.assemblies.fa.gz\n        mv ariba_out_virulencefinder/report.tsv ./${dataset_id}.virulencefinder.report.tsv\n        \"\"\"",
+        "nb_lignes_script": 32,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "paired_fastq_ariba"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+        ],
+        "nb_outputs": 8,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { dataset_id }",
+            "publishDir \"${params.output}/AribaFiles\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SummarizeAribaReports": {
+        "name_process": "SummarizeAribaReports",
+        "string_process": "\nprocess SummarizeAribaReports {\n    tag { \"ARIBA Reports\" }\n    \n    publishDir \"${params.output}/AribaFiles\", mode: \"symlink\"\n    \n    input:\n        file card_reports from ariba_card_reports.toList()\n        file megares_reports from ariba_megares_reports.toList()\n        file plasmidfinder_reports from ariba_plasmidfinder_reports.toList()\n        file virulencefinder_reports from ariba_virulencefinder_reports.toList()\n    output:\n        set file(\"ariba.card.summary.csv\"), file(\"ariba.megares.summary.csv\"), file(\"ariba.plasmidfinder.summary.csv\"), file(\"ariba.virulencefinder.summary.csv\") into (ariba_summary_files)\n    \n    \"\"\"\n    #!/bin/bash\n    ariba summary ariba.card.summary $card_reports\n    ariba summary ariba.megares.summary $megares_reports\n    ariba summary ariba.plasmidfinder.summary $plasmidfinder_reports\n    ariba summary ariba.virulencefinder.summary $virulencefinder_reports\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n    #!/bin/bash\n    ariba summary ariba.card.summary $card_reports\n    ariba summary ariba.megares.summary $megares_reports\n    ariba summary ariba.plasmidfinder.summary $plasmidfinder_reports\n    ariba summary ariba.virulencefinder.summary $virulencefinder_reports\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ariba_card_reports",
+            "ariba_megares_reports",
+            "ariba_plasmidfinder_reports",
+            "ariba_virulencefinder_reports"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { \"ARIBA Reports\" }",
+            "publishDir \"${params.output}/AribaFiles\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SeparatePlasmidContigs": {
+        "name_process": "SeparatePlasmidContigs",
+        "string_process": "\nprocess SeparatePlasmidContigs {\n    tag { \"SPAdes Assemblies\" }\n    \n    publishDir \"${params.output}/AssembledFiles\", mode: \"symlink\"\n    \n    input:\n        set dataset_id, file(spades_contigs) from spades_contigs_ariba\n        set dataset_id, file(ariba_plasmid_assemblies) from ariba_plasmidfinder_assemblies\n    output:\n        set dataset_id, file(\"${dataset_id}.genome.contigs.fa\") into (genome_contigs)\n        set dataset_id, file(\"${dataset_id}.plasmid.contigs.fa\") into (plasmid_contigs)\n    \n    \"\"\"\n    #!/bin/bash\n    if [[ -s ${ariba_plasmid_assemblies} ]]; then\n        zcat $ariba_plasmid_assemblies > plasmid_unzipped.fa\n        fix_contig_headers.py $spades_contigs > temp_genome.contigs.fa\n        mummer -b temp_genome.contigs.fa plasmid_unzipped.fa > ${dataset_id}.plasmid.alignment.out\n        separate_plasmid_contigs.py temp_genome.contigs.fa ${dataset_id}.plasmid.alignment.out ${dataset_id}.plasmid.contigs.fa ${dataset_id}.genome.contigs.fa 1\n        rm temp_genome.contigs.fa\n        rm plasmid_unzipped.fa\n    else\n        touch ${dataset_id}.plasmid.contigs.fa\n        cp $spades_contigs ${dataset_id}.genome.contigs.fa\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n    #!/bin/bash\n    if [[ -s ${ariba_plasmid_assemblies} ]]; then\n        zcat $ariba_plasmid_assemblies > plasmid_unzipped.fa\n        fix_contig_headers.py $spades_contigs > temp_genome.contigs.fa\n        mummer -b temp_genome.contigs.fa plasmid_unzipped.fa > ${dataset_id}.plasmid.alignment.out\n        separate_plasmid_contigs.py temp_genome.contigs.fa ${dataset_id}.plasmid.alignment.out ${dataset_id}.plasmid.contigs.fa ${dataset_id}.genome.contigs.fa 1\n        rm temp_genome.contigs.fa\n        rm plasmid_unzipped.fa\n    else\n        touch ${dataset_id}.plasmid.contigs.fa\n        cp $spades_contigs ${dataset_id}.genome.contigs.fa\n    fi\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "MUMmer"
+        ],
+        "tools_url": [
+            "https://bio.tools/mummer"
+        ],
+        "tools_dico": [
+            {
+                "name": "MUMmer",
+                "uri": "https://bio.tools/mummer",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "MUMmer is a modular system for the rapid whole genome alignment of finished or draft sequence. Basically it is a ultra-fast alignment of large-scale DNA and protein sequences",
+                "homepage": "http://mummer.sourceforge.net/"
+            }
+        ],
+        "inputs": [
+            "spades_contigs_ariba",
+            "ariba_plasmidfinder_assemblies"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "",
+            ""
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { \"SPAdes Assemblies\" }",
+            "publishDir \"${params.output}/AssembledFiles\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FindPhages": {
+        "name_process": "FindPhages",
+        "string_process": " process FindPhages {\n        tag { dataset_id }\n        \n        input:\n            set dataset_id, file(spades_contigs) from spades_contigs_phaster\n        output:\n            set dataset_id, file(\"${dataset_id}.phaster.results.zip\") into (phaster_results)\n        \n        \"\"\"\n        mkdir temp_in\n        mkdir temp_out\n        \n        cp $spades_contigs temp_in/query.fa\n        phaster_query.py temp_in temp_out\n        mv temp_out/zipfiles/*.zip ./${dataset_id}.phaster.results.zip\n        \n        rm temp_in/*\n        rmdir temp_in\n        rmdir temp_out/zipfiles\n        rm temp_out/*\n        rmdir temp_out\n        \"\"\"\n    }",
+        "nb_lignes_process": 21,
+        "string_script": "\"\"\"\n        mkdir temp_in\n        mkdir temp_out\n        \n        cp $spades_contigs temp_in/query.fa\n        phaster_query.py temp_in temp_out\n        mv temp_out/zipfiles/*.zip ./${dataset_id}.phaster.results.zip\n        \n        rm temp_in/*\n        rmdir temp_in\n        rmdir temp_out/zipfiles\n        rm temp_out/*\n        rmdir temp_out\n        \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "spades_contigs_phaster"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { dataset_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "AnnotateGenomeAssemblies": {
+        "name_process": "AnnotateGenomeAssemblies",
+        "string_process": "\nprocess AnnotateGenomeAssemblies {\n    tag { dataset_id }\n    \n    publishDir \"${params.output}/AnnotatedGenomeAssemblies\", mode: \"symlink\"\n    \n    input:\n        set dataset_id, file(genome_contig_file) from genome_contigs\n    output:\n        set dataset_id, file(\"${dataset_id}.*\") into (annotated_genome_assemblies)\n    \n    \"\"\"\n    #!/bin/bash\n    prokka --outdir annotations --usegenus --genus $db --cpus $threads --prefix ${dataset_id}.genome --centre x --compliant $genome_contig_file\n    mv annotations/* .\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    #!/bin/bash\n    prokka --outdir annotations --usegenus --genus $db --cpus $threads --prefix ${dataset_id}.genome --centre x --compliant $genome_contig_file\n    mv annotations/* .\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "Prokka"
+        ],
+        "tools_url": [
+            "https://bio.tools/prokka"
+        ],
+        "tools_dico": [
+            {
+                "name": "Prokka",
+                "uri": "https://bio.tools/prokka",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0781",
+                            "term": "Virology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0362",
+                                    "term": "Genome annotation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software tool to annotate bacterial, archaeal and viral genomes quickly and produce standards-compliant output files.",
+                "homepage": "https://github.com/tseemann/prokka"
+            }
+        ],
+        "inputs": [
+            "genome_contigs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { dataset_id }",
+            "publishDir \"${params.output}/AnnotatedGenomeAssemblies\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "AnnotatePlasmidAssemblies": {
+        "name_process": "AnnotatePlasmidAssemblies",
+        "string_process": "\nprocess AnnotatePlasmidAssemblies {\n    tag { \"Plasmid Contigs\" }\n    \n    publishDir \"${params.output}/AnnotatedPlasmidAssemblies\", mode: \"symlink\"\n    \n    input:\n        set dataset_id, file(plasmid_contig_file) from plasmid_contigs\n    output:\n        set dataset_id, file(\"${dataset_id}.*\") into (annotated_plasmid_assemblies)\n    \n    \"\"\"\n    #!/bin/bash\n    if [[ -s ${plasmid_contig_file} ]]; then\n        cat $plasmid_contig_file\n        prokka --outdir annotations --usegenus --genus Plasmid --cpus $threads --prefix ${dataset_id}.plasmid $plasmid_contig_file\n        mv annotations/* .\n    else\n        touch ${dataset_id}.empty.no.annotations\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n    #!/bin/bash\n    if [[ -s ${plasmid_contig_file} ]]; then\n        cat $plasmid_contig_file\n        prokka --outdir annotations --usegenus --genus Plasmid --cpus $threads --prefix ${dataset_id}.plasmid $plasmid_contig_file\n        mv annotations/* .\n    else\n        touch ${dataset_id}.empty.no.annotations\n    fi\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "Prokka"
+        ],
+        "tools_url": [
+            "https://bio.tools/prokka"
+        ],
+        "tools_dico": [
+            {
+                "name": "Prokka",
+                "uri": "https://bio.tools/prokka",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0781",
+                            "term": "Virology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0362",
+                                    "term": "Genome annotation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software tool to annotate bacterial, archaeal and viral genomes quickly and produce standards-compliant output files.",
+                "homepage": "https://github.com/tseemann/prokka"
+            }
+        ],
+        "inputs": [
+            "plasmid_contigs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lakinsm__bear-wgs",
+        "directive": [
+            "tag { \"Plasmid Contigs\" }",
+            "publishDir \"${params.output}/AnnotatedPlasmidAssemblies\", mode: \"symlink\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

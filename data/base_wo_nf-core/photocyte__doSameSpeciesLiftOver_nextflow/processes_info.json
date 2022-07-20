@@ -1,0 +1,748 @@
+{
+    "convertFAto2bit_old": {
+        "name_process": "convertFAto2bit_old",
+        "string_process": "\nprocess convertFAto2bit_old {\n    conda \"ucsc-fatotwobit\"\n                                                                                  \n                                    \n \n    tag \"$fasta\"\n    input:\n    file fasta from oldGenome_1\n\n    output:\n    file \"${fasta}.2bit\" into old_2bit \n    script:\n    \"\"\"\n    faToTwoBit ${fasta} ${fasta}.2bit    \n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    faToTwoBit ${fasta} ${fasta}.2bit    \n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "oldGenome_1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "old_2bit"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-fatotwobit\"",
+            "tag \"$fasta\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "constructOocFile": {
+        "name_process": "constructOocFile",
+        "string_process": "\nprocess constructOocFile {\n    conda \"blat\"\n                                    \n    tag \"$old_2bit\"\n    input:\n      file old_2bit from old_2bit_2\n    output:\n      file \"${old_2bit}.ooc\" into ooc\n    script:\n    \"\"\"\n    ##TODO Should follow protocol for repMatch using the \"Construct ooc file\" instructions from http://genomewiki.ucsc.edu/index.php/DoSameSpeciesLiftOver.pl\n    blat ${old_2bit} /dev/null /dev/null -stepSize=1 -tileSize=11 -makeOoc=${old_2bit}.ooc -repMatch=4096\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    ##TODO Should follow protocol for repMatch using the \"Construct ooc file\" instructions from http://genomewiki.ucsc.edu/index.php/DoSameSpeciesLiftOver.pl\n    blat ${old_2bit} /dev/null /dev/null -stepSize=1 -tileSize=11 -makeOoc=${old_2bit}.ooc -repMatch=4096\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "BLAT"
+        ],
+        "tools_url": [
+            "https://bio.tools/blat"
+        ],
+        "tools_dico": [
+            {
+                "name": "BLAT",
+                "uri": "https://bio.tools/blat",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast, accurate spliced alignment of DNA sequences.",
+                "homepage": "http://genome.ucsc.edu/cgi-bin/hgBlat?command=start"
+            }
+        ],
+        "inputs": [
+            "old_2bit_2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ooc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"blat\"",
+            "tag \"$old_2bit\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "subRecordChunks": {
+        "name_process": "subRecordChunks",
+        "string_process": "\nprocess subRecordChunks {\nconda \"ucsc-fasplit\"\n                                \ninput:\n file fastaChunk from fastaChunks\noutput:\n set file(\"${fastaChunk}\"), file(\"${fastaChunk}.lft\"),file(\"${fastaChunk}.subsplit.fa\") into subsplitFasta_liftUp\ntag \"${fastaChunk}\"\nscript:\n\"\"\"\nfaSplit size ${fastaChunk} ${params.splitSize} ${fastaChunk}.subsplit -lift=${fastaChunk}.lft -oneFile -extra=${params.extraBases}\n\"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\nfaSplit size ${fastaChunk} ${params.splitSize} ${fastaChunk}.subsplit -lift=${fastaChunk}.lft -oneFile -extra=${params.extraBases}\n\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastaChunks"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "subsplitFasta_liftUp"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-fasplit\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "blat_align": {
+        "name_process": "blat_align",
+        "string_process": "\nprocess blat_align {\nconda \"blat ucsc-fasplit ucsc-liftup\"\n                                \nmemory '4 GB'\ninput:\n set file(originalFasta),file(liftupFile),file(fastaSubChunk),file(old_2bit),file(ooc) from blatCmds\noutput:\n file \"${fastaSubChunk}.lifted.psl\" into axtChainCmds\ntag \"${fastaSubChunk}\"\nscript:\n\"\"\"\nif [ \"${params.splitSize}\" -lt \"4000\" ]; then\n  blat ${old_2bit} ${fastaSubChunk} -ooc=${ooc} -maxIntron=0 -stepSize=1 -tileSize=11 -minIdentity=98 -noHead -minScore=100 -fastMap -extendThroughN ${fastaSubChunk}.subsplit.psl\nelse\n  blat ${old_2bit} ${fastaSubChunk} -ooc=${ooc} -maxIntron=0 -stepSize=1 -tileSize=11 -minIdentity=98 -noHead -minScore=100 -extendThroughN ${fastaSubChunk}.subsplit.psl\nfi\n\nliftUp -pslQ ${fastaSubChunk}.lifted.psl ${liftupFile} warn ${fastaSubChunk}.subsplit.psl\n\"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\nif [ \"${params.splitSize}\" -lt \"4000\" ]; then\n  blat ${old_2bit} ${fastaSubChunk} -ooc=${ooc} -maxIntron=0 -stepSize=1 -tileSize=11 -minIdentity=98 -noHead -minScore=100 -fastMap -extendThroughN ${fastaSubChunk}.subsplit.psl\nelse\n  blat ${old_2bit} ${fastaSubChunk} -ooc=${ooc} -maxIntron=0 -stepSize=1 -tileSize=11 -minIdentity=98 -noHead -minScore=100 -extendThroughN ${fastaSubChunk}.subsplit.psl\nfi\n\nliftUp -pslQ ${fastaSubChunk}.lifted.psl ${liftupFile} warn ${fastaSubChunk}.subsplit.psl\n\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "BLAT"
+        ],
+        "tools_url": [
+            "https://bio.tools/blat"
+        ],
+        "tools_dico": [
+            {
+                "name": "BLAT",
+                "uri": "https://bio.tools/blat",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast, accurate spliced alignment of DNA sequences.",
+                "homepage": "http://genome.ucsc.edu/cgi-bin/hgBlat?command=start"
+            }
+        ],
+        "inputs": [
+            "blatCmds"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "axtChainCmds"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"blat ucsc-fasplit ucsc-liftup\"",
+            "memory '4 GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "axtChain": {
+        "name_process": "axtChain",
+        "string_process": "\nprocess axtChain {\nconda \"ucsc-axtchain ucsc-fatotwobit\"\n                                \ninput:\n file pslFile from axtChainCmds.collectFile(name:\"merged.psl\",keepHeader:true,skip:5)\n file oldFasta from oldGenome_3\n file newFasta from newGenome_3\noutput:\n file \"${pslFile}.chain\" into chains\ntag \"${pslFile}\"\nscript:\n\"\"\"\naxtChain -linearGap=loose -faQ -faT -psl ${pslFile} ${oldFasta} ${newFasta} ${pslFile}.chain\n\"\"\"\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\naxtChain -linearGap=loose -faQ -faT -psl ${pslFile} ${oldFasta} ${newFasta} ${pslFile}.chain\n\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "axtChainCmds",
+            "oldGenome_3",
+            "newGenome_3"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "chains"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-axtchain ucsc-fatotwobit\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chainSortFirst": {
+        "name_process": "chainSortFirst",
+        "string_process": "\nprocess chainSortFirst {\nconda \"ucsc-chainsort\"\ninput:\n file chainFile from chains\noutput:\n file \"sorted.${chainFile}\" into sorted_chains\nscript:\n\"\"\"\nchainSort ${chainFile} sorted.${chainFile}\n\"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "\"\"\"\nchainSort ${chainFile} sorted.${chainFile}\n\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chains"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sorted_chains"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-chainsort\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chainMergeSort_chainSplit": {
+        "name_process": "chainMergeSort_chainSplit",
+        "string_process": "\nprocess chainMergeSort_chainSplit {\nconda \"ucsc-chainmergesort ucsc-chainsplit\"\n                                \ntag \"$chainFile\"\ninput:\n file chainFile from sorted_chains.collect()\n\noutput:\n file \"chainMerge/*.chain\" into sortMergedChains\n\nscript:\n\"\"\"\n##chainMerge is the output directory\nchainMergeSort ${chainFile} | chainSplit chainMerge stdin -lump=50\n\"\"\"\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n##chainMerge is the output directory\nchainMergeSort ${chainFile} | chainSplit chainMerge stdin -lump=50\n\"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sorted_chains"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sortMergedChains"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-chainmergesort ucsc-chainsplit\"",
+            "tag \"$chainFile\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chainSortSecond": {
+        "name_process": "chainSortSecond",
+        "string_process": "\nprocess chainSortSecond {\nconda \"ucsc-chainsort\"\n                                \ntag \"$chainFile\"\ninput:\n file chainFile from sortMergedChains.collectFile(name: 'all.chain')\n\noutput:\n file \"all.sorted.chain\" into allSortedChain_1, allSortedChain_2\nscript:\n\"\"\"\nchainSort all.chain all.sorted.chain\n\"\"\"\n\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\nchainSort all.chain all.sorted.chain\n\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sortMergedChains"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "allSortedChain_1",
+            "allSortedChain_2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-chainsort\"",
+            "tag \"$chainFile\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "calculateChromInfo": {
+        "name_process": "calculateChromInfo",
+        "string_process": "\nprocess calculateChromInfo {\nconda \"seqkit\"\n                                \ntag \"$oldGenome and $newGenome\"\ninput:\n file oldGenome from oldGenome_2\n file newGenome from newGenome_1\noutput:\n set file(\"${oldGenome}.chromInfo\"),file(\"${newGenome}.chromInfo\") into chromInfos\nscript:\n\"\"\"\n ##Equivalent command that can be run on FASTA files:\n seqkit fx2tab --only-id -nl ${oldGenome} | tr -s \"\\t\" | sort -k2,2nr > ${oldGenome}.chromInfo\n seqkit fx2tab --only-id -nl ${newGenome} | tr -s \"\\t\" | sort -k2,2nr > ${newGenome}.chromInfo\n\n ##Old way that used ucsc-twobitinfo from a 2bit file.\n ##twoBitInfo new.2bit new.2bit.chromInfo\n ##twoBitInfo old.2bit old.2bit.chromInfo\n\"\"\"\n\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n ##Equivalent command that can be run on FASTA files:\n seqkit fx2tab --only-id -nl ${oldGenome} | tr -s \"\\t\" | sort -k2,2nr > ${oldGenome}.chromInfo\n seqkit fx2tab --only-id -nl ${newGenome} | tr -s \"\\t\" | sort -k2,2nr > ${newGenome}.chromInfo\n\n ##Old way that used ucsc-twobitinfo from a 2bit file.\n ##twoBitInfo new.2bit new.2bit.chromInfo\n ##twoBitInfo old.2bit old.2bit.chromInfo\n\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "oldGenome_2",
+            "newGenome_1"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "chromInfos"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"seqkit\"",
+            "tag \"$oldGenome and $newGenome\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chainNet": {
+        "name_process": "chainNet",
+        "string_process": "\nprocess chainNet {\nconda \"ucsc-chainnet\"\n                                \ntag \"$allSortedChain\"\ninput:\n file allSortedChain from allSortedChain_1\n set file(oldInfo),file(newInfo) from chromInfos\noutput:\n file \"all.net\" into netFile\nscript:\n\"\"\"\nchainNet ${allSortedChain} ${oldInfo} ${newInfo} all.net /dev/null\n\"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\nchainNet ${allSortedChain} ${oldInfo} ${newInfo} all.net /dev/null\n\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "allSortedChain_1",
+            "chromInfos"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "netFile"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-chainnet\"",
+            "tag \"$allSortedChain\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "produceLiftOverFile": {
+        "name_process": "produceLiftOverFile",
+        "string_process": "\nprocess produceLiftOverFile {\nconda \"ucsc-netchainsubset\"\n                                \npublishDir './liftover_output/',mode:'copy',overwrite:true\ntag \"$netFile & $allSortedChain_2\"\ninput:\n file netFile\n file allSortedChain_2\noutput:\n file \"final.liftOver\" into liftOverFile_1, liftOverFile_2\nscript:\n\"\"\"\nnetChainSubset ${netFile} ${allSortedChain_2} final.liftOver\n\"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\nnetChainSubset ${netFile} ${allSortedChain_2} final.liftOver\n\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "netFile",
+            "allSortedChain_2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "liftOverFile_1",
+            "liftOverFile_2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-netchainsubset\"",
+            "publishDir './liftover_output/',mode:'copy',overwrite:true",
+            "tag \"$netFile & $allSortedChain_2\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "crossmap_liftover": {
+        "name_process": "crossmap_liftover",
+        "string_process": "\nprocess crossmap_liftover {\nconda \"crossmap=0.3.7\"\ninput:\n file gffFile from gffFile_3\n file liftOverFile from liftOverFile_1\noutput:\n file \"crossmap-lifted_${gffFile}\" into crossmap_lifted_gff\nscript:\n\"\"\"\ncrossmap.py -v\ncrossmap.py gff ${liftOverFile} ${gffFile} crossmap-lifted_${gffFile}\n###Below line is to fix a bug in crossmap where it outputs coordinates as floats rather than integers\n##Also bug where certain scores for features were set to null?\n##cat lifted_unsorted_unfixed_${gffFile} | sed \\$'s/.0\\t/\\t/g' | sed \\$'s/\\t\\t/\\t0\\t/g'> crossmap-lifted_${gffFile}\n###\n\"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\ncrossmap.py -v\ncrossmap.py gff ${liftOverFile} ${gffFile} crossmap-lifted_${gffFile}\n###Below line is to fix a bug in crossmap where it outputs coordinates as floats rather than integers\n##Also bug where certain scores for features were set to null?\n##cat lifted_unsorted_unfixed_${gffFile} | sed \\$'s/.0\\t/\\t/g' | sed \\$'s/\\t\\t/\\t0\\t/g'> crossmap-lifted_${gffFile}\n###\n\"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gffFile_3",
+            "liftOverFile_1"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "crossmap_lifted_gff"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"crossmap=0.3.7\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalizeGff": {
+        "name_process": "normalizeGff",
+        "string_process": "\nprocess normalizeGff {\npublishDir './liftover_output/',mode:'copy',overwrite:true\ntag \"$gff by $fasta\"\ninput:\n set file(gff),file(fasta) from normalizeCmds\noutput:\n file \"target.${gff}.gff3\" optional true into normalizedGff\n file \"ignored.${gff}.gff3\"\nscript:\n\"\"\"\nseqkit fx2tab --only-id -n ${fasta} | tr -s \"\\t\" > target_scaffolds.txt\necho \"##gff-version 3\" >> target_scaffolds.txt\ngt gff3 -tidy -sort -retainids -fixregionboundaries ${gff} > normalized.${gff}.gff3 \ngrep -f target_scaffolds.txt normalized.${gff}.gff3 > target.${gff}.gff3\ngrep -v -f target_scaffolds.txt normalized.${gff}.gff3 > ignored.${gff}.gff3\n\nif [[ \\$(wc -l <target.${gff}.gff3) -le 1 ]]\nthen\n    echo \"No targets were found. Deleting target gff3 file.\"\n    rm -f target.${gff}.gff3\nfi\n\"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"\nseqkit fx2tab --only-id -n ${fasta} | tr -s \"\\t\" > target_scaffolds.txt\necho \"##gff-version 3\" >> target_scaffolds.txt\ngt gff3 -tidy -sort -retainids -fixregionboundaries ${gff} > normalized.${gff}.gff3 \ngrep -f target_scaffolds.txt normalized.${gff}.gff3 > target.${gff}.gff3\ngrep -v -f target_scaffolds.txt normalized.${gff}.gff3 > ignored.${gff}.gff3\n\nif [[ \\$(wc -l <target.${gff}.gff3) -le 1 ]]\nthen\n    echo \"No targets were found. Deleting target gff3 file.\"\n    rm -f target.${gff}.gff3\nfi\n\"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "PGT"
+        ],
+        "tools_url": [
+            "https://bio.tools/pgt"
+        ],
+        "tools_dico": [
+            {
+                "name": "PGT",
+                "uri": "https://bio.tools/pgt",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3209",
+                                    "term": "Genome comparison"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3209",
+                                    "term": "Genomic region matching"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software to find motifs using random projections.",
+                "homepage": "http://www1.cse.wustl.edu/~jbuhler/pgt/"
+            }
+        ],
+        "inputs": [
+            "normalizeCmds"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "normalizedGff"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "publishDir './liftover_output/',mode:'copy',overwrite:true",
+            "tag \"$gff by $fasta\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ucsc_liftover": {
+        "name_process": "ucsc_liftover",
+        "string_process": "\nprocess ucsc_liftover {\nconda \"ucsc-liftover\"\n                                \ntag \"$gffFile & liftOverFile\"\ninput:\n set file(gffFile),file(liftOverFile) from liftoverCmds\noutput:\n file \"original_${gffFile}\" into gffOriginal\n file \"ucsc-lifted_${gffFile}\" into ucsc_lifted_gff, ucsc_lifted_gff_ch2\n file \"unmapped_${gffFile}\" into unmapped_gff, unmapped_gff_ch2\nscript:\n\"\"\"\nliftOver -gff ${gffFile} ${liftOverFile} ucsc-lifted_${gffFile} unmapped_${gffFile}\nln -s ${gffFile} original_${gffFile}\n\"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\nliftOver -gff ${gffFile} ${liftOverFile} ucsc-lifted_${gffFile} unmapped_${gffFile}\nln -s ${gffFile} original_${gffFile}\n\"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "LiftOver"
+        ],
+        "tools_url": [
+            "https://bio.tools/liftover"
+        ],
+        "tools_dico": [
+            {
+                "name": "LiftOver",
+                "uri": "https://bio.tools/liftover",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This service converts genome coordinates and genome annotation files between assemblies.",
+                "homepage": "http://api.bioinfo.no/wsdl/LiftOverService.wsdl"
+            }
+        ],
+        "inputs": [
+            "liftoverCmds"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "gffOriginal",
+            "ucsc_lifted_gff",
+            "ucsc_lifted_gff_ch2",
+            "unmapped_gff",
+            "unmapped_gff_ch2"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "conda \"ucsc-liftover\"",
+            "tag \"$gffFile & liftOverFile\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rescue_unlifted_features": {
+        "name_process": "rescue_unlifted_features",
+        "string_process": "\nprocess rescue_unlifted_features {\ntag \"$unmapped_gff_ch2\"\ninput:\n file gffOriginal\n file ucsc_lifted_gff_ch2\n file unmapped_gff_ch2\noutput:\n file \"rescued.gff\" into rescuedGff\nscript:\n\"\"\"\n#!/usr/bin/env python\n##Oftentimes gene and mRNA features are not lifted over, as they presumably span regions that changed\n##Or also possible, they span \"NNNN\" regions that blat just doesn't want to deal with\n##This node takes those unmapped parent features, checks if they originally simply spanned the extent\n##of their child features, and if so simply updates the unmapped extent to the new extent of the child features\n##1) Load unmapped features. Get the ID(s)\n##2) Load the original file, check if the extent of the feature is == to extent of the children\n##3) Load the lifted over file, find the aforementioned child ID.  Use the start/end of the left/right child feature respectively. \nimport glob\nimport re\nlifted_path = glob.glob(\"./ucsc-lifted_*\")[0]\nunmapped_path = glob.glob(\"./unmapped_*\")[0]\noriginal_path = glob.glob(\"./original_*\")[0]\nunmapped_ids = dict()\n\n##Load unmapped features\nhandle = open(unmapped_path,\"r\")\nfor l in handle.readlines():\n    if l[0] == \"#\":\n        ##Skip comment lines\n        continue\n    splitline = l.split(\"\\t\")\n    start = int(splitline[3]) ##Start of the feature\n    end = int(splitline[4]) ##End of the feature\n    re_result = re.search(\"ID=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n\n    feature_ID = re_result.group(1)\n    unmapped_ids[feature_ID] = dict()\n    unmapped_ids[feature_ID][\"line\"] = l \n    unmapped_ids[feature_ID][\"type\"] = splitline[2]\n    unmapped_ids[feature_ID][\"start\"] = start\n    unmapped_ids[feature_ID][\"end\"] = end\n    unmapped_ids[feature_ID][\"left_extent_defined_by_child\"] = False\n    unmapped_ids[feature_ID][\"right_extent_defined_by_child\"] = False\n    unmapped_ids[feature_ID][\"left_child\"] = None\n    unmapped_ids[feature_ID][\"right_child\"] = None\n    unmapped_ids[feature_ID][\"childs_scaffold\"] = None\nhandle.close()\n\n##Find the child features.\n##Make a mapping of child IDs to parent IDs\nchild_ids = []\nchild_to_parent = dict()\nhandle = open(original_path,\"r\")\nfor l in handle.readlines():\n    if l[0] == \"#\":\n        continue\n    splitline = l.split(\"\\t\")\n    re_result = re.search(\"Parent=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n    parent_ID = re_result.group(1)\n    re_result = re.search(\"ID=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n    child_ID = re_result.group(1)\n    if parent_ID not in unmapped_ids.keys():\n        continue\n    start = int(splitline[3])\n    end = int(splitline[4])\n    scaffold = splitline[0]\n    if start == unmapped_ids[parent_ID][\"start\"]:\n        unmapped_ids[parent_ID][\"left_extent_defined_by_child\"] = True\n        unmapped_ids[parent_ID][\"left_child\"] = child_ID \n        child_ids.append(child_ID)\n        child_to_parent[child_ID] = parent_ID\n    if end == unmapped_ids[parent_ID][\"end\"]:\n        unmapped_ids[parent_ID][\"right_extent_defined_by_child\"] = True\n        unmapped_ids[parent_ID][\"right_child\"] = child_ID \n        child_ids.append(child_ID)\n        child_to_parent[child_ID] = parent_ID\nhandle.close()\n\n\nhandle = open(lifted_path,\"r\")\nfor l in handle.readlines():\n    if l[0] == \"#\":\n        continue\n        print(\"skipping due to comment line...\")\n    splitline = l.split(\"\\t\")\n    re_result = re.search(\"ID=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n        print(\"skipping due to no ID found...\")\n    feature_ID = re_result.group(1)\n    if feature_ID not in child_ids:\n        print(\"skipping due to feature_ID not in child_ids...\")\n        continue\n    start = int(splitline[3])\n    end = int(splitline[4])\n    scaffold = splitline[0]\n    print(scaffold)\n    unmapped_ids[child_to_parent[feature_ID]][\"childs_scaffold\"] = scaffold\n    if unmapped_ids[child_to_parent[feature_ID]][\"left_child\"] == feature_ID:\n        unmapped_ids[child_to_parent[feature_ID]][\"start\"] = start\n    if unmapped_ids[child_to_parent[feature_ID]][\"right_child\"] == feature_ID:\n        unmapped_ids[child_to_parent[feature_ID]][\"end\"] = end\nhandle.close()\nwrite_handle = open(\"rescued.gff\",\"w\")\nfor k in unmapped_ids.keys():\n     unmapped_line = unmapped_ids[k][\"line\"]\n     unmapped_splitline = unmapped_line.split(\"\\t\")\n     if unmapped_ids[k][\"childs_scaffold\"] == None:\n         theScaffold = unmapped_splitline[0]\n     else:\n         theScaffold = unmapped_ids[k][\"childs_scaffold\"]\n     newline = \"\\t\".join([theScaffold,unmapped_splitline[1],unmapped_splitline[2],str(unmapped_ids[k][\"start\"]),str(unmapped_ids[k][\"end\"]),unmapped_splitline[5],unmapped_splitline[6],unmapped_splitline[7],unmapped_splitline[8]])\n     write_handle.write(newline)\n\"\"\"\n}",
+        "nb_lignes_process": 121,
+        "string_script": "\"\"\"\n#!/usr/bin/env python\n##Oftentimes gene and mRNA features are not lifted over, as they presumably span regions that changed\n##Or also possible, they span \"NNNN\" regions that blat just doesn't want to deal with\n##This node takes those unmapped parent features, checks if they originally simply spanned the extent\n##of their child features, and if so simply updates the unmapped extent to the new extent of the child features\n##1) Load unmapped features. Get the ID(s)\n##2) Load the original file, check if the extent of the feature is == to extent of the children\n##3) Load the lifted over file, find the aforementioned child ID.  Use the start/end of the left/right child feature respectively. \nimport glob\nimport re\nlifted_path = glob.glob(\"./ucsc-lifted_*\")[0]\nunmapped_path = glob.glob(\"./unmapped_*\")[0]\noriginal_path = glob.glob(\"./original_*\")[0]\nunmapped_ids = dict()\n\n##Load unmapped features\nhandle = open(unmapped_path,\"r\")\nfor l in handle.readlines():\n    if l[0] == \"#\":\n        ##Skip comment lines\n        continue\n    splitline = l.split(\"\\t\")\n    start = int(splitline[3]) ##Start of the feature\n    end = int(splitline[4]) ##End of the feature\n    re_result = re.search(\"ID=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n\n    feature_ID = re_result.group(1)\n    unmapped_ids[feature_ID] = dict()\n    unmapped_ids[feature_ID][\"line\"] = l \n    unmapped_ids[feature_ID][\"type\"] = splitline[2]\n    unmapped_ids[feature_ID][\"start\"] = start\n    unmapped_ids[feature_ID][\"end\"] = end\n    unmapped_ids[feature_ID][\"left_extent_defined_by_child\"] = False\n    unmapped_ids[feature_ID][\"right_extent_defined_by_child\"] = False\n    unmapped_ids[feature_ID][\"left_child\"] = None\n    unmapped_ids[feature_ID][\"right_child\"] = None\n    unmapped_ids[feature_ID][\"childs_scaffold\"] = None\nhandle.close()\n\n##Find the child features.\n##Make a mapping of child IDs to parent IDs\nchild_ids = []\nchild_to_parent = dict()\nhandle = open(original_path,\"r\")\nfor l in handle.readlines():\n    if l[0] == \"#\":\n        continue\n    splitline = l.split(\"\\t\")\n    re_result = re.search(\"Parent=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n    parent_ID = re_result.group(1)\n    re_result = re.search(\"ID=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n    child_ID = re_result.group(1)\n    if parent_ID not in unmapped_ids.keys():\n        continue\n    start = int(splitline[3])\n    end = int(splitline[4])\n    scaffold = splitline[0]\n    if start == unmapped_ids[parent_ID][\"start\"]:\n        unmapped_ids[parent_ID][\"left_extent_defined_by_child\"] = True\n        unmapped_ids[parent_ID][\"left_child\"] = child_ID \n        child_ids.append(child_ID)\n        child_to_parent[child_ID] = parent_ID\n    if end == unmapped_ids[parent_ID][\"end\"]:\n        unmapped_ids[parent_ID][\"right_extent_defined_by_child\"] = True\n        unmapped_ids[parent_ID][\"right_child\"] = child_ID \n        child_ids.append(child_ID)\n        child_to_parent[child_ID] = parent_ID\nhandle.close()\n\n\nhandle = open(lifted_path,\"r\")\nfor l in handle.readlines():\n    if l[0] == \"#\":\n        continue\n        print(\"skipping due to comment line...\")\n    splitline = l.split(\"\\t\")\n    re_result = re.search(\"ID=(.+)[;\\$]\",splitline[8])\n    if re_result == None:\n        continue\n        print(\"skipping due to no ID found...\")\n    feature_ID = re_result.group(1)\n    if feature_ID not in child_ids:\n        print(\"skipping due to feature_ID not in child_ids...\")\n        continue\n    start = int(splitline[3])\n    end = int(splitline[4])\n    scaffold = splitline[0]\n    print(scaffold)\n    unmapped_ids[child_to_parent[feature_ID]][\"childs_scaffold\"] = scaffold\n    if unmapped_ids[child_to_parent[feature_ID]][\"left_child\"] == feature_ID:\n        unmapped_ids[child_to_parent[feature_ID]][\"start\"] = start\n    if unmapped_ids[child_to_parent[feature_ID]][\"right_child\"] == feature_ID:\n        unmapped_ids[child_to_parent[feature_ID]][\"end\"] = end\nhandle.close()\nwrite_handle = open(\"rescued.gff\",\"w\")\nfor k in unmapped_ids.keys():\n     unmapped_line = unmapped_ids[k][\"line\"]\n     unmapped_splitline = unmapped_line.split(\"\\t\")\n     if unmapped_ids[k][\"childs_scaffold\"] == None:\n         theScaffold = unmapped_splitline[0]\n     else:\n         theScaffold = unmapped_ids[k][\"childs_scaffold\"]\n     newline = \"\\t\".join([theScaffold,unmapped_splitline[1],unmapped_splitline[2],str(unmapped_ids[k][\"start\"]),str(unmapped_ids[k][\"end\"]),unmapped_splitline[5],unmapped_splitline[6],unmapped_splitline[7],unmapped_splitline[8]])\n     write_handle.write(newline)\n\"\"\"",
+        "nb_lignes_script": 111,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gffOriginal",
+            "ucsc_lifted_gff_ch2",
+            "unmapped_gff_ch2"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "rescuedGff"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "tag \"$unmapped_gff_ch2\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sort_gff": {
+        "name_process": "sort_gff",
+        "string_process": "\nprocess sort_gff {\npublishDir './liftover_output/',mode:'copy',overwrite:true\nconda \"genometools-genometools\"\n                                \ninput:\n file gff from ucsc_lifted_gff\n file unmapped from unmapped_gff\n file rescued from rescuedGff\noutput:\n file \"srt_${gff}\" into final_gff\n file \"${unmapped}\"\ntag \"${gff}\" \nscript:\n\"\"\"\n THENAME=${gff}\n NEWNAME=lifted_\\${THENAME#lifted_unsorted_}\n cat ${gff} ${rescued} | grep -v \"#\" | gt gff3 -tidy -sort -retainids > srt_${gff}\n\"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n THENAME=${gff}\n NEWNAME=lifted_\\${THENAME#lifted_unsorted_}\n cat ${gff} ${rescued} | grep -v \"#\" | gt gff3 -tidy -sort -retainids > srt_${gff}\n\"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "PGT"
+        ],
+        "tools_url": [
+            "https://bio.tools/pgt"
+        ],
+        "tools_dico": [
+            {
+                "name": "PGT",
+                "uri": "https://bio.tools/pgt",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3209",
+                                    "term": "Genome comparison"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3209",
+                                    "term": "Genomic region matching"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software to find motifs using random projections.",
+                "homepage": "http://www1.cse.wustl.edu/~jbuhler/pgt/"
+            }
+        ],
+        "inputs": [
+            "ucsc_lifted_gff",
+            "unmapped_gff",
+            "rescuedGff"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "final_gff"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "publishDir './liftover_output/',mode:'copy',overwrite:true",
+            "conda \"genometools-genometools\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "compare_gffs": {
+        "name_process": "compare_gffs",
+        "string_process": "\nprocess compare_gffs {\necho true\ntag \"$ogff vs. $fgff\"\ninput:\n file ogff from gffFile_2\n file fgff from final_gff\nscript:\n\"\"\"\ncat ${ogff} | grep -v \"#\" | cut -f 3 | sort | uniq > feature_types.txt\necho \"Done with pipeline. Check the liftover_output folder\"\n\"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "\"\"\"\ncat ${ogff} | grep -v \"#\" | cut -f 3 | sort | uniq > feature_types.txt\necho \"Done with pipeline. Check the liftover_output folder\"\n\"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gffFile_2",
+            "final_gff"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "photocyte__doSameSpeciesLiftOver_nextflow",
+        "directive": [
+            "echo true",
+            "tag \"$ogff vs. $fgff\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

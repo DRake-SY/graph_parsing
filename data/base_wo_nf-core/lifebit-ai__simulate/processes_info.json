@@ -1,0 +1,483 @@
+{
+    "download_leg_files": {
+        "name_process": "download_leg_files",
+        "string_process": "\nprocess download_leg_files {\n    label \"high_memory\"\n    publishDir \"${params.outdir}/leg-data\", mode: \"copy\"\n    \n    input:\n    file leg from legend_for_hapgen2_file_ch\n\n    output:\n    file(\"*leg\") into downloaded_leg_files_ch\n\n    script:\n    \"\"\"\n    tar xvzf ${leg} -C .\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    tar xvzf ${leg} -C .\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "legend_for_hapgen2_file_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "downloaded_leg_files_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "label \"high_memory\"",
+            "publishDir \"${params.outdir}/leg-data\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "download_1000G": {
+        "name_process": "download_1000G",
+        "string_process": "\nprocess download_1000G {\n    label \"high_memory\"\n    publishDir \"${params.outdir}/1000G-data\", mode: \"copy\"\n    \n    input:\n    file reference_1000G from reference_1000G_ch\n\n    output:\n    file(\"*combined_b37.txt\") into downloaded_1000G_genetic_map_ch\n    file(\"*impute.hap.gz\") into downloaded_1000G_hap_ch\n\n    script:\n    \"\"\"\n    tar xvzf ${reference_1000G} --strip-components 1\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    tar xvzf ${reference_1000G} --strip-components 1\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reference_1000G_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "downloaded_1000G_genetic_map_ch",
+            "downloaded_1000G_hap_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "label \"high_memory\"",
+            "publishDir \"${params.outdir}/1000G-data\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "simulate_gen_and_sample": {
+        "name_process": "simulate_gen_and_sample",
+        "string_process": "\nprocess simulate_gen_and_sample {\n    label \"high_memory\"\n    publishDir \"${params.outdir}/simulated_hapgen\", mode: \"copy\",\n    saveAs: { filename ->\n        if (filename.endsWith('-updated.gen')) \"$filename\"\n        else if (filename.endsWith('-updated.sample')) \"$filename\"\n        else if (filename.endsWith('.summary')) \"logs/$filename\"\n    }\n    \n    input:\n    tuple val(chr), file(map), file(hap), file(leg) from all_hapgen_inputs_ch\n    val num_participants from ch_num_participants\n\n    output:\n    file(\"*\") into simulated_gen_results_ch\n    file(\"*{simulated_hapgen-${num_participants}ind-updated.gen,simulated_hapgen-${num_participants}ind-updated.sample}\") into (simulated_gen_for_vcf_ch, simulated_gen_for_plink_ch)\n\n    shell:\n    position = leg.baseName.split(\"-\")[1]\n    unzipped_hap = hap.baseName\n    '''\n    # Gunzip the relevant hap file\n    gunzip -f !{hap}\n \n    # Run hapgen2\n    hapgen2  \\\n    -m !{map} \\\n    -l !{leg} \\\n    -h !{unzipped_hap} \\\n    -o !{chr}-simulated_hapgen-!{num_participants}ind \\\n    -n !{num_participants} 0 \\\n    -dl !{position} 0 0 0 \\\n    -no_haps_output !{extra_hapgen2_flags}\n\n    # Rename output files (phenotypes are not relevant at this stage)\n    mv !{chr}-simulated_hapgen-!{num_participants}ind.controls.gen !{chr}-simulated_hapgen-!{num_participants}ind.gen\n    mv !{chr}-simulated_hapgen-!{num_participants}ind.controls.sample !{chr}-simulated_hapgen-!{num_participants}ind.sample\n\n    # Update/correct the output files:\n    # (1) Replace fake chromosome names (hapgen2 outputs: \"snp_0\", \"snp_1\" instead of a unique chromosome name)\n    # (2) Remove the dash from the sample names (but not the header) - required for downstream PLINK steps\n    awk '$1=\"!{chr}\"' !{chr}-simulated_hapgen-!{num_participants}ind.gen > !{chr}-simulated_hapgen-!{num_participants}ind-updated.gen\n    sed '1d' !{chr}-simulated_hapgen-!{num_participants}ind.sample | sed 's/id1_/id/g' | sed 's/id2_/id/g' | awk 'BEGIN{print \"ID_1 ID_2 missing pheno\"}{print}' > !{chr}-simulated_hapgen-!{num_participants}ind-updated.sample\n    '''\n}",
+        "nb_lignes_process": 44,
+        "string_script": "    position = leg.baseName.split(\"-\")[1]\n    unzipped_hap = hap.baseName\n    '''\n    # Gunzip the relevant hap file\n    gunzip -f !{hap}\n \n    # Run hapgen2\n    hapgen2  \\\n    -m !{map} \\\n    -l !{leg} \\\n    -h !{unzipped_hap} \\\n    -o !{chr}-simulated_hapgen-!{num_participants}ind \\\n    -n !{num_participants} 0 \\\n    -dl !{position} 0 0 0 \\\n    -no_haps_output !{extra_hapgen2_flags}\n\n    # Rename output files (phenotypes are not relevant at this stage)\n    mv !{chr}-simulated_hapgen-!{num_participants}ind.controls.gen !{chr}-simulated_hapgen-!{num_participants}ind.gen\n    mv !{chr}-simulated_hapgen-!{num_participants}ind.controls.sample !{chr}-simulated_hapgen-!{num_participants}ind.sample\n\n    # Update/correct the output files:\n    # (1) Replace fake chromosome names (hapgen2 outputs: \"snp_0\", \"snp_1\" instead of a unique chromosome name)\n    # (2) Remove the dash from the sample names (but not the header) - required for downstream PLINK steps\n    awk '$1=\"!{chr}\"' !{chr}-simulated_hapgen-!{num_participants}ind.gen > !{chr}-simulated_hapgen-!{num_participants}ind-updated.gen\n    sed '1d' !{chr}-simulated_hapgen-!{num_participants}ind.sample | sed 's/id1_/id/g' | sed 's/id2_/id/g' | awk 'BEGIN{print \"ID_1 ID_2 missing pheno\"}{print}' > !{chr}-simulated_hapgen-!{num_participants}ind-updated.sample\n    '''",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_hapgen_inputs_ch",
+            "ch_num_participants"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "simulated_gen_results_ch",
+            ""
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "label \"high_memory\"",
+            "publishDir \"${params.outdir}/simulated_hapgen\", mode: \"copy\" , saveAs: { filename -> if (filename.endsWith('-updated.gen')) \"$filename\" else if (filename.endsWith('-updated.sample')) \"$filename\" else if (filename.endsWith('.summary')) \"logs/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "simulate_vcf": {
+        "name_process": "simulate_vcf",
+        "string_process": " process simulate_vcf {\n\n    input:\n    tuple file(gen), file(sample) from simulated_gen_for_vcf_ch\n\n    output:\n    file(\"*\") into not_compressed_and_indexed_simulated_vcf_results_ch\n    file(\"*vcf\") into not_compressed_and_indexed_simulated_vcf_ch\n\n    shell:\n    out_vcf_name=gen.baseName\n    '''\n    plink2 \\\n    --gen !{gen} ref-unknown \\\n    --sample !{sample} \\\n    --recode vcf \\\n    --out !{out_vcf_name} \\\n    '''\n    }",
+        "nb_lignes_process": 17,
+        "string_script": "    out_vcf_name=gen.baseName\n    '''\n    plink2 \\\n    --gen !{gen} ref-unknown \\\n    --sample !{sample} \\\n    --recode vcf \\\n    --out !{out_vcf_name} \\\n    '''",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "simulated_gen_for_vcf_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "not_compressed_and_indexed_simulated_vcf_results_ch",
+            "not_compressed_and_indexed_simulated_vcf_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "compress_index_reheader_vcf": {
+        "name_process": "compress_index_reheader_vcf",
+        "string_process": " process compress_index_reheader_vcf {\n        publishDir \"${params.outdir}/simulated_vcf/compressed_and_indexed\", mode: \"copy\"\n\n        input:\n        file(vcf) from not_compressed_and_indexed_simulated_vcf_ch\n        file(sample_ids) from ch_sample_ids\n\n        output:\n        file(\"*\") into compressed_and_indexed_simulated_vcf_ch\n\n        script:\n        if( params.sample_ids )\n        \"\"\"\n        # Compress the VCF file\n        bcftools view -I ${vcf} -Oz -o ${vcf}.gz\n\n        # Temp move to different name to reheader sample ids\n        mv ${vcf}.gz temp_${vcf}.gz\n\n        # Reheader\n        bcftools reheader --samples ${sample_ids} --output ${vcf}.gz temp_${vcf}.gz\n        rm temp_${vcf}.gz\n\n        # Index the compressed VCFc file\n        bcftools index ${vcf}.gz\n        \"\"\"\n      }",
+        "nb_lignes_process": 25,
+        "string_script": "        if( params.sample_ids )\n        \"\"\"\n        # Compress the VCF file\n        bcftools view -I ${vcf} -Oz -o ${vcf}.gz\n\n        # Temp move to different name to reheader sample ids\n        mv ${vcf}.gz temp_${vcf}.gz\n\n        # Reheader\n        bcftools reheader --samples ${sample_ids} --output ${vcf}.gz temp_${vcf}.gz\n        rm temp_${vcf}.gz\n\n        # Index the compressed VCFc file\n        bcftools index ${vcf}.gz\n        \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "not_compressed_and_indexed_simulated_vcf_ch",
+            "ch_sample_ids"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "compressed_and_indexed_simulated_vcf_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "publishDir \"${params.outdir}/simulated_vcf/compressed_and_indexed\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "compress_and_index_vcf": {
+        "name_process": "compress_and_index_vcf",
+        "string_process": " process compress_and_index_vcf {\n        publishDir \"${params.outdir}/simulated_vcf/compressed_and_indexed\", mode: \"copy\"\n\n        input:\n        file(vcf) from not_compressed_and_indexed_simulated_vcf_ch\n\n        output:\n        file(\"*\") into compressed_and_indexed_simulated_vcf_ch\n\n        script:\n\n        \"\"\"\n        # Compress the VCF file\n        bcftools view -I ${vcf} -Oz -o ${vcf}.gz\n\n        # Index the compressed VCFc file\n        bcftools index ${vcf}.gz\n        \"\"\"\n      }",
+        "nb_lignes_process": 17,
+        "string_script": "        \"\"\"\n        # Compress the VCF file\n        bcftools view -I ${vcf} -Oz -o ${vcf}.gz\n\n        # Index the compressed VCFc file\n        bcftools index ${vcf}.gz\n        \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "not_compressed_and_indexed_simulated_vcf_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "compressed_and_indexed_simulated_vcf_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "publishDir \"${params.outdir}/simulated_vcf/compressed_and_indexed\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "simulate_plink": {
+        "name_process": "simulate_plink",
+        "string_process": " process simulate_plink {\n        publishDir \"${params.outdir}/simulated_plink\", mode: \"copy\",\n        saveAs: { filename -> \n            if (filename.endsWith('.bed')) \"$filename\"\n            else if (filename.endsWith('.bim')) \"$filename\"\n            else if (filename.endsWith('.fam')) \"$filename\"\n            else if (filename.endsWith('.log')) \"logs/$filename\"\n        }\n\n        input:\n        tuple file(gen), file(sample) from simulated_gen_for_plink_ch\n\n        output:\n        file(\"*\") into simulated_plink_results_ch\n        file(\"*.{bed,bim,fam}\") into simulated_plink_ch\n\n        shell:\n        out_plink_name=gen.baseName\n        '''\n        plink2 \\\n        --gen !{gen} ref-unknown \\\n        --sample !{sample} \\\n        --make-bed \\\n        --out !{out_plink_name} \\\n        '''\n    }",
+        "nb_lignes_process": 24,
+        "string_script": "        out_plink_name=gen.baseName\n        '''\n        plink2 \\\n        --gen !{gen} ref-unknown \\\n        --sample !{sample} \\\n        --make-bed \\\n        --out !{out_plink_name} \\\n        '''",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "simulated_gen_for_plink_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "simulated_plink_results_ch",
+            "simulated_plink_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "publishDir \"${params.outdir}/simulated_plink\", mode: \"copy\" , saveAs: { filename -> if (filename.endsWith('.bed')) \"$filename\" else if (filename.endsWith('.bim')) \"$filename\" else if (filename.endsWith('.fam')) \"$filename\" else if (filename.endsWith('.log')) \"logs/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "simulate_gwas_sum_stats": {
+        "name_process": "simulate_gwas_sum_stats",
+        "string_process": " process simulate_gwas_sum_stats {\n    publishDir \"${params.outdir}/simulated_gwas_sum_stats\", mode: \"copy\",\n    saveAs: { filename -> \n        if (filename.endsWith('.snplist')) \"$filename\"\n        else if (filename.endsWith('.par')) \"$filename\"\n        else if (filename.endsWith('.phen')) \"$filename\"\n        else if (filename.endsWith('.log')) \"logs/$filename\"\n    }\n\n    input:\n    tuple file(bed), file(bim), file(fam) from simulated_plink_ch\n    val gwas_cases_proportion from params.gwas_cases_proportion\n    val num_participants from ch_num_participants\n\n    output:\n    file(\"*\") into simulated_gwas_sum_stats_ch\n\n    shell:\n                                                                  \n                                                                                               \n                                                         \n    proportion_cases = gwas_cases_proportion\n    total_participants = num_participants\n  \n    cases_num = proportion_cases * total_participants\n    rounded_case_num = (int)cases_num\n  \n    controls_num = total_participants - rounded_case_num\n\n                                                       \n    bfile_name = bed.baseName\n    chr = bfile_name.split(\"-\")[0]\n\n    '''\n    # Create list of causal SNPs required by GCTA\n    cut -f2 !{bim} | head -n 10 > !{chr}-causal.snplist\n\n    # Run GCTA\n    gcta64 \\\n    --bfile !{bfile_name} \\\n    --simu-cc !{rounded_case_num} !{controls_num} \\\n    --simu-causal-loci !{chr}-causal.snplist \\\n    --out !{chr}-gwas-statistics \\\n    !{extra_gcta_flags}\n    '''\n  }",
+        "nb_lignes_process": 44,
+        "string_script": "    proportion_cases = gwas_cases_proportion\n    total_participants = num_participants\n  \n    cases_num = proportion_cases * total_participants\n    rounded_case_num = (int)cases_num\n  \n    controls_num = total_participants - rounded_case_num\n\n                                                       \n    bfile_name = bed.baseName\n    chr = bfile_name.split(\"-\")[0]\n\n    '''\n    # Create list of causal SNPs required by GCTA\n    cut -f2 !{bim} | head -n 10 > !{chr}-causal.snplist\n\n    # Run GCTA\n    gcta64 \\\n    --bfile !{bfile_name} \\\n    --simu-cc !{rounded_case_num} !{controls_num} \\\n    --simu-causal-loci !{chr}-causal.snplist \\\n    --out !{chr}-gwas-statistics \\\n    !{extra_gcta_flags}\n    '''",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [
+            "SynChr"
+        ],
+        "tools_url": [
+            "https://bio.tools/synchr"
+        ],
+        "tools_dico": [
+            {
+                "name": "SynChr",
+                "uri": "https://bio.tools/synchr",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0092",
+                            "term": "Data visualisation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0092",
+                            "term": "Data rendering"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0283",
+                                    "term": "Linkage analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A Fast and Easy Tool to Reconstruct and Visualize Synteny Blocks along Eukaryotic Chromosomes.",
+                "homepage": "http://www.lcqb.upmc.fr/CHROnicle/SynChro.html"
+            }
+        ],
+        "inputs": [
+            "simulated_plink_ch",
+            "params",
+            "ch_num_participants"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "simulated_gwas_sum_stats_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "publishDir \"${params.outdir}/simulated_gwas_sum_stats\", mode: \"copy\" , saveAs: { filename -> if (filename.endsWith('.snplist')) \"$filename\" else if (filename.endsWith('.par')) \"$filename\" else if (filename.endsWith('.phen')) \"$filename\" else if (filename.endsWith('.log')) \"logs/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "simulate_cb_output": {
+        "name_process": "simulate_cb_output",
+        "string_process": " process simulate_cb_output{\n    publishDir \"${params.outdir}/simulated_cohort_browser_data\", mode: 'copy'\n\n    input:\n    file config from cohort_browser_yaml_config_ch\n\n    output:\n    file(\"${params.simulate_cb_output_output_tag}_pheno_data.csv\") into simulated_cb_pheno_data_ch\n    file(\"${params.simulate_cb_output_output_tag}_pheno_metadata.csv\") into simulated_cb_pheno_metadata_ch\n\n    script:\n    \"\"\"\n    simulate_cb_output.R --config_file \"${config}\" \\\n                         --outprefix \"${params.simulate_cb_output_output_tag}\"\n    \"\"\"\n  }",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    simulate_cb_output.R --config_file \"${config}\" \\\n                         --outprefix \"${params.simulate_cb_output_output_tag}\"\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cohort_browser_yaml_config_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "simulated_cb_pheno_data_ch",
+            "simulated_cb_pheno_metadata_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__simulate",
+        "directive": [
+            "publishDir \"${params.outdir}/simulated_cohort_browser_data\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

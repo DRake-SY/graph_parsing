@@ -1,0 +1,567 @@
+{
+    "get_software_versions": {
+        "name_process": "get_software_versions",
+        "string_process": "\nprocess get_software_versions {\n    publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode,\n        saveAs: { filename ->\n                      if (filename.indexOf('.csv') > 0) filename\n                      else null\n        }\n\n    output:\n    file 'software_versions_mqc.yaml' into ch_software_versions_yaml\n    file 'software_versions.csv'\n\n    script:\n    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    FileInfo --help &> v_openms.txt\n    pyprophet --version &> v_pyprophet.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    FileInfo --help &> v_openms.txt\n    pyprophet --version &> v_pyprophet.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ch_software_versions_yaml"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode , saveAs: { filename -> if (filename.indexOf('.csv') > 0) filename else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dda_raw_file_conversion": {
+        "name_process": "dda_raw_file_conversion",
+        "string_process": "\nprocess dda_raw_file_conversion {\n    input:\n    set val(id), val(sample), file(raw_file), file(dda_id_file) from input_dda_ms_files.raw\n\n    output:\n    set val(id), val(sample), file(\"${raw_file.baseName}.mzML\"), file(dda_id_file) into converted_dda_input_mzmls\n\n    when:\n    params.generate_spectral_library\n\n    script:\n    \"\"\"\n    ThermoRawFileParser.sh -i=${raw_file} -f=2 -b=${raw_file.baseName}.mzML\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    ThermoRawFileParser.sh -i=${raw_file} -f=2 -b=${raw_file.baseName}.mzML\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_dda_ms_files"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "converted_dda_input_mzmls"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [],
+        "when": "params.generate_spectral_library",
+        "stub": ""
+    },
+    "dda_id_format_conversion": {
+        "name_process": "dda_id_format_conversion",
+        "string_process": "\nprocess dda_id_format_conversion {\n\n    input:\n    set val(id), val(sample), file(dda_mzml), file(dda_id_file) from input_dda_ms_files.mzml.mix(input_dda_ms_files.mzxml).mix(converted_dda_input_mzmls)\n\n    output:\n    set val(id), val(sample), file(dda_mzml), file(\"${id}_${sample}_peptide_ids.idXML\") into input_dda_converted\n\n    when:\n    params.generate_spectral_library\n\n    script:\n    \"\"\"\n    IDFileConverter -in ${dda_id_file} -out ${id}_${sample}_peptide_ids.idXML -threads ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    IDFileConverter -in ${dda_id_file} -out ${id}_${sample}_peptide_ids.idXML -threads ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_dda_ms_files",
+            "converted_dda_input_mzmls"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "input_dda_converted"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [],
+        "when": "params.generate_spectral_library",
+        "stub": ""
+    },
+    "dda_library_generation": {
+        "name_process": "dda_library_generation",
+        "string_process": "\nprocess dda_library_generation {\n\n    input:\n    set val(id), val(sample), file(dda_mzml_file), file(idxml_file) from input_dda_converted\n    file unimod_file from input_unimod.first()\n\n    output:\n    set val(id), val(sample), file(\"${id}_${sample}_library.tsv\") into input_lib_dda_nd\n\n    when:\n    params.generate_spectral_library\n\n    script:\n    \"\"\"\n    easypqp convert \\\\\n        --unimod ${unimod_file} \\\\\n        --pepxml ${idxml_file} \\\\\n        --spectra ${dda_mzml_file}\n\n    easypqp library \\\\\n        --out ${dda_mzml_file.baseName}_run_peaks.tsv \\\\\n        --rt_psm_fdr_threshold ${params.library_rt_fdr} \\\\\n        --nofdr \\\\\n        ${dda_mzml_file.baseName}.psmpkl \\\\\n        ${dda_mzml_file.baseName}.peakpkl\n\n    mv ${dda_mzml_file.baseName}_run_peaks.tsv ${id}_${sample}_library.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    \"\"\"\n    easypqp convert \\\\\n        --unimod ${unimod_file} \\\\\n        --pepxml ${idxml_file} \\\\\n        --spectra ${dda_mzml_file}\n\n    easypqp library \\\\\n        --out ${dda_mzml_file.baseName}_run_peaks.tsv \\\\\n        --rt_psm_fdr_threshold ${params.library_rt_fdr} \\\\\n        --nofdr \\\\\n        ${dda_mzml_file.baseName}.psmpkl \\\\\n        ${dda_mzml_file.baseName}.peakpkl\n\n    mv ${dda_mzml_file.baseName}_run_peaks.tsv ${id}_${sample}_library.tsv\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_dda_converted",
+            "input_unimod"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "input_lib_dda_nd"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [],
+        "when": "params.generate_spectral_library",
+        "stub": ""
+    },
+    "assay_generation": {
+        "name_process": "assay_generation",
+        "string_process": "\nprocess assay_generation {\n\n    input:\n    set val(id), val(sample), file(lib_file_na) from input_lib.mix(input_lib_dda_nd)\n\n    output:\n    set val(id), val(sample), file(\"${id}_${sample}_assay.tsv\") into (input_lib_assay, input_lib_assay_for_irt, input_lib_assay_for_merging)\n\n    when:\n    !params.skip_decoy_generation\n\n    script:\n    \"\"\"\n    TargetedFileConverter \\\\\n        -in ${lib_file_na} \\\\\n        -out ${lib_file_na.baseName}.tsv \\\\\n        -threads ${task.cpus}\n\n    OpenSwathAssayGenerator \\\\\n        -in ${lib_file_na.baseName}.tsv \\\\\n        -min_transitions ${params.min_transitions} \\\\\n        -max_transitions ${params.max_transitions} \\\\\n        -out ${id}_${sample}_assay.tsv \\\\\n        -threads ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    TargetedFileConverter \\\\\n        -in ${lib_file_na} \\\\\n        -out ${lib_file_na.baseName}.tsv \\\\\n        -threads ${task.cpus}\n\n    OpenSwathAssayGenerator \\\\\n        -in ${lib_file_na.baseName}.tsv \\\\\n        -min_transitions ${params.min_transitions} \\\\\n        -max_transitions ${params.max_transitions} \\\\\n        -out ${id}_${sample}_assay.tsv \\\\\n        -threads ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_lib",
+            "input_lib_dda_nd"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [],
+        "when": "!params.skip_decoy_generation",
+        "stub": ""
+    },
+    "library_merging_and_alignment": {
+        "name_process": "library_merging_and_alignment",
+        "string_process": "\nprocess library_merging_and_alignment {\n    publishDir \"${params.outdir}/spectral_library_files\"\n\n    input:\n    set val(id), val(sample), file(lib_files_for_merging) from input_lib_assay_for_merging.groupTuple(by:1)\n\n    output:\n    set val(id), val(sample), file(\"${sample}_library_merged.tsv\") into (input_lib_assay_merged, input_lib_assay_merged_for_irt)\n    set val(id), val(sample), file(\"*.png\") optional true\n\n    when:\n    params.merge_libraries\n\n    script:\n    \"\"\"\n    merge_and_align_libraries_from_easypqp.py \\\\\n        --input_libraries ${lib_files_for_merging} \\\\\n        --min_overlap ${params.min_overlap_for_merging} \\\\\n        --rsq_threshold 0.75  \\\\\n        --output ${sample}_library_merged.tsv \\\\\n        ${align_flag}\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    merge_and_align_libraries_from_easypqp.py \\\\\n        --input_libraries ${lib_files_for_merging} \\\\\n        --min_overlap ${params.min_overlap_for_merging} \\\\\n        --rsq_threshold 0.75  \\\\\n        --output ${sample}_library_merged.tsv \\\\\n        ${align_flag}\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_lib_assay_for_merging"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "",
+            "sample"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/spectral_library_files\""
+        ],
+        "when": "params.merge_libraries",
+        "stub": ""
+    },
+    "pseudo_irt_generation": {
+        "name_process": "pseudo_irt_generation",
+        "string_process": "\nprocess pseudo_irt_generation {\n    publishDir \"${params.outdir}/spectral_library_files\"\n\n    input:\n    set val(id), val(sample), file(lib_file_assay_irt) from input_lib_assay_for_irt.mix(input_lib_assay_merged_for_irt)\n\n    output:\n    set val(sample), file(\"${lib_file_assay_irt.baseName}_pseudo_irts.pqp\") into input_lib_assay_irt_2\n\n    when:\n    params.generate_pseudo_irts\n\n    script:\n    \"\"\"\n    select_pseudo_irts_from_lib.py \\\\\n        --input_libraries ${lib_file_assay_irt} \\\\\n        --min_rt 0 \\\\\n        --n_irts ${params.n_irts} \\\\\n        --max_rt 100 \\\\\n        --output ${lib_file_assay_irt.baseName}_pseudo_irts.tsv \\\\\n        ${quant_flag}\n\n    TargetedFileConverter \\\\\n        -in ${lib_file_assay_irt.baseName}_pseudo_irts.tsv \\\\\n        -out ${lib_file_assay_irt.baseName}_pseudo_irts.pqp \\\\\n        -threads ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    select_pseudo_irts_from_lib.py \\\\\n        --input_libraries ${lib_file_assay_irt} \\\\\n        --min_rt 0 \\\\\n        --n_irts ${params.n_irts} \\\\\n        --max_rt 100 \\\\\n        --output ${lib_file_assay_irt.baseName}_pseudo_irts.tsv \\\\\n        ${quant_flag}\n\n    TargetedFileConverter \\\\\n        -in ${lib_file_assay_irt.baseName}_pseudo_irts.tsv \\\\\n        -out ${lib_file_assay_irt.baseName}_pseudo_irts.pqp \\\\\n        -threads ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_lib_assay_for_irt",
+            "input_lib_assay_merged_for_irt"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "input_lib_assay_irt_2"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/spectral_library_files\""
+        ],
+        "when": "params.generate_pseudo_irts",
+        "stub": ""
+    },
+    "decoy_generation": {
+        "name_process": "decoy_generation",
+        "string_process": "\nprocess decoy_generation {\n    publishDir \"${params.outdir}/spectral_library_files\"\n\n    input:\n    set val(id), val(sample), file(lib_file_nd) from input_lib_assay.mix(input_lib_assay_merged)\n\n    output:\n    set val(id), val(sample), file(\"${lib_file_nd.baseName}_decoy.pqp\") into input_lib_decoy\n\n    when:\n    !params.skip_decoy_generation\n\n    script:\n    \"\"\"\n    TargetedFileConverter \\\\\n        -in ${lib_file_nd} \\\\\n        -out ${lib_file_nd.baseName}.pqp \\\\\n        -threads ${task.cpus}\n\n    OpenSwathDecoyGenerator \\\\\n        -in ${lib_file_nd.baseName}.pqp \\\\\n        -method ${params.decoy_method} \\\\\n        -out ${lib_file_nd.baseName}_decoy.pqp \\\\\n        -threads ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    TargetedFileConverter \\\\\n        -in ${lib_file_nd} \\\\\n        -out ${lib_file_nd.baseName}.pqp \\\\\n        -threads ${task.cpus}\n\n    OpenSwathDecoyGenerator \\\\\n        -in ${lib_file_nd.baseName}.pqp \\\\\n        -method ${params.decoy_method} \\\\\n        -out ${lib_file_nd.baseName}_decoy.pqp \\\\\n        -threads ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_lib_assay",
+            "input_lib_assay_merged"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "input_lib_decoy"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/spectral_library_files\""
+        ],
+        "when": "!params.skip_decoy_generation",
+        "stub": ""
+    },
+    "dia_raw_file_conversion": {
+        "name_process": "dia_raw_file_conversion",
+        "string_process": "\nprocess dia_raw_file_conversion {\n\n    input:\n    set val(id), val(sample), val(condition), file(raw_file) from input_dia_ms_files.raw\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${raw_file.baseName}.mzML\") into converted_dia_input_mzmls\n\n    when:\n    !params.skip_dia_processing\n\n    script:\n    \"\"\"\n    ThermoRawFileParser.sh -i=${raw_file} -f=2 -b=${raw_file.baseName}.mzML\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    ThermoRawFileParser.sh -i=${raw_file} -f=2 -b=${raw_file.baseName}.mzML\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_dia_ms_files"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "converted_dia_input_mzmls"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [],
+        "when": "!params.skip_dia_processing",
+        "stub": ""
+    },
+    "dia_spectral_library_search": {
+        "name_process": "dia_spectral_library_search",
+        "string_process": "\nprocess dia_spectral_library_search {\n    publishDir \"${params.outdir}/openswathworkflow_output\"\n\n    label 'process_medium'\n\n    input:\n    set val(sample), val(id), val(condition), file(mzml_file), val(dummy_id), file(lib_file), file(irt_file) from converted_dia_input_mzmls.mix(input_dia_ms_files.mzml.mix(input_dia_ms_files.mzxml)).combine(input_lib_decoy.mix(input_lib_nd), by:1).combine(input_irts.mix(input_lib_assay_irt_2), by:0)\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${mzml_file.baseName}_chrom.mzML\") into chromatogram_files\n    set val(id), val(sample), val(condition), file(\"${mzml_file.baseName}.osw\") into osw_files\n    set val(id), val(sample), file(\"${lib_file.baseName}.pqp\") into (input_lib_used, input_lib_used_I, input_lib_used_I_mztab)\n\n    when:\n    !params.skip_dia_processing\n\n\n    script:\n    \"\"\"\n    mkdir tmp\n\n    TargetedFileConverter \\\\\n        -in ${lib_file} \\\\\n        -out ${lib_file.baseName}.pqp \\\\\n        -threads ${task.cpus}\n\n    TargetedFileConverter \\\\\n        -in ${irt_file} \\\\\n        -out ${irt_file.baseName}.pqp \\\\\n        -threads ${task.cpus}\n\n    OpenSwathWorkflow \\\\\n        -in ${mzml_file} \\\\\n        -tr ${lib_file.baseName}.pqp \\\\\n        -sort_swath_maps \\\\\n        -tr_irt ${irt_file.baseName}.pqp \\\\\n        -min_rsq ${params.irt_min_rsq} \\\\\n        -out_osw ${mzml_file.baseName}.osw \\\\\n        -out_chrom ${mzml_file.baseName}_chrom.mzML \\\\\n        -mz_extraction_window ${params.mz_extraction_window} \\\\\n        -mz_extraction_window_ms1 ${params.mz_extraction_window_ms1} \\\\\n        -mz_extraction_window_unit ${params.mz_extraction_window_unit} \\\\\n        -mz_extraction_window_ms1_unit ${params.mz_extraction_window_ms1_unit} \\\\\n        -rt_extraction_window ${params.rt_extraction_window} \\\\\n        -min_upper_edge_dist ${params.min_upper_edge_dist} \\\\\n        -RTNormalization:alignmentMethod ${params.irt_alignment_method} \\\\\n        -RTNormalization:estimateBestPeptides \\\\\n        -RTNormalization:outlierMethod none \\\\\n        -RTNormalization:NrRTBins ${params.irt_n_bins} \\\\\n        -RTNormalization:MinBinsFilled ${params.irt_min_bins_covered} \\\\\n        -mz_correction_function quadratic_regression_delta_ppm \\\\\n        -Scoring:stop_report_after_feature 5 \\\\\n        -Scoring:TransitionGroupPicker:compute_peak_quality false \\\\\n        -Scoring:TransitionGroupPicker:peak_integration 'original' \\\\\n        -Scoring:TransitionGroupPicker:background_subtraction 'none' \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:sgolay_frame_length 11 \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:sgolay_polynomial_order 3 \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:gauss_width 30 \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:use_gauss 'false' \\\\\n        -Scoring:TransitionGroupPicker:PeakIntegrator:integration_type 'intensity_sum' \\\\\n        -Scoring:TransitionGroupPicker:PeakIntegrator:baseline_type 'base_to_base' \\\\\n        -Scoring:TransitionGroupPicker:PeakIntegrator:fit_EMG 'false' \\\\\n        -batchSize 1000 \\\\\n        -readOptions ${params.cache_option} \\\\\n        -tempDirectory tmp \\\\\n        -Scoring:DIAScoring:dia_nr_isotopes 3 \\\\\n        -enable_uis_scoring \\\\\n        -Scoring:uis_threshold_sn -1 \\\\\n        -threads ${task.cpus} \\\\\n        ${force_option} ${ms1_option} ${ms1_scoring} ${ms1_mi}\n    \"\"\"\n}",
+        "nb_lignes_process": 71,
+        "string_script": "    \"\"\"\n    mkdir tmp\n\n    TargetedFileConverter \\\\\n        -in ${lib_file} \\\\\n        -out ${lib_file.baseName}.pqp \\\\\n        -threads ${task.cpus}\n\n    TargetedFileConverter \\\\\n        -in ${irt_file} \\\\\n        -out ${irt_file.baseName}.pqp \\\\\n        -threads ${task.cpus}\n\n    OpenSwathWorkflow \\\\\n        -in ${mzml_file} \\\\\n        -tr ${lib_file.baseName}.pqp \\\\\n        -sort_swath_maps \\\\\n        -tr_irt ${irt_file.baseName}.pqp \\\\\n        -min_rsq ${params.irt_min_rsq} \\\\\n        -out_osw ${mzml_file.baseName}.osw \\\\\n        -out_chrom ${mzml_file.baseName}_chrom.mzML \\\\\n        -mz_extraction_window ${params.mz_extraction_window} \\\\\n        -mz_extraction_window_ms1 ${params.mz_extraction_window_ms1} \\\\\n        -mz_extraction_window_unit ${params.mz_extraction_window_unit} \\\\\n        -mz_extraction_window_ms1_unit ${params.mz_extraction_window_ms1_unit} \\\\\n        -rt_extraction_window ${params.rt_extraction_window} \\\\\n        -min_upper_edge_dist ${params.min_upper_edge_dist} \\\\\n        -RTNormalization:alignmentMethod ${params.irt_alignment_method} \\\\\n        -RTNormalization:estimateBestPeptides \\\\\n        -RTNormalization:outlierMethod none \\\\\n        -RTNormalization:NrRTBins ${params.irt_n_bins} \\\\\n        -RTNormalization:MinBinsFilled ${params.irt_min_bins_covered} \\\\\n        -mz_correction_function quadratic_regression_delta_ppm \\\\\n        -Scoring:stop_report_after_feature 5 \\\\\n        -Scoring:TransitionGroupPicker:compute_peak_quality false \\\\\n        -Scoring:TransitionGroupPicker:peak_integration 'original' \\\\\n        -Scoring:TransitionGroupPicker:background_subtraction 'none' \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:sgolay_frame_length 11 \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:sgolay_polynomial_order 3 \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:gauss_width 30 \\\\\n        -Scoring:TransitionGroupPicker:PeakPickerMRM:use_gauss 'false' \\\\\n        -Scoring:TransitionGroupPicker:PeakIntegrator:integration_type 'intensity_sum' \\\\\n        -Scoring:TransitionGroupPicker:PeakIntegrator:baseline_type 'base_to_base' \\\\\n        -Scoring:TransitionGroupPicker:PeakIntegrator:fit_EMG 'false' \\\\\n        -batchSize 1000 \\\\\n        -readOptions ${params.cache_option} \\\\\n        -tempDirectory tmp \\\\\n        -Scoring:DIAScoring:dia_nr_isotopes 3 \\\\\n        -enable_uis_scoring \\\\\n        -Scoring:uis_threshold_sn -1 \\\\\n        -threads ${task.cpus} \\\\\n        ${force_option} ${ms1_option} ${ms1_scoring} ${ms1_mi}\n    \"\"\"",
+        "nb_lignes_script": 52,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "converted_dia_input_mzmls",
+            "input_lib_nd",
+            "input_lib_assay_irt_2"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "chromatogram_files",
+            "osw_files",
+            ""
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/openswathworkflow_output\"",
+            "label 'process_medium'"
+        ],
+        "when": "!params.skip_dia_processing",
+        "stub": ""
+    },
+    "dia_search_output_merging": {
+        "name_process": "dia_search_output_merging",
+        "string_process": "\nprocess dia_search_output_merging {\n\n    input:\n    set val(sample), val(id), val(condition), file(all_osws), val(dummy_id), file(lib_file_template) from osw_files.groupTuple(by:1).join(input_lib_used, by:1)\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${sample}_osw_file_merged.osw\") into merged_osw_file_for_global\n\n    when:\n    !params.skip_dia_processing\n\n    script:\n    \"\"\"\n    pyprophet merge \\\\\n        --template=${lib_file_template} \\\\\n        --out=${sample}_osw_file_merged.osw \\\\\n        --no-same_run \\\\\n        ${all_osws}\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    pyprophet merge \\\\\n        --template=${lib_file_template} \\\\\n        --out=${sample}_osw_file_merged.osw \\\\\n        --no-same_run \\\\\n        ${all_osws}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "osw_files"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_osw_file_for_global"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [],
+        "when": "!params.skip_dia_processing",
+        "stub": ""
+    },
+    "global_false_discovery_rate_estimation": {
+        "name_process": "global_false_discovery_rate_estimation",
+        "string_process": "\nprocess global_false_discovery_rate_estimation {\n    publishDir \"${params.outdir}/pyprophet_output\"\n\n    label 'process_high_mem'\n\n    input:\n    set val(id), val(sample), val(condition), file(scored_osw) from merged_osw_file_for_global\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${scored_osw.baseName}_global_merged.osw\") into merged_osw_scored_global_for_pyprophet\n    set val(id), val(sample), val(condition), file(\"*.pdf\") into target_decoy_global_score_plots\n\n    when:\n    !params.skip_dia_processing\n\n    script:\n    if (params.pyprophet_classifier=='LDA'){\n        \"\"\"\n        pyprophet score \\\\\n            --in=${scored_osw} \\\\\n            --level=${params.pyprophet_fdr_ms_level} \\\\\n            --out=${scored_osw.baseName}_scored.osw \\\\\n            --classifier=${params.pyprophet_classifier} \\\\\n            --pi0_lambda ${params.pyprophet_pi0_start} ${params.pyprophet_pi0_end} ${params.pyprophet_pi0_steps} \\\\\n            --threads=${task.cpus}\n\n        pyprophet peptide \\\\\n            --in=${scored_osw.baseName}_scored.osw \\\\\n            --out=${scored_osw.baseName}_global_merged.osw \\\\\n            --context=run-specific\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=global\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=run-specific\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=global\n        \"\"\"\n    } else {\n        \"\"\"\n        pyprophet score \\\\\n            --in=${scored_osw} \\\\\n            --level=${params.pyprophet_fdr_ms_level} \\\\\n            --out=${scored_osw.baseName}_scored.osw \\\\\n            --classifier=${params.pyprophet_classifier} \\\\\n            --threads=${task.cpus}\n\n        pyprophet peptide \\\\\n            --in=${scored_osw.baseName}_scored.osw \\\\\n            --out=${scored_osw.baseName}_global_merged.osw \\\\\n            --context=run-specific\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=global\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=run-specific\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=global\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 66,
+        "string_script": "    if (params.pyprophet_classifier=='LDA'){\n        \"\"\"\n        pyprophet score \\\\\n            --in=${scored_osw} \\\\\n            --level=${params.pyprophet_fdr_ms_level} \\\\\n            --out=${scored_osw.baseName}_scored.osw \\\\\n            --classifier=${params.pyprophet_classifier} \\\\\n            --pi0_lambda ${params.pyprophet_pi0_start} ${params.pyprophet_pi0_end} ${params.pyprophet_pi0_steps} \\\\\n            --threads=${task.cpus}\n\n        pyprophet peptide \\\\\n            --in=${scored_osw.baseName}_scored.osw \\\\\n            --out=${scored_osw.baseName}_global_merged.osw \\\\\n            --context=run-specific\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=global\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=run-specific\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=global\n        \"\"\"\n    } else {\n        \"\"\"\n        pyprophet score \\\\\n            --in=${scored_osw} \\\\\n            --level=${params.pyprophet_fdr_ms_level} \\\\\n            --out=${scored_osw.baseName}_scored.osw \\\\\n            --classifier=${params.pyprophet_classifier} \\\\\n            --threads=${task.cpus}\n\n        pyprophet peptide \\\\\n            --in=${scored_osw.baseName}_scored.osw \\\\\n            --out=${scored_osw.baseName}_global_merged.osw \\\\\n            --context=run-specific\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet peptide --in=${scored_osw.baseName}_global_merged.osw --context=global\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=run-specific\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=experiment-wide\n\n        pyprophet ${params.pyprophet_global_fdr_level} --in=${scored_osw.baseName}_global_merged.osw --context=global\n        \"\"\"\n    }",
+        "nb_lignes_script": 49,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "merged_osw_file_for_global"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_osw_scored_global_for_pyprophet",
+            "target_decoy_global_score_plots"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/pyprophet_output\"",
+            "label 'process_high_mem'"
+        ],
+        "when": "!params.skip_dia_processing",
+        "stub": ""
+    },
+    "export_of_scoring_results": {
+        "name_process": "export_of_scoring_results",
+        "string_process": "\nprocess export_of_scoring_results {\n    publishDir \"${params.outdir}/pyprophet_output\"\n\n    input:\n    set val(id), val(sample), val(condition), file(global_osw) from merged_osw_scored_global_for_pyprophet\n\n    output:\n    set val(id), val(sample), val(condition), file(\"*.tsv\") into pyprophet_results\n    set val(id), val(sample), val(condition), file(global_osw) into osw_for_dialignr\n\n    when:\n    !params.skip_dia_processing\n\n    script:\n    \"\"\"\n    pyprophet export \\\\\n        --in=${global_osw} \\\\\n        --max_rs_peakgroup_qvalue=${params.pyprophet_peakgroup_fdr} \\\\\n        --max_global_peptide_qvalue=${params.pyprophet_peptide_fdr} \\\\\n        --max_global_protein_qvalue=${params.pyprophet_protein_fdr} \\\\\n        --out=legacy.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    pyprophet export \\\\\n        --in=${global_osw} \\\\\n        --max_rs_peakgroup_qvalue=${params.pyprophet_peakgroup_fdr} \\\\\n        --max_global_peptide_qvalue=${params.pyprophet_peptide_fdr} \\\\\n        --max_global_protein_qvalue=${params.pyprophet_protein_fdr} \\\\\n        --out=legacy.tsv\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "merged_osw_scored_global_for_pyprophet"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "pyprophet_results",
+            "osw_for_dialignr"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/pyprophet_output\""
+        ],
+        "when": "!params.skip_dia_processing",
+        "stub": ""
+    },
+    "chromatogram_indexing": {
+        "name_process": "chromatogram_indexing",
+        "string_process": "\nprocess chromatogram_indexing {\n\n    label 'process_high'\n\n    input:\n    set val(id), val(sample), val(condition), file(chrom_file_noindex) from chromatogram_files\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${chrom_file_noindex.baseName.split('_chrom')[0]}.chrom.sqMass\") into chromatogram_files_indexed\n\n    when:\n    !params.skip_dia_processing\n\n    script:\n    \"\"\"\n    FileConverter \\\\\n        -in ${chrom_file_noindex} \\\\\n        -process_lowmemory \\\\\n        -out ${chrom_file_noindex.baseName.split('_chrom')[0]}.chrom.mzML\n\n    OpenSwathMzMLFileCacher \\\\\n        -in ${chrom_file_noindex.baseName.split('_chrom')[0]}.chrom.mzML \\\\\n        -lossy_compression false \\\\\n        -process_lowmemory \\\\\n        -lowmem_batchsize 50000 \\\\\n        -out ${chrom_file_noindex.baseName.split('_chrom')[0]}.chrom.sqMass\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    FileConverter \\\\\n        -in ${chrom_file_noindex} \\\\\n        -process_lowmemory \\\\\n        -out ${chrom_file_noindex.baseName.split('_chrom')[0]}.chrom.mzML\n\n    OpenSwathMzMLFileCacher \\\\\n        -in ${chrom_file_noindex.baseName.split('_chrom')[0]}.chrom.mzML \\\\\n        -lossy_compression false \\\\\n        -process_lowmemory \\\\\n        -lowmem_batchsize 50000 \\\\\n        -out ${chrom_file_noindex.baseName.split('_chrom')[0]}.chrom.sqMass\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "AgileFileConverter"
+        ],
+        "tools_url": [
+            "https://bio.tools/agilefileconverter"
+        ],
+        "tools_dico": [
+            {
+                "name": "AgileFileConverter",
+                "uri": "https://bio.tools/agilefileconverter",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "AgileFileConverter converts varaint data in tab delimited text files, typically supplied by commercial NGS service providers, into the format used by AgileGeneFilter, AgileVariantViewer and AgileFileViewer",
+                "homepage": "http://dna.leeds.ac.uk/agile/AgileFileConverter/"
+            }
+        ],
+        "inputs": [
+            "chromatogram_files"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "chromatogram_files_indexed"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "label 'process_high'"
+        ],
+        "when": "!params.skip_dia_processing",
+        "stub": ""
+    },
+    "chromatogram_alignment": {
+        "name_process": "chromatogram_alignment",
+        "string_process": "\nprocess chromatogram_alignment {\n    publishDir \"${params.outdir}/\"\n\n    label 'process_high_mem'\n\n    input:\n    set val(sample), val(id), val(condition), file(pyresults), val(id_dummy), val(condition_dummy), file(chrom_files_index) from osw_and_chromatograms_combined_by_condition\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${sample}_peptide_quantities.csv\") into (DIALignR_result, DIALignR_result_I, DIALignR_result_mztab)\n\n    when:\n    !params.skip_dia_processing\n\n    script:\n    \"\"\"\n    mkdir osw\n    mv ${pyresults} osw/\n    mkdir xics\n    mv *.chrom.sqMass xics/\n\n    DIAlignR.R \\\\\n        ${params.dialignr_global_align_fdr} \\\\\n        ${params.dialignr_analyte_fdr} \\\\\n        ${params.dialignr_unalign_fdr} \\\\\n        ${params.dialignr_align_fdr} \\\\\n        ${params.dialignr_query_fdr} \\\\\n        ${params.pyprophet_global_fdr_level} \\\\\n        ${params.dialignr_xicfilter} \\\\\n        ${dialignr_parallel} \\\\\n        ${task.cpus}\n\n    mv DIAlignR.tsv ${sample}_peptide_quantities.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    \"\"\"\n    mkdir osw\n    mv ${pyresults} osw/\n    mkdir xics\n    mv *.chrom.sqMass xics/\n\n    DIAlignR.R \\\\\n        ${params.dialignr_global_align_fdr} \\\\\n        ${params.dialignr_analyte_fdr} \\\\\n        ${params.dialignr_unalign_fdr} \\\\\n        ${params.dialignr_align_fdr} \\\\\n        ${params.dialignr_query_fdr} \\\\\n        ${params.pyprophet_global_fdr_level} \\\\\n        ${params.dialignr_xicfilter} \\\\\n        ${dialignr_parallel} \\\\\n        ${task.cpus}\n\n    mv DIAlignR.tsv ${sample}_peptide_quantities.csv\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "osw_and_chromatograms_combined_by_condition"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/\"",
+            "label 'process_high_mem'"
+        ],
+        "when": "!params.skip_dia_processing",
+        "stub": ""
+    },
+    "reformatting": {
+        "name_process": "reformatting",
+        "string_process": "\nprocess reformatting {\n    publishDir \"${params.outdir}/\"\n\n    input:\n    set val(id), val(sample), val(condition), file(dialignr_file) from DIALignR_result\n    file exp_design from input_exp_design.first()\n    set val(id), val(sample_lib), file(lib_file) from input_lib_used_I.first()\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${sample}_${condition}.csv\") into msstats_file\n\n    when:\n    params.run_msstats\n\n    script:\n\n    if (params.pyprophet_global_fdr_level==''){\n\n    \"\"\"\n    TargetedFileConverter \\\\\n        -in ${lib_file} \\\\\n        -out ${lib_file.baseName}.tsv\n\n    reformat_output_for_msstats.py \\\\\n        --input ${dialignr_file} \\\\\n        --exp_design ${exp_design} \\\\\n        --library ${lib_file.baseName}.tsv \\\\\n        --fdr_level \"none\" \\\\\n        --output \"${sample}_${condition}.csv\"\n    \"\"\"\n\n    } else {\n\n    \"\"\"\n    TargetedFileConverter -in ${lib_file} -out ${lib_file.baseName}.tsv\n\n    reformat_output_for_msstats.py \\\\\n        --input ${dialignr_file} \\\\\n        --exp_design ${exp_design} \\\\\n        --library ${lib_file.baseName}.tsv \\\\\n        --fdr_level ${params.pyprophet_global_fdr_level} \\\\\n        --output \"${sample}_${condition}.csv\"\n    \"\"\"\n    }\n}",
+        "nb_lignes_process": 44,
+        "string_script": "    if (params.pyprophet_global_fdr_level==''){\n\n    \"\"\"\n    TargetedFileConverter \\\\\n        -in ${lib_file} \\\\\n        -out ${lib_file.baseName}.tsv\n\n    reformat_output_for_msstats.py \\\\\n        --input ${dialignr_file} \\\\\n        --exp_design ${exp_design} \\\\\n        --library ${lib_file.baseName}.tsv \\\\\n        --fdr_level \"none\" \\\\\n        --output \"${sample}_${condition}.csv\"\n    \"\"\"\n\n    } else {\n\n    \"\"\"\n    TargetedFileConverter -in ${lib_file} -out ${lib_file.baseName}.tsv\n\n    reformat_output_for_msstats.py \\\\\n        --input ${dialignr_file} \\\\\n        --exp_design ${exp_design} \\\\\n        --library ${lib_file.baseName}.tsv \\\\\n        --fdr_level ${params.pyprophet_global_fdr_level} \\\\\n        --output \"${sample}_${condition}.csv\"\n    \"\"\"\n    }",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "DIALignR_result",
+            "input_exp_design",
+            "input_lib_used_I"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "msstats_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/\""
+        ],
+        "when": "params.run_msstats",
+        "stub": ""
+    },
+    "mztab_export": {
+        "name_process": "mztab_export",
+        "string_process": "\nprocess mztab_export {\n    publishDir \"${params.outdir}/\"\n\n    input:\n    set val(id), val(sample), val(condition), file(dialignr_file) from DIALignR_result_mztab\n    file exp_design from input_exp_design_mztab.first()\n    set val(id), val(sample_lib), file(lib_file) from input_lib_used_I_mztab.first()\n\n    output:\n    set val(id), val(sample), val(condition), file(\"${sample}_${condition}.mzTab\") into mztab_file\n\n    when:\n    params.mztab_export\n\n    script:\n\n    \"\"\"\n    TargetedFileConverter -in ${lib_file} -out ${lib_file.baseName}.tsv\n\n    mztab_output.py \\\\\n        --input ${dialignr_file} \\\\\n        --exp_design ${exp_design} \\\\\n        --library ${lib_file.baseName}.tsv \\\\\n        --fdr_level ${params.pyprophet_global_fdr_level} \\\\\n        --fdr_threshold_pep ${params.pyprophet_peptide_fdr} \\\\\n        --fdr_threshold_prot ${params.pyprophet_protein_fdr} \\\\\n        --ms1_scoring ${params.use_ms1} \\\\\n        --rt_extraction_window ${params.rt_extraction_window} \\\\\n        --mz_extraction_window ${params.mz_extraction_window} \\\\\n        --mz_extraction_window_ms1 ${params.mz_extraction_window_ms1} \\\\\n        --mz_extraction_unit ${params.mz_extraction_window_unit} \\\\\n        --mz_extraction_unit_ms1 ${params.mz_extraction_window_ms1_unit} \\\\\n        --dialignr_global_align_fdr ${params.dialignr_global_align_fdr} \\\\\n        --dialignr_analyte_fdr ${params.dialignr_analyte_fdr} \\\\\n        --dialignr_unalign_fdr ${params.dialignr_unalign_fdr} \\\\\n        --dialignr_align_fdr ${params.dialignr_align_fdr} \\\\\n        --dialignr_query_fdr ${params.dialignr_query_fdr} \\\\\n        --workflow_version $workflow.manifest.version \\\\\n        --output \"${sample}_${condition}.mzTab\"\n    \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    \"\"\"\n    TargetedFileConverter -in ${lib_file} -out ${lib_file.baseName}.tsv\n\n    mztab_output.py \\\\\n        --input ${dialignr_file} \\\\\n        --exp_design ${exp_design} \\\\\n        --library ${lib_file.baseName}.tsv \\\\\n        --fdr_level ${params.pyprophet_global_fdr_level} \\\\\n        --fdr_threshold_pep ${params.pyprophet_peptide_fdr} \\\\\n        --fdr_threshold_prot ${params.pyprophet_protein_fdr} \\\\\n        --ms1_scoring ${params.use_ms1} \\\\\n        --rt_extraction_window ${params.rt_extraction_window} \\\\\n        --mz_extraction_window ${params.mz_extraction_window} \\\\\n        --mz_extraction_window_ms1 ${params.mz_extraction_window_ms1} \\\\\n        --mz_extraction_unit ${params.mz_extraction_window_unit} \\\\\n        --mz_extraction_unit_ms1 ${params.mz_extraction_window_ms1_unit} \\\\\n        --dialignr_global_align_fdr ${params.dialignr_global_align_fdr} \\\\\n        --dialignr_analyte_fdr ${params.dialignr_analyte_fdr} \\\\\n        --dialignr_unalign_fdr ${params.dialignr_unalign_fdr} \\\\\n        --dialignr_align_fdr ${params.dialignr_align_fdr} \\\\\n        --dialignr_query_fdr ${params.dialignr_query_fdr} \\\\\n        --workflow_version $workflow.manifest.version \\\\\n        --output \"${sample}_${condition}.mzTab\"\n    \"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "DIALignR_result_mztab",
+            "input_exp_design_mztab",
+            "input_lib_used_I_mztab"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "mztab_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/\""
+        ],
+        "when": "params.mztab_export",
+        "stub": ""
+    },
+    "statistical_post_processing": {
+        "name_process": "statistical_post_processing",
+        "string_process": "\nprocess statistical_post_processing {\n    publishDir \"${params.outdir}/\"\n\n    label 'process_low'\n\n    input:\n    set val(id), val(sample), val(condition), file(csv) from msstats_file.groupTuple(by:1)\n\n    output:\n    file \"*.pdf\" optional true                                                                                 \n    file \"*.csv\"                                                                            \n    file \"*.log\"                          \n\n    when:\n    params.run_msstats\n\n    script:\n    \"\"\"\n    msstats.R > msstats.log || echo \"Optional MSstats step failed. Please check logs and re-run or do a manual statistical analysis.\"\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    msstats.R > msstats.log || echo \"Optional MSstats step failed. Please check logs and re-run or do a manual statistical analysis.\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "msstats_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/\"",
+            "label 'process_low'"
+        ],
+        "when": "params.run_msstats",
+        "stub": ""
+    },
+    "output_visualization": {
+        "name_process": "output_visualization",
+        "string_process": "\nprocess output_visualization {\n    publishDir \"${params.outdir}/\"\n\n    label 'process_high'\n\n    input:\n    set val(sample), val(id), val(condition), file(quantity_csv_file), val(dummy_id), val(dummy_condition), file(pyprophet_tsv_file) from DIALignR_result_I.transpose().join(pyprophet_results, by:1)\n\n    output:\n    file \"*.pdf\" into output_plots\n\n    when:\n    params.generate_plots\n\n    script:\n    \"\"\"\n    plot_quantities_and_counts.R ${sample}\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    plot_quantities_and_counts.R ${sample}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "DIALignR_result_I"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "output_plots"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/\"",
+            "label 'process_high'"
+        ],
+        "when": "params.generate_plots",
+        "stub": ""
+    },
+    "output_documentation": {
+        "name_process": "output_documentation",
+        "string_process": "\nprocess output_documentation {\n    publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode\n\n    input:\n    file output_docs from ch_output_docs\n    file images from ch_output_docs_images\n\n    output:\n    file 'results_description.html'\n\n    script:\n    \"\"\"\n    markdown_to_html.py $output_docs -o results_description.html\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    markdown_to_html.py $output_docs -o results_description.html\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_output_docs",
+            "ch_output_docs_images"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Leon-Bichmann__diaproteomics",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

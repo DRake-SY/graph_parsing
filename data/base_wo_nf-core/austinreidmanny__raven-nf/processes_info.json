@@ -1,0 +1,881 @@
+{
+    "log_inputs": {
+        "name_process": "log_inputs",
+        "string_process": "\nprocess log_inputs {\n                                                                                                   \n                                                     \n\n    publishDir \"${params.output}/00_analysis_info/\", mode: \"copy\"\n\n    input:\n    val samples from params.sra\n\n    output:\n    file \"${run_name}.readme.txt\"\n\n    \"\"\"\n    echo \"Pipeline began at: \\$(date)\" > \\\n         \"${run_name}.readme.txt\"\n\n    echo \"Input samples: $samples\" >> \\\n         \"${run_name}.readme.txt\"\n\n    echo \"Reference database to map to: $params.diamondDB\" >> \\\n         \"${run_name}.readme.txt\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n    echo \"Pipeline began at: \\$(date)\" > \\\n         \"${run_name}.readme.txt\"\n\n    echo \"Input samples: $samples\" >> \\\n         \"${run_name}.readme.txt\"\n\n    echo \"Reference database to map to: $params.diamondDB\" >> \\\n         \"${run_name}.readme.txt\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir \"${params.output}/00_analysis_info/\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "parse_sra_ids": {
+        "name_process": "parse_sra_ids",
+        "string_process": "\nprocess parse_sra_ids {\n                                                      \n\n    input:\n    val sra_id from params.sra.split(\",\")\n\n    output:\n    val sra_id into sra_accessions\n\n    \"\"\"\n    echo \"Preparing run for SRA ID: $sra_id ...\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    echo \"Preparing run for SRA ID: $sra_id ...\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sra_accessions"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "download_sra_files": {
+        "name_process": "download_sra_files",
+        "string_process": "\nprocess download_sra_files {\n                                                                                                  \n\n    input:\n    val sra_id from sra_accessions\n\n    output:\n    file \"${sra_id}.fq.gz\" into sra_fastqs\n\n    \"\"\"\n    fasterq-dump \\\n      -o \"${sra_id}.fq\" \\\n      -O ./ \\\n      -b 100MB \\\n      -c 500MB \\\n      --mem \"${task.memory.toGiga()}G\" \\\n      --temp $params.tempdir \\\n      --threads ${task.cpus} \\\n      --progress \\\n      --split-spot \\\n      --skip-technical \\\n      --rowid-as-name \\\n      $sra_id\n\n    # Compress the output\n    gzip \"${sra_id}.fq\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 28,
+        "string_script": "\"\"\"\n    fasterq-dump \\\n      -o \"${sra_id}.fq\" \\\n      -O ./ \\\n      -b 100MB \\\n      -c 500MB \\\n      --mem \"${task.memory.toGiga()}G\" \\\n      --temp $params.tempdir \\\n      --threads ${task.cpus} \\\n      --progress \\\n      --split-spot \\\n      --skip-technical \\\n      --rowid-as-name \\\n      $sra_id\n\n    # Compress the output\n    gzip \"${sra_id}.fq\"\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sra_accessions"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sra_fastqs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "combine_reads": {
+        "name_process": "combine_reads",
+        "string_process": "\nprocess combine_reads {\n\n                                       \n\n    input:\n    file reads from sra_fastqs.collect()\n\n    output:\n    file \"merged_reads.fq.gz\" into merged_fastq, merged_fastq_for_taxonomy_analysis, reads_for_refinement\n\n    \"\"\"\n    zcat $reads | gzip > \"merged_reads.fq.gz\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    zcat $reads | gzip > \"merged_reads.fq.gz\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sra_fastqs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_fastq",
+            "merged_fastq_for_taxonomy_analysis",
+            "reads_for_refinement"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "de_novo_assembly": {
+        "name_process": "de_novo_assembly",
+        "string_process": "\nprocess de_novo_assembly {\n\n                                                    \n\n    publishDir path: \"${params.output}/01_de_novo_assembly\",\n               pattern: \"${run_name}.transcripts.fasta\",\n               mode: \"copy\"\n\n    input:\n    file reads from merged_fastq\n\n    output:\n    tuple file(\"${run_name}.transcripts.fasta\"), file(reads) into contigs_and_reads\n    file \"${run_name}.transcripts.fasta\" into contigs_for_identifying_viruses\n\n    \"\"\"\n    # Build contigs with rnaSPAdes [note: need to add feature to switch to metaSPAdes for DNA]\n    rnaspades.py \\\n      -s $reads \\\n      -o unfiltered_assemblies/ \\\n      --memory \"${task.memory.toGiga()}\" \\\n      --threads $task.cpus \\\n      --tmp-dir $params.tempdir\n\n    # Filter out (drop) any short contigs <300 nt\n    seqtk seq -L 300 unfiltered_assemblies/transcripts.fasta > \"${run_name}.transcripts.fasta\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 28,
+        "string_script": "\"\"\"\n    # Build contigs with rnaSPAdes [note: need to add feature to switch to metaSPAdes for DNA]\n    rnaspades.py \\\n      -s $reads \\\n      -o unfiltered_assemblies/ \\\n      --memory \"${task.memory.toGiga()}\" \\\n      --threads $task.cpus \\\n      --tmp-dir $params.tempdir\n\n    # Filter out (drop) any short contigs <300 nt\n    seqtk seq -L 300 unfiltered_assemblies/transcripts.fasta > \"${run_name}.transcripts.fasta\"\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "seqtk"
+        ],
+        "tools_url": [
+            "https://bio.tools/seqtk"
+        ],
+        "tools_dico": [
+            {
+                "name": "seqtk",
+                "uri": "https://bio.tools/seqtk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2121",
+                                    "term": "Sequence file editing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A tool for processing sequences in the FASTA or FASTQ format. It parses both FASTA and FASTQ files which can also be optionally compressed by gzip.",
+                "homepage": "https://github.com/lh3/seqtk"
+            }
+        ],
+        "inputs": [
+            "merged_fastq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "contigs_and_reads",
+            "contigs_for_identifying_viruses"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/01_de_novo_assembly\" , pattern: \"${run_name}.transcripts.fasta\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "coverage": {
+        "name_process": "coverage",
+        "string_process": "\nprocess coverage {\n\n                                                                    \n\n    publishDir path: \"${params.output}/02_coverage/\",\n               pattern: \"${run_name}.contigs_coverage.txt\",\n               mode: \"copy\"\n\n    input:\n    tuple file(contigs), file(reads) from contigs_and_reads\n\n    output:\n    tuple file(contigs), file(\"${run_name}.contigs_coverage.txt\") into contigs_with_coverage\n\n    \"\"\"\n    # Index contigs for BWA\n    bwa index -p \"${run_name}_index\" $contigs\n\n    # Map reads to contigs with BWA-mem\n    bwa mem -t $task.cpus \"${run_name}_index\" $reads | \\\n    samtools sort --threads $task.cpus -o \"${run_name}.mapped.bam\"\n\n    # Calculate the mean-depth (i.e., coverage) per contig; keep each contig's name & coverage; throw away header; sort by coverage\n    samtools coverage \"${run_name}.mapped.bam\" | \\\n    cut -f 1,7 > \"${run_name}.contigs_coverage.txt\"\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n    # Index contigs for BWA\n    bwa index -p \"${run_name}_index\" $contigs\n\n    # Map reads to contigs with BWA-mem\n    bwa mem -t $task.cpus \"${run_name}_index\" $reads | \\\n    samtools sort --threads $task.cpus -o \"${run_name}.mapped.bam\"\n\n    # Calculate the mean-depth (i.e., coverage) per contig; keep each contig's name & coverage; throw away header; sort by coverage\n    samtools coverage \"${run_name}.mapped.bam\" | \\\n    cut -f 1,7 > \"${run_name}.contigs_coverage.txt\"\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "BWA",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "contigs_and_reads"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "contigs_with_coverage"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/02_coverage/\" , pattern: \"${run_name}.contigs_coverage.txt\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "classify_contigs": {
+        "name_process": "classify_contigs",
+        "string_process": "\nprocess classify_contigs {\n\n                                                          \n\n    publishDir path: \"${params.output}/03_contigs_classification/\",\n               pattern: \"${run_name}.contigs_classification.txt\",\n               mode: \"copy\"\n\n    input:\n    tuple file(contigs), file(coverage) from contigs_with_coverage\n\n    output:\n    tuple file(\"${run_name}.contigs_classification.txt\"), file(coverage) into classified_contigs\n\n    \"\"\"\n    # Run diamond\n    diamond \\\n    blastx \\\n    --verbose \\\n    --more-sensitive \\\n    --db $params.diamondDB \\\n    --query $contigs \\\n    --out \"${run_name}.contigs_classification.txt\" \\\n    --outfmt 102 \\\n    --max-hsps 1 \\\n    --top 1 \\\n    --block-size $params.blocksize \\\n    --index-chunks 2 \\\n    --threads $task.cpus \\\n    --tmpdir $params.tempdir\n    \"\"\"\n\n}",
+        "nb_lignes_process": 32,
+        "string_script": "\"\"\"\n    # Run diamond\n    diamond \\\n    blastx \\\n    --verbose \\\n    --more-sensitive \\\n    --db $params.diamondDB \\\n    --query $contigs \\\n    --out \"${run_name}.contigs_classification.txt\" \\\n    --outfmt 102 \\\n    --max-hsps 1 \\\n    --top 1 \\\n    --block-size $params.blocksize \\\n    --index-chunks 2 \\\n    --threads $task.cpus \\\n    --tmpdir $params.tempdir\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "Diamond"
+        ],
+        "tools_url": [
+            "https://bio.tools/diamond"
+        ],
+        "tools_dico": [
+            {
+                "name": "Diamond",
+                "uri": "https://bio.tools/diamond",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0258",
+                                    "term": "Sequence alignment analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Sequence aligner for protein and translated DNA searches and functions as a drop-in replacement for the NCBI BLAST software tools. It is suitable for protein-protein search as well as DNA-protein search on short reads and longer sequences including contigs and assemblies, providing a speedup of BLAST ranging up to x20,000.",
+                "homepage": "https://github.com/bbuchfink/diamond"
+            }
+        ],
+        "inputs": [
+            "contigs_with_coverage"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "classified_contigs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/03_contigs_classification/\" , pattern: \"${run_name}.contigs_classification.txt\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "taxonomy": {
+        "name_process": "taxonomy",
+        "string_process": "\nprocess taxonomy {\n\n                                                                                  \n\n    publishDir path: \"${params.output}/04_contigs_taxonomy/\",\n               pattern: \"${run_name}.classification.taxonomy.txt\",\n               mode: \"copy\"\n\n    publishDir path: \"${params.output}/04_contigs_taxonomy/\",\n              pattern: \"${run_name}.final_table.txt\",\n              mode: \"copy\"\n\n    input:\n    tuple file(classifications), file(coverage) from classified_contigs\n\n    output:\n    file \"${run_name}.final_table.txt\" into table_with_coverage_and_taxonomy\n\n    \"\"\"\n    # Translate the DIAMOND results to full lineages\n    diamond_to_taxonomy.py $classifications\n\n    # Join the coverage values and the taxonomy results\n    join \\\n        -j 1 \\\n        -t \\$'\\t' \\\n        --check-order \\\n        <(sort -k1,1 $coverage) \\\n        <(grep -v \"^#\" \"${run_name}.contigs_classification.taxonomy.txt\" | sort -k1,1) | \\\n    sort -rgk2,2 > \\\n    \"${run_name}.contigs_coverage_taxonomy.txt\"\n\n    # Make a header for a final results table\n    echo -e \\\n        \"#Contig\\t\" \\\n        \"#Coverage\\t\" \\\n        \"#TaxonID\\t\" \\\n        \"#e-value\\t\" \\\n        \"#Domain\\t\" \\\n        \"#Kingdom\\t\" \\\n        \"#Phylum\\t\" \\\n        \"#Class\\t\" \\\n        \"#Order\\t\" \\\n        \"#Family\\t\" \\\n        \"#Genus_species\" \\\n    > \"${run_name}.final_table.txt\"\n\n    # Add the data to the final with just the header\n    cat \"${run_name}.contigs_coverage_taxonomy.txt\" >> \\\n        \"${run_name}.final_table.txt\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 52,
+        "string_script": "\"\"\"\n    # Translate the DIAMOND results to full lineages\n    diamond_to_taxonomy.py $classifications\n\n    # Join the coverage values and the taxonomy results\n    join \\\n        -j 1 \\\n        -t \\$'\\t' \\\n        --check-order \\\n        <(sort -k1,1 $coverage) \\\n        <(grep -v \"^#\" \"${run_name}.contigs_classification.taxonomy.txt\" | sort -k1,1) | \\\n    sort -rgk2,2 > \\\n    \"${run_name}.contigs_coverage_taxonomy.txt\"\n\n    # Make a header for a final results table\n    echo -e \\\n        \"#Contig\\t\" \\\n        \"#Coverage\\t\" \\\n        \"#TaxonID\\t\" \\\n        \"#e-value\\t\" \\\n        \"#Domain\\t\" \\\n        \"#Kingdom\\t\" \\\n        \"#Phylum\\t\" \\\n        \"#Class\\t\" \\\n        \"#Order\\t\" \\\n        \"#Family\\t\" \\\n        \"#Genus_species\" \\\n    > \"${run_name}.final_table.txt\"\n\n    # Add the data to the final with just the header\n    cat \"${run_name}.contigs_coverage_taxonomy.txt\" >> \\\n        \"${run_name}.final_table.txt\"\n    \"\"\"",
+        "nb_lignes_script": 32,
+        "language_script": "bash",
+        "tools": [
+            "joineRML"
+        ],
+        "tools_url": [
+            "https://bio.tools/joinerml"
+        ],
+        "tools_dico": [
+            {
+                "name": "joineRML",
+                "uri": "https://bio.tools/joinerml",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3569",
+                            "term": "Applied mathematics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Joint Modelling of Multivariate Longitudinal Data and Time-to-Event Outcomes.",
+                "homepage": "https://cran.r-project.org/web/packages/joineRML/"
+            }
+        ],
+        "inputs": [
+            "classified_contigs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "table_with_coverage_and_taxonomy"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/04_contigs_taxonomy/\" , pattern: \"${run_name}.classification.taxonomy.txt\" , mode: \"copy\"",
+            "publishDir path: \"${params.output}/04_contigs_taxonomy/\" , pattern: \"${run_name}.final_table.txt\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "classify_reads": {
+        "name_process": "classify_reads",
+        "string_process": "\nprocess classify_reads {\n\n                                                                                                      \n                                           \n\n    publishDir path: \"${params.output}/05_unassembled_reads_taxonomy/\",\n               pattern: \"${run_name}.taxonomy-of-reads.output.txt\",\n               mode: \"copy\"\n\n    publishDir path: \"${params.output}/05_unassembled_reads_taxonomy/\",\n               pattern: \"${run_name}.taxonomy-of-reads.report.txt\",\n               mode: \"copy\"\n\n    input:\n    file reads from merged_fastq_for_taxonomy_analysis\n\n    output:\n    file \"${run_name}.taxonomy-of-reads.report.txt\" into classified_reads\n    file \"${run_name}.taxonomy-of-reads.output.txt\"\n\n    \"\"\"\n    kraken2 \\\n    --db $params.krakenDB \\\n    --gzip-compressed --memory-mapping \\\n    --threads $task.cpus \\\n    --output \"${run_name}.taxonomy-of-reads.output.txt\" \\\n    --report \"${run_name}.taxonomy-of-reads.report.txt\" \\\n    $reads\n    \"\"\"\n\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"\n    kraken2 \\\n    --db $params.krakenDB \\\n    --gzip-compressed --memory-mapping \\\n    --threads $task.cpus \\\n    --output \"${run_name}.taxonomy-of-reads.output.txt\" \\\n    --report \"${run_name}.taxonomy-of-reads.report.txt\" \\\n    $reads\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "kraken2"
+        ],
+        "tools_url": [
+            "https://bio.tools/kraken2"
+        ],
+        "tools_dico": [
+            {
+                "name": "kraken2",
+                "uri": "https://bio.tools/kraken2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0637",
+                            "term": "Taxonomy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3028",
+                                "term": "Taxonomy"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Kraken 2 is the newest version of Kraken, a taxonomic classification system using exact k-mer matches to achieve high accuracy and fast classification speeds. This classifier matches each k-mer within a query sequence to the lowest common ancestor (LCA) of all genomes containing the given k-mer. The k-mer assignments inform the classification algorithm.",
+                "homepage": "https://ccb.jhu.edu/software/kraken2/"
+            }
+        ],
+        "inputs": [
+            "merged_fastq_for_taxonomy_analysis"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "classified_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/05_unassembled_reads_taxonomy/\" , pattern: \"${run_name}.taxonomy-of-reads.output.txt\" , mode: \"copy\"",
+            "publishDir path: \"${params.output}/05_unassembled_reads_taxonomy/\" , pattern: \"${run_name}.taxonomy-of-reads.report.txt\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "visualize_reads": {
+        "name_process": "visualize_reads",
+        "string_process": "\nprocess visualize_reads {\n\n                                                                                  \n\n    publishDir path: \"${params.output}/05_unassembled_reads_taxonomy/\",\n               mode: \"copy\"\n\n    input:\n    file classifications from classified_reads\n\n    output:\n    file \"${run_name}.taxonomy-of-reads.visualization.html\"\n\n    \"\"\"\n    ImportTaxonomy.pl \\\n    -m 3 -t 5 \\\n    $classifications \\\n    -o \"${run_name}.taxonomy-of-reads.visualization.html\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n    ImportTaxonomy.pl \\\n    -m 3 -t 5 \\\n    $classifications \\\n    -o \"${run_name}.taxonomy-of-reads.visualization.html\"\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "classified_reads"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/05_unassembled_reads_taxonomy/\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "identify_viral_assemblies": {
+        "name_process": "identify_viral_assemblies",
+        "string_process": "\nprocess identify_viral_assemblies {\n\n                                          \n\n    publishDir path: \"${params.output}/06_viruses/\",\n               pattern: \"${run_name}.viruses.txt\",\n               mode: \"copy\"\n\n    input:\n    file table from table_with_coverage_and_taxonomy\n    file contigs from contigs_for_identifying_viruses\n\n    output:\n    file \"${run_name}.viruses.txt\" into viruses_table\n    file \"${run_name}.viruses.fasta\" into viral_assemblies\n\n    \"\"\"\n    awk '\\$5 == \"Viruses\" {print}' $table > \"${run_name}.viruses.txt\"\n    seqtk subseq $contigs <(cut -f 1 \"${run_name}.viruses.txt\") $contigs > \"${run_name}.viruses.fasta\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\"\"\"\n    awk '\\$5 == \"Viruses\" {print}' $table > \"${run_name}.viruses.txt\"\n    seqtk subseq $contigs <(cut -f 1 \"${run_name}.viruses.txt\") $contigs > \"${run_name}.viruses.fasta\"\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "seqtk"
+        ],
+        "tools_url": [
+            "https://bio.tools/seqtk"
+        ],
+        "tools_dico": [
+            {
+                "name": "seqtk",
+                "uri": "https://bio.tools/seqtk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2121",
+                                    "term": "Sequence file editing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A tool for processing sequences in the FASTA or FASTQ format. It parses both FASTA and FASTQ files which can also be optionally compressed by gzip.",
+                "homepage": "https://github.com/lh3/seqtk"
+            }
+        ],
+        "inputs": [
+            "table_with_coverage_and_taxonomy",
+            "contigs_for_identifying_viruses"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "viruses_table",
+            "viral_assemblies"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/06_viruses/\" , pattern: \"${run_name}.viruses.txt\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "refine_viral_assemblies": {
+        "name_process": "refine_viral_assemblies",
+        "string_process": "\nprocess refine_viral_assemblies {\n\n      \n                                                                               \n                                                                  \n                                                                               \n                                                                             \n                                                        \n                                                                               \n      \n\n                                     \n    publishDir path: \"${params.output}/06_viruses\",\n               pattern: \"${run_name}.viruses.fasta.gz\",\n               mode: \"copy\"\n\n                                        \n    publishDir path: \"${params.output}/06_viruses/mapping_files/\",\n               pattern: \"${run_name}.variants_called.bcf\",\n               mode: \"copy\"\n\n                                                         \n    publishDir path: \"${params.output}/06_viruses/mapping_files/\",\n               pattern: \"${run_name}.reads_mapped_to_contigs.sorted.bam\",\n               mode: \"copy\"\n\n                                                                        \n    publishDir path: \"${params.output}/06_viruses/mapping_files/\",\n              pattern: \"${run_name}.reads_mapped_to_contigs.sorted.stats\",\n              mode: \"copy\"\n\n    input:\n    file viral_assemblies\n    file reads from reads_for_refinement\n\n    output:\n    file \"${run_name}.viruses.fasta.gz\"\n    val \"true\" into pipeline_complete\n\n    \"\"\"\n    # Run the refinement script\n    bash refine_contigs.sh \\\n    -s \"${run_name}\" -r $reads -c $viral_assemblies -o \"./\" -t $task.cpus\n    \n    # Rename the refined viruses file with a more descriptive name\n    mv \"${run_name}.refined_contigs.fasta.gz\" \"${run_name}.viruses.fasta.gz\"\n    \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "\"\"\"\n    # Run the refinement script\n    bash refine_contigs.sh \\\n    -s \"${run_name}\" -r $reads -c $viral_assemblies -o \"./\" -t $task.cpus\n    \n    # Rename the refined viruses file with a more descriptive name\n    mv \"${run_name}.refined_contigs.fasta.gz\" \"${run_name}.viruses.fasta.gz\"\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "viral_assemblies",
+            "reads_for_refinement"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "pipeline_complete"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [
+            "publishDir path: \"${params.output}/06_viruses\" , pattern: \"${run_name}.viruses.fasta.gz\" , mode: \"copy\"",
+            "publishDir path: \"${params.output}/06_viruses/mapping_files/\" , pattern: \"${run_name}.variants_called.bcf\" , mode: \"copy\"",
+            "publishDir path: \"${params.output}/06_viruses/mapping_files/\" , pattern: \"${run_name}.reads_mapped_to_contigs.sorted.bam\" , mode: \"copy\"",
+            "publishDir path: \"${params.output}/06_viruses/mapping_files/\" , pattern: \"${run_name}.reads_mapped_to_contigs.sorted.stats\" , mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "print_results": {
+        "name_process": "print_results",
+        "string_process": "\nprocess print_results {\n\n                                                                                                   \n                                           \n\n    input:\n    file viruses_table\n    val pipeline_complete\n\n    output:\n    stdout final_results\n\n    \"\"\"\n    # Count number of virus contigs\n    echo \"\"\n    echo \"Number of viral sequence assemblies in ${run_name}: \\$(wc -l $viruses_table | cut -d ' ' -f 1)\"\n\n    # Print mapped reads per virus family\n    echo \"\"\n    echo \"Mapped reads per each identified virus family:\"\n    awk '{a[\\$10] += \\$2} END{for (i in a) print a[i], i}' < $viruses_table | sort -rnk1,1\n\n    # Print the longest virus assembly constructed\n    echo \"\"\n    echo \"Longest viral sequence assembled:\"\n    head -n 1 $viruses_table | cut -f 1,5,10,11,12\n    \"\"\"\n\n}",
+        "nb_lignes_process": 28,
+        "string_script": "\"\"\"\n    # Count number of virus contigs\n    echo \"\"\n    echo \"Number of viral sequence assemblies in ${run_name}: \\$(wc -l $viruses_table | cut -d ' ' -f 1)\"\n\n    # Print mapped reads per virus family\n    echo \"\"\n    echo \"Mapped reads per each identified virus family:\"\n    awk '{a[\\$10] += \\$2} END{for (i in a) print a[i], i}' < $viruses_table | sort -rnk1,1\n\n    # Print the longest virus assembly constructed\n    echo \"\"\n    echo \"Longest viral sequence assembled:\"\n    head -n 1 $viruses_table | cut -f 1,5,10,11,12\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "viruses_table",
+            "pipeline_complete"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "final_results"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "austinreidmanny__raven-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

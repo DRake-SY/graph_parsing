@@ -1,0 +1,148 @@
+{
+    "configuration": {
+        "name_process": "configuration",
+        "string_process": "\nprocess configuration {\n    output:\n    val \"finshed\" into config_status\n\n    script:\n    \"\"\"\n    mkdir -p ~/.ncbi\n    printf '/LIBS/GUID = \"%s\"\\n' `uuid` > ~/.ncbi/user-settings.mkfg\n\"\"\"\n}",
+        "nb_lignes_process": 9,
+        "string_script": "    \"\"\"\n    mkdir -p ~/.ncbi\n    printf '/LIBS/GUID = \"%s\"\\n' `uuid` > ~/.ncbi/user-settings.mkfg\n\"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "config_status"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "steffenlem__sradownloader",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "get_software_versions": {
+        "name_process": "get_software_versions",
+        "string_process": "\nprocess get_software_versions {\n    publishDir \"${params.outdir}/pipeline_info\", mode: 'copy',\n            saveAs: { filename ->\n                if (filename.indexOf(\".csv\") > 0) filename\n                else null\n            }\n\n    input:\n    val status from config_status\n\n    output:\n    file 'software_versions_mqc.yaml' into software_versions_yaml\n    file \"software_versions.csv\"\n\n    script:\n    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    prefetch --version > v_prefetch.txt\n    pigz --version 2> v_pigz.txt\n    fasterq-dump --version > v_fasterq-dump.txt\n    echo \\$(pip freeze | grep Click 2>&1) > v_click.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    prefetch --version > v_prefetch.txt\n    pigz --version 2> v_pigz.txt\n    fasterq-dump --version > v_fasterq-dump.txt\n    echo \\$(pip freeze | grep Click 2>&1) > v_click.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "config_status"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "software_versions_yaml"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "steffenlem__sradownloader",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: 'copy' , saveAs: { filename -> if (filename.indexOf(\".csv\") > 0) filename else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prefetch": {
+        "name_process": "prefetch",
+        "string_process": "\nprocess prefetch {\n    maxForks 3\n    errorStrategy 'retry'\n    maxRetries 3\n\n    input:\n    val status from config_status\n    val run_acc from Channel.fromPath(params.run_acc_list).splitText()\n    file ngc from ngc_file\n\n    output:\n    file \"[S,E,D]RR*[0-9]\" into sra_files\n\n    script:\n    output_file = run_acc.trim()\n    def ngc_parameter = ngc.name != 'NO_FILE' ? \"--ngc $ngc\" : ''\n    \"\"\"\n    prefetch -o $output_file $ngc_parameter --max-size 500000000 $run_acc\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    output_file = run_acc.trim()\n    def ngc_parameter = ngc.name != 'NO_FILE' ? \"--ngc $ngc\" : ''\n    \"\"\"\n    prefetch -o $output_file $ngc_parameter --max-size 500000000 $run_acc\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "config_status",
+            "ngc_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sra_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "steffenlem__sradownloader",
+        "directive": [
+            "maxForks 3",
+            "errorStrategy 'retry'",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fasterqdump": {
+        "name_process": "fasterqdump",
+        "string_process": "\nprocess fasterqdump {\n    input:\n    val sra_file from sra_files\n    file ngc from ngc_file\n\n    output:\n    path \"*.fastq.gz\" into fastq_files\n\n    script:\n    def ngc_parameter = ngc.name != 'NO_FILE' ? \"--ngc $ngc\" : ''\n    \"\"\"\n    fasterq-dump --threads 8 $ngc_parameter --split-3 $sra_file\n    pigz --processes 8 *.fastq\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    def ngc_parameter = ngc.name != 'NO_FILE' ? \"--ngc $ngc\" : ''\n    \"\"\"\n    fasterq-dump --threads 8 $ngc_parameter --split-3 $sra_file\n    pigz --processes 8 *.fastq\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sra_files",
+            "ngc_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "fastq_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "steffenlem__sradownloader",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "sort_fastq_files": {
+        "name_process": "sort_fastq_files",
+        "string_process": "\nprocess sort_fastq_files {\n    publishDir \"${params.outdir}/sorted_output_files\", mode: 'copy'\n\n    input:\n    val fastq_files from fastq_files\n\n    output:\n    file \"**.fastq.gz\" into outfiles\n\n    script:\n    \"\"\"\n    sort_reads.py -i \"$fastq_files\"\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    sort_reads.py -i \"$fastq_files\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastq_files"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "outfiles"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "steffenlem__sradownloader",
+        "directive": [
+            "publishDir \"${params.outdir}/sorted_output_files\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output_documentation": {
+        "name_process": "output_documentation",
+        "string_process": "\nprocess output_documentation {\n    publishDir \"${params.outdir}/pipeline_info\", mode: 'copy'\n\n    input:\n    file output_docs from ch_output_docs\n\n    output:\n    file \"results_description.html\"\n\n    script:\n    \"\"\"\n    markdown_to_html.py $output_docs -o results_description.html\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    markdown_to_html.py $output_docs -o results_description.html\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_output_docs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "steffenlem__sradownloader",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

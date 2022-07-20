@@ -1,0 +1,260 @@
+{
+    "Split_input_beds_per_chr": {
+        "name_process": "Split_input_beds_per_chr",
+        "string_process": "\nprocess Split_input_beds_per_chr {\n\n\tinput:\n\tfile bed from bedfiles\n\n\toutput:\n\tset inputname, file('chr*') into InputBedsPerChr\n\n\tscript:\n  \tinputname = bed.toString() - ~/.bed$/\n\t\"\"\"\n\tawk '\\$1 ~ /^chr[1-2]?[0-9]{1}\\$/ {print \\$0 >> \\$1;close(\\$1)}' < $bed\n\tfor i in {23..29}\n\tdo\n\tif [ -f chr\\$i ];\n\tthen\n\t\trm chr\\$i\n\tfi\n\tdone\n\t\"\"\"\n\t}",
+        "nb_lignes_process": 20,
+        "string_script": "  \tinputname = bed.toString() - ~/.bed$/\n\t\"\"\"\n\tawk '\\$1 ~ /^chr[1-2]?[0-9]{1}\\$/ {print \\$0 >> \\$1;close(\\$1)}' < $bed\n\tfor i in {23..29}\n\tdo\n\tif [ -f chr\\$i ];\n\tthen\n\t\trm chr\\$i\n\tfi\n\tdone\n\t\"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bedfiles"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "InputBedsPerChr"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jbryois__LDSC_nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "Get_LD_scores": {
+        "name_process": "Get_LD_scores",
+        "string_process": "\nprocess Get_LD_scores {\n\t\n\tinput:\n\tset val(inputname), file(input_bed), file(baseline_annot), file(plink_bim), file(plink_bed), file(plink_fam), file('hm_snp.txt') from ch_chr\n\t\n\toutput:\n\tset inputname, file('input*') into LDscores\n\t\n\tscript:\n\toutname = baseline_annot.toString().replaceAll(/baseline(LD)?/,'input')\n\toutname = outname.replaceAll(/.annot.gz/,'')\n\ttissue = params.tissue\n\t\"\"\"\n\tzcat < $baseline_annot | awk -v OFS='\\t' 'NR>1 {print \"chr\"\\$1,\\$2,\\$2,\\$3}' | gzip > $baseline_annot\".bed\"\n\tintersectBed -c -a $baseline_annot\".bed\" -b $input_bed > $input_bed\".1000genomes.intersect\"\n\tawk '{if(\\$5!=0) print \\$4}' $input_bed\".1000genomes.intersect\" > $input_bed\".1000genomes.intersect.snp\"\n\n \tif [ $tissue = \"false\" ]\n \tthen\n\t\tawk -v OFS='\\t' '{print \\$1,\\$2-500,\\$3+500,\\$1\":\"\\$2\"-\"\\$3}' $input_bed > $input_bed\".500bp.ext\"\n\t   \tawk -v OFS='\\t' '{ if (\\$2<0) print \\$1,0,\\$3,\\$4; else print \\$0}' $input_bed\".500bp.ext\" > tmp\n\t\tmv tmp $input_bed\".500bp.ext\"\n\t\tintersectBed -c -a $baseline_annot\".bed\" -b $input_bed\".500bp.ext\" > $input_bed\".1000genomes.500bp.ext.intersect\"\n\t\tawk '{if(\\$5!=0) print \\$4}' $input_bed\".1000genomes.500bp.ext.intersect\" > $input_bed\".1000genomes.500bp.ext.intersect.snp\"\n\t\tfast_match2_minimal.gz.pl $input_bed\".1000genomes.intersect.snp\" $inputname $baseline_annot > tmp\n\t\tfast_match2.gz.pl $input_bed\".1000genomes.500bp.ext.intersect.snp\" $inputname\"_500bp_ext\" tmp | gzip > $outname\".annot.gz\"\n\t\trm tmp\n\t\trm *500bp.ext\n\t else\n\t\tfast_match2_minimal.gz.pl $input_bed\".1000genomes.intersect.snp\" $inputname $baseline_annot | gzip > $outname\".annot.gz\"\n\tfi\n\tldsc.py --l2 --bfile $plink_bim.baseName --ld-wind-cm 1 --print-snps hm_snp.txt --annot $outname\".annot.gz\" --out $outname\n\trm *.intersect\n\trm *.intersect.snp\n\trm $baseline_annot\".bed\"\n\t\"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "\toutname = baseline_annot.toString().replaceAll(/baseline(LD)?/,'input')\n\toutname = outname.replaceAll(/.annot.gz/,'')\n\ttissue = params.tissue\n\t\"\"\"\n\tzcat < $baseline_annot | awk -v OFS='\\t' 'NR>1 {print \"chr\"\\$1,\\$2,\\$2,\\$3}' | gzip > $baseline_annot\".bed\"\n\tintersectBed -c -a $baseline_annot\".bed\" -b $input_bed > $input_bed\".1000genomes.intersect\"\n\tawk '{if(\\$5!=0) print \\$4}' $input_bed\".1000genomes.intersect\" > $input_bed\".1000genomes.intersect.snp\"\n\n \tif [ $tissue = \"false\" ]\n \tthen\n\t\tawk -v OFS='\\t' '{print \\$1,\\$2-500,\\$3+500,\\$1\":\"\\$2\"-\"\\$3}' $input_bed > $input_bed\".500bp.ext\"\n\t   \tawk -v OFS='\\t' '{ if (\\$2<0) print \\$1,0,\\$3,\\$4; else print \\$0}' $input_bed\".500bp.ext\" > tmp\n\t\tmv tmp $input_bed\".500bp.ext\"\n\t\tintersectBed -c -a $baseline_annot\".bed\" -b $input_bed\".500bp.ext\" > $input_bed\".1000genomes.500bp.ext.intersect\"\n\t\tawk '{if(\\$5!=0) print \\$4}' $input_bed\".1000genomes.500bp.ext.intersect\" > $input_bed\".1000genomes.500bp.ext.intersect.snp\"\n\t\tfast_match2_minimal.gz.pl $input_bed\".1000genomes.intersect.snp\" $inputname $baseline_annot > tmp\n\t\tfast_match2.gz.pl $input_bed\".1000genomes.500bp.ext.intersect.snp\" $inputname\"_500bp_ext\" tmp | gzip > $outname\".annot.gz\"\n\t\trm tmp\n\t\trm *500bp.ext\n\t else\n\t\tfast_match2_minimal.gz.pl $input_bed\".1000genomes.intersect.snp\" $inputname $baseline_annot | gzip > $outname\".annot.gz\"\n\tfi\n\tldsc.py --l2 --bfile $plink_bim.baseName --ld-wind-cm 1 --print-snps hm_snp.txt --annot $outname\".annot.gz\" --out $outname\n\trm *.intersect\n\trm *.intersect.snp\n\trm $baseline_annot\".bed\"\n\t\"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [
+            "TISSUES",
+            "TMPD"
+        ],
+        "tools_url": [
+            "https://bio.tools/tissues",
+            "https://bio.tools/tmpd"
+        ],
+        "tools_dico": [
+            {
+                "name": "TISSUES",
+                "uri": "https://bio.tools/tissues",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0218",
+                            "term": "Natural language processing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0092",
+                            "term": "Data visualisation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0218",
+                            "term": "NLP"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0092",
+                            "term": "Data rendering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2421",
+                                    "term": "Database search"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2421",
+                                    "term": "Search"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1025",
+                                "term": "Gene identifier"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_1087",
+                                "term": "Ontology concept ID"
+                            }
+                        ]
+                    }
+                ],
+                "description": "TISSUES is a weekly updated web resource that integrates evidence on tissue expression from manually curated literature, proteomics and transcriptomics screens, and automatic text mining. We map all evidence to common protein identifiers and Brenda Tissue Ontology terms, and further unify it by assigning confidence scores that facilitate comparison of the different types and sources of evidence. We finally visualize these scores on a schematic human body to provide a convenient overview.",
+                "homepage": "https://tissues.jensenlab.org/"
+            },
+            {
+                "name": "TMPD",
+                "uri": "https://bio.tools/tmpd",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant science"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plants"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Botany"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Tobacco Markers & Primers Database.",
+                "homepage": "http://biodb.sdau.edu.cn/tmpd/index.html"
+            }
+        ],
+        "inputs": [
+            "ch_chr"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "LDscores"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jbryois__LDSC_nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "Get_pLDSC_Results": {
+        "name_process": "Get_pLDSC_Results",
+        "string_process": "\nprocess Get_pLDSC_Results {\n\tpublishDir \"${params.out}/$analysis_type/Results_raw/\", mode: 'copy', overwrite: true\n\n\tinput:\n\tset inputname, path(inputLDscores),pheno,path(sumstats) from LDscores_join\n\t\n\toutput:\n\tfile('*results') into (Results_ch_h2,Results_ch_tissue)\n\t\n\t\"\"\"\n\tldsc.py --h2 $sumstats --ref-ld-chr $model_path,input. --w-ld-chr $weights --overlap-annot --frqfile-chr $frq --print-coefficients --out ${pheno}_${inputname}\n\t\"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\n\tldsc.py --h2 $sumstats --ref-ld-chr $model_path,input. --w-ld-chr $weights --overlap-annot --frqfile-chr $frq --print-coefficients --out ${pheno}_${inputname}\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "LDscores_join"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jbryois__LDSC_nf",
+        "directive": [
+            "publishDir \"${params.out}/$analysis_type/Results_raw/\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Clean_results_h2_enrichment": {
+        "name_process": "Clean_results_h2_enrichment",
+        "string_process": "\nprocess Clean_results_h2_enrichment {\n    publishDir \"${params.out}/$analysis_type/\", mode: 'copy', overwrite: true\n    \n    input:\n\tpath(results) from Results_ch_h2.collect()\n\t\n\toutput:\n\tfile('*.txt') into CleanResultsH2\n\n\twhen:\n\t!params.tissue\n\t\n\t\"\"\"\n\tCleanH2Results.R\n\t\"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n\tCleanH2Results.R\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "Results_ch_h2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "CleanResultsH2"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jbryois__LDSC_nf",
+        "directive": [
+            "publishDir \"${params.out}/$analysis_type/\", mode: 'copy', overwrite: true"
+        ],
+        "when": "!params.tissue",
+        "stub": ""
+    },
+    "Clean_results_tissue_association": {
+        "name_process": "Clean_results_tissue_association",
+        "string_process": "\nprocess Clean_results_tissue_association {\n    publishDir \"${params.out}/$analysis_type/\", mode: 'copy', overwrite: true\n    \n\tinput:\n\tpath(results) from Results_ch_tissue.collect()\n\t\n\toutput:\n\tfile('*.txt') into CleanResultsZ\n\n\twhen:\n\tparams.tissue\n\t\n\t\"\"\"\n\tCleanTissueResults.R\n\t\"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n\tCleanTissueResults.R\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "Results_ch_tissue"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "CleanResultsZ"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jbryois__LDSC_nf",
+        "directive": [
+            "publishDir \"${params.out}/$analysis_type/\", mode: 'copy', overwrite: true"
+        ],
+        "when": "params.tissue",
+        "stub": ""
+    }
+}

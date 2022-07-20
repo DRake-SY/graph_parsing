@@ -1,0 +1,980 @@
+{
+    "split_sample_table_dropseq": {
+        "name_process": "split_sample_table_dropseq",
+        "string_process": "\nprocess split_sample_table_dropseq {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /.*.txt$/) \"samplefiles/$filename\"\n}\n\ninput:\n file sampletable from g_1_xlsfile_g_21\n\noutput:\n file '*.txt' into g_21_txtfile_g_7\n\n\"\"\"\n#!/usr/bin/env Rscript\n\n# Read the table\nsampletable=\"${sampletable}\"\ntable = read.table(sampletable, stringsAsFactors = F, header = T, sep=\"\\t\")\nfor(i in 1:nrow(table)){\n  \n# Parse params\nsamplename = table[i,\"SampleName\"]\nfq1 =  table[i,\"fq1\"]\nfq2 =  table[i,\"fq2\"]\n#nestcells = table[i,\"nestcells\"]\ngenomepath =  table[i,\"genomePath\"]\ngenomefasta =  table[i,\"genomeFasta\"]\ngtf =  table[i,\"gtf\"]\n# fn\nfn=paste0(samplename,\".txt\")\n\n# write to file\nfileConn<-file(fn)\nwriteLines(paste(samplename,fq1,fq2,genomepath,genomefasta,gtf, sep=\"\\t\"), fileConn)\nclose(fileConn)  \n}\n\n\"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "\"\"\"\n#!/usr/bin/env Rscript\n\n# Read the table\nsampletable=\"${sampletable}\"\ntable = read.table(sampletable, stringsAsFactors = F, header = T, sep=\"\\t\")\nfor(i in 1:nrow(table)){\n  \n# Parse params\nsamplename = table[i,\"SampleName\"]\nfq1 =  table[i,\"fq1\"]\nfq2 =  table[i,\"fq2\"]\n#nestcells = table[i,\"nestcells\"]\ngenomepath =  table[i,\"genomePath\"]\ngenomefasta =  table[i,\"genomeFasta\"]\ngtf =  table[i,\"gtf\"]\n# fn\nfn=paste0(samplename,\".txt\")\n\n# write to file\nfileConn<-file(fn)\nwriteLines(paste(samplename,fq1,fq2,genomepath,genomefasta,gtf, sep=\"\\t\"), fileConn)\nclose(fileConn)  \n}\n\n\"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "g_1_xlsfile_g_21"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "g_21_txtfile_g_7"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /.*.txt$/) \"samplefiles/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "create_paramset": {
+        "name_process": "create_paramset",
+        "string_process": "\nprocess create_paramset {\n\ninput:\n file input from g_22_txtfile_g_20.flatten()\n\noutput:\n set val(\"${input.baseName}\"),file(input) into g_20_paramset_g_27\n\n\"\"\"\n\n\"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "\"\"\"\n\n\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "g_22_txtfile_g_20"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "g_20_paramset_g_27"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "Macosko_pl_mapping": {
+        "name_process": "Macosko_pl_mapping",
+        "string_process": "\nprocess Macosko_pl_mapping {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /${name}$/) \"STAR_mapping/$filename\"\n}\n\ninput:\n set name, paramfile from g_7_paramset_g_19\n\noutput:\n file \"${name}\" into g_19_folder\n file \"${name}\" into g_19_folder2_g_20\n\n\"\"\"\n# Read paramfile into a var\nparamline=\\$(<${paramfile})\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# Create param vars\nread1=\\${params[1]}\nread2=\\${params[2]}\n#nestcells=\\${params[3]}\ngenomedir=\\${params[3]}\nreferencefasta=\\${params[4]}\n\n#echo \\${read1} \\${read2} \\${genomedir} \\${referencefasta} > ${name}.out.params.txt\n\n# Define STAT exec path\nSTAR=\"/PATH/TO/STAR\"\n\n# add bc # Added tmp dir\ncmd_pre=\"java -Djava.io.tmpdir=./tmpdir -jar /PATH/TO/Drop-seq_tools-2.0.0/3rdParty/picard/picard.jar FastqToSam \\\nF1=\\${read1} \\\nF2=\\${read2} \\\nSM=${name} \\\nO=${name}.unmapped.bam\"\n\n# Execute\neval \\${cmd_pre}\n\n# Create out dir\nmkdir ${name}\n# use -k to keep intermediates otherwise there is an error.\n\ncmd_map=\"bash /PATH/TO/Drop-seq_tools-2.0.0/Drop-seq_alignment.sh \\\n-g \\${genomedir} \\\n-r \\${referencefasta} \\\n-o ${name} \\\n-d /PATH/TO/bin/Drop-seq_tools-2.0.0 \\\n-t ${name} \\\n-s \\${STAR} -k \\\n./${name}.unmapped.bam\"\n\n# Execute\neval \\${cmd_map}\n\n# Write commands to file\necho \\${cmd_pre} > ./${name}/exec.pre.cmd.txt\necho \\${cmd_map} > ./${name}/exec.map.cmd.txt\n\n# Write STAR version to file\n\\${STAR} | head -8 > ./${name}/STAR.version\n\n# Copy the param file to the out directory\ncp ${paramfile} ./${name}/params.txt\n\n# Copy the unmapped bam file to out dir\ncp ./${name}.unmapped.bam ./${name}\n\n# final bam is now named ${name}/final.bam\n# Rename to ${name}.bam\nmv ./${name}/final.bam ./${name}/${name}.bam\nmv ./${name}/final.bai ./${name}/${name}.bai\n\n# RENAME the output file\n#mv ./${name}/error_detected.bam ./${name}/${name}.bam\n#mv ./${name}/error_detected.bai ./${name}/${name}.bai\n\n\n\n\"\"\"\n}",
+        "nb_lignes_process": 85,
+        "string_script": "\"\"\"\n# Read paramfile into a var\nparamline=\\$(<${paramfile})\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# Create param vars\nread1=\\${params[1]}\nread2=\\${params[2]}\n#nestcells=\\${params[3]}\ngenomedir=\\${params[3]}\nreferencefasta=\\${params[4]}\n\n#echo \\${read1} \\${read2} \\${genomedir} \\${referencefasta} > ${name}.out.params.txt\n\n# Define STAT exec path\nSTAR=\"/PATH/TO/STAR\"\n\n# add bc # Added tmp dir\ncmd_pre=\"java -Djava.io.tmpdir=./tmpdir -jar /PATH/TO/Drop-seq_tools-2.0.0/3rdParty/picard/picard.jar FastqToSam \\\nF1=\\${read1} \\\nF2=\\${read2} \\\nSM=${name} \\\nO=${name}.unmapped.bam\"\n\n# Execute\neval \\${cmd_pre}\n\n# Create out dir\nmkdir ${name}\n# use -k to keep intermediates otherwise there is an error.\n\ncmd_map=\"bash /PATH/TO/Drop-seq_tools-2.0.0/Drop-seq_alignment.sh \\\n-g \\${genomedir} \\\n-r \\${referencefasta} \\\n-o ${name} \\\n-d /PATH/TO/bin/Drop-seq_tools-2.0.0 \\\n-t ${name} \\\n-s \\${STAR} -k \\\n./${name}.unmapped.bam\"\n\n# Execute\neval \\${cmd_map}\n\n# Write commands to file\necho \\${cmd_pre} > ./${name}/exec.pre.cmd.txt\necho \\${cmd_map} > ./${name}/exec.map.cmd.txt\n\n# Write STAR version to file\n\\${STAR} | head -8 > ./${name}/STAR.version\n\n# Copy the param file to the out directory\ncp ${paramfile} ./${name}/params.txt\n\n# Copy the unmapped bam file to out dir\ncp ./${name}.unmapped.bam ./${name}\n\n# final bam is now named ${name}/final.bam\n# Rename to ${name}.bam\nmv ./${name}/final.bam ./${name}/${name}.bam\nmv ./${name}/final.bai ./${name}/${name}.bai\n\n# RENAME the output file\n#mv ./${name}/error_detected.bam ./${name}/${name}.bam\n#mv ./${name}/error_detected.bai ./${name}/${name}.bai\n\n\n\n\"\"\"",
+        "nb_lignes_script": 70,
+        "language_script": "bash",
+        "tools": [
+            "STAR",
+            "BTEVAL"
+        ],
+        "tools_url": [
+            "https://bio.tools/star",
+            "https://bio.tools/bteval"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            },
+            {
+                "name": "BTEVAL",
+                "uri": "https://bio.tools/bteval",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The aim of BTEVAL server is to evaluate beta turn prediction algorithms on a uniform data set of 426 proteins or subsets of these proteins. It is the new data set in which no two protein chains have more that 25% sequence identity and each chain contains minimum one beta turn.",
+                "homepage": "http://www.imtech.res.in/raghava/bteval"
+            }
+        ],
+        "inputs": [
+            "g_7_paramset_g_19"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "g_19_folder",
+            "g_19_folder2_g_20"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /${name}$/) \"STAR_mapping/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "DigitalExpression": {
+        "name_process": "DigitalExpression",
+        "string_process": "\nprocess DigitalExpression {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /${name}$/) \"count_mat/$filename\"\n}\n\ninput:\n file name from g_19_folder2_g_20\n\noutput:\n file \"${name}\" into g_20_folder\n set val(\"${name}\"), file('mapdata') into g_20_paramset_g_22\n\n\"\"\"\n\n# Create folder for full matrix\nmkdir mat_full\ncmd=\"/PATH/TO/bin/Drop-seq_tools-2.0.0/DigitalExpression \\\nI=${name}/${name}.bam \\\nO=mat_full/${name}.dge.txt.gz \\\nSUMMARY=mat_full/${name}.dge.summary.txt \\\nTMP_DIR=mat_full \\\nMIN_NUM_GENES_PER_CELL=1\"\n\n\n# Execute\neval \\${cmd}\n\n# Write command to file\necho \\${cmd} > mat_full/exec.cmd.txt\n\n# Create reduced mat\nmkdir mat_min_200_genes_per_cell\ncmd2=\"/PATH/TO/bin/Drop-seq_tools-2.0.0/DigitalExpression \\\nI=${name}/${name}.bam \\\nO=mat_min_200_genes_per_cell/${name}.dge.txt.gz \\\nSUMMARY=mat_min_200_genes_per_cell/${name}.dge.summary.txt \\\nTMP_DIR=mat_min_200_genes_per_cell \\\nMIN_NUM_GENES_PER_CELL=200\"\n# Execute\neval \\${cmd2}\n\n# Write command to file\necho \\${cmd2} > mat_min_200_genes_per_cell/exec.cmd.txt\n\n# Move data dir to mapdata\nmv ${name} mapdata\n\n# Create results dir and mv results\nmkdir ${name}\nmv mat_full ${name}\nmv mat_min_200_genes_per_cell ${name}\n\n# Create the barcodes file\n# cut -f1 ${name}/mat_min_200_genes_per_cell/${name}.dge.summary.txt | tail -n +3 > ${name}/mat_min_200_genes_per_cell/barcodes_min_200.txt\n# Print barcodes (col 1) after matching \"NUM_GENIC_READS\"\nsed -e '1,/NUM_GENIC_READS/d'  ${name}/mat_min_200_genes_per_cell/${name}.dge.summary.txt | cut -f1 > ${name}/mat_min_200_genes_per_cell/barcodes_min_200.txt\n\n# Copy barcodesfile also to mapdata folder\ncp ${name}/mat_min_200_genes_per_cell/barcodes_min_200.txt mapdata\n\n\n\n\n\"\"\"\n}",
+        "nb_lignes_process": 66,
+        "string_script": "\"\"\"\n\n# Create folder for full matrix\nmkdir mat_full\ncmd=\"/PATH/TO/bin/Drop-seq_tools-2.0.0/DigitalExpression \\\nI=${name}/${name}.bam \\\nO=mat_full/${name}.dge.txt.gz \\\nSUMMARY=mat_full/${name}.dge.summary.txt \\\nTMP_DIR=mat_full \\\nMIN_NUM_GENES_PER_CELL=1\"\n\n\n# Execute\neval \\${cmd}\n\n# Write command to file\necho \\${cmd} > mat_full/exec.cmd.txt\n\n# Create reduced mat\nmkdir mat_min_200_genes_per_cell\ncmd2=\"/PATH/TO/bin/Drop-seq_tools-2.0.0/DigitalExpression \\\nI=${name}/${name}.bam \\\nO=mat_min_200_genes_per_cell/${name}.dge.txt.gz \\\nSUMMARY=mat_min_200_genes_per_cell/${name}.dge.summary.txt \\\nTMP_DIR=mat_min_200_genes_per_cell \\\nMIN_NUM_GENES_PER_CELL=200\"\n# Execute\neval \\${cmd2}\n\n# Write command to file\necho \\${cmd2} > mat_min_200_genes_per_cell/exec.cmd.txt\n\n# Move data dir to mapdata\nmv ${name} mapdata\n\n# Create results dir and mv results\nmkdir ${name}\nmv mat_full ${name}\nmv mat_min_200_genes_per_cell ${name}\n\n# Create the barcodes file\n# cut -f1 ${name}/mat_min_200_genes_per_cell/${name}.dge.summary.txt | tail -n +3 > ${name}/mat_min_200_genes_per_cell/barcodes_min_200.txt\n# Print barcodes (col 1) after matching \"NUM_GENIC_READS\"\nsed -e '1,/NUM_GENIC_READS/d'  ${name}/mat_min_200_genes_per_cell/${name}.dge.summary.txt | cut -f1 > ${name}/mat_min_200_genes_per_cell/barcodes_min_200.txt\n\n# Copy barcodesfile also to mapdata folder\ncp ${name}/mat_min_200_genes_per_cell/barcodes_min_200.txt mapdata\n\n\n\n\n\"\"\"",
+        "nb_lignes_script": 51,
+        "language_script": "bash",
+        "tools": [
+            "BTEVAL"
+        ],
+        "tools_url": [
+            "https://bio.tools/bteval"
+        ],
+        "tools_dico": [
+            {
+                "name": "BTEVAL",
+                "uri": "https://bio.tools/bteval",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The aim of BTEVAL server is to evaluate beta turn prediction algorithms on a uniform data set of 426 proteins or subsets of these proteins. It is the new data set in which no two protein chains have more that 25% sequence identity and each chain contains minimum one beta turn.",
+                "homepage": "http://www.imtech.res.in/raghava/bteval"
+            }
+        ],
+        "inputs": [
+            "g_19_folder2_g_20"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "g_20_folder",
+            "g_20_paramset_g_22"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /${name}$/) \"count_mat/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Velocyto_folder_dropest": {
+        "name_process": "Velocyto_folder_dropest",
+        "string_process": "\nprocess Velocyto_folder_dropest {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /${name}$/) \"velocyto/$filename\"\n}\n\ninput:\n val ncpus from g_16_ncpus_g_22\n set name, mapdata from g_20_paramset_g_22\n\noutput:\n file \"${name}\" into g_22_folder\n\n\"\"\"\nexport LC_ALL=C.UTF-8\nexport LANG=C.UTF-8\n\n# Read the paramsfile and split to get gft file\n# Read paramfile into a var\nparamline=\\$(<${mapdata}/params.txt)\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# gtf is 6. param (note 0 based indexing)\ngtffile=\\${params[5]}\n\n# Get version\nvelocyto --version > version.txt\nvcversion=`egrep -o \"([0-9]{1,}\\\\.)+[0-9]{1,}\" version.txt`\n\n# Copy the bc file to cwd\ncp ${mapdata}/barcodes_min_200.txt .\n\n# Create a link to bamfile\nln -s ${mapdata}/${name}.bam input.bam\n\n## filter the bam file by the barcodes and add CB tag\n## Based on script of Matthias Heinig\nsamtools view input.bam | \\\nawk -v barcode_file=barcodes_min_200.txt '\nBEGIN{\n  ## first read the barcodes that correspond to cells\n  barcode = \"\"\n  while ((getline line < barcode_file) > 0)\n    barcode = barcode \" \" line\n  close(barcode_file)\n  nbarcodes = split(barcode, barcode_arr1, \" \")\n  ## the \"in\" function works on the hash keys so we need a second array\n  ## with the barcodes as hash keys\n  for (i in barcode_arr1) {\n    barcode_arr2[barcode_arr1[i]] = barcode_arr1[i]\n  }\n  print \"Considering \" nbarcodes \" barcodes\" > \"/dev/stderr\"\n}{\n  # Barcode format XC:Z:ACCCTGAACACT\n  match(\\$0, /XC:Z:[ACGT]{12}/)\n  if (RSTART > 0) { \n    barcode = substr(\\$0, RSTART + 5, 12)\n    if (barcode in barcode_arr2) {\n      ## add the barcode as CB tag\n      out = \\$0 \"\\tCB:Z:\" barcode\n\t  # out = \\$0\n      print out \n    }\n  }\n}' > aln_filtered.sam\n\n# eval \\${filtercmd}\n\n## Get original header\nsamtools view -H ${mapdata}/${name}.bam > header\n\n## create an indexed bam file\ncat header aln_filtered.sam | samtools view -S -b -o aln_filtered.bam -\nsamtools index aln_filtered.bam\n\n## remove tmp files\nrm -f aln_with_readgroups.sam header\n\n# Sort bamfile by CB tag / for velocyto\nsamtools sort --threads ${ncpus} -t CB -O BAM -o cellsorted_aln_filtered.bam aln_filtered.bam\n\n# Run velocyto\n# velocmd=\"velocyto run --samtools-threads ${ncpus} -b ${mapdata}/barcodes_min_200.txt -o velocyto ${mapdata}/${name}.bam \\${gtffile}\"\n# Run velocyto on filtered bam file\n# Velocyto will look for the file cellsorted_aln_filtered.bam\nvelocmd=\"velocyto run --samtools-threads ${ncpus} -o velocyto aln_filtered.bam \\${gtffile}\"\neval \\${velocmd}\n\n# mv the original folder (which is a softlink)\n# mv ${name} oldname\n\n# mv velocyto folder to name\nmv velocyto ${name}\n\n# cp velocyto version file\ncp version.txt ${name}/vc_version.txt\n# Save velocyto command\necho \\${velocmd} > ${name}/vc.cmd.txt\n\n\n\n\"\"\"\n}",
+        "nb_lignes_process": 106,
+        "string_script": "\"\"\"\nexport LC_ALL=C.UTF-8\nexport LANG=C.UTF-8\n\n# Read the paramsfile and split to get gft file\n# Read paramfile into a var\nparamline=\\$(<${mapdata}/params.txt)\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# gtf is 6. param (note 0 based indexing)\ngtffile=\\${params[5]}\n\n# Get version\nvelocyto --version > version.txt\nvcversion=`egrep -o \"([0-9]{1,}\\\\.)+[0-9]{1,}\" version.txt`\n\n# Copy the bc file to cwd\ncp ${mapdata}/barcodes_min_200.txt .\n\n# Create a link to bamfile\nln -s ${mapdata}/${name}.bam input.bam\n\n## filter the bam file by the barcodes and add CB tag\n## Based on script of Matthias Heinig\nsamtools view input.bam | \\\nawk -v barcode_file=barcodes_min_200.txt '\nBEGIN{\n  ## first read the barcodes that correspond to cells\n  barcode = \"\"\n  while ((getline line < barcode_file) > 0)\n    barcode = barcode \" \" line\n  close(barcode_file)\n  nbarcodes = split(barcode, barcode_arr1, \" \")\n  ## the \"in\" function works on the hash keys so we need a second array\n  ## with the barcodes as hash keys\n  for (i in barcode_arr1) {\n    barcode_arr2[barcode_arr1[i]] = barcode_arr1[i]\n  }\n  print \"Considering \" nbarcodes \" barcodes\" > \"/dev/stderr\"\n}{\n  # Barcode format XC:Z:ACCCTGAACACT\n  match(\\$0, /XC:Z:[ACGT]{12}/)\n  if (RSTART > 0) { \n    barcode = substr(\\$0, RSTART + 5, 12)\n    if (barcode in barcode_arr2) {\n      ## add the barcode as CB tag\n      out = \\$0 \"\\tCB:Z:\" barcode\n\t  # out = \\$0\n      print out \n    }\n  }\n}' > aln_filtered.sam\n\n# eval \\${filtercmd}\n\n## Get original header\nsamtools view -H ${mapdata}/${name}.bam > header\n\n## create an indexed bam file\ncat header aln_filtered.sam | samtools view -S -b -o aln_filtered.bam -\nsamtools index aln_filtered.bam\n\n## remove tmp files\nrm -f aln_with_readgroups.sam header\n\n# Sort bamfile by CB tag / for velocyto\nsamtools sort --threads ${ncpus} -t CB -O BAM -o cellsorted_aln_filtered.bam aln_filtered.bam\n\n# Run velocyto\n# velocmd=\"velocyto run --samtools-threads ${ncpus} -b ${mapdata}/barcodes_min_200.txt -o velocyto ${mapdata}/${name}.bam \\${gtffile}\"\n# Run velocyto on filtered bam file\n# Velocyto will look for the file cellsorted_aln_filtered.bam\nvelocmd=\"velocyto run --samtools-threads ${ncpus} -o velocyto aln_filtered.bam \\${gtffile}\"\neval \\${velocmd}\n\n# mv the original folder (which is a softlink)\n# mv ${name} oldname\n\n# mv velocyto folder to name\nmv velocyto ${name}\n\n# cp velocyto version file\ncp version.txt ${name}/vc_version.txt\n# Save velocyto command\necho \\${velocmd} > ${name}/vc.cmd.txt\n\n\n\n\"\"\"",
+        "nb_lignes_script": 91,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools",
+            "genBaRcode",
+            "Ragout",
+            "BTEVAL"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools",
+            "https://bio.tools/genBaRcode",
+            "https://bio.tools/ragout",
+            "https://bio.tools/bteval"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "genBaRcode",
+                "uri": "https://bio.tools/genBaRcode",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3382",
+                            "term": "Imaging"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a comprehensive R package for genetic barcode analysis.\n\nAnalysis and Visualization Tools for Genetic Barcode Data.\n\nIndex of /web/packages/genBaRcode/vignettes.\n\nProvides the necessary functions to identify and extract a selection of already available barcode constructs (Cornils, K. et al. (2014) <doi:10.1093/nar/gku081>) and freely choosable barcode designs from next generation sequence (NGS) data. Furthermore, it offers the possibility to account for sequence errors, the calculation of barcode similarities and provides a variety of visualisation tools (Thielecke, L. et al. (2017) <doi:10.1038/srep43249>)",
+                "homepage": "https://cran.r-project.org/package=genBaRcode"
+            },
+            {
+                "name": "Ragout",
+                "uri": "https://bio.tools/ragout",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tool for assisted assembly using multiple references. It takes a short read assembly (a set of contigs), a set of related references and a corresponding phylogenetic tree and then assembles the contigs into scaffolds.",
+                "homepage": "http://fenderglass.github.io/Ragout/"
+            },
+            {
+                "name": "BTEVAL",
+                "uri": "https://bio.tools/bteval",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The aim of BTEVAL server is to evaluate beta turn prediction algorithms on a uniform data set of 426 proteins or subsets of these proteins. It is the new data set in which no two protein chains have more that 25% sequence identity and each chain contains minimum one beta turn.",
+                "homepage": "http://www.imtech.res.in/raghava/bteval"
+            }
+        ],
+        "inputs": [
+            "g_16_ncpus_g_22",
+            "g_20_paramset_g_22"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "g_22_folder"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /${name}$/) \"velocyto/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "split_sample_table_cr_pipe": {
+        "name_process": "split_sample_table_cr_pipe",
+        "string_process": "\nprocess split_sample_table_cr_pipe {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /.*.txt$/) \"samplefiles/$filename\"\n}\n\ninput:\n file sampletable from g_15_xlsfile_g_22\n\noutput:\n file '*.txt' into g_22_txtfile_g_20\n\n\"\"\"\n#!/usr/bin/env Rscript\n\n# Read the table\nsampletable=\"${sampletable}\"\ntable = read.table(sampletable, stringsAsFactors = F, header = T, sep=\"\\t\")\nfor(i in 1:nrow(table)){\n  \n# Parse params\nsamplename = table[i,\"Sample\"]\nncells =  table[i,\"ncells\"]\nfastqpath = table[i,\"fastqpath\"]\nrefindex = table[i,\"refindex\"]\nrefgtf = table[i,\"refgtf\"]\nchemistry = table[i,\"chemistry\"]\n\n# fn\nfn=paste0(samplename,\".txt\")\n\n# write to file\nfileConn<-file(fn)\nwriteLines(paste(samplename,ncells,fastqpath,refindex,refgtf,chemistry,sep=\"\\t\"), fileConn)\nclose(fileConn)  \n}\n\n\"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "\"\"\"\n#!/usr/bin/env Rscript\n\n# Read the table\nsampletable=\"${sampletable}\"\ntable = read.table(sampletable, stringsAsFactors = F, header = T, sep=\"\\t\")\nfor(i in 1:nrow(table)){\n  \n# Parse params\nsamplename = table[i,\"Sample\"]\nncells =  table[i,\"ncells\"]\nfastqpath = table[i,\"fastqpath\"]\nrefindex = table[i,\"refindex\"]\nrefgtf = table[i,\"refgtf\"]\nchemistry = table[i,\"chemistry\"]\n\n# fn\nfn=paste0(samplename,\".txt\")\n\n# write to file\nfileConn<-file(fn)\nwriteLines(paste(samplename,ncells,fastqpath,refindex,refgtf,chemistry,sep=\"\\t\"), fileConn)\nclose(fileConn)  \n}\n\n\"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "g_15_xlsfile_g_22"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "g_22_txtfile_g_20"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /.*.txt$/) \"samplefiles/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cellranger_count": {
+        "name_process": "cellranger_count",
+        "string_process": "\nprocess cellranger_count {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /${samplename}$/) \"cellranger/$filename\"\n}\n\ninput:\n set samplename,paramfile from g_20_paramset_g_27\n val maxjobs from g_5_maxjobs_g_27\n val samtoolsncpus from g_10_ncpus_g_27\n\noutput:\n file \"${samplename}\" into g_27_folder_g_28, g_27_folder_g_29\n\n\"\"\"\n# Read paramfile into a var\nparamline=\\$(<${paramfile})\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# Create param vars\nsamplename=\\${params[0]}\nncells=\\${params[1]}\nfastqpath=\\${params[2]}\nrefindex=\\${params[3]}\nchemistry=\\${params[5]}\n\n# Get cellranger version\ncellranger sitecheck > sitecheck.txt\ncrversion=`head -n2 sitecheck.txt | grep -oP '\\\\(\\\\K[^)]+'`\n\ncr_cmd=\"cellranger count --id=cellranger --fastqs=\\${fastqpath} \\\n--sample=${samplename} \\\n--transcriptome=\\${refindex} \\\n--expect-cells=\\${ncells} \\\n--jobmode=sge --maxjobs=${maxjobs} \\\n--chemistry=\\${chemistry}\"\n\n# Echo the cmd to a file\necho \\${cr_cmd} > cr_cmd.txt\n\n# Execute\neval \\${cr_cmd}\n\n# Create output directories\nmkdir -p ${samplename}/count_matrices\nmkdir -p ${samplename}/bamfile\nmkdir -p ${samplename}/statsfiles\n\n# Copy count matrices folders and h5 files from cellranger directory\ncp -R cellranger/outs/filtered_gene_bc_matrices ${samplename}/count_matrices\ncp -R cellranger/outs/raw_gene_bc_matrices ${samplename}/count_matrices\ncp cellranger/outs/filtered_gene_bc_matrices_h5.h5 ${samplename}/count_matrices\ncp cellranger/outs/raw_gene_bc_matrices_h5.h5 ${samplename}/count_matrices\n\n# Copy bamfile\ncp cellranger/outs/possorted_genome_bam.bam ${samplename}/bamfile\ncp cellranger/outs/possorted_genome_bam.bam.bai ${samplename}/bamfile\n\n# Copy statsfiles\ncp cellranger/outs/web_summary.html ${samplename}/statsfiles\ncp cellranger/outs/metrics_summary.csv ${samplename}/statsfiles\n\n# Copy analysis folder\ncp -R cellranger/outs/analysis ${samplename}\n\n# Copy molecule_info.h5 file\ncp cellranger/outs/molecule_info.h5 ${samplename}/analysis\n\n# Try to copy cloupe.cloupe file to analysis folder / is not created if mult genomes are used / do not err if file does not exist\ncp cellranger/outs/cloupe.cloupe ${samplename}/analysis 2>/dev/null || :\n\n# Echo the version to a file\necho \\${crversion} > ${samplename}/cr_version.txt\n# Cp sitecheck file\ncp sitecheck.txt ${samplename}/cr_sitecheck.txt\n# Copy the results directory\ncp cr_cmd.txt ${samplename}/cr_cmd.txt\n\n# Get samtools version\nsamtools --help | head -3 > ${samplename}/samtools_version.txt\n\n# Sort bamfile by CB tag / for velocyto\nsamt_cmd=\"samtools sort --threads ${samtoolsncpus} -t CB -O BAM -o ${samplename}/bamfile/cellsorted_possorted_genome_bam.bam ${samplename}/bamfile/possorted_genome_bam.bam\"\n\n# Execute\neval \\${samt_cmd}\n\n# Echo cmd to file\necho \\${samt_cmd} > ${samplename}/samtools_cmd.txt\n\n# Copy the param file to the out directory\ncp ${paramfile} ${samplename}/params.txt\n\n# rm cellranger folder\n#rm -R cellranger\n\n\"\"\"\n}",
+        "nb_lignes_process": 101,
+        "string_script": "\"\"\"\n# Read paramfile into a var\nparamline=\\$(<${paramfile})\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# Create param vars\nsamplename=\\${params[0]}\nncells=\\${params[1]}\nfastqpath=\\${params[2]}\nrefindex=\\${params[3]}\nchemistry=\\${params[5]}\n\n# Get cellranger version\ncellranger sitecheck > sitecheck.txt\ncrversion=`head -n2 sitecheck.txt | grep -oP '\\\\(\\\\K[^)]+'`\n\ncr_cmd=\"cellranger count --id=cellranger --fastqs=\\${fastqpath} \\\n--sample=${samplename} \\\n--transcriptome=\\${refindex} \\\n--expect-cells=\\${ncells} \\\n--jobmode=sge --maxjobs=${maxjobs} \\\n--chemistry=\\${chemistry}\"\n\n# Echo the cmd to a file\necho \\${cr_cmd} > cr_cmd.txt\n\n# Execute\neval \\${cr_cmd}\n\n# Create output directories\nmkdir -p ${samplename}/count_matrices\nmkdir -p ${samplename}/bamfile\nmkdir -p ${samplename}/statsfiles\n\n# Copy count matrices folders and h5 files from cellranger directory\ncp -R cellranger/outs/filtered_gene_bc_matrices ${samplename}/count_matrices\ncp -R cellranger/outs/raw_gene_bc_matrices ${samplename}/count_matrices\ncp cellranger/outs/filtered_gene_bc_matrices_h5.h5 ${samplename}/count_matrices\ncp cellranger/outs/raw_gene_bc_matrices_h5.h5 ${samplename}/count_matrices\n\n# Copy bamfile\ncp cellranger/outs/possorted_genome_bam.bam ${samplename}/bamfile\ncp cellranger/outs/possorted_genome_bam.bam.bai ${samplename}/bamfile\n\n# Copy statsfiles\ncp cellranger/outs/web_summary.html ${samplename}/statsfiles\ncp cellranger/outs/metrics_summary.csv ${samplename}/statsfiles\n\n# Copy analysis folder\ncp -R cellranger/outs/analysis ${samplename}\n\n# Copy molecule_info.h5 file\ncp cellranger/outs/molecule_info.h5 ${samplename}/analysis\n\n# Try to copy cloupe.cloupe file to analysis folder / is not created if mult genomes are used / do not err if file does not exist\ncp cellranger/outs/cloupe.cloupe ${samplename}/analysis 2>/dev/null || :\n\n# Echo the version to a file\necho \\${crversion} > ${samplename}/cr_version.txt\n# Cp sitecheck file\ncp sitecheck.txt ${samplename}/cr_sitecheck.txt\n# Copy the results directory\ncp cr_cmd.txt ${samplename}/cr_cmd.txt\n\n# Get samtools version\nsamtools --help | head -3 > ${samplename}/samtools_version.txt\n\n# Sort bamfile by CB tag / for velocyto\nsamt_cmd=\"samtools sort --threads ${samtoolsncpus} -t CB -O BAM -o ${samplename}/bamfile/cellsorted_possorted_genome_bam.bam ${samplename}/bamfile/possorted_genome_bam.bam\"\n\n# Execute\neval \\${samt_cmd}\n\n# Echo cmd to file\necho \\${samt_cmd} > ${samplename}/samtools_cmd.txt\n\n# Copy the param file to the out directory\ncp ${paramfile} ${samplename}/params.txt\n\n# rm cellranger folder\n#rm -R cellranger\n\n\"\"\"",
+        "nb_lignes_script": 85,
+        "language_script": "bash",
+        "tools": [
+            "BTEVAL",
+            "NullSeq",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bteval",
+            "https://bio.tools/nullseq",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BTEVAL",
+                "uri": "https://bio.tools/bteval",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The aim of BTEVAL server is to evaluate beta turn prediction algorithms on a uniform data set of 426 proteins or subsets of these proteins. It is the new data set in which no two protein chains have more that 25% sequence identity and each chain contains minimum one beta turn.",
+                "homepage": "http://www.imtech.res.in/raghava/bteval"
+            },
+            {
+                "name": "NullSeq",
+                "uri": "https://bio.tools/nullseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0364",
+                                    "term": "Random sequence generation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Creates Random Coding Sequences with specified GC content and Amino Acid usage.",
+                "homepage": "https://github.com/amarallab/NullSeq"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "g_20_paramset_g_27",
+            "g_5_maxjobs_g_27",
+            "g_10_ncpus_g_27"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "g_27_folder_g_28",
+            "g_27_folder_g_29"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /${samplename}$/) \"cellranger/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Velocyto_folder": {
+        "name_process": "Velocyto_folder",
+        "string_process": "\nprocess Velocyto_folder {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /${name}$/) \"velocyto/$filename\"\n}\n\ninput:\n file name from g_27_folder_g_29\n val ncpus from g_10_ncpus_g_29\n\noutput:\n file \"${name}\" into g_29_folder\n\n\"\"\"\n# Read the paramsfile and split to get gft file\n\nexport LC_ALL=C.UTF-8\nexport LANG=C.UTF-8\n\n\n# Read paramfile into a var\nparamline=\\$(<${name}/params.txt)\n\n# Get org IFS\nOLDIFS=\\$IFS\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# Reset IFS\nIFS=\\$OLDIFS\n\n# gtf is 5. param (note 0 based indexing)\ngtffile=\\${params[4]}\n\n# Get version\nvelocyto --version > version.txt\nvcversion=`egrep -o \"([0-9]{1,}\\\\.)+[0-9]{1,}\" version.txt`\n\n# run velocyto for each genome subdirectory\n# Generate an array of subdirs in folder\ndirarray=( `ls ${name}/count_matrices/filtered_gene_bc_matrices/` )\n\n# Iterate over the folders\nfor dname in \"\\${dirarray[@]}\"\ndo\n# Get barcode file path\nbcpath=\"${name}/count_matrices/filtered_gene_bc_matrices/\\${dname}/barcodes.tsv\"\n\n# Run velocyto\nvelocmd=\"velocyto run --samtools-threads ${ncpus} -b \\${bcpath} -o velocyto/\\${dname} ${name}/bamfile/possorted_genome_bam.bam \\${gtffile}\"\n\n# create results dir\nmkdir -p \"velocyto/\\${dname}\"\n\n# Echo cmd to file\necho \\${velocmd} > \"velocyto/\\${dname}/vc.cmd.txt\"\n\n# Execute\neval \\${velocmd}\ndone\n\n# mv the original folder (which is a softlink)\nmv ${name} oldname\n\n# mv velocyto folder to name\nmv velocyto ${name}\n\n# cp velocyto version file\ncp version.txt ${name}/vc_version.txt\n\n\n\"\"\"\n}",
+        "nb_lignes_process": 75,
+        "string_script": "\"\"\"\n# Read the paramsfile and split to get gft file\n\nexport LC_ALL=C.UTF-8\nexport LANG=C.UTF-8\n\n\n# Read paramfile into a var\nparamline=\\$(<${name}/params.txt)\n\n# Get org IFS\nOLDIFS=\\$IFS\n\n# Split line\nIFS=\\$'\\t'\nparams=(\\${paramline})\n\n# Reset IFS\nIFS=\\$OLDIFS\n\n# gtf is 5. param (note 0 based indexing)\ngtffile=\\${params[4]}\n\n# Get version\nvelocyto --version > version.txt\nvcversion=`egrep -o \"([0-9]{1,}\\\\.)+[0-9]{1,}\" version.txt`\n\n# run velocyto for each genome subdirectory\n# Generate an array of subdirs in folder\ndirarray=( `ls ${name}/count_matrices/filtered_gene_bc_matrices/` )\n\n# Iterate over the folders\nfor dname in \"\\${dirarray[@]}\"\ndo\n# Get barcode file path\nbcpath=\"${name}/count_matrices/filtered_gene_bc_matrices/\\${dname}/barcodes.tsv\"\n\n# Run velocyto\nvelocmd=\"velocyto run --samtools-threads ${ncpus} -b \\${bcpath} -o velocyto/\\${dname} ${name}/bamfile/possorted_genome_bam.bam \\${gtffile}\"\n\n# create results dir\nmkdir -p \"velocyto/\\${dname}\"\n\n# Echo cmd to file\necho \\${velocmd} > \"velocyto/\\${dname}/vc.cmd.txt\"\n\n# Execute\neval \\${velocmd}\ndone\n\n# mv the original folder (which is a softlink)\nmv ${name} oldname\n\n# mv velocyto folder to name\nmv velocyto ${name}\n\n# cp velocyto version file\ncp version.txt ${name}/vc_version.txt\n\n\n\"\"\"",
+        "nb_lignes_script": 60,
+        "language_script": "bash",
+        "tools": [
+            "BTEVAL"
+        ],
+        "tools_url": [
+            "https://bio.tools/bteval"
+        ],
+        "tools_dico": [
+            {
+                "name": "BTEVAL",
+                "uri": "https://bio.tools/bteval",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The aim of BTEVAL server is to evaluate beta turn prediction algorithms on a uniform data set of 426 proteins or subsets of these proteins. It is the new data set in which no two protein chains have more that 25% sequence identity and each chain contains minimum one beta turn.",
+                "homepage": "http://www.imtech.res.in/raghava/bteval"
+            }
+        ],
+        "inputs": [
+            "g_27_folder_g_29",
+            "g_10_ncpus_g_29"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "g_29_folder"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /${name}$/) \"velocyto/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Create_AnnData": {
+        "name_process": "Create_AnnData",
+        "string_process": "\nprocess Create_AnnData {\n\npublishDir params.outdir, mode: 'copy',\n\tsaveAs: {filename ->\n\tif (filename =~ /${name}$/) \"scanpy_AnnData/$filename\"\n}\n\ninput:\n file name from g_27_folder_g_28\n\noutput:\n file \"${name}\" into g_28_folder\n\n\"\"\"\n#!/usr/bin/env python\n# Adapted from https://nbviewer.jupyter.org/github/theislab/scanpy_usage/blob/master/170505_seurat/seurat.ipynb\n\nimport numpy as np\nimport pandas as pd\nimport scanpy.api as sc\nimport glob\nimport os\nimport sys\n\n# rename directory\nos.rename('${name}',\"cellranger\")\n\n\n# Create annData for filtered results\n# Glob genome folders\npathg =glob.glob('./cellranger/count_matrices/filtered_gene_bc_matrices/*')\n\n# Iterate over the genome folder\nfor x in pathg:\n# Get the basename\n    genomeFname=os.path.basename(x)\n\n    adata = sc.read('./cellranger/count_matrices/filtered_gene_bc_matrices/' + genomeFname + '/matrix.mtx', cache=True).T  # transpose the data\n    adata.var_names = pd.read_csv('./cellranger/count_matrices/filtered_gene_bc_matrices/' + genomeFname + '/genes.tsv', header=None, sep='\\t')[1]\n    adata.obs_names = pd.read_csv('./cellranger/count_matrices/filtered_gene_bc_matrices/' + genomeFname + '/barcodes.tsv', header=None)[0]\n    adata.var_names_make_unique()\n\n    # Write to file\n    results_file = './${name}/' + genomeFname + '/filtered_gene_bc_matrices.h5ad'\n    adata.write(results_file)\n\n    # Create annData for full results\n    # pathg =glob.glob('./cellranger/count_matrices/raw_gene_bc_matrices/*/')\n    # path=str(pathg[0])\n\n    adata = sc.read('./cellranger/count_matrices/raw_gene_bc_matrices/' + genomeFname + '/matrix.mtx', cache=True).T  # transpose the data\n    adata.var_names = pd.read_csv('./cellranger/count_matrices/raw_gene_bc_matrices/' + genomeFname + '/genes.tsv', header=None, sep='\\t')[1]\n    adata.obs_names = pd.read_csv('./cellranger/count_matrices/raw_gene_bc_matrices/' + genomeFname + '/barcodes.tsv', header=None)[0]\n    adata.var_names_make_unique()\n\n    # Write to file\n    results_file = './${name}/' + genomeFname + '/raw_gene_bc_matrices.h5ad'\n    adata.write(results_file)\n\n# Write version of sc to file\nimport sys, io\nstdout = sys.stdout\nsys.stdout = io.StringIO()\nsc.logging.print_versions()\n# get output and restore sys.stdout\noutput = sys.stdout.getvalue()\nsys.stdout = stdout\n# write output to file\nfile = open('./${name}/scanpy_version.txt',\"w\") \nfile.write(output)\n\"\"\"\n}",
+        "nb_lignes_process": 71,
+        "string_script": "\"\"\"\n#!/usr/bin/env python\n# Adapted from https://nbviewer.jupyter.org/github/theislab/scanpy_usage/blob/master/170505_seurat/seurat.ipynb\n\nimport numpy as np\nimport pandas as pd\nimport scanpy.api as sc\nimport glob\nimport os\nimport sys\n\n# rename directory\nos.rename('${name}',\"cellranger\")\n\n\n# Create annData for filtered results\n# Glob genome folders\npathg =glob.glob('./cellranger/count_matrices/filtered_gene_bc_matrices/*')\n\n# Iterate over the genome folder\nfor x in pathg:\n# Get the basename\n    genomeFname=os.path.basename(x)\n\n    adata = sc.read('./cellranger/count_matrices/filtered_gene_bc_matrices/' + genomeFname + '/matrix.mtx', cache=True).T  # transpose the data\n    adata.var_names = pd.read_csv('./cellranger/count_matrices/filtered_gene_bc_matrices/' + genomeFname + '/genes.tsv', header=None, sep='\\t')[1]\n    adata.obs_names = pd.read_csv('./cellranger/count_matrices/filtered_gene_bc_matrices/' + genomeFname + '/barcodes.tsv', header=None)[0]\n    adata.var_names_make_unique()\n\n    # Write to file\n    results_file = './${name}/' + genomeFname + '/filtered_gene_bc_matrices.h5ad'\n    adata.write(results_file)\n\n    # Create annData for full results\n    # pathg =glob.glob('./cellranger/count_matrices/raw_gene_bc_matrices/*/')\n    # path=str(pathg[0])\n\n    adata = sc.read('./cellranger/count_matrices/raw_gene_bc_matrices/' + genomeFname + '/matrix.mtx', cache=True).T  # transpose the data\n    adata.var_names = pd.read_csv('./cellranger/count_matrices/raw_gene_bc_matrices/' + genomeFname + '/genes.tsv', header=None, sep='\\t')[1]\n    adata.obs_names = pd.read_csv('./cellranger/count_matrices/raw_gene_bc_matrices/' + genomeFname + '/barcodes.tsv', header=None)[0]\n    adata.var_names_make_unique()\n\n    # Write to file\n    results_file = './${name}/' + genomeFname + '/raw_gene_bc_matrices.h5ad'\n    adata.write(results_file)\n\n# Write version of sc to file\nimport sys, io\nstdout = sys.stdout\nsys.stdout = io.StringIO()\nsc.logging.print_versions()\n# get output and restore sys.stdout\noutput = sys.stdout.getvalue()\nsys.stdout = stdout\n# write output to file\nfile = open('./${name}/scanpy_version.txt',\"w\") \nfile.write(output)\n\"\"\"",
+        "nb_lignes_script": 57,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "g_27_folder_g_28"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "g_28_folder"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "matthiasheinig__scworkflows",
+        "directive": [
+            "publishDir params.outdir, mode: 'copy' , saveAs: {filename -> if (filename =~ /${name}$/) \"scanpy_AnnData/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

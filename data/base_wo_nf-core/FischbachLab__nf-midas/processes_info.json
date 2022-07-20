@@ -1,0 +1,188 @@
+{
+    "buildMIDASdb": {
+        "name_process": "buildMIDASdb",
+        "string_process": "\nprocess buildMIDASdb {\n    container \"quay.io/fhcrc-microbiome/midas:v1.3.2--6\"\n    label 'mem_medium'\n    publishDir \"${params.output_folder}\"\n    \n    input:\n    path \"GENOMES\" from file(params.genome_folder)\n    path \"mapfile\" from file(params.mapfile)\n    \n    output:\n    path \"*\"\n\n    \"\"\"\n#!/bin/bash\n\nset -e\n\nbuild_midas_db.py \\\n    GENOMES \\\n    mapfile \\\n    ./ \\\n    --threads ${task.cpus} \\\n    --compress\n\"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -e\n\nbuild_midas_db.py \\\n    GENOMES \\\n    mapfile \\\n    ./ \\\n    --threads ${task.cpus} \\\n    --compress\n\"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "genomes"
+        ],
+        "tools_url": [
+            "https://bio.tools/genomes"
+        ],
+        "tools_dico": [
+            {
+                "name": "genomes",
+                "uri": "https://bio.tools/genomes",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1050",
+                                "term": "File name"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2711",
+                                "term": "Genome report"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3181",
+                                "term": "Sequence assembly report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Download genome and assembly reports from NCBI.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/genomes.html"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FischbachLab__nf-midas",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/midas:v1.3.2--6\"",
+            "label 'mem_medium'",
+            "publishDir \"${params.output_folder}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "midas": {
+        "name_process": "midas",
+        "string_process": "\nprocess midas {\n    tag \"$sampleName\"\n    container params.docker_container_midas\n    label \"mem_veryhigh\"\n    publishDir \"${workingpath}/${sampleName}\"\n\n    input:\n    tuple val(sampleName), file(\"${sampleName}.R*.fastq.gz\") from fastq_ch\n\n    output:\n    file \"${sampleName}.species.tar.gz\" into species_ch\n    file \"${sampleName}.genes.tar.gz\" optional true into gene_ch\n    file \"${sampleName}.snps.tar.gz\" optional true into snps_ch\n    file \"job.*\" optional true\n    file \"*.log.txt\" optional true\n\n    \"\"\"\n    export FWD_FASTQ=\"${sampleName}.R1.fastq.gz\"; \\\n    export REV_FASTQ=\"${sampleName}.R2.fastq.gz\"; \\\n    export DB=${params.db_midas}; \\\n    export CORES=${task.cpus}; \\\n    export SAMPLE_NAME=${sampleName}; \\\n    run_midas.sh\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "\"\"\"\n    export FWD_FASTQ=\"${sampleName}.R1.fastq.gz\"; \\\n    export REV_FASTQ=\"${sampleName}.R2.fastq.gz\"; \\\n    export DB=${params.db_midas}; \\\n    export CORES=${task.cpus}; \\\n    export SAMPLE_NAME=${sampleName}; \\\n    run_midas.sh\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastq_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "species_ch",
+            "gene_ch",
+            "snps_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "FischbachLab__nf-midas",
+        "directive": [
+            "tag \"$sampleName\"",
+            "container params.docker_container_midas",
+            "label \"mem_veryhigh\"",
+            "publishDir \"${workingpath}/${sampleName}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "midas_merge_species": {
+        "name_process": "midas_merge_species",
+        "string_process": "\nprocess midas_merge_species {\n    container params.docker_container_midas\n    label \"mem_veryhigh\"\n    publishDir \"${workingpath}\"\n\n    input:\n    file species_tar_list from species_ch.toSortedList()\n                                         \n\n    output:\n    file \"SPECIES/*\"\n\n\"\"\"\n#!/bin/bash -x\nset -e\nls -lahtr\n# Keep track of the folders created while unpacking input files\ninput_string=\"\"\necho \"Unpacking all of the input files\"\nfor tarfile in ${species_tar_list}; do\n    echo \"Making sure that \\$tarfile was downloaded correctly\"\n    [[ -s \\$tarfile ]]\n    echo \"Unpacking \\$tarfile\"\n    tar xzvf \\$tarfile\n    # Add this folder to the input string\n    input_string=\"\\$input_string,\\$( echo \\$tarfile | sed 's/.species.tar.gz//' )\"\n    echo \"Updated input string: \\$input_string\"\ndone\n# Remove the leading comma from the input string\ninput_string=\\$( echo \\$input_string | sed 's/^,//' )\necho \"Merging species results\"\nmerge_midas.py \\\n    species \\\n    SPECIES \\\n    -i \\$input_string \\\n    -t list \\\n    -d ${params.db_midas} \\\n    --sample_depth ${params.merge_sample_depth}\necho \"Done merging data\"\nls -lahtr SPECIES\necho \"Compressing output files\"\nfind SPECIES -type f | xargs gzip\necho \"Done\"\n\"\"\"\n}",
+        "nb_lignes_process": 44,
+        "string_script": "\"\"\"\n#!/bin/bash -x\nset -e\nls -lahtr\n# Keep track of the folders created while unpacking input files\ninput_string=\"\"\necho \"Unpacking all of the input files\"\nfor tarfile in ${species_tar_list}; do\n    echo \"Making sure that \\$tarfile was downloaded correctly\"\n    [[ -s \\$tarfile ]]\n    echo \"Unpacking \\$tarfile\"\n    tar xzvf \\$tarfile\n    # Add this folder to the input string\n    input_string=\"\\$input_string,\\$( echo \\$tarfile | sed 's/.species.tar.gz//' )\"\n    echo \"Updated input string: \\$input_string\"\ndone\n# Remove the leading comma from the input string\ninput_string=\\$( echo \\$input_string | sed 's/^,//' )\necho \"Merging species results\"\nmerge_midas.py \\\n    species \\\n    SPECIES \\\n    -i \\$input_string \\\n    -t list \\\n    -d ${params.db_midas} \\\n    --sample_depth ${params.merge_sample_depth}\necho \"Done merging data\"\nls -lahtr SPECIES\necho \"Compressing output files\"\nfind SPECIES -type f | xargs gzip\necho \"Done\"\n\"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "-x",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "species_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FischbachLab__nf-midas",
+        "directive": [
+            "container params.docker_container_midas",
+            "label \"mem_veryhigh\"",
+            "publishDir \"${workingpath}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "midas_merge_genes": {
+        "name_process": "midas_merge_genes",
+        "string_process": "\nprocess midas_merge_genes {\n    container params.docker_container_midas\n    label \"mem_veryhigh\"\n    publishDir \"${workingpath}\"\n\n    input:\n    file genes_tar_list from gene_ch.toSortedList()\n\n    output:\n    file \"GENES/*\"\n\n\"\"\"\n#!/bin/bash -x\nset -e\nls -lahtr\n# Keep track of the folders created while unpacking input files\ninput_string=\"\"\necho \"Unpacking all of the input files\"\nfor tarfile in ${genes_tar_list}; do\n    echo \"Making sure that \\$tarfile was downloaded correctly\"\n    [[ -s \\$tarfile ]]\n    echo \"Unpacking \\$tarfile\"\n    tar xzvf \\$tarfile\n    # Add this folder to the input string\n    input_string=\"\\$input_string,\\$( echo \\$tarfile | sed 's/.genes.tar.gz//' )\"\n    echo \"Updated input string: \\$input_string\"\ndone\n# Remove the leading comma from the input string\ninput_string=\\$( echo \\$input_string | sed 's/^,//' )\necho \"Merging gene results\"\nmerge_midas.py \\\n    genes \\\n    GENES \\\n    -i \\$input_string \\\n    -t list \\\n    -d ${params.db_midas} \\\n    --sample_depth ${params.merge_sample_depth}\necho \"Done merging data\"\nls -lahtr GENES\necho \"Compressing output files\"\nfind GENES -type f | xargs gzip\necho \"Done\"\n\"\"\"\n}",
+        "nb_lignes_process": 43,
+        "string_script": "\"\"\"\n#!/bin/bash -x\nset -e\nls -lahtr\n# Keep track of the folders created while unpacking input files\ninput_string=\"\"\necho \"Unpacking all of the input files\"\nfor tarfile in ${genes_tar_list}; do\n    echo \"Making sure that \\$tarfile was downloaded correctly\"\n    [[ -s \\$tarfile ]]\n    echo \"Unpacking \\$tarfile\"\n    tar xzvf \\$tarfile\n    # Add this folder to the input string\n    input_string=\"\\$input_string,\\$( echo \\$tarfile | sed 's/.genes.tar.gz//' )\"\n    echo \"Updated input string: \\$input_string\"\ndone\n# Remove the leading comma from the input string\ninput_string=\\$( echo \\$input_string | sed 's/^,//' )\necho \"Merging gene results\"\nmerge_midas.py \\\n    genes \\\n    GENES \\\n    -i \\$input_string \\\n    -t list \\\n    -d ${params.db_midas} \\\n    --sample_depth ${params.merge_sample_depth}\necho \"Done merging data\"\nls -lahtr GENES\necho \"Compressing output files\"\nfind GENES -type f | xargs gzip\necho \"Done\"\n\"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "-x",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gene_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FischbachLab__nf-midas",
+        "directive": [
+            "container params.docker_container_midas",
+            "label \"mem_veryhigh\"",
+            "publishDir \"${workingpath}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "midas_merge_snps": {
+        "name_process": "midas_merge_snps",
+        "string_process": "\nprocess midas_merge_snps {\n    container params.docker_container_midas\n    label \"mem_veryhigh\"\n    publishDir \"${workingpath}\"\n\n    input:\n    file snps_tar_list from snps_ch.toSortedList()\n                                         \n\n    output:\n    file \"SNPS/*\"\n\n\"\"\"\n#!/bin/bash -x\nset -e\nls -lahtr\n# Keep track of the folders created while unpacking input files\ninput_string=\"\"\necho \"Unpacking all of the input files\"\nfor tarfile in ${snps_tar_list}; do\n    echo \"Making sure that \\$tarfile was downloaded correctly\"\n    [[ -s \\$tarfile ]]\n    echo \"Unpacking \\$tarfile\"\n    tar xzvf \\$tarfile\n    # Add this folder to the input string\n    input_string=\"\\$input_string,\\$( echo \\$tarfile | sed 's/.snps.tar.gz//' )\"\n    echo \"Updated input string: \\$input_string\"\ndone\n# Remove the leading comma from the input string\ninput_string=\\$( echo \\$input_string | sed 's/^,//' )\necho \"Merging snps results\"\nmerge_midas.py \\\n    snps \\\n    SNPS \\\n    -i \\$input_string \\\n    -t list \\\n    -d ${params.db_midas} \\\n    --sample_depth ${params.merge_sample_depth}\necho \"Done merging data\"\ntouch SNPS/DONE\nls -lahtr SNPS\necho \"Compressing output files\"\nfind SNPS -type f | xargs gzip\necho \"Done\"\n\"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "\"\"\"\n#!/bin/bash -x\nset -e\nls -lahtr\n# Keep track of the folders created while unpacking input files\ninput_string=\"\"\necho \"Unpacking all of the input files\"\nfor tarfile in ${snps_tar_list}; do\n    echo \"Making sure that \\$tarfile was downloaded correctly\"\n    [[ -s \\$tarfile ]]\n    echo \"Unpacking \\$tarfile\"\n    tar xzvf \\$tarfile\n    # Add this folder to the input string\n    input_string=\"\\$input_string,\\$( echo \\$tarfile | sed 's/.snps.tar.gz//' )\"\n    echo \"Updated input string: \\$input_string\"\ndone\n# Remove the leading comma from the input string\ninput_string=\\$( echo \\$input_string | sed 's/^,//' )\necho \"Merging snps results\"\nmerge_midas.py \\\n    snps \\\n    SNPS \\\n    -i \\$input_string \\\n    -t list \\\n    -d ${params.db_midas} \\\n    --sample_depth ${params.merge_sample_depth}\necho \"Done merging data\"\ntouch SNPS/DONE\nls -lahtr SNPS\necho \"Compressing output files\"\nfind SNPS -type f | xargs gzip\necho \"Done\"\n\"\"\"",
+        "nb_lignes_script": 32,
+        "language_script": "-x",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "snps_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FischbachLab__nf-midas",
+        "directive": [
+            "container params.docker_container_midas",
+            "label \"mem_veryhigh\"",
+            "publishDir \"${workingpath}\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

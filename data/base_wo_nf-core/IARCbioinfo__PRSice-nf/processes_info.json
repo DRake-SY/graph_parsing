@@ -1,0 +1,76 @@
+{
+    "get_chr": {
+        "name_process": "get_chr",
+        "string_process": "\nprocess get_chr {\n\n  output:\n  file 'chr_list.txt' into chr_list\n  file 'base_file.txt' into base_file_updated\n\n  shell:\n  '''\n  awk '{print $snp,$chr,$pos,$a1,$a2,$stat,$se,$pval,$qual}' snp=!{params.snp_col} chr=!{params.chr_col} pos=!{params.pos_col} a1=!{params.a1_col} a2=!{params.a2_col} stat=!{params.stat_col} se=!{params.se_col} pval=!{params.pval_col} qual=!{params.qual_col} !{params.base_file} > base_file.txt\n  tail -n +2 !{params.base_file} | awk '{print $2}' | sort | uniq  > chr_list.txt\n  '''\n}",
+        "nb_lignes_process": 11,
+        "string_script": "  '''\n  awk '{print $snp,$chr,$pos,$a1,$a2,$stat,$se,$pval,$qual}' snp=!{params.snp_col} chr=!{params.chr_col} pos=!{params.pos_col} a1=!{params.a1_col} a2=!{params.a2_col} stat=!{params.stat_col} se=!{params.se_col} pval=!{params.pval_col} qual=!{params.qual_col} !{params.base_file} > base_file.txt\n  tail -n +2 !{params.base_file} | awk '{print $2}' | sort | uniq  > chr_list.txt\n  '''",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "chr_list",
+            "base_file_updated"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__PRSice-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "compute_PRS_per_chr": {
+        "name_process": "compute_PRS_per_chr",
+        "string_process": "\nprocess compute_PRS_per_chr {\n\n  input:\n  val chr from chr_list.splitText(by:1)\n  file base from base_file_updated\n\n  output:\n  file '*.all.score' optional true into scores\n  file '*.snp' optional true into snps_included\n\n  shell:\n  '''\n  chr_val=!{chr}\n  echo $chr_val\n  bgen_file=$(grep chr${chr_val}!{params.bgen_pattern} !{params.bgen_list} | sed 's/.bgen//g')\n  if [ ! -f \"!{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt\" ]; then\n    !{params.bgenix} -g ${bgen_file}.bgen -list > !{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt\n  fi\n  awk '{if($2==c)print $0}' c=${chr_val} !{base} > chr_${chr_val}_base.txt\n\n  n_snps=$(grep -Ff <(cat chr_${chr_val}_base.txt | cut -d ' ' -f 2,3  | sed 's/ /:/g') !{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt | wc -l)\n  if [[ ${n_snps} -ge 1 ]]\n  then\n    grep -Ff <(cat chr_${chr_val}_base.txt | cut -d ' ' -f 2,3  | sed 's/ /:/g') !{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt > chr_${chr_val}_SNPs_subset.txt\n    !{params.Rscript} !{baseDir}/bin/match_IDs.r chr_${chr_val}_base.txt chr_${chr_val}_SNPs_subset.txt ${chr_val}\n\n    !{params.Rscript} !{baseDir}/bin/check_PRSice_input.r PRSice_input_chr_${chr_val}.txt\n    n_snps=$(cat PRSice_input_chr_${chr_val}.txt | tail -n +2 | wc -l)\n    if [[ ${n_snps} -ge 1 ]]\n    then\n      !{params.Rscript} !{params.PRSice_path}PRSice.R --prsice !{params.PRSice_path}PRSice_linux \\\n      --A1 A1 --A2 A2 --chr CHR --bp BP --beta --pvalue PVAL --snp SNP --stat STAT \\\n      --bar-levels !{params.pval_thr} --fastscore \\\n      --base PRSice_input_chr_${chr_val}.txt --pheno-file !{params.pheno_file} \\\n      --id-delim \"_\" --target ${bgen_file} \\\n      --quantile 20 --all-score  --print-snp --score sum --binary-target T --type bgen  --no-clump \\\n      --no-regress --out chr${chr_val} --base-info QUAL,!{params.qual_val}\n    fi\n  fi\n\n\n\n  '''\n\n}",
+        "nb_lignes_process": 44,
+        "string_script": "  '''\n  chr_val=!{chr}\n  echo $chr_val\n  bgen_file=$(grep chr${chr_val}!{params.bgen_pattern} !{params.bgen_list} | sed 's/.bgen//g')\n  if [ ! -f \"!{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt\" ]; then\n    !{params.bgenix} -g ${bgen_file}.bgen -list > !{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt\n  fi\n  awk '{if($2==c)print $0}' c=${chr_val} !{base} > chr_${chr_val}_base.txt\n\n  n_snps=$(grep -Ff <(cat chr_${chr_val}_base.txt | cut -d ' ' -f 2,3  | sed 's/ /:/g') !{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt | wc -l)\n  if [[ ${n_snps} -ge 1 ]]\n  then\n    grep -Ff <(cat chr_${chr_val}_base.txt | cut -d ' ' -f 2,3  | sed 's/ /:/g') !{params.bgen_snps_perCHR}chr_${chr_val}_SNPs.txt > chr_${chr_val}_SNPs_subset.txt\n    !{params.Rscript} !{baseDir}/bin/match_IDs.r chr_${chr_val}_base.txt chr_${chr_val}_SNPs_subset.txt ${chr_val}\n\n    !{params.Rscript} !{baseDir}/bin/check_PRSice_input.r PRSice_input_chr_${chr_val}.txt\n    n_snps=$(cat PRSice_input_chr_${chr_val}.txt | tail -n +2 | wc -l)\n    if [[ ${n_snps} -ge 1 ]]\n    then\n      !{params.Rscript} !{params.PRSice_path}PRSice.R --prsice !{params.PRSice_path}PRSice_linux \\\n      --A1 A1 --A2 A2 --chr CHR --bp BP --beta --pvalue PVAL --snp SNP --stat STAT \\\n      --bar-levels !{params.pval_thr} --fastscore \\\n      --base PRSice_input_chr_${chr_val}.txt --pheno-file !{params.pheno_file} \\\n      --id-delim \"_\" --target ${bgen_file} \\\n      --quantile 20 --all-score  --print-snp --score sum --binary-target T --type bgen  --no-clump \\\n      --no-regress --out chr${chr_val} --base-info QUAL,!{params.qual_val}\n    fi\n  fi\n\n\n\n  '''",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chr_list",
+            "base_file_updated"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "scores",
+            "snps_included"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__PRSice-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "concatenation": {
+        "name_process": "concatenation",
+        "string_process": "\nprocess concatenation {\n  publishDir params.output_folder, mode: 'copy'\n\n  input:\n  file all_scores from scores.collect()\n  file all_snps from snps_included.collect()\n\n  output:\n  file 'prs_scores*.txt' into prs_combined\n  file 'snp_file*.txt' into snps_combined\n\n  shell:\n  '''\n  !{params.Rscript} !{baseDir}/bin/combine_PRSice_res.r !{params.pheno_file} !{params.output_name}\n  '''\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "  '''\n  !{params.Rscript} !{baseDir}/bin/combine_PRSice_res.r !{params.pheno_file} !{params.output_name}\n  '''",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "scores",
+            "snps_included"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "prs_combined",
+            "snps_combined"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__PRSice-nf",
+        "directive": [
+            "publishDir params.output_folder, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

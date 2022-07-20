@@ -1,0 +1,417 @@
+{
+    "find_barcode_pairs": {
+        "name_process": "find_barcode_pairs",
+        "string_process": "\nprocess find_barcode_pairs{\n    input:\n        val(barcode) from ch_barcode_pairs_list\n    output:\n        val(barcode_string) into ch_barcode_pairs\n    exec:\n        barcode_string = barcode[0].id + \"--\" + barcode[1].id\n\n}",
+        "nb_lignes_process": 8,
+        "string_script": "        barcode_string = barcode[0].id + \"--\" + barcode[1].id",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_barcode_pairs_list"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_barcode_pairs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "gunzip_gencome_fasta": {
+        "name_process": "gunzip_gencome_fasta",
+        "string_process": " process gunzip_gencome_fasta {\n   tag \"decompress gzipped genome fasta\"\n   cpus 1\n\n   input:\n   file(genome_fasta) from ch_genome_fasta\n\n   output:\n   file(\"*.{fa,fasta}\") into ch_genome_fasta_uncompressed\n\n   script:\n   \"\"\"\n   gunzip -f ${genome_fasta}\n   \"\"\"\n   }",
+        "nb_lignes_process": 13,
+        "string_script": "   \"\"\"\n   gunzip -f ${genome_fasta}\n   \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_genome_fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_genome_fasta_uncompressed"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "tag \"decompress gzipped genome fasta\"",
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "lima": {
+        "name_process": "lima",
+        "string_process": "\nprocess lima{\n    tag \"${ccs_read}\"\n    label \"isoseq3\"\n    publishDir \"${params.outdir}/isoseq3/lima/${ccs_read.name.split('\\\\.')[0]}\", mode: \"copy\"\n    input:\n        file(ccs_read) from ch_ccs_reads.flatten()\n        file(barcodes) from ch_barcodes\n\n    output:\n        file(\"*.bam\") into ch_individual_lima_bam \n        file(\"*\")\n\n    script:\n        sample_name = ccs_read.name.split('\\\\.')[0]\n        \"\"\"\n        lima $ccs_read $barcodes ${sample_name}.bam --split-bam-named --isoseq --peek-guess\n        \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "        sample_name = ccs_read.name.split('\\\\.')[0]\n        \"\"\"\n        lima $ccs_read $barcodes ${sample_name}.bam --split-bam-named --isoseq --peek-guess\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "blima"
+        ],
+        "tools_url": [
+            "https://bio.tools/blima"
+        ],
+        "tools_dico": [
+            {
+                "name": "blima",
+                "uri": "https://bio.tools/blima",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarray experiment"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarrays"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Includes several algorithms for the preprocessing of Illumina microarray data. It focuses to the bead level analysis and provides novel approach to the quantile normalization of the vectors of unequal lengths. It provides variety of the methods for background correction including background subtraction, RMA like convolution and background outlier removal. It also implements variance stabilizing transformation on the bead level, methods for data summarization and t-test performance.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/blima.html"
+            }
+        ],
+        "inputs": [
+            "ch_ccs_reads",
+            "ch_barcodes"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_individual_lima_bam"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "tag \"${ccs_read}\"",
+            "label \"isoseq3\"",
+            "publishDir \"${params.outdir}/isoseq3/lima/${ccs_read.name.split(' .')[0]}\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge": {
+        "name_process": "merge",
+        "string_process": "\nprocess merge {\n    tag \"$barcode\"\n    publishDir \"${params.outdir}/isoseq3/merge/${barcode}\", mode: \"copy\"\n    label \"isoseq3\"\n\n    input:\n        set barcode, file(bam_files) from ch_lima_grouped_by_barcode\n        val barcode_pairs from ch_barcode_pairs_use.collect()\n    when:\n        barcode_pairs.contains(barcode)\n    output:\n        tuple val(barcode), file(\"*.bam\") into ch_merged_reads\n    script:\n        \"\"\"\n        samtools merge ${barcode}.bam $bam_files\n        \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "        \"\"\"\n        samtools merge ${barcode}.bam $bam_files\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "ch_lima_grouped_by_barcode",
+            "ch_barcode_pairs_use"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_merged_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "tag \"$barcode\"",
+            "publishDir \"${params.outdir}/isoseq3/merge/${barcode}\", mode: \"copy\"",
+            "label \"isoseq3\""
+        ],
+        "when": "barcode_pairs.contains(barcode)",
+        "stub": ""
+    },
+    "refine": {
+        "name_process": "refine",
+        "string_process": "\nprocess refine{\n    tag \"$barcode\"\n    publishDir \"${params.outdir}/isoseq3/refine/${barcode}\", mode: \"copy\"\n    label \"isoseq3\"\n    input:\n        tuple val(barcode), file(merged_bam) from ch_merged_reads\n        file(barcode_fasta) from ch_barcodes\n    output:\n        file(\"*.flnc.bam\") into ch_refined_reads\n        file(\"*.flnc.report.csv\") into ch_refined_flnc_report\n        file(\"*\")\n    script:\n        \"\"\"\n        isoseq3 refine --require-polya $merged_bam $barcode_fasta ${barcode}.flnc.bam\n        \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        isoseq3 refine --require-polya $merged_bam $barcode_fasta ${barcode}.flnc.bam\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_merged_reads",
+            "ch_barcodes"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_refined_reads",
+            "ch_refined_flnc_report"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "tag \"$barcode\"",
+            "publishDir \"${params.outdir}/isoseq3/refine/${barcode}\", mode: \"copy\"",
+            "label \"isoseq3\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cluster": {
+        "name_process": "cluster",
+        "string_process": "\nprocess cluster {\n    publishDir \"${params.outdir}/isoseq3/cluster\", mode: \"copy\"\n    label \"isoseq3\"\n    cpus params.max_cpus\n    input: \n        file(refined_reads) from ch_refined_reads.collect()\n    output:\n        file(\"clustered.hq.bam\") into ch_clustered_reads\n        file(\"*\")\n\n    script:\n        \"\"\"\n        ls $refined_reads > flnc.fofn\n        isoseq3 cluster flnc.fofn clustered.bam --verbose --use-qvs\n        \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        ls $refined_reads > flnc.fofn\n        isoseq3 cluster flnc.fofn clustered.bam --verbose --use-qvs\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_refined_reads"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_clustered_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "publishDir \"${params.outdir}/isoseq3/cluster\", mode: \"copy\"",
+            "label \"isoseq3\"",
+            "cpus params.max_cpus"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "align": {
+        "name_process": "align",
+        "string_process": "\nprocess align {\n    publishDir \"${params.outdir}/isoseq3/align\", mode: \"copy\"\n    label \"isoseq3\"\n    cpus params.max_cpus\n    input: \n        file(clustered_reads) from ch_clustered_reads\n        file(genome_fasta) from ch_genome_fasta_uncompressed\n    output:\n        file(\"*\")\n        file(\"${params.name}.aligned.bam\") into ch_aligned_reads\n\n    script:\n        \"\"\"\n        pbmm2 align $genome_fasta $clustered_reads ${params.name}.aligned.bam --preset ISOSEQ --sort -j ${task.cpus} --log-level INFO\n        \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        pbmm2 align $genome_fasta $clustered_reads ${params.name}.aligned.bam --preset ISOSEQ --sort -j ${task.cpus} --log-level INFO\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_clustered_reads",
+            "ch_genome_fasta_uncompressed"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_aligned_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "publishDir \"${params.outdir}/isoseq3/align\", mode: \"copy\"",
+            "label \"isoseq3\"",
+            "cpus params.max_cpus"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "collapse": {
+        "name_process": "collapse",
+        "string_process": "\nprocess collapse {\n    publishDir \"${params.outdir}/isoseq3/collapse\", mode: \"copy\"\n    label \"isoseq3\"\n    cpus params.max_cpus\n    input: \n        file(aligned_reads) from ch_aligned_reads\n    output:\n        file(\"*\")\n        file(\"${params.name}.collapsed.fasta\") into ch_collapsed_fasta\n\n    script:\n        \"\"\"\n        isoseq3 collapse $aligned_reads ${params.name}.collapsed.gff\n        \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "        \"\"\"\n        isoseq3 collapse $aligned_reads ${params.name}.collapsed.gff\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_aligned_reads"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_collapsed_fasta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "publishDir \"${params.outdir}/isoseq3/collapse\", mode: \"copy\"",
+            "label \"isoseq3\"",
+            "cpus params.max_cpus"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "collapsed_rename_fasta": {
+        "name_process": "collapsed_rename_fasta",
+        "string_process": "\nprocess collapsed_rename_fasta{\n    publishDir \"${params.outdir}/isoseq3/collapse\", mode: \"copy\"\n\n    input:\n        file(fasta) from ch_collapsed_fasta\n    output:\n        file(\"*\")\n    shell:\n    '''\n    while IFS= read -r line\n    do\n    IFS='|' read -r id string <<< \"$line\"\n    echo  \"$id\" >> \"collapsed.pb_acc_only.fasta\"\n\n    done < !{fasta}\n    '''\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    '''\n    while IFS= read -r line\n    do\n    IFS='|' read -r id string <<< \"$line\"\n    echo  \"$id\" >> \"collapsed.pb_acc_only.fasta\"\n\n    done < !{fasta}\n    '''",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_collapsed_fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "sheynkman-lab__IsoSeq-Nextflow",
+        "directive": [
+            "publishDir \"${params.outdir}/isoseq3/collapse\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

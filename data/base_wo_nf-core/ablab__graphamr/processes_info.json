@@ -1,0 +1,1008 @@
+{
+    "SPADES": {
+        "name_process": "SPADES",
+        "string_process": "\nprocess SPADES {\n    tag \"$meta.id\"\n                           \n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"bioconda::spades=3.15.0\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/spades:3.15.0--h633aebb_0\"\n    } else {\n        container \"quay.io/biocontainers/spades:3.15.0--h633aebb_0\"\n    }\n\n    input:\n    tuple val(meta), path(reads)\n    path  hmm\n    val   coronaspades\n\n    output:\n    tuple val(meta), path('*.scaffolds.fa')    , optional:true, emit: scaffolds\n    tuple val(meta), path('*.contigs.fa')      , optional:true, emit: contigs\n    tuple val(meta), path('*.transcripts.fa')  , optional:true, emit: transcripts\n    tuple val(meta), path('*.gene_clusters.fa'), optional:true, emit: gene_clusters\n    tuple val(meta), path('*.assembly.gfa')    , optional:true, emit: gfa\n    tuple val(meta), path('*.log')             , emit: log\n    path  '*.version.txt'                      , emit: version\n\n    script:\n    def software    = getSoftwareName(task.process)\n    def prefix      = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def input_reads = meta.single_end ? \"-s $reads\" : \"-1 ${reads[0]} -2 ${reads[1]}\"\n    def custom_hmms = params.spades_hmm ? \"--custom-hmms $hmm\" : \"\"\n    def command     = coronaspades ? \"coronaspades.py\" : \"spades.py\"\n    \"\"\"\n    $command \\\\\n        $options.args \\\\\n        --threads $task.cpus \\\\\n        $custom_hmms \\\\\n        $input_reads \\\\\n        -o ./\n    mv spades.log ${prefix}.spades.log\n\n    if [ -f scaffolds.fasta ]; then\n        mv scaffolds.fasta ${prefix}.scaffolds.fa\n    fi\n    if [ -f contigs.fasta ]; then\n        mv contigs.fasta ${prefix}.contigs.fa\n    fi\n    if [ -f transcripts.fasta ]; then\n        mv transcripts.fasta ${prefix}.transcripts.fa\n    fi\n    if [ -f assembly_graph_with_scaffolds.gfa ]; then\n        mv assembly_graph_with_scaffolds.gfa ${prefix}.assembly.gfa\n    fi\n\n    if [ -f gene_clusters.fasta ]; then\n        mv gene_clusters.fasta ${prefix}.gene_clusters.fa\n    fi\n\n    echo \\$(spades.py --version 2>&1) | sed 's/^.*SPAdes genome assembler v//; s/ .*\\$//' > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 62,
+        "string_script": "    def software    = getSoftwareName(task.process)\n    def prefix      = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def input_reads = meta.single_end ? \"-s $reads\" : \"-1 ${reads[0]} -2 ${reads[1]}\"\n    def custom_hmms = params.spades_hmm ? \"--custom-hmms $hmm\" : \"\"\n    def command     = coronaspades ? \"coronaspades.py\" : \"spades.py\"\n    \"\"\"\n    $command \\\\\n        $options.args \\\\\n        --threads $task.cpus \\\\\n        $custom_hmms \\\\\n        $input_reads \\\\\n        -o ./\n    mv spades.log ${prefix}.spades.log\n\n    if [ -f scaffolds.fasta ]; then\n        mv scaffolds.fasta ${prefix}.scaffolds.fa\n    fi\n    if [ -f contigs.fasta ]; then\n        mv contigs.fasta ${prefix}.contigs.fa\n    fi\n    if [ -f transcripts.fasta ]; then\n        mv transcripts.fasta ${prefix}.transcripts.fa\n    fi\n    if [ -f assembly_graph_with_scaffolds.gfa ]; then\n        mv assembly_graph_with_scaffolds.gfa ${prefix}.assembly.gfa\n    fi\n\n    if [ -f gene_clusters.fasta ]; then\n        mv gene_clusters.fasta ${prefix}.gene_clusters.fa\n    fi\n\n    echo \\$(spades.py --version 2>&1) | sed 's/^.*SPAdes genome assembler v//; s/ .*\\$//' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 32,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "reads",
+            "hmm",
+            "coronaspades"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::spades=3.15.0\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/spades:3.15.0--h633aebb_0\" } else { container \"quay.io/biocontainers/spades:3.15.0--h633aebb_0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MMSEQS_DB": {
+        "name_process": "MMSEQS_DB",
+        "string_process": "\nprocess MMSEQS_DB {\n    tag \"$meta.id\"\n\n    input:\n    tuple val(meta), path(fasta)\n    \n    output:\n    tuple val(meta), path('*.mmseqs_db'), emit: mmseqs_db\n\n    if (params.save_mmseqs) {\n        publishDir \"${params.outdir}\",\n            mode: params.publish_dir_mode,\n            saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n    }\n\n    script:\n    def prefix = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mmseqs createdb ${fasta} mmseqs.db\n    mkdir ${prefix}.mmseqs_db && mv mmseqs.db* ${prefix}.mmseqs_db\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    def prefix = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mmseqs createdb ${fasta} mmseqs.db\n    mkdir ${prefix}.mmseqs_db && mv mmseqs.db* ${prefix}.mmseqs_db\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "MMseqs"
+        ],
+        "tools_url": [
+            "https://bio.tools/mmseqs"
+        ],
+        "tools_dico": [
+            {
+                "name": "MMseqs",
+                "uri": "https://bio.tools/mmseqs",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Gene and protein families"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Genes, gene family or system"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software suite for very fast protein sequence searches and clustering of huge protein sequence data sets.",
+                "homepage": "https://github.com/soedinglab/MMseqs"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MMSEQS_EXTRACT_ORFS": {
+        "name_process": "MMSEQS_EXTRACT_ORFS",
+        "string_process": "\nprocess MMSEQS_EXTRACT_ORFS {\n    tag \"$meta.id\"\n\n    input:\n    tuple val(meta), path(mmseqs_db)\n\n    output:\n    tuple val(meta), path('*.all_orfs.fasta'), emit: orfs\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:'orfs', publish_id:meta.id) }\n\n    script:\n    def prefix = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mmseqs extractorfs $mmseqs_db/mmseqs.db mmseqs.orf.db --threads $task.cpus\n    mmseqs convert2fasta mmseqs.orf.db ${prefix}.all_orfs.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    def prefix = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mmseqs extractorfs $mmseqs_db/mmseqs.db mmseqs.orf.db --threads $task.cpus\n    mmseqs convert2fasta mmseqs.orf.db ${prefix}.all_orfs.fasta\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "MMseqs"
+        ],
+        "tools_url": [
+            "https://bio.tools/mmseqs"
+        ],
+        "tools_dico": [
+            {
+                "name": "MMseqs",
+                "uri": "https://bio.tools/mmseqs",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Gene and protein families"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Genes, gene family or system"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software suite for very fast protein sequence searches and clustering of huge protein sequence data sets.",
+                "homepage": "https://github.com/soedinglab/MMseqs"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "mmseqs_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MMSEQS_CLUSTER": {
+        "name_process": "MMSEQS_CLUSTER",
+        "string_process": "\nprocess MMSEQS_CLUSTER {\n    tag \"$meta.id\"\n\n    input:\n    tuple val(meta), path(fasta)\n\n    output:\n    tuple val(meta), path('*.orfs_rep_seq.fasta'), emit: orfs_rep_seq\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options,  publish_dir:'orfs', publish_id:meta.id) }\n\n    script:\n    def prefix = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mmseqs easy-linclust $fasta orfs tmp --min-seq-id ${params.cluster_idy}\n    change_name.py orfs_rep_seq.fasta ${prefix}.orfs_rep_seq.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    def prefix = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mmseqs easy-linclust $fasta orfs tmp --min-seq-id ${params.cluster_idy}\n    change_name.py orfs_rep_seq.fasta ${prefix}.orfs_rep_seq.fasta\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "MMseqs"
+        ],
+        "tools_url": [
+            "https://bio.tools/mmseqs"
+        ],
+        "tools_dico": [
+            {
+                "name": "MMseqs",
+                "uri": "https://bio.tools/mmseqs",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Gene and protein families"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Genes, gene family or system"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software suite for very fast protein sequence searches and clustering of huge protein sequence data sets.",
+                "homepage": "https://github.com/soedinglab/MMseqs"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HAMRONIZE_ABRICATE": {
+        "name_process": "HAMRONIZE_ABRICATE",
+        "string_process": "\nprocess HAMRONIZE_ABRICATE {\n    tag \"$meta.id\"\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)\n\n    input:\n    tuple val(meta), path(report)\n\n    output:\n    tuple val(meta), path('*.tsv'), emit: hamronized\n\n    script:\n    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    hamronize abricate ${report} --reference_database_version db_v_1 --analysis_software_version tool_v_1 --output ${prefix}_abricate_hamronized.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    hamronize abricate ${report} --reference_database_version db_v_1 --analysis_software_version tool_v_1 --output ${prefix}_abricate_hamronized.tsv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "report"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HAMRONIZE_RGI": {
+        "name_process": "HAMRONIZE_RGI",
+        "string_process": "\nprocess HAMRONIZE_RGI {\n    tag \"$meta.id\"\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)\n\n    input:\n    tuple val(meta), path(report)\n\n    output:\n    tuple val(meta), path('*.tsv'), emit: hamronized\n\n    script:\n    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    hamronize rgi ${report} --input_file_name ${prefix} --reference_database_version db_v_1 --analysis_software_version tool_v_1 --output ${prefix}_rgi_hamronized.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    hamronize rgi ${report} --input_file_name ${prefix} --reference_database_version db_v_1 --analysis_software_version tool_v_1 --output ${prefix}_rgi_hamronized.tsv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "report"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HAMRONIZE_SRAX": {
+        "name_process": "HAMRONIZE_SRAX",
+        "string_process": "\nprocess HAMRONIZE_SRAX {\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)\n\n    input:\n    tuple val(meta), path(report)\n\n    output:\n    tuple val(meta), path('*.tsv'), emit: hamronized\n\n    script:\n    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    hamronize srax ${report} --input_file_name ${prefix} --reference_database_version db_v_1 --analysis_software_version tool_v_1 --reference_database_id srax_default --output ${prefix}_srax_hamronized.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    hamronize srax ${report} --input_file_name ${prefix} --reference_database_version db_v_1 --analysis_software_version tool_v_1 --reference_database_id srax_default --output ${prefix}_srax_hamronized.tsv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "report"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HAMRONIZE_SUMMARIZE": {
+        "name_process": "HAMRONIZE_SUMMARIZE",
+        "string_process": "\nprocess HAMRONIZE_SUMMARIZE {\n    publishDir \"${params.outdir}\", mode: params.publish_dir_mode\n\n    conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)\n\n    input:\n    path('?.tsv')\n\n    output:\n    path('amr_summary.tsv'), emit: summary_tsv\n    path('amr_summary.html'), emit: summary_html\n\n    script:\n    \"\"\"\n    hamronize summarize --output amr_summary.tsv --summary_type tsv *.tsv\n    hamronize summarize --output amr_summary.html --summary_type interactive *.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    hamronize summarize --output amr_summary.tsv --summary_type tsv *.tsv\n    hamronize summarize --output amr_summary.html --summary_type interactive *.tsv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: params.publish_dir_mode",
+            "conda (params.enable_conda ? \"bioconda::hamronization=1.0.3\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "GET_NCBI_AMR_HMM": {
+        "name_process": "GET_NCBI_AMR_HMM",
+        "string_process": "\nprocess GET_NCBI_AMR_HMM {\n    tag \"NCBI AMRFinder HMM download\"\n\n    output:\n    path \"AMR.LIB\", emit: hmm\n\n    script:\n    \"\"\"\n    wget https://ftp.ncbi.nlm.nih.gov/pathogen/Antimicrobial_resistance/AMRFinder/data/latest/AMR.LIB\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "    \"\"\"\n    wget https://ftp.ncbi.nlm.nih.gov/pathogen/Antimicrobial_resistance/AMRFinder/data/latest/AMR.LIB\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"NCBI AMRFinder HMM download\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "CARD_AA": {
+        "name_process": "CARD_AA",
+        "string_process": "\nprocess CARD_AA {\n    tag \"CARD database download\"\n\n    output:\n    path \"protein_fasta_protein_homolog_model.fasta\", emit: aa\n\n    script:\n    \"\"\"\n    wget https://card.mcmaster.ca/download/0/broadstreet-v3.1.3.tar.bz2\n    tar -xjf broadstreet-v3.1.3.tar.bz2\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "    \"\"\"\n    wget https://card.mcmaster.ca/download/0/broadstreet-v3.1.3.tar.bz2\n    tar -xjf broadstreet-v3.1.3.tar.bz2\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"CARD database download\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PATHRACER": {
+        "name_process": "PATHRACER",
+        "string_process": "\nprocess PATHRACER {\n    tag \"$meta.id\"\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    input:\n    tuple val(meta), path(graph)\n    path  input\n    val amino_acid\n\n    output:\n    tuple val(meta), path('*.all.edges.fa'), emit: all_edges\n    tuple val(meta), path('*.log')         , emit: log\n\n    script:\n    def prefix      = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def type = amino_acid ? \"--aa\" : \"\"\n    def component_size = params.component_max_size ? \"--max-size ${params.component_max_size}\" : \"\"\n    def length = params.aligned_HMM_length ? \"-l ${params.aligned_HMM_length}\" : \"\"\n\n\n    \"\"\"\n    pathracer $input $graph --output ./ --rescore -t $task.cpus $component_size -E ${params.pathracer_e_value} $type $length\n    mv pathracer.log ${prefix}.pathracer.log\n    mv all.edges.fa ${prefix}.all.edges.fa\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    def prefix      = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def type = amino_acid ? \"--aa\" : \"\"\n    def component_size = params.component_max_size ? \"--max-size ${params.component_max_size}\" : \"\"\n    def length = params.aligned_HMM_length ? \"-l ${params.aligned_HMM_length}\" : \"\"\n\n\n    \"\"\"\n    pathracer $input $graph --output ./ --rescore -t $task.cpus $component_size -E ${params.pathracer_e_value} $type $length\n    mv pathracer.log ${prefix}.pathracer.log\n    mv all.edges.fa ${prefix}.all.edges.fa\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "graph",
+            "input",
+            "amino_acid"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_software_versions": {
+        "name_process": "get_software_versions",
+        "string_process": "\nprocess get_software_versions {\n    publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode,\n        saveAs: { filename ->\n                      if (filename.indexOf('.csv') > 0) filename\n                      else null\n        }\n\n    output:\n    file 'software_versions_mqc.yaml' into ch_software_versions_yaml\n    file 'software_versions.csv'\n\n    script:\n    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    abricate --version > v_abricate.txt\n    echo \\$(mmseqs 2>&1) > v_varscan.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    abricate --version > v_abricate.txt\n    echo \\$(mmseqs 2>&1) > v_varscan.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "ABRicate"
+        ],
+        "tools_url": [
+            "https://bio.tools/ABRicate"
+        ],
+        "tools_dico": [
+            {
+                "name": "ABRicate",
+                "uri": "https://bio.tools/ABRicate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3482",
+                                    "term": "Antimicrobial resistance prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1234",
+                                "term": "Sequence set (nucleic acid)"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0916",
+                                "term": "Gene report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Mass screening of contigs for antimicrobial resistance or virulence genes.",
+                "homepage": "https://github.com/tseemann/abricate"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ch_software_versions_yaml"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode , saveAs: { filename -> if (filename.indexOf('.csv') > 0) filename else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FASTQC": {
+        "name_process": "FASTQC",
+        "string_process": "\nprocess FASTQC {\n    tag \"$meta.id\"\n                            \n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"bioconda::fastqc=0.11.9\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/fastqc:0.11.9--0\"\n    } else {\n        container \"quay.io/biocontainers/fastqc:0.11.9--0\"\n    }\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"*.html\"), emit: html\n    tuple val(meta), path(\"*.zip\") , emit: zip\n    path  \"*.version.txt\"          , emit: version\n\n    script:\n                                                                          \n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}.${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}.${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    }",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::fastqc=0.11.9\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/fastqc:0.11.9--0\" } else { container \"quay.io/biocontainers/fastqc:0.11.9--0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "RGI": {
+        "name_process": "RGI",
+        "string_process": "\nprocess RGI {\n    tag \"$meta.id\"\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n\n    conda (params.enable_conda ? \"python=3.6 bioconda::rgi=5.1.1\" : null)\n\n    input:\n    tuple val(meta), path(fasta)\n\n    output:\n    tuple val(meta), path('*.json'), emit: json\n    tuple val(meta), path('*.txt'), emit: txt\n\n    script:\n    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n\n    \"\"\"\n\n    rgi main -i $fasta -o ${prefix} --clean -n $task.cpus --alignment_tool DIAMOND --input_type contig\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n\n    \"\"\"\n\n    rgi main -i $fasta -o ${prefix} --clean -n $task.cpus --alignment_tool DIAMOND --input_type contig\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Rgin"
+        ],
+        "tools_url": [
+            "https://bio.tools/rgin"
+        ],
+        "tools_dico": [
+            {
+                "name": "Rgin",
+                "uri": "https://bio.tools/rgin",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2497",
+                                    "term": "Pathway or network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "C++ implementation of SConES.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/Rgin.html"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"python=3.6 bioconda::rgi=5.1.1\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "RGI_HEATMAP": {
+        "name_process": "RGI_HEATMAP",
+        "string_process": "\nprocess RGI_HEATMAP {\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    conda (params.enable_conda ? \"python=3.6 bioconda::rgi=5.1.1\" : null)\n\n    input:\n    path json\n\n    output:\n    path('*.png'), emit: heatmap\n\n    script:\n    \"\"\"\n    mkdir json\n    cp ${json.join(' ')} json\n    rgi heatmap -i json -o heatmap\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    mkdir json\n    cp ${json.join(' ')} json\n    rgi heatmap -i json -o heatmap\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "Rgin"
+        ],
+        "tools_url": [
+            "https://bio.tools/rgin"
+        ],
+        "tools_dico": [
+            {
+                "name": "Rgin",
+                "uri": "https://bio.tools/rgin",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2497",
+                                    "term": "Pathway or network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "C++ implementation of SConES.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/Rgin.html"
+            }
+        ],
+        "inputs": [
+            "json"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "conda (params.enable_conda ? \"python=3.6 bioconda::rgi=5.1.1\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ABRICATE": {
+        "name_process": "ABRICATE",
+        "string_process": "\nprocess ABRICATE {\n    tag \"$meta.id\"\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }\n    \n    conda (params.enable_conda ? \"bioconda::abricate=1.0.1\" : null)\n    \n    input:\n    tuple val(meta), path(fasta)\n\n    output:\n    tuple val(meta), path('*.tsv'), emit: report\n\n    script:\n    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def datadir = params.abricate_datadir ? \"--datadir ${params.abricate_datadir}\" : \"\"\n    \"\"\"\n    [ ! -f  ${prefix}.fasta ] && ln -s $fasta ${prefix}.fasta\n    abricate -db ${params.abricate_db} ${prefix}.fasta --threads $task.cpus --minid ${params.abricate_minid} --mincov ${params.abricate_mincov} $datadir  > ${prefix}.tsv\n    extract_gene_fasta.py ${prefix}.tsv $fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def datadir = params.abricate_datadir ? \"--datadir ${params.abricate_datadir}\" : \"\"\n    \"\"\"\n    [ ! -f  ${prefix}.fasta ] && ln -s $fasta ${prefix}.fasta\n    abricate -db ${params.abricate_db} ${prefix}.fasta --threads $task.cpus --minid ${params.abricate_minid} --mincov ${params.abricate_mincov} $datadir  > ${prefix}.tsv\n    extract_gene_fasta.py ${prefix}.tsv $fasta\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "ABRicate"
+        ],
+        "tools_url": [
+            "https://bio.tools/ABRicate"
+        ],
+        "tools_dico": [
+            {
+                "name": "ABRicate",
+                "uri": "https://bio.tools/ABRicate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3482",
+                                    "term": "Antimicrobial resistance prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1234",
+                                "term": "Sequence set (nucleic acid)"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0916",
+                                "term": "Gene report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Mass screening of contigs for antimicrobial resistance or virulence genes.",
+                "homepage": "https://github.com/tseemann/abricate"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }",
+            "conda (params.enable_conda ? \"bioconda::abricate=1.0.1\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ABRICATE_SUMMARIZE": {
+        "name_process": "ABRICATE_SUMMARIZE",
+        "string_process": "\nprocess ABRICATE_SUMMARIZE {\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n   \n    conda (params.enable_conda ? \"bioconda::abricate=1.0.1\" : null)\n\n    input:\n    path('?.tsv')\n\n    output:\n    path('all.summary.tsv'), emit: summary\n\n    script:\n    \"\"\"\n    abricate --summary *.tsv > all.summary.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    abricate --summary *.tsv > all.summary.tsv\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "ABRicate"
+        ],
+        "tools_url": [
+            "https://bio.tools/ABRicate"
+        ],
+        "tools_dico": [
+            {
+                "name": "ABRicate",
+                "uri": "https://bio.tools/ABRicate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3482",
+                                    "term": "Antimicrobial resistance prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1234",
+                                "term": "Sequence set (nucleic acid)"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0916",
+                                "term": "Gene report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Mass screening of contigs for antimicrobial resistance or virulence genes.",
+                "homepage": "https://github.com/tseemann/abricate"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "conda (params.enable_conda ? \"bioconda::abricate=1.0.1\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SRAX": {
+        "name_process": "SRAX",
+        "string_process": "\nprocess SRAX {\n    tag \"$meta.id\"\n\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }\n\n    conda (params.enable_conda ? \"bioconda::srax\" : null)\n\n    input:\n    tuple val(meta), path(fasta)\n\n    output:\n    tuple val(meta), path('*_srax'), emit: result\n    tuple val(meta), path('*_srax/Results/Summary_files/sraX_detected_ARGs.tsv'), emit: report\n\n    script:\n    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mkdir srax_in\n    cp ${fasta.join(' ')} srax_in\n    sraX -i srax_in -o srax_out\n    mv srax_out ${prefix}_srax\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    def prefix  = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    \"\"\"\n    mkdir srax_in\n    cp ${fasta.join(' ')} srax_in\n    sraX -i srax_in -o srax_out\n    mv srax_out ${prefix}_srax\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ablab__graphamr",
+        "directive": [
+            "tag \"$meta.id\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:'') }",
+            "conda (params.enable_conda ? \"bioconda::srax\" : null)"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

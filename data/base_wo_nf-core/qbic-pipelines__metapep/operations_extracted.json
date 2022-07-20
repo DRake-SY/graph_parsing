@@ -1,0 +1,267 @@
+{
+    "OPERATION_1": {
+        "string": "Channel.from(summary.collect{ [it.key, it.value] })\n    .map { k,v -> \"<dt>$k</dt><dd><samp>${v ?: '<span style=\\\"color:#999999;\\\">N/A</a>'}</samp></dd>\" }\n    .reduce { a, b -> return [a, b].join(\"\\n            \") }\n    .map { x -> \"\"\"\n    id: 'nf-core-metapep-summary'\n    description: \" - this information is collected when the pipeline is started.\"\n    section_name: 'nf-core/metapep Workflow Summary'\n    section_href: 'https://github.com/nf-core/metapep'\n    plot_type: 'html'\n    data: |\n        <dl class=\\\"dl-horizontal\\\">\n            $x\n        </dl>\n    \"\"\".stripIndent() }\n    .set { ch_workflow_summary }",
+        "origin": [
+            [
+                "summary.collect{ [it.key, it.value] }",
+                "V"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_workflow_summary",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_2": {
+        "string": "ch_bins_archives_input = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "ch_bins_archives_input",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "ch_weights = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "ch_weights",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "configFiles.join(', ')",
+        "origin": [
+            [
+                "configFiles",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_5": {
+        "string": "summary.collect { k,v -> \"${k.padRight(18)}: $v\" }.join(\"\\n\")",
+        "origin": [
+            [
+                "summary",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_6": {
+        "string": "ch_microbiomes\n                             \n    .splitCsv(sep:'\\t', header:true)\n                             \n    .map {\n        row ->\n        row.microbiome_path = file(row.microbiome_path, checkIfExists: true)\n        row\n    }\n                       \n    .branch {\n        row->\n        taxa:      row.microbiome_type == 'taxa'\n        proteins : row.microbiome_type == 'proteins'\n        assembly:  row.microbiome_type == 'assembly'\n        bins:      row.microbiome_type == 'bins'\n    }\n    .set{ch_microbiomes_branch}",
+        "origin": [
+            [
+                "ch_microbiomes",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_microbiomes_branch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_7": {
+        "string": "ch_microbiomes_branch.taxa().multiMap { row ->\n            ids: row.microbiome_id\n            files: row.microbiome_path\n        }\n    .set { ch_taxa_input }",
+        "origin": [
+            [
+                "ch_microbiomes_branch",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_taxa_input",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_8": {
+        "string": "ch_microbiomes_branch.proteins().multiMap { row ->\n            ids: row.microbiome_id\n            files: row.microbiome_path\n        }\n    .set { ch_proteins_input }",
+        "origin": [
+            [
+                "ch_microbiomes_branch",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_proteins_input",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_9": {
+        "string": "ch_microbiomes_branch.assembly().multiMap { row ->\n            ids: row.microbiome_id\n            files: row.microbiome_path\n            bin_basenames: false\n        }\n    .set { ch_assembly_input }",
+        "origin": [
+            [
+                "ch_microbiomes_branch",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_assembly_input",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_10": {
+        "string": "ch_microbiomes_branch.bins().branch {\n            row ->\n            folders : row.microbiome_path.isDirectory()\n            archives : row.microbiome_path.isFile()\n            other: true\n        }\n    .set{ ch_microbiomes_bins }",
+        "origin": [
+            [
+                "ch_microbiomes_branch",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_microbiomes_bins",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_11": {
+        "string": "ch_microbiomes_bins.folders().multiMap { row ->\n        def bin_files = row.microbiome_path.listFiles().findAll{ it.name =~ fasta_suffix }\n        ids           : Collections.nCopies((int) bin_files.size(), row.microbiome_id)\n        files         : bin_files\n        bin_basenames : bin_files.collect{ it.name - fasta_suffix }\n    }.set { ch_bins_folders_input }",
+        "origin": [
+            [
+                "ch_microbiomes_bins",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_bins_folders_input",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_12": {
+        "string": "ch_microbiomes_bins.archives().multiMap { row ->\n        ids : row.microbiome_id\n        files: row.microbiome_path\n    }\n    .set{ ch_microbiomes_bins_archives_packed }",
+        "origin": [
+            [
+                "ch_microbiomes_bins",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_microbiomes_bins_archives_packed",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_13": {
+        "string": "ch_microbiomes_bins_archives_unpacked\n    .multiMap { microbiome_id, bin_files ->\n        bin_files = bin_files.findAll{ it.name =~ fasta_suffix }\n        if (bin_files.isEmpty()) log.warn(\"WARNING - Archive provided for microbiome ID ${microbiome_id} did not yield any bin files\")\n        ids           : Collections.nCopies((int) bin_files.size(), microbiome_id)\n        files         : bin_files\n        bin_basenames : bin_files.collect{ it.name - fasta_suffix }\n    }.set{ ch_bins_archives_input }",
+        "origin": [
+            [
+                "ch_microbiomes_bins_archives_unpacked",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_bins_archives_input",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_14": {
+        "string": "ch_nucl_input_ids = ch_assembly_input.ids().concat(ch_bins_archives_input.ids().flatten(), ch_bins_folders_input.ids().flatten())",
+        "origin": [
+            [
+                "ch_assembly_input",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_nucl_input_ids",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_15": {
+        "string": "ch_nucl_input_files = ch_assembly_input.files().concat(ch_bins_archives_input.files().flatten(), ch_bins_folders_input.files().flatten())",
+        "origin": [
+            [
+                "ch_assembly_input",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_nucl_input_files",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_16": {
+        "string": "ch_nucl_input_bin_basenames = ch_assembly_input.bin_basenames().concat(ch_bins_archives_input.bin_basenames().flatten(), ch_bins_folders_input.bin_basenames().flatten())",
+        "origin": [
+            [
+                "ch_assembly_input",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_nucl_input_bin_basenames",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_17": {
+        "string": "ch_microbiomes\n    .splitCsv(sep:'\\t', skip: 1)\n    .map { microbiome_id, microbiome_path, microbiome_type, weights_path ->\n            if (microbiome_type != 'taxa' && weights_path) [microbiome_id, weights_path]\n        }\n    .multiMap { microbiome_id, weights_path ->\n            microbiome_ids: microbiome_id\n            weights_paths: weights_path\n        }.set { ch_weights }",
+        "origin": [
+            [
+                "ch_microbiomes",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_weights",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_18": {
+        "string": "ch_epitope_predictions_buffered = ch_epitope_predictions.toSortedList().flatten().buffer(size: 1000, remainder: true)",
+        "origin": [
+            [
+                "ch_epitope_predictions",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_epitope_predictions_buffered",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_19": {
+        "string": "ch_epitope_prediction_warnings_buffered = ch_epitope_prediction_warnings.toSortedList().flatten().buffer(size: 1000, remainder: true)",
+        "origin": [
+            [
+                "ch_epitope_prediction_warnings",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_epitope_prediction_warnings_buffered",
+                "P"
+            ]
+        ]
+    }
+}

@@ -1,0 +1,253 @@
+{
+    "munge": {
+        "name_process": "munge",
+        "string_process": "\nprocess munge {\n\n   label \"small_mem\"\n\n   input:\n   set val(num), val(phenocode), val(filename), val(n_cases), val(n_controls) from munge_params\n\n   output:\n   set val(num), val(phenocode), file(\"${phenocode}.sumstats.gz\") into munged\n\n   \"\"\"\n   ${munge_exec} --chunksize 100000 --sumstats ${filename} --merge-alleles ${params.LDSC_snplist} --N-cas ${n_cases} --N-con ${n_controls} --p ${params.columns.pvalue} --signed-sumstats ${params.columns.effect},${params.no_effect} --snp ${params.columns.snp} --a1 ${params.columns.effect_allele} --a2 ${params.columns.other_allele} --out ${phenocode}\n   \"\"\"\n \n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n   ${munge_exec} --chunksize 100000 --sumstats ${filename} --merge-alleles ${params.LDSC_snplist} --N-cas ${n_cases} --N-con ${n_controls} --p ${params.columns.pvalue} --signed-sumstats ${params.columns.effect},${params.no_effect} --snp ${params.columns.snp} --a1 ${params.columns.effect_allele} --a2 ${params.columns.other_allele} --out ${phenocode}\n   \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "munge_params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "munged"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pair_corr": {
+        "name_process": "pair_corr",
+        "string_process": "\nprocess pair_corr {\n\n   label \"small_mem\"\n   errorStrategy \"retry\"\n   maxRetries 3\n\n   input:\n   set val(phenocode1), file(stats1), file(exclude1), val(phenocode2), file(stats2), file(exclude2) from formatted2pair_corr_a.combine(formatted2pair_corr_b).filter{ it[0] < it[4] }.map { [it[1], it[2], it[3], it[5], it[6], it[7]] }\n   file tagged from tagged.collect()\n\n   output:\n   file \"${phenocode1}.${phenocode2}.cors\" into pair_corr\n\n   \"\"\"\n   mdsum=`cat ${exclude1} ${exclude2} | sort | uniq | md5sum | awk '{print \\$1;}'`\n   tagfile=\"sumldak_\\${mdsum}.tagging\"\n   ${ldak_exec} --sum-cors ${phenocode1}.${phenocode2} --tagfile \\${tagfile} --summary ${stats1} --summary2 ${stats2} --genomic-control YES --check-sums NO\n   \"\"\"\n\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n   mdsum=`cat ${exclude1} ${exclude2} | sort | uniq | md5sum | awk '{print \\$1;}'`\n   tagfile=\"sumldak_\\${mdsum}.tagging\"\n   ${ldak_exec} --sum-cors ${phenocode1}.${phenocode2} --tagfile \\${tagfile} --summary ${stats1} --summary2 ${stats2} --genomic-control YES --check-sums NO\n   \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "formatted2pair_corr_a",
+            "formatted2pair_corr_b",
+            "tagged"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "pair_corr"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\"",
+            "errorStrategy \"retry\"",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge": {
+        "name_process": "merge",
+        "string_process": "\nprocess merge {\n\n   label \"small_mem\"\n   errorStrategy \"retry\"\n   maxRetries 3\n\n   publishDir \"results\"\n\n   input:\n   file files from pair_corr.collectFile() { item -> [\"list.txt\", \"${item}\\n\"] } \n\n   output:\n   file \"ALL.RG.txt\" into merged\n\n   \"\"\"\n   merge.py -i ${files} -o ALL.RG.txt\n   \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n   merge.py -i ${files} -o ALL.RG.txt\n   \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pair_corr"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\"",
+            "errorStrategy \"retry\"",
+            "maxRetries 3",
+            "publishDir \"results\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mhc": {
+        "name_process": "mhc",
+        "string_process": "\nprocess mhc {\n\n   label \"small_mem\"\n   errorStrategy \"retry\"\n   maxRetries 3\n\n   input:\n   file bim from bim\n\n   output:\n   file \"mhc.variants\" into mhc\n\n   \"\"\"\n   mhc.py -i ${bim} -b GRCh37 -o mhc.variants \n   \"\"\"\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n   mhc.py -i ${bim} -b GRCh37 -o mhc.variants \n   \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bim"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mhc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\"",
+            "errorStrategy \"retry\"",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "format": {
+        "name_process": "format",
+        "string_process": "\nprocess format {\n\n   label \"small_mem\"\n   errorStrategy \"retry\"\n   maxRetries 3\n\n   input:\n   set val(num), val(phenocode), val(filename) from format_params\n   file bed from bed\n   file bim from bim\n   file fam from fam\n   file mhc from mhc\n\n   output:\n   set val(num), val(phenocode), file(\"${phenocode}.stats\"), file(\"${phenocode}.nonamb\"), file(\"${phenocode}.exclude\") into formatted\n\n   \"\"\"\n   format.py -i ${filename} -o ${phenocode}\n   if [ -s ${phenocode}.big ]; then\n      i=0\n      for f in ${bed}; do\n         i=\\$((i+1))\n         ${ldak_exec} --remove-tags ${phenocode}.\\${i} --bfile \\${f%*.bed} --top-preds ${phenocode}.big --window-kb 1000 --min-cor 0.1   \n      done\n      cat ${phenocode}.*.out > ${phenocode}.out\n   else\n      touch ${phenocode}.out\n   fi\n   cat ${mhc} ${phenocode}.out > ${phenocode}.exclude\n   \"\"\"\n \n}",
+        "nb_lignes_process": 31,
+        "string_script": "\"\"\"\n   format.py -i ${filename} -o ${phenocode}\n   if [ -s ${phenocode}.big ]; then\n      i=0\n      for f in ${bed}; do\n         i=\\$((i+1))\n         ${ldak_exec} --remove-tags ${phenocode}.\\${i} --bfile \\${f%*.bed} --top-preds ${phenocode}.big --window-kb 1000 --min-cor 0.1   \n      done\n      cat ${phenocode}.*.out > ${phenocode}.out\n   else\n      touch ${phenocode}.out\n   fi\n   cat ${mhc} ${phenocode}.out > ${phenocode}.exclude\n   \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "format_params",
+            "bed",
+            "bim",
+            "fam",
+            "mhc"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "formatted"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\"",
+            "errorStrategy \"retry\"",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "intersection": {
+        "name_process": "intersection",
+        "string_process": "\nprocess intersection {\n\n   label \"small_mem\"\n   errorStrategy \"retry\"\n   maxRetries 3\n\n   input:\n   file nonambs from formatted2intersection.collect()\n\n   output:\n   file (\"intersection.nonamb\") into intersected\n\n   \"\"\"\n   intersect.py -i ${nonambs} -o \"intersection.nonamb\"\n   \"\"\"\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n   intersect.py -i ${nonambs} -o \"intersection.nonamb\"\n   \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "formatted2intersection"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "intersected"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\"",
+            "errorStrategy \"retry\"",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "unique": {
+        "name_process": "unique",
+        "string_process": "\nprocess unique {\n\n   executor 'local'\n  \n   input:\n   set file(exclude1), file(exclude2) from formatted2unique_a.combine(formatted2unique_b).filter{ it[0] < it[2] }.map { [it[1], it[3]] } \n\n   output:\n   set file(exclude1), file(exclude2), stdout into unique \n\n   \"\"\"\n   printf `cat ${exclude1} ${exclude2} | sort | uniq | md5sum | awk '{print \\$1;}'`\n   \"\"\"\n\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n   printf `cat ${exclude1} ${exclude2} | sort | uniq | md5sum | awk '{print \\$1;}'`\n   \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "formatted2unique_a",
+            "formatted2unique_b"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "unique"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "executor 'local'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "tagging_chr": {
+        "name_process": "tagging_chr",
+        "string_process": "\nprocess tagging_chr {\n   \n   label \"small_mem\"\n   errorStrategy \"retry\"\n   maxRetries 3\n\n   input:\n   file intersected from intersected\n   set file(exclude1), file(exclude2), val(mdsum) from unique.unique { it[2] }\n   file bed from bed\n   file bim from bim\n   file fam from fam\n   each chr from Channel.from(1..22)\n\n   output:\n   set val(mdsum), file(\"sumldak_${mdsum}_${chr}.tagging\") into tagged_chr\n\n   \"\"\"\n   cat ${exclude1} ${exclude2} | sort | uniq > combined.exclude\n   bim_file=`grep -l \"^${chr}\\\\s\" *.bim`\n   [ -z \\$bim_file ] && echo \"BIM file for chromosome ${chr} was not found!\" && exit 1\n   ${ldak_exec} --cut-weights weights_${mdsum}_${chr} --bfile \\${bim_file%*.bim} --extract ${intersected} --exclude combined.exclude --chr ${chr}\n   ${ldak_exec} --calc-weights-all weights_${mdsum}_${chr} --bfile \\${bim_file%*.bim} --extract ${intersected} --exclude combined.exclude --chr ${chr}\n   ${ldak_exec} --calc-tagging sumldak_${mdsum}_${chr} --bfile \\${bim_file%*.bim} --weights weights_${mdsum}_${chr}/weights.short --power -0.25 --extract ${intersected} --exclude combined.exclude --window-kb 1000 --chr ${chr} \n   \"\"\"\n \n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n   cat ${exclude1} ${exclude2} | sort | uniq > combined.exclude\n   bim_file=`grep -l \"^${chr}\\\\s\" *.bim`\n   [ -z \\$bim_file ] && echo \"BIM file for chromosome ${chr} was not found!\" && exit 1\n   ${ldak_exec} --cut-weights weights_${mdsum}_${chr} --bfile \\${bim_file%*.bim} --extract ${intersected} --exclude combined.exclude --chr ${chr}\n   ${ldak_exec} --calc-weights-all weights_${mdsum}_${chr} --bfile \\${bim_file%*.bim} --extract ${intersected} --exclude combined.exclude --chr ${chr}\n   ${ldak_exec} --calc-tagging sumldak_${mdsum}_${chr} --bfile \\${bim_file%*.bim} --weights weights_${mdsum}_${chr}/weights.short --power -0.25 --extract ${intersected} --exclude combined.exclude --window-kb 1000 --chr ${chr} \n   \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "intersected",
+            "unique",
+            "bed",
+            "bim",
+            "fam"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "tagged_chr"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\"",
+            "errorStrategy \"retry\"",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "tagging_merge": {
+        "name_process": "tagging_merge",
+        "string_process": "\nprocess tagging_merge {\n\n   label \"small_mem\"\n   errorStrategy \"retry\"\n   maxRetries 3\n\n   input:\n   set val(mdsum), file(tagged_chr) from tagged_chr.groupTuple()\n\n   output:\n   file \"sumldak_${mdsum}.tagging\" into tagged\n\n   \"\"\"\n   find . -maxdepth 1 -name \"sumldak_${mdsum}_*.tagging\" -printf \"%f\\n\" | sort -V > list.txt\n   ${ldak_exec} --join-tagging sumldak_${mdsum} --taglist list.txt\n   \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n   find . -maxdepth 1 -name \"sumldak_${mdsum}_*.tagging\" -printf \"%f\\n\" | sort -V > list.txt\n   ${ldak_exec} --join-tagging sumldak_${mdsum} --taglist list.txt\n   \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tagged_chr"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "tagged"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "statgen__pheweb-rg-pipeline",
+        "directive": [
+            "label \"small_mem\"",
+            "errorStrategy \"retry\"",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

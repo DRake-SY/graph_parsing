@@ -1,0 +1,662 @@
+{
+    "setup": {
+        "name_process": "setup",
+        "string_process": "\nprocess setup {\n\n    input:\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        #!/bin/bash\n\n        mkdir -p ${params.OUTPUT_RAW}\n        mkdir -p ${params.OUTPUT_LINMOS}\n        mkdir -p ${params.OUTPUT_SELAVY}\n        mkdir -p ${params.OUTPUT_LHR}\n        mkdir -p ${params.OUTPUT_LOG_DIR}\n        mkdir -p ${params.OUTPUT_EXTENDED_DOUBLES}\n        \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "        \"\"\"\n        #!/bin/bash\n\n        mkdir -p ${params.OUTPUT_RAW}\n        mkdir -p ${params.OUTPUT_LINMOS}\n        mkdir -p ${params.OUTPUT_SELAVY}\n        mkdir -p ${params.OUTPUT_LHR}\n        mkdir -p ${params.OUTPUT_LOG_DIR}\n        mkdir -p ${params.OUTPUT_EXTENDED_DOUBLES}\n        \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "get_sched_blocks": {
+        "name_process": "get_sched_blocks",
+        "string_process": "\nprocess get_sched_blocks {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    errorStrategy 'retry'\n    maxErrors 3\n\n    input:\n        val ser\n\n    output:\n        stdout emit: obs_list\n\n    script:\n        \"\"\"\n        #!python3\n\n        import pyvo as vo\n\n        query = f\"SELECT sb.sb_num \" \\\n                f\"FROM emucat.regions as ser, \" \\\n                f\"emucat.mosaic_prerequisites as mp, \" \\\n                f\"emucat.scheduling_blocks as sb \" \\\n                f\"WHERE ser.id = mp.ser_id \" \\\n                f\"and mp.sb_id = sb.id \" \\\n                f\"and ser.name = '${ser}' \" \\\n                f\"and sb.sb_num is not null\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query)\n        print(' '.join(str(x['sb_num']) for x in rowset), end='')\n        \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "        \"\"\"\n        #!python3\n\n        import pyvo as vo\n\n        query = f\"SELECT sb.sb_num \" \\\n                f\"FROM emucat.regions as ser, \" \\\n                f\"emucat.mosaic_prerequisites as mp, \" \\\n                f\"emucat.scheduling_blocks as sb \" \\\n                f\"WHERE ser.id = mp.ser_id \" \\\n                f\"and mp.sb_id = sb.id \" \\\n                f\"and ser.name = '${ser}' \" \\\n                f\"and sb.sb_num is not null\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query)\n        print(' '.join(str(x['sb_num']) for x in rowset), end='')\n        \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"",
+            "errorStrategy 'retry'",
+            "maxErrors 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "casda_download": {
+        "name_process": "casda_download",
+        "string_process": "\nprocess casda_download {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    errorStrategy 'retry'\n    maxErrors 3\n\n    input:\n        val obs_list\n\n    output:\n        path 'manifest.json', emit: file_manifest\n\n    script:\n        \"\"\"\n        python3 /scripts/casda.py --list $obs_list -o ${params.OUTPUT_RAW} \\\n        -m manifest.json -p ${params.INPUT_CONF}/cred.ini -c true\n        \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "        \"\"\"\n        python3 /scripts/casda.py --list $obs_list -o ${params.OUTPUT_RAW} \\\n        -m manifest.json -p ${params.INPUT_CONF}/cred.ini -c true\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "obs_list"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"",
+            "errorStrategy 'retry'",
+            "maxErrors 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_linmos_conf": {
+        "name_process": "generate_linmos_conf",
+        "string_process": "\nprocess generate_linmos_conf {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        path file_manifest\n        val ser\n\n    output:\n        path 'linmos.conf', emit: linmos_conf\n        path 'linmos.log_cfg', emit: linmos_log_conf\n\n    script:\n        \"\"\"\n        #!python3\n\n        import json\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n\n        with open('${file_manifest.toRealPath()}') as o:\n           data = json.loads(o.read())\n\n        images = [Path(image).with_suffix('') for image in data['images'] if '.0.' in image]\n        weights = [Path(weight).with_suffix('') for weight in data['weights'] if '.0.' in weight]\n        image_out = Path('${params.OUTPUT_LINMOS}/${ser}.image.taylor.0')\n        weight_out = Path('${params.OUTPUT_LINMOS}/${ser}.weights.taylor.0')\n        log = Path('${params.OUTPUT_LOG_DIR}/${ser}_linmos.log')\n\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('linmos.j2').render(images=images, weights=weights, \\\n        image_out=image_out, weight_out=weight_out)\n\n        with open('linmos.conf', 'w') as f:\n            print(result, file=f)\n\n        result = j2_env.get_template('yandasoft_log.j2').render(log=log)\n\n        with open('linmos.log_cfg', 'w') as f:\n            print(result, file=f)\n        \"\"\"\n}",
+        "nb_lignes_process": 42,
+        "string_script": "        \"\"\"\n        #!python3\n\n        import json\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n\n        with open('${file_manifest.toRealPath()}') as o:\n           data = json.loads(o.read())\n\n        images = [Path(image).with_suffix('') for image in data['images'] if '.0.' in image]\n        weights = [Path(weight).with_suffix('') for weight in data['weights'] if '.0.' in weight]\n        image_out = Path('${params.OUTPUT_LINMOS}/${ser}.image.taylor.0')\n        weight_out = Path('${params.OUTPUT_LINMOS}/${ser}.weights.taylor.0')\n        log = Path('${params.OUTPUT_LOG_DIR}/${ser}_linmos.log')\n\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('linmos.j2').render(images=images, weights=weights, \\\n        image_out=image_out, weight_out=weight_out)\n\n        with open('linmos.conf', 'w') as f:\n            print(result, file=f)\n\n        result = j2_env.get_template('yandasoft_log.j2').render(log=log)\n\n        with open('linmos.log_cfg', 'w') as f:\n            print(result, file=f)\n        \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "file_manifest",
+            "ser"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_linmos": {
+        "name_process": "run_linmos",
+        "string_process": "\nprocess run_linmos {\n\n    container = \"csirocass/yandasoft:1.4.0-mpich\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        path linmos_conf\n        path linmos_log_conf\n        val ser\n\n    output:\n        val \"${params.OUTPUT_LINMOS}/${ser}.image.taylor.0.fits\", emit: image_out\n        val \"${params.OUTPUT_LINMOS}/${ser}.weights.taylor.0.fits\", emit: weight_out\n\n    script:\n        \"\"\"\n        #!/bin/bash\n\n        if [ ! -f \"${params.OUTPUT_LINMOS}/${ser}.image.taylor.0.fits\" ]; then\n            linmos -c ${linmos_conf.toRealPath()} -l ${linmos_log_conf.toRealPath()}\n        fi\n        \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "        \"\"\"\n        #!/bin/bash\n\n        if [ ! -f \"${params.OUTPUT_LINMOS}/${ser}.image.taylor.0.fits\" ]; then\n            linmos -c ${linmos_conf.toRealPath()} -l ${linmos_log_conf.toRealPath()}\n        fi\n        \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "linmos_conf",
+            "linmos_log_conf",
+            "ser"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"csirocass/yandasoft:1.4.0-mpich\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_selavy_conf": {
+        "name_process": "generate_selavy_conf",
+        "string_process": "\nprocess generate_selavy_conf {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        path image_input\n        path weight_input\n        val ser\n\n    output:\n        path 'selavy.conf', emit: selavy_conf\n        path 'selavy.log_cfg', emit: selavy_log_conf\n\n    script:\n        \"\"\"\n        #!python3\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n        import os\n        from astropy.io import fits\n\n        # Correct header\n        #fits.setval('${image_input.toRealPath()}', 'BUNIT', value='Jy/beam ')\n\n        ser = '${ser}'\n        output_path = Path('${params.OUTPUT_SELAVY}')\n        image = Path('${image_input.toRealPath()}')\n        weight = Path('${weight_input.toRealPath()}')\n        log = Path('${params.OUTPUT_LOG_DIR}/${ser}_selavy.log')\n        results = Path('${params.OUTPUT_SELAVY}/${ser}_results.txt')\n        votable = Path('${params.OUTPUT_SELAVY}/${ser}_votable.xml')\n        annotations = Path('${params.OUTPUT_SELAVY}/${ser}_annotations.ann')\n\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('selavy.j2').render(ser=ser, output_path=output_path, image=image, weight=weight, \\\n                 results=results, votable=votable, annotations=annotations)\n\n        with open('selavy.conf', 'w') as f:\n            print(result, file=f)\n\n        result = j2_env.get_template('yandasoft_log.j2').render(log=log)\n\n        with open('selavy.log_cfg', 'w') as f:\n            print(result, file=f)\n        \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "        \"\"\"\n        #!python3\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n        import os\n        from astropy.io import fits\n\n        # Correct header\n        #fits.setval('${image_input.toRealPath()}', 'BUNIT', value='Jy/beam ')\n\n        ser = '${ser}'\n        output_path = Path('${params.OUTPUT_SELAVY}')\n        image = Path('${image_input.toRealPath()}')\n        weight = Path('${weight_input.toRealPath()}')\n        log = Path('${params.OUTPUT_LOG_DIR}/${ser}_selavy.log')\n        results = Path('${params.OUTPUT_SELAVY}/${ser}_results.txt')\n        votable = Path('${params.OUTPUT_SELAVY}/${ser}_votable.xml')\n        annotations = Path('${params.OUTPUT_SELAVY}/${ser}_annotations.ann')\n\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('selavy.j2').render(ser=ser, output_path=output_path, image=image, weight=weight, \\\n                 results=results, votable=votable, annotations=annotations)\n\n        with open('selavy.conf', 'w') as f:\n            print(result, file=f)\n\n        result = j2_env.get_template('yandasoft_log.j2').render(log=log)\n\n        with open('selavy.log_cfg', 'w') as f:\n            print(result, file=f)\n        \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "image_input",
+            "weight_input",
+            "ser"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_selavy": {
+        "name_process": "run_selavy",
+        "string_process": "\nprocess run_selavy {\n\n    input:\n        path selavy_conf\n        path selavy_log_conf\n        val ser\n\n    output:\n        val \"${params.OUTPUT_SELAVY}/${ser}_results.components.xml\", emit: cat_out\n        val \"${params.OUTPUT_SELAVY}/${ser}_results.islands.xml\", emit: island_out\n\n    script:\n        \"\"\"\n        #!/bin/bash\n\n        if [ ! -f \"${params.OUTPUT_SELAVY}/${ser}_results.components.xml\" ]; then\n            export SINGULARITY_PULLDIR=${params.IMAGES}\n            singularity pull yandasoft_1.4.0-mpich.sif docker://csirocass/yandasoft:1.4.0-mpich\n            srun -N 12 --ntasks-per-node 6 \\\n                   singularity exec \\\n                   --bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT} \\\n                   ${params.IMAGES}/yandasoft_1.4.0-mpich.sif \\\n                   selavy -c ${selavy_conf.toRealPath()} -l ${selavy_log_conf.toRealPath()}\n        fi\n        \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "        \"\"\"\n        #!/bin/bash\n\n        if [ ! -f \"${params.OUTPUT_SELAVY}/${ser}_results.components.xml\" ]; then\n            export SINGULARITY_PULLDIR=${params.IMAGES}\n            singularity pull yandasoft_1.4.0-mpich.sif docker://csirocass/yandasoft:1.4.0-mpich\n            srun -N 12 --ntasks-per-node 6 \\\n                   singularity exec \\\n                   --bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT} \\\n                   ${params.IMAGES}/yandasoft_1.4.0-mpich.sif \\\n                   selavy -c ${selavy_conf.toRealPath()} -l ${selavy_log_conf.toRealPath()}\n        fi\n        \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "Singularity Hub",
+            "crossrun"
+        ],
+        "tools_url": [
+            "https://bio.tools/singularity_hub",
+            "https://bio.tools/crossrun"
+        ],
+        "tools_dico": [
+            {
+                "name": "Singularity Hub",
+                "uri": "https://bio.tools/singularity_hub",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3524",
+                            "term": "Simulation experiment"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Framework to build and deploy Singularity containers for mobility of compute, and the singularity-python software with novel metrics for assessing reproducibility of such containers.",
+                "homepage": "https://singularity-hub.org/"
+            },
+            {
+                "name": "crossrun",
+                "uri": "https://bio.tools/crossrun",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3435",
+                                    "term": "Standardisation and normalisation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Joint distribution for number of crossings and longest run in independent Bernoulli observations. The R package crossrun.\n\nThe R package crossrun computes the joint distribution of the number of crossings and the longest run in a sequence of independent Bernoulli observations. The main intended application is statistical process control where the joint distribution may be used for systematic investigation, and possibly refinement, of existing rules for distinguishing between signal and noise. While the crossrun vignette is written to assist in practical use, this article gives a hands-on explanation of why the procedures works. The article also includes a discussion of limitations of the present version of crossrun together with an outline of ongoing work to meet these limitations.",
+                "homepage": "https://cran.r-project.org/web/packages/crossrun/index.html"
+            }
+        ],
+        "inputs": [
+            "selavy_conf",
+            "selavy_log_conf",
+            "ser"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "remove_mosaic_from_emucat": {
+        "name_process": "remove_mosaic_from_emucat",
+        "string_process": "\nprocess remove_mosaic_from_emucat {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        path cat_input\n        path island_input\n        val ser\n\n    output:\n        path cat_input, emit: cat_out\n        path island_input, emit: island_out\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        python3 /scripts/catalog.py delete_components -s ${ser} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "        \"\"\"\n        python3 /scripts/catalog.py delete_components -s ${ser} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cat_input",
+            "island_input",
+            "ser"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "insert_selavy_components_into_emucat": {
+        "name_process": "insert_selavy_components_into_emucat",
+        "string_process": "\nprocess insert_selavy_components_into_emucat {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        path cat_input\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        python3 /scripts/catalog.py import_selavy -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -i ${cat_input.toRealPath()}\n        \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "        \"\"\"\n        python3 /scripts/catalog.py import_selavy -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -i ${cat_input.toRealPath()}\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cat_input",
+            "ser"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "insert_selavy_islands_into_emucat": {
+        "name_process": "insert_selavy_islands_into_emucat",
+        "string_process": "\nprocess insert_selavy_islands_into_emucat {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        path island_input\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        python3 /scripts/catalog.py import_selavy_island -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -i ${island_input.toRealPath()}\n        \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "        \"\"\"\n        python3 /scripts/catalog.py import_selavy_island -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -i ${island_input.toRealPath()}\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "island_input",
+            "ser"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "match_nearest_neighbour_with_allwise": {
+        "name_process": "match_nearest_neighbour_with_allwise",
+        "string_process": "\nprocess match_nearest_neighbour_with_allwise {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        python3 /scripts/catalog.py match_nearest_neighbour_with_allwise -s ${ser} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        python3 /scripts/catalog.py match_nearest_neighbour_with_allwise -s ${ser} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_component_sources": {
+        "name_process": "get_component_sources",
+        "string_process": "\nprocess get_component_sources {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    errorStrategy 'retry'\n    maxErrors 3\n\n    input:\n        val ser\n\n    output:\n        val \"${params.OUTPUT_LHR}/${ser}_components.xml\", emit: component_cat\n\n    script:\n        \"\"\"\n        #!python3\n        import pyvo as vo\n\n        query = f\"SELECT c.id, c.flux_int, c.flux_int_err, c.ra_deg_cont, c.dec_deg_cont \" \\\n                f\"FROM emucat.components c, emucat.mosaics m, emucat.regions s \"\\\n                f\"WHERE c.mosaic_id=m.id AND m.ser_id=s.id AND s.name='${ser}' ORDER BY id ASC\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query, maxrec=service.hardlimit)\n        with open(\"${params.OUTPUT_LHR}/${ser}_components.xml\", \"w\") as f:\n            rowset.to_table().write(output=f, format=\"votable\")\n        \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "        \"\"\"\n        #!python3\n        import pyvo as vo\n\n        query = f\"SELECT c.id, c.flux_int, c.flux_int_err, c.ra_deg_cont, c.dec_deg_cont \" \\\n                f\"FROM emucat.components c, emucat.mosaics m, emucat.regions s \"\\\n                f\"WHERE c.mosaic_id=m.id AND m.ser_id=s.id AND s.name='${ser}' ORDER BY id ASC\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query, maxrec=service.hardlimit)\n        with open(\"${params.OUTPUT_LHR}/${ser}_components.xml\", \"w\") as f:\n            rowset.to_table().write(output=f, format=\"votable\")\n        \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"",
+            "errorStrategy 'retry'",
+            "maxErrors 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_allwise_sources": {
+        "name_process": "get_allwise_sources",
+        "string_process": "\nprocess get_allwise_sources {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    errorStrategy 'retry'\n    maxErrors 3\n\n    input:\n        val mosaic\n        val ser\n\n    output:\n        val \"${params.OUTPUT_LHR}/${ser}_allwise.xml\", emit: allwise_cat\n\n    script:\n        \"\"\"\n        #!python3\n        import pyvo as vo\n        from astropy.io import fits\n        from astropy.wcs import WCS\n\n        with fits.open('${mosaic}') as hdu:\n            naxis1 = float(hdu[0].header['NAXIS1'])\n            naxis2 = float(hdu[0].header['NAXIS2'])\n            w = WCS(hdu[0].header)\n            a = w.pixel_to_world_values(0, 0, 0, 0)\n            b = w.pixel_to_world_values(naxis1, naxis2, 0, 0)\n            x0, y0 = a[0].item(), a[1].item()\n            x1, y1 = b[0].item(), b[1].item()\n\n        query = f\"SELECT designation, ra, dec, w1mpro, w1sigmpro FROM emucat.allwise as a \" \\\n                f\"WHERE 1 = INTERSECTS(a.ra_dec, POLYGON({x0},{y0},{x0},{y1},{x1},{y1},{x1},{y0})) ORDER BY ra ASC\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query, maxrec=service.hardlimit)\n        with open(\"${params.OUTPUT_LHR}/${ser}_allwise.xml\", \"w\") as f:\n            rowset.to_table().write(output=f, format=\"votable\")\n        \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "        \"\"\"\n        #!python3\n        import pyvo as vo\n        from astropy.io import fits\n        from astropy.wcs import WCS\n\n        with fits.open('${mosaic}') as hdu:\n            naxis1 = float(hdu[0].header['NAXIS1'])\n            naxis2 = float(hdu[0].header['NAXIS2'])\n            w = WCS(hdu[0].header)\n            a = w.pixel_to_world_values(0, 0, 0, 0)\n            b = w.pixel_to_world_values(naxis1, naxis2, 0, 0)\n            x0, y0 = a[0].item(), a[1].item()\n            x1, y1 = b[0].item(), b[1].item()\n\n        query = f\"SELECT designation, ra, dec, w1mpro, w1sigmpro FROM emucat.allwise as a \" \\\n                f\"WHERE 1 = INTERSECTS(a.ra_dec, POLYGON({x0},{y0},{x0},{y1},{x1},{y1},{x1},{y0})) ORDER BY ra ASC\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query, maxrec=service.hardlimit)\n        with open(\"${params.OUTPUT_LHR}/${ser}_allwise.xml\", \"w\") as f:\n            rowset.to_table().write(output=f, format=\"votable\")\n        \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mosaic",
+            "ser"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"",
+            "errorStrategy 'retry'",
+            "maxErrors 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_lhr_conf": {
+        "name_process": "generate_lhr_conf",
+        "string_process": "\nprocess generate_lhr_conf {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n\n    output:\n        path 'lr_config.conf', emit: lhr_conf\n\n    script:\n        \"\"\"\n        #!python3\n\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n\n        output = Path('${params.OUTPUT_LHR}')\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('lr_config.j2').render(output=output)\n        with open('lr_config.conf', 'w') as f:\n            print(result, file=f)\n        \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "        \"\"\"\n        #!python3\n\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n\n        output = Path('${params.OUTPUT_LHR}')\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('lr_config.j2').render(output=output)\n        with open('lr_config.conf', 'w') as f:\n            print(result, file=f)\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_lhr": {
+        "name_process": "run_lhr",
+        "string_process": "\nprocess run_lhr {\n\n    container = \"aussrc/emucat_lhr:parallel\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val mwcat\n        val radcat\n        val conf\n\n    output:\n        val \"${params.OUTPUT_LHR}/w1_LR_matches.csv\", emit: w1_lr_matches\n\n    script:\n        \"\"\"\n        #!/bin/bash\n\n        if [ ! -f \"${params.OUTPUT_LHR}/w1_LR_matches.csv\" ]; then\n            mkdir -p ${params.OUTPUT_LHR}/astropy\n            export XDG_CACHE_HOME=${params.OUTPUT_LHR}\n            export MPLCONFIGDIR=${params.OUTPUT_LHR}\n            export LHR_CPU=24\n            python3 -u /scripts/lr_wrapper_emucat.py --mwcat ${mwcat} --radcat ${radcat} --config ${conf} \\\n            > ${params.OUTPUT_LOG_DIR}/${params.ser}_lhr.log\n        fi\n        \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "        \"\"\"\n        #!/bin/bash\n\n        if [ ! -f \"${params.OUTPUT_LHR}/w1_LR_matches.csv\" ]; then\n            mkdir -p ${params.OUTPUT_LHR}/astropy\n            export XDG_CACHE_HOME=${params.OUTPUT_LHR}\n            export MPLCONFIGDIR=${params.OUTPUT_LHR}\n            export LHR_CPU=24\n            python3 -u /scripts/lr_wrapper_emucat.py --mwcat ${mwcat} --radcat ${radcat} --config ${conf} \\\n            > ${params.OUTPUT_LOG_DIR}/${params.ser}_lhr.log\n        fi\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mwcat",
+            "radcat",
+            "conf"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_lhr:parallel\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "insert_lhr_into_emucat": {
+        "name_process": "insert_lhr_into_emucat",
+        "string_process": "\nprocess insert_lhr_into_emucat {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        path w1_lr_matches\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        python3 /scripts/catalog.py import_lhr -c ${params.INPUT_CONF}/cred.ini \\\n        -i ${w1_lr_matches.toRealPath()}\n        \"\"\"\n\n}",
+        "nb_lignes_process": 18,
+        "string_script": "        \"\"\"\n        python3 /scripts/catalog.py import_lhr -c ${params.INPUT_CONF}/cred.ini \\\n        -i ${w1_lr_matches.toRealPath()}\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "w1_lr_matches",
+            "ser"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "import_des_dr1_from_lhr": {
+        "name_process": "import_des_dr1_from_lhr",
+        "string_process": "\nprocess import_des_dr1_from_lhr {\n    \n    errorStrategy 'retry'\n    maxErrors 3\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        export HOME=${params.SCRATCH_ROOT}\n        python3 -u /scripts/noao.py import_des_dr1_from_lhr -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -o ${params.OUTPUT_LHR} > ${params.OUTPUT_LOG_DIR}/${ser}_des_dr1.log\n        \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "        \"\"\"\n        export HOME=${params.SCRATCH_ROOT}\n        python3 -u /scripts/noao.py import_des_dr1_from_lhr -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -o ${params.OUTPUT_LHR} > ${params.OUTPUT_LOG_DIR}/${ser}_des_dr1.log\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "errorStrategy 'retry'",
+            "maxErrors 3",
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "import_des_dr2_from_lhr": {
+        "name_process": "import_des_dr2_from_lhr",
+        "string_process": "\nprocess import_des_dr2_from_lhr {\n    \n    errorStrategy 'retry'\n    maxErrors 3\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        export HOME=${params.SCRATCH_ROOT}\n        python3 -u /scripts/noao.py import_des_dr2_from_lhr -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -o ${params.OUTPUT_LHR} > ${params.OUTPUT_LOG_DIR}/${ser}_des_dr2.log\n        \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "        \"\"\"\n        export HOME=${params.SCRATCH_ROOT}\n        python3 -u /scripts/noao.py import_des_dr2_from_lhr -s ${ser} -c ${params.INPUT_CONF}/cred.ini \\\n        -o ${params.OUTPUT_LHR} > ${params.OUTPUT_LOG_DIR}/${ser}_des_dr2.log\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "errorStrategy 'retry'",
+            "maxErrors 3",
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_extended_double_components": {
+        "name_process": "get_extended_double_components",
+        "string_process": "\nprocess get_extended_double_components {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n\n    output:\n        val ser, emit: ser_output\n        val \"${params.OUTPUT_EXTENDED_DOUBLES}/${ser}_double_components.xml\", emit: comp_cat\n\n    script:\n        \"\"\"\n        #!python3\n        import pyvo as vo\n\n        query = f\"SELECT c.id, c.ra_deg_cont, c.dec_deg_cont, c.flux_peak, c.flux_int, \" \\\n        f\"maj_axis_deconv, min_axis_deconv, pos_ang_deconv \" \\\n        f\"FROM emucat.components c, emucat.mosaics m, emucat.regions s \" \\\n        f\"WHERE c.mosaic_id=m.id AND m.ser_id=s.id AND s.name='${ser}' \" \\\n        f\"AND c.id NOT IN \" \\\n        f\"(SELECT co.id FROM emucat.components co, emucat.mosaics mo, emucat.regions se, \" \\\n        f\"emucat.sources_nearest_allwise n WHERE n.component_id=co.id AND co.mosaic_id=mo.id \" \\\n        f\"AND mo.ser_id=se.id AND se.name='${ser}')\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query, maxrec=service.hardlimit)\n        with open(\"${params.OUTPUT_EXTENDED_DOUBLES}/${ser}_double_components.xml\", \"w\") as f:\n            rowset.to_table().write(output=f, format=\"votable\")\n        \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "        \"\"\"\n        #!python3\n        import pyvo as vo\n\n        query = f\"SELECT c.id, c.ra_deg_cont, c.dec_deg_cont, c.flux_peak, c.flux_int, \" \\\n        f\"maj_axis_deconv, min_axis_deconv, pos_ang_deconv \" \\\n        f\"FROM emucat.components c, emucat.mosaics m, emucat.regions s \" \\\n        f\"WHERE c.mosaic_id=m.id AND m.ser_id=s.id AND s.name='${ser}' \" \\\n        f\"AND c.id NOT IN \" \\\n        f\"(SELECT co.id FROM emucat.components co, emucat.mosaics mo, emucat.regions se, \" \\\n        f\"emucat.sources_nearest_allwise n WHERE n.component_id=co.id AND co.mosaic_id=mo.id \" \\\n        f\"AND mo.ser_id=se.id AND se.name='${ser}')\"\n\n        service = vo.dal.TAPService('${params.emu_vo_url}')\n        rowset = service.run_async(query, maxrec=service.hardlimit)\n        with open(\"${params.OUTPUT_EXTENDED_DOUBLES}/${ser}_double_components.xml\", \"w\") as f:\n            rowset.to_table().write(output=f, format=\"votable\")\n        \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_extended_double_conf": {
+        "name_process": "generate_extended_double_conf",
+        "string_process": "\nprocess generate_extended_double_conf {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n\n    output:\n        path 'ed_config.conf', emit: ed_conf\n\n    script:\n        \"\"\"\n        #!python3\n\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n\n        output = Path('${params.OUTPUT_EXTENDED_DOUBLES}')\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('ed_config.j2').render(output=output)\n        with open('ed_config.conf', 'w') as f:\n            print(result, file=f)\n        \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "        \"\"\"\n        #!python3\n\n        from jinja2 import Environment, FileSystemLoader\n        from pathlib import Path\n\n        output = Path('${params.OUTPUT_EXTENDED_DOUBLES}')\n        j2_env = Environment(loader=FileSystemLoader('$baseDir/templates'), trim_blocks=True)\n        result = j2_env.get_template('ed_config.j2').render(output=output)\n        with open('ed_config.conf', 'w') as f:\n            print(result, file=f)\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "#!python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_extended_doubles": {
+        "name_process": "run_extended_doubles",
+        "string_process": "\nprocess run_extended_doubles {\n\n    container = \"aussrc/emucat_double_sources:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n        val ed_conf\n        val comp_cat\n\n    output:\n        val ser, emit: ser_output\n        val \"${params.OUTPUT_EXTENDED_DOUBLES}/${ser}_double_components_pairs.xml\", emit: source_cat\n\n    script:\n        \"\"\"\n        rm -f ${params.OUTPUT_EXTENDED_DOUBLES}/${ser}_double_components_pairs.xml && \\\n        python3 -u /scripts/emu_doubles.py --config ${ed_conf} ${comp_cat}\n        \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "        \"\"\"\n        rm -f ${params.OUTPUT_EXTENDED_DOUBLES}/${ser}_double_components_pairs.xml && \\\n        python3 -u /scripts/emu_doubles.py --config ${ed_conf} ${comp_cat}\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser",
+            "ed_conf",
+            "comp_cat"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_double_sources:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "insert_extended_doubles_into_emucat": {
+        "name_process": "insert_extended_doubles_into_emucat",
+        "string_process": "\nprocess insert_extended_doubles_into_emucat {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n        val source_cat\n\n    output:\n        val ser, emit: ser_output\n        \n    script:\n        \"\"\"\n        python3 -u /scripts/catalog.py import_extended_doubles -i ${source_cat} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "        \"\"\"\n        python3 -u /scripts/catalog.py import_extended_doubles -i ${source_cat} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser",
+            "source_cat"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "insert_properties_into_emucat": {
+        "name_process": "insert_properties_into_emucat",
+        "string_process": "\nprocess insert_properties_into_emucat {\n\n    container = \"aussrc/emucat_scripts:latest\"\n    containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\"\n\n    input:\n        val ser\n\n    output:\n        val ser, emit: ser_output\n\n    script:\n        \"\"\"\n        python3 -u /scripts/properties.py import_properties -s ${ser} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        python3 -u /scripts/properties.py import_properties -s ${ser} -c ${params.INPUT_CONF}/cred.ini\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ser"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ASKAP-EMUCat__emucat_workflows",
+        "directive": [
+            "container = \"aussrc/emucat_scripts:latest\"",
+            "containerOptions = \"--bind ${params.SCRATCH_ROOT}:${params.SCRATCH_ROOT}\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

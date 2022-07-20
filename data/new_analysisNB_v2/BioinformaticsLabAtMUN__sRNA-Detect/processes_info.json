@@ -1,0 +1,183 @@
+{
+    "sRNA_Detect": {
+        "name_process": "sRNA_Detect",
+        "string_process": "\nprocess sRNA_Detect {\n    publishDir \"${params.outputDir}/sRNADetected\"\n\n    input:\n    file alignmentFileList\n    file indexFileList\n    output:\n    file params.output into sRNADetected\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    import HTSeq\n    from multiprocessing import Pool\n\n    # some of the following code cite the reference: https://github.com/BioinformaticsLabAtMUN/sRNA-Detect/blob/master/sRNADetect.py\n    def detect_sRNA(cvg):\n        # Variables\n        start = 0\n        end = 0\n        meanHeight = 0\n        length = 0\n        strand = ''\n        inSegment = False\n        chrom = ''\n\n        # Keep list of sRNAs\n        sRNAs = []  # a list of lists, each internal list contains a GenomicInterval and a value\n        # Through all intervals in coverage array\n        # coverage array is continuos; that is cover the whole genome - an interval starts where the previous ends\n        for iv, value in cvg.steps():\n            # Changing chromosome or strand, if in a segment check to add it\n            if (chrom != iv.chrom or strand != iv.strand) and inSegment:\n                if meanHeight > value and ${params.minLength} < length < ${params.maxLength}:\n                    # add as a sRNA\n                    toAdd = HTSeq.GenomicInterval(chrom, start, end, strand)\n                    sRNAs.append([toAdd, meanHeight])\n                inSegment = False  # set flag\n            # keep chromosome\n            chrom = iv.chrom\n            if not inSegment:  # Not considering a segment to be a sRNA\n                if value < ${params.minHeight} or iv.length > ${params.maxLength}:\n                    # height below minimum or too long, skip to next genomicInterval\n                    continue\n                else:\n                    # right height and length, start a segment\n                    inSegment = True\n                    start = iv.start\n                    meanHeight = value\n                    end = iv.end\n                    length = iv.length\n                    strand = iv.strand\n            else:  # Considering a segment to be a sRNA\n                # check whether there is a change in number of reads above\n                newMeanHeight = meanHeight + (value - meanHeight) / float(length + iv.length)\n                pctgChange = (newMeanHeight - meanHeight) / float(meanHeight)\n                dropValue = (meanHeight - value) / float(meanHeight)\n                if pctgChange > ${params.maxPctgChangePos} or pctgChange < ${params.maxPctgChangeNeg} or dropValue > ${params.maxPctgDropValue}:\n                    # if drop in value, add to sRNAs if length within range\n                    if meanHeight > value and ${params.minLength} < length < ${params.maxLength}:\n                        # add as a sRNA\n                        toAdd = HTSeq.GenomicInterval(iv.chrom, start, end, strand)\n                        sRNAs.append([toAdd, meanHeight])\n                        inSegment = False\n                    elif meanHeight < value and iv.length < ${params.maxLength}:\n                        # if raise in value, restart if current length within allowed range\n                        start = iv.start\n                        meanHeight = value\n                        end = iv.end\n                        length = iv.length\n                        strand = iv.strand\n                    else:  # otherwise discard\n                        inSegment = False\n                elif iv.strand == strand:\n                    # between allowed change, minHeigth and same strand, extend\n                    # Update length, meanHeight and end\n                    end = iv.end\n                    length += iv.length\n                    meanHeight = newMeanHeight\n                else:  # different strand\n                    exit()\n\n        ## Where we in the middle of a segment when the coverage vector ended?\n        if inSegment and meanHeight > value and ${params.minLength} < length < ${params.maxLength}:\n            # add as a sRNA\n            toAdd = HTSeq.GenomicInterval(chrom, start, end, strand)\n            sRNAs.append([toAdd, meanHeight])\n            inSegment = False\n\n        # print all identified sRNAs in a gtf file\n\n        counter = 1\n        myfile = open(\"${params.output}\", \"w\")\n        for s in sRNAs:\n            fields = s[0].chrom + \"\\\\tsRNADetect\\\\tsRNA\\\\t\" + str(s[0].start + 1) + \"\\\\t\" + str(s[0].end + 1) +\\\\\n                     \"\\\\t\" + str(s[1]) + \"\\\\t\" + s[0].strand + \"\\\\t.\\\\t\" + \"gene_id \\\\\"\" + str(\n                counter) + \"\\\\\"; unique_id \\\\\"\" + \"${params.idPrefix}\" + '%05d' % counter + \"\\\\\"\\\\n\"\n            myfile.write(fields)\n            counter += 1\n        myfile.close()\n\n\n    def read_Alignment(filename):\n        alignment_file = HTSeq.BAM_Reader(filename)\n        ivList = []\n        for alngt in alignment_file:\n            if alngt.aligned:\n                ivList.append(alngt.iv)\n        return ivList\n\n\n    if __name__ == '__main__':\n        # create a coverage vector\n        cvg = HTSeq.GenomicArray('auto', stranded=True, typecode='i')\n        alignmentFiles = \"$alignmentFileList\".split()\n        with Pool(processes=len(alignmentFiles)) as pool:\n            multiple_results = [pool.apply_async(read_Alignment, (name,)) for name in alignmentFiles]\n            for res in multiple_results:\n                for iv in res.get():\n                    cvg[iv] += 1\n        detect_sRNA(cvg)\n    \"\"\"\n}",
+        "nb_lignes_process": 122,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    import HTSeq\n    from multiprocessing import Pool\n\n    # some of the following code cite the reference: https://github.com/BioinformaticsLabAtMUN/sRNA-Detect/blob/master/sRNADetect.py\n    def detect_sRNA(cvg):\n        # Variables\n        start = 0\n        end = 0\n        meanHeight = 0\n        length = 0\n        strand = ''\n        inSegment = False\n        chrom = ''\n\n        # Keep list of sRNAs\n        sRNAs = []  # a list of lists, each internal list contains a GenomicInterval and a value\n        # Through all intervals in coverage array\n        # coverage array is continuos; that is cover the whole genome - an interval starts where the previous ends\n        for iv, value in cvg.steps():\n            # Changing chromosome or strand, if in a segment check to add it\n            if (chrom != iv.chrom or strand != iv.strand) and inSegment:\n                if meanHeight > value and ${params.minLength} < length < ${params.maxLength}:\n                    # add as a sRNA\n                    toAdd = HTSeq.GenomicInterval(chrom, start, end, strand)\n                    sRNAs.append([toAdd, meanHeight])\n                inSegment = False  # set flag\n            # keep chromosome\n            chrom = iv.chrom\n            if not inSegment:  # Not considering a segment to be a sRNA\n                if value < ${params.minHeight} or iv.length > ${params.maxLength}:\n                    # height below minimum or too long, skip to next genomicInterval\n                    continue\n                else:\n                    # right height and length, start a segment\n                    inSegment = True\n                    start = iv.start\n                    meanHeight = value\n                    end = iv.end\n                    length = iv.length\n                    strand = iv.strand\n            else:  # Considering a segment to be a sRNA\n                # check whether there is a change in number of reads above\n                newMeanHeight = meanHeight + (value - meanHeight) / float(length + iv.length)\n                pctgChange = (newMeanHeight - meanHeight) / float(meanHeight)\n                dropValue = (meanHeight - value) / float(meanHeight)\n                if pctgChange > ${params.maxPctgChangePos} or pctgChange < ${params.maxPctgChangeNeg} or dropValue > ${params.maxPctgDropValue}:\n                    # if drop in value, add to sRNAs if length within range\n                    if meanHeight > value and ${params.minLength} < length < ${params.maxLength}:\n                        # add as a sRNA\n                        toAdd = HTSeq.GenomicInterval(iv.chrom, start, end, strand)\n                        sRNAs.append([toAdd, meanHeight])\n                        inSegment = False\n                    elif meanHeight < value and iv.length < ${params.maxLength}:\n                        # if raise in value, restart if current length within allowed range\n                        start = iv.start\n                        meanHeight = value\n                        end = iv.end\n                        length = iv.length\n                        strand = iv.strand\n                    else:  # otherwise discard\n                        inSegment = False\n                elif iv.strand == strand:\n                    # between allowed change, minHeigth and same strand, extend\n                    # Update length, meanHeight and end\n                    end = iv.end\n                    length += iv.length\n                    meanHeight = newMeanHeight\n                else:  # different strand\n                    exit()\n\n        ## Where we in the middle of a segment when the coverage vector ended?\n        if inSegment and meanHeight > value and ${params.minLength} < length < ${params.maxLength}:\n            # add as a sRNA\n            toAdd = HTSeq.GenomicInterval(chrom, start, end, strand)\n            sRNAs.append([toAdd, meanHeight])\n            inSegment = False\n\n        # print all identified sRNAs in a gtf file\n\n        counter = 1\n        myfile = open(\"${params.output}\", \"w\")\n        for s in sRNAs:\n            fields = s[0].chrom + \"\\\\tsRNADetect\\\\tsRNA\\\\t\" + str(s[0].start + 1) + \"\\\\t\" + str(s[0].end + 1) +\\\\\n                     \"\\\\t\" + str(s[1]) + \"\\\\t\" + s[0].strand + \"\\\\t.\\\\t\" + \"gene_id \\\\\"\" + str(\n                counter) + \"\\\\\"; unique_id \\\\\"\" + \"${params.idPrefix}\" + '%05d' % counter + \"\\\\\"\\\\n\"\n            myfile.write(fields)\n            counter += 1\n        myfile.close()\n\n\n    def read_Alignment(filename):\n        alignment_file = HTSeq.BAM_Reader(filename)\n        ivList = []\n        for alngt in alignment_file:\n            if alngt.aligned:\n                ivList.append(alngt.iv)\n        return ivList\n\n\n    if __name__ == '__main__':\n        # create a coverage vector\n        cvg = HTSeq.GenomicArray('auto', stranded=True, typecode='i')\n        alignmentFiles = \"$alignmentFileList\".split()\n        with Pool(processes=len(alignmentFiles)) as pool:\n            multiple_results = [pool.apply_async(read_Alignment, (name,)) for name in alignmentFiles]\n            for res in multiple_results:\n                for iv in res.get():\n                    cvg[iv] += 1\n        detect_sRNA(cvg)\n    \"\"\"",
+        "nb_lignes_script": 111,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignmentFileList",
+            "indexFileList"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sRNADetected"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BioinformaticsLabAtMUN__sRNA-Detect",
+        "directive": [
+            "publishDir \"${params.outputDir}/sRNADetected\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sort_sRNA": {
+        "name_process": "sort_sRNA",
+        "string_process": "\nprocess sort_sRNA {\n\n    input:\n    file \"sRNA.gtf\" from sRNADetected\n    file \"rawGenomeAnnotation.gff\" from rawGenomeAnnotation\n    output:\n    file \"sorted_sRNA.gtf\" into sort_sRNA\n    file \"annotatedTranscripts.gff\" into annotatedTranscript\n    script:\n    \"\"\"\n    bedtools sort -i sRNA.gtf > sorted_sRNA.gtf\n    bedtools sort -i rawGenomeAnnotation.gff | awk -F\"\\\\t\" '\\$3==\"gene\" {print}{next}' > annotatedTranscripts.gff\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    bedtools sort -i sRNA.gtf > sorted_sRNA.gtf\n    bedtools sort -i rawGenomeAnnotation.gff | awk -F\"\\\\t\" '\\$3==\"gene\" {print}{next}' > annotatedTranscripts.gff\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "BEDTools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bedtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BEDTools",
+                "uri": "https://bio.tools/bedtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BEDTools is an extensive suite of utilities for comparing genomic features in BED format.",
+                "homepage": "https://github.com/arq5x/bedtools2"
+            }
+        ],
+        "inputs": [
+            "sRNADetected",
+            "rawGenomeAnnotation"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sort_sRNA",
+            "annotatedTranscript"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "BioinformaticsLabAtMUN__sRNA-Detect",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "filter_sorted_sRNA": {
+        "name_process": "filter_sorted_sRNA",
+        "string_process": "\nprocess filter_sorted_sRNA {\n    publishDir \"${params.outputDir}/filtered_sRNA\"\n\n    input:\n    file \"sorted_sRNA.gtf\" from sort_sRNA\n    file \"annotatedTranscripts.gff\" from annotatedTranscript\n    output:\n    file \"overlap.gff\" into overlapped_sRNA\n    file \"non_overlap.gtf\"\n\n    script:\n    \"\"\"\n    bedtools intersect -wo -a sorted_sRNA.gtf -b annotatedTranscripts.gff -sorted -v -s -f 0.8 > non_overlap.gtf\n    bedtools intersect -wo -a sorted_sRNA.gtf -b annotatedTranscripts.gff -sorted -s -f 0.8 | awk '{\\$(NF+1) = \\$NF / ((\\$5 - \\$4) + 1)} 1' > overlap.gff\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    bedtools intersect -wo -a sorted_sRNA.gtf -b annotatedTranscripts.gff -sorted -v -s -f 0.8 > non_overlap.gtf\n    bedtools intersect -wo -a sorted_sRNA.gtf -b annotatedTranscripts.gff -sorted -s -f 0.8 | awk '{\\$(NF+1) = \\$NF / ((\\$5 - \\$4) + 1)} 1' > overlap.gff\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "BEDTools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bedtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BEDTools",
+                "uri": "https://bio.tools/bedtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BEDTools is an extensive suite of utilities for comparing genomic features in BED format.",
+                "homepage": "https://github.com/arq5x/bedtools2"
+            }
+        ],
+        "inputs": [
+            "sort_sRNA",
+            "annotatedTranscript"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "overlapped_sRNA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BioinformaticsLabAtMUN__sRNA-Detect",
+        "directive": [
+            "publishDir \"${params.outputDir}/filtered_sRNA\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "separate_overlapped_sRNA": {
+        "name_process": "separate_overlapped_sRNA",
+        "string_process": "\nprocess separate_overlapped_sRNA {\n    publishDir \"${params.outputDir}/separated_sRNA\"\n\n    input:\n    file \"overlap.gff\" from overlapped_sRNA\n    file \"annotatedTranscripts.gff\" from annotatedTranscript\n    output:\n    file \"*.gff\"\n    file \"annotatedTranscripts.gff\"\n\n    script:\n    \"\"\"\n    (cut -f9 annotatedTranscripts.gff | cut -d\";\" -f4 | grep biotype | sort -u) | while IFS=\"\" read -r line; do if grep -q \"\\$line\" overlap.gff; then grep \"\\$line\" overlap.gff > \"\\$line.gff\"; fi done\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    (cut -f9 annotatedTranscripts.gff | cut -d\";\" -f4 | grep biotype | sort -u) | while IFS=\"\" read -r line; do if grep -q \"\\$line\" overlap.gff; then grep \"\\$line\" overlap.gff > \"\\$line.gff\"; fi done\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "overlapped_sRNA",
+            "annotatedTranscript"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "BioinformaticsLabAtMUN__sRNA-Detect",
+        "directive": [
+            "publishDir \"${params.outputDir}/separated_sRNA\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

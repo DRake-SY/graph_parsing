@@ -1,0 +1,319 @@
+{
+    "get_test_data": {
+        "name_process": "get_test_data",
+        "string_process": " process get_test_data {\n      \n      publishDir path: \"${params.outdir}/testdata\", mode: 'copy'\n\n      output:\n      file \"test-datasets\" into ch_input_files\n\n      script:\n      \"\"\"\n      git clone https://github.com/ncct-mibi/test-datasets --branch nxf-ont\n      \"\"\"\n    }",
+        "nb_lignes_process": 10,
+        "string_script": "      \"\"\"\n      git clone https://github.com/ncct-mibi/test-datasets --branch nxf-ont\n      \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ch_input_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "angelovangel__nxf-ont",
+        "directive": [
+            "publishDir path: \"${params.outdir}/testdata\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "guppy_basecaller": {
+        "name_process": "guppy_basecaller",
+        "string_process": " process guppy_basecaller {\n    publishDir path: params.barcode_kits ? \"${params.outdir}/barcodes\" : \"${params.outdir}/basecalled\", mode:'copy',\n                        saveAs: { filename -> if (!filename.endsWith(\"v_guppy_basecaller.txt\")) filename }\n    publishDir path: \"${params.outdir}/pipeline_info\", mode:'copy', \n                        saveAs: { filename -> if (filename.endsWith(\"v_guppy_basecaller.txt\")) filename }\n\n    input:\n    file dir_fast5 from ch_input_files\n    file csv_file from ch_input_csv.ifEmpty([])\n\n    output:\n    file \"fastq/*.fastq.gz\" into ch_fastq, ch_for_seqkit\n    file \"guppy_basecaller.log\" into ch_log_guppy_basecaller\n    file \"rename.log\" optional true into ch_log_rename\n    file \"sequencing_summary*\" into ch_summary_guppy\n    file \"v_guppy_basecaller.txt\" into ch_version_guppy\n\n    script:\n    flowcell = params.flowcell ? \"--flowcell $params.flowcell\" : \"\"\n    kit = params.kit ? \"--kits $params.kit\" : \"\"\n    barcode_kits = params.barcode_kits ? \"--barcode_kits $params.barcode_kits\" : \"\"\n    config = params.config ? \"--config $params.config\" : \"\"\n    trim_barcodes = params.trim_barcodes ? \"--trim_barcodes\" : \"\"\n    cpu_threads_per_caller = params.cpu_threads_per_caller ?  \"--cpu_threads_per_caller $params.cpu_threads_per_caller\" : \"--cpu_threads_per_caller $params.cpus\"\n                                                       \n\n    \"\"\"\n    guppy_basecaller --version &> v_guppy_basecaller.txt\n\n    guppy_basecaller \\\\\n      --input_path $dir_fast5 \\\\\n      --save_path ./results-guppy-basecaller \\\\\n      --recursive \\\\\n      --records_per_fastq 0 \\\\\n      $flowcell \\\\\n      $kit \\\\\n      $barcode_kits \\\\\n      $trim_barcodes \\\\\n      $cpu_threads_per_caller \\\\\n      --num_callers $params.num_callers \\\\\n      --qscore_filtering \\\\\n      $config \\\\\n      --compress_fastq \\\\\n      &> guppy_basecaller.log\n    cp results-guppy-basecaller/sequencing_summary* .\n\n    mkdir fastq\n    cd results-guppy-basecaller/pass\n    if [ \"\\$(find . -type d -name \"barcode*\" )\" != \"\" ]\n    then\n      for dir in barcode*/\n      do\n        dir=\\${dir%*/}\n        cat \\$dir/*.fastq.gz > ../../fastq/\\$dir.fastq.gz\n      done\n    else\n      cat *.fastq.gz > ../../fastq/unclassified.fastq.gz\n    fi\n\n    if [ ! -z \"$params.csv\" ] && [ ! -z \"$barcode_kits\" ]\n    then\n      while IFS=, read -r ob nb\n      do\n        echo rename \\$ob.fastq.gz to \\$nb.fastq.gz &>> ../../rename.log\n        mv ../../fastq/\\$ob.fastq.gz ../../fastq/\\$nb.fastq.gz\n      done < ../../$csv_file\n    fi\n    \"\"\"\n  }",
+        "nb_lignes_process": 67,
+        "string_script": "    flowcell = params.flowcell ? \"--flowcell $params.flowcell\" : \"\"\n    kit = params.kit ? \"--kits $params.kit\" : \"\"\n    barcode_kits = params.barcode_kits ? \"--barcode_kits $params.barcode_kits\" : \"\"\n    config = params.config ? \"--config $params.config\" : \"\"\n    trim_barcodes = params.trim_barcodes ? \"--trim_barcodes\" : \"\"\n    cpu_threads_per_caller = params.cpu_threads_per_caller ?  \"--cpu_threads_per_caller $params.cpu_threads_per_caller\" : \"--cpu_threads_per_caller $params.cpus\"\n                                                       \n\n    \"\"\"\n    guppy_basecaller --version &> v_guppy_basecaller.txt\n\n    guppy_basecaller \\\\\n      --input_path $dir_fast5 \\\\\n      --save_path ./results-guppy-basecaller \\\\\n      --recursive \\\\\n      --records_per_fastq 0 \\\\\n      $flowcell \\\\\n      $kit \\\\\n      $barcode_kits \\\\\n      $trim_barcodes \\\\\n      $cpu_threads_per_caller \\\\\n      --num_callers $params.num_callers \\\\\n      --qscore_filtering \\\\\n      $config \\\\\n      --compress_fastq \\\\\n      &> guppy_basecaller.log\n    cp results-guppy-basecaller/sequencing_summary* .\n\n    mkdir fastq\n    cd results-guppy-basecaller/pass\n    if [ \"\\$(find . -type d -name \"barcode*\" )\" != \"\" ]\n    then\n      for dir in barcode*/\n      do\n        dir=\\${dir%*/}\n        cat \\$dir/*.fastq.gz > ../../fastq/\\$dir.fastq.gz\n      done\n    else\n      cat *.fastq.gz > ../../fastq/unclassified.fastq.gz\n    fi\n\n    if [ ! -z \"$params.csv\" ] && [ ! -z \"$barcode_kits\" ]\n    then\n      while IFS=, read -r ob nb\n      do\n        echo rename \\$ob.fastq.gz to \\$nb.fastq.gz &>> ../../rename.log\n        mv ../../fastq/\\$ob.fastq.gz ../../fastq/\\$nb.fastq.gz\n      done < ../../$csv_file\n    fi\n    \"\"\"",
+        "nb_lignes_script": 49,
+        "language_script": "bash",
+        "tools": [
+            "KiT",
+            "haploconfig"
+        ],
+        "tools_url": [
+            "https://bio.tools/kit",
+            "https://bio.tools/haploconfig"
+        ],
+        "tools_dico": [
+            {
+                "name": "KiT",
+                "uri": "https://bio.tools/kit",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3383",
+                            "term": "Bioimaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3383",
+                            "term": "Biological imaging"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3443",
+                                    "term": "Image analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Kinetochore Tracking (KiT) is an open-source software package for tracking kinetochores from live-cell fluorescent movies.",
+                "homepage": "https://bitbucket.org/jarmond/kit/overview"
+            },
+            {
+                "name": "haploconfig",
+                "uri": "https://bio.tools/haploconfig",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype reconstruction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype map generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype inference"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Program that can be used to implement tests of neutrality based on the frequency distribution of haplotypes in a sample of DNA sequences (the \u201chaplotype configuration\u201d) and the number of segregating sites. The neutrality tests can be performed conditional on the standard neutral coalescent model with or without recombination, exponential population growth, or island migration.",
+                "homepage": "http://www.stanford.edu/group/rosenberglab/haploconfig.html"
+            }
+        ],
+        "inputs": [
+            "ch_input_files",
+            "ch_input_csv"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_fastq",
+            "ch_for_seqkit",
+            "ch_log_guppy_basecaller",
+            "ch_log_rename",
+            "ch_summary_guppy",
+            "ch_version_guppy"
+        ],
+        "nb_outputs": 6,
+        "name_workflow": "angelovangel__nxf-ont",
+        "directive": [
+            "publishDir path: params.barcode_kits ? \"${params.outdir}/barcodes\" : \"${params.outdir}/basecalled\", mode:'copy' , saveAs: { filename -> if (!filename.endsWith(\"v_guppy_basecaller.txt\")) filename }",
+            "publishDir path: \"${params.outdir}/pipeline_info\", mode:'copy', saveAs: { filename -> if (filename.endsWith(\"v_guppy_basecaller.txt\")) filename }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "guppy_barcoder": {
+        "name_process": "guppy_barcoder",
+        "string_process": " process guppy_barcoder {\n    publishDir path: \"${params.outdir}/barcodes\", mode:'copy'\n\n    input:\n    file basecalled_files from ch_input_files\n    file csv_file from ch_input_csv.ifEmpty([])\n\n    output:\n    file \"fastq/*.fastq.gz\" into ch_fastq, ch_for_seqkit\n    file \"guppy_barcoder.log\" into ch_log_guppy_barcoder\n    file \"rename.log\" optional true into ch_log_rename\n    file \"sequencing_summary*\" into ch_summary_guppy\n    file \"v_guppy_barcoder.txt\" into ch_version_guppy\n\n    script:\n    trim_barcodes = params.trim_barcodes ? \"--trim_barcodes\" : \"\"\n                                                                                           \n\n    \"\"\"\n    guppy_barcoder \\\\\n      --input_path $basecalled_files \\\\\n      --save_path ./results-guppy-barcoder \\\\\n      --recursive \\\\\n      --records_per_fastq 0 \\\\\n      --compress_fastq \\\\\n      --barcode_kits $params.barcode_kits \\\\\n      $trim_barcodes \\\\\n      --worker_threads $params.cpus \\\\\n      &> guppy_barcoder.log\n    cp results-guppy-barcoder/sequencing_summary* .\n\n    mkdir fastq\n    cd results-guppy-barcoder\n    if [ \"\\$(find . -type d -name \"barcode*\" )\" != \"\" ]\n    then\n      for dir in barcode*/\n      do\n        dir=\\${dir%*/}\n        cat \\$dir/*.fastq.gz > ../fastq/\\$dir.fastq.gz\n      done\n    else\n      cat *.fastq.gz > ../fastq/unclassified.fastq.gz\n    fi\n\n    if [ ! -z \"$params.csv\" ]\n    then\n      while IFS=, read -r ob nb\n      do\n        echo rename \\$ob.fastq.gz to \\$nb.fastq.gz &>> ../../rename.log\n        mv ../fastq/\\$ob.fastq.gz ../fastq/\\$nb.fastq.gz\n      done < ../$csv_file\n    fi\n    \"\"\"\n  }",
+        "nb_lignes_process": 52,
+        "string_script": "    trim_barcodes = params.trim_barcodes ? \"--trim_barcodes\" : \"\"\n                                                                                           \n\n    \"\"\"\n    guppy_barcoder \\\\\n      --input_path $basecalled_files \\\\\n      --save_path ./results-guppy-barcoder \\\\\n      --recursive \\\\\n      --records_per_fastq 0 \\\\\n      --compress_fastq \\\\\n      --barcode_kits $params.barcode_kits \\\\\n      $trim_barcodes \\\\\n      --worker_threads $params.cpus \\\\\n      &> guppy_barcoder.log\n    cp results-guppy-barcoder/sequencing_summary* .\n\n    mkdir fastq\n    cd results-guppy-barcoder\n    if [ \"\\$(find . -type d -name \"barcode*\" )\" != \"\" ]\n    then\n      for dir in barcode*/\n      do\n        dir=\\${dir%*/}\n        cat \\$dir/*.fastq.gz > ../fastq/\\$dir.fastq.gz\n      done\n    else\n      cat *.fastq.gz > ../fastq/unclassified.fastq.gz\n    fi\n\n    if [ ! -z \"$params.csv\" ]\n    then\n      while IFS=, read -r ob nb\n      do\n        echo rename \\$ob.fastq.gz to \\$nb.fastq.gz &>> ../../rename.log\n        mv ../fastq/\\$ob.fastq.gz ../fastq/\\$nb.fastq.gz\n      done < ../$csv_file\n    fi\n    \"\"\"",
+        "nb_lignes_script": 37,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_input_files",
+            "ch_input_csv"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_fastq",
+            "ch_for_seqkit",
+            "ch_log_guppy_barcoder",
+            "ch_log_rename",
+            "ch_summary_guppy",
+            "ch_version_guppy"
+        ],
+        "nb_outputs": 6,
+        "name_workflow": "angelovangel__nxf-ont",
+        "directive": [
+            "publishDir path: \"${params.outdir}/barcodes\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rename_barcode": {
+        "name_process": "rename_barcode",
+        "string_process": " process rename_barcode {\n    publishDir path: \"${params.outdir}/renamed_barcodes\", mode:'copy'\n\n    input:\n    file fastq_files from ch_input_files\n    file csv_file from ch_input_csv.ifEmpty([])\n      \n    output:\n    file \"fastq/*.fastq.gz\" into ch_fastq, ch_for_seqkit\n    file \"rename.log\" into ch_log_rename\n\n    script:\n    \"\"\"\n    mkdir fastq\n    fastqdir=\\$PWD\n    cd $fastq_files\n    if [ \"\\$(find . -type d -name \"barcode*\" )\" != \"\" ]\n    then\n      for dir in barcode*/\n      do\n        dir=\\${dir%*/}\n        cat \\$dir/*.fastq.gz > \\$fastqdir/fastq/\\$dir.fastq.gz\n      done\n    else\n      cat *.fastq.gz > \\$fastqdir/fastq/unclassified.fastq.gz\n    fi\n\n    if [ ! -z \"$params.csv\" ] && [ ! -z \"$params.barcode_kits\" ]\n    then\n      while IFS=, read -r ob nb\n      do\n        echo rename \\$fastqdir/fastq/\\$ob.fastq.gz to \\$fastqdir/fastq/\\$nb.fastq.gz &>> \\$fastqdir/rename.log\n        mv \\$fastqdir/fastq/\\$ob.fastq.gz \\$fastqdir/fastq/\\$nb.fastq.gz\n      done < \\$fastqdir/$csv_file\n    fi\n    \"\"\"\n  }",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    mkdir fastq\n    fastqdir=\\$PWD\n    cd $fastq_files\n    if [ \"\\$(find . -type d -name \"barcode*\" )\" != \"\" ]\n    then\n      for dir in barcode*/\n      do\n        dir=\\${dir%*/}\n        cat \\$dir/*.fastq.gz > \\$fastqdir/fastq/\\$dir.fastq.gz\n      done\n    else\n      cat *.fastq.gz > \\$fastqdir/fastq/unclassified.fastq.gz\n    fi\n\n    if [ ! -z \"$params.csv\" ] && [ ! -z \"$params.barcode_kits\" ]\n    then\n      while IFS=, read -r ob nb\n      do\n        echo rename \\$fastqdir/fastq/\\$ob.fastq.gz to \\$fastqdir/fastq/\\$nb.fastq.gz &>> \\$fastqdir/rename.log\n        mv \\$fastqdir/fastq/\\$ob.fastq.gz \\$fastqdir/fastq/\\$nb.fastq.gz\n      done < \\$fastqdir/$csv_file\n    fi\n    \"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_input_files",
+            "ch_input_csv"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_fastq",
+            "ch_for_seqkit",
+            "ch_log_rename"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "angelovangel__nxf-ont",
+        "directive": [
+            "publishDir path: \"${params.outdir}/renamed_barcodes\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "porechop": {
+        "name_process": "porechop",
+        "string_process": "\nprocess porechop { \n  publishDir path: \"${params.outdir}/porechop\", mode:'copy'\n\n  input:\n  file fastq_file from ch_fastq.flatten()\n\n  output:\n  file \"trimmed*.fastq.gz\" into ch_porechop\n  file \"logs/trimmed*.log\" into ch_log_porechop\n\n  when:\n  !params.skip_porechop\n\n  script:\n                                                                    \n  \"\"\"\n  mkdir logs\n  porechop \\\\\n    --input $fastq_file \\\\\n    --output trimmed_$fastq_file \\\\\n    --threads $params.cpus \\\\\n    --no_split \\\\\n    &> logs/trimmed_\"${fastq_file.simpleName}\".log\n  \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "  \"\"\"\n  mkdir logs\n  porechop \\\\\n    --input $fastq_file \\\\\n    --output trimmed_$fastq_file \\\\\n    --threads $params.cpus \\\\\n    --no_split \\\\\n    &> logs/trimmed_\"${fastq_file.simpleName}\".log\n  \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_fastq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_porechop",
+            "ch_log_porechop"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "angelovangel__nxf-ont",
+        "directive": [
+            "publishDir path: \"${params.outdir}/porechop\", mode:'copy'"
+        ],
+        "when": "!params.skip_porechop",
+        "stub": ""
+    },
+    "pycoqc": {
+        "name_process": "pycoqc",
+        "string_process": "\nprocess pycoqc {\n\n  publishDir path: \"${params.outdir}/pycoqc\", mode:'copy'\n  \n  input:\n  file summary_file from params.skip_pycoqc ? Channel.empty(): ch_summary_guppy\n\n  output:\n  file \"pycoQC.html\"\n\n  when:\n  !params.skip_pycoqc\n\n  script:\n  \"\"\"\n  pycoQC --summary_file $summary_file --html_outfile pycoQC.html\n  \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  \"\"\"\n  pycoQC --summary_file $summary_file --html_outfile pycoQC.html\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "angelovangel__nxf-ont",
+        "directive": [
+            "publishDir path: \"${params.outdir}/pycoqc\", mode:'copy'"
+        ],
+        "when": "!params.skip_pycoqc",
+        "stub": ""
+    },
+    "seqtools": {
+        "name_process": "seqtools",
+        "string_process": "\nprocess seqtools {\n  publishDir path: \"${params.outdir}/fastq-stats\", mode:'copy'\n\n  input:\n  file fastq_file from !params.skip_porechop && !params.skip_demultiplexing ? ch_porechop.collect() : ch_for_seqkit.collect()\n  file 'fastq-stats-report.Rmd' from fastq_stats_report_ch\n\n  output:\n  file \"fastq-stats.csv\"\n  file \"fastq-stats.xlsx\"\n  file \"fastq-stats-report.html\"\n\n  script:\n  \"\"\"\n  seqtools.R $fastq_file\n  \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "  \"\"\"\n  seqtools.R $fastq_file\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "!params",
+            "fastq_stats_report_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "angelovangel__nxf-ont",
+        "directive": [
+            "publishDir path: \"${params.outdir}/fastq-stats\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

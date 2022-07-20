@@ -1,0 +1,227 @@
+{
+    "get_NCBI_taxonomy": {
+        "name_process": "get_NCBI_taxonomy",
+        "string_process": "\nprocess get_NCBI_taxonomy {\n    container \"${container__ubuntu}\"\n    label \"io_limited\"\n                            \n    \n    input:\n    file ncbi_taxdump\n\n    output:\n    file \"nodes.dmp\"\n\n\"\"\"#!/bin/bash\n\ntar xzvf ${ncbi_taxdump}\n\"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"#!/bin/bash\n\ntar xzvf ${ncbi_taxdump}\n\"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ncbi_taxdump"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__diamond-build-tax-db",
+        "directive": [
+            "container \"${container__ubuntu}\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prodigal": {
+        "name_process": "prodigal",
+        "string_process": "\nprocess prodigal {\n    container \"${container__prodigal}\"\n    label 'io_limited'\n                            \n \n    input:\n        tuple file(fasta), val(tax_id)\n    \n    output:\n        tuple file(\"OUTPUT.faa.gz\"), val(tax_id)\n    \n\"\"\"#!/bin/bash\n\nset -e\n\n# Decompress the genome, if it is in gzip format\n# If not, just rename it\ngunzip -c ${fasta} > INPUT.fasta || \\\ncat ${fasta} > INPUT.fasta\n\nprodigal \\\n    -a OUTPUT.faa \\\n    -i INPUT.fasta\n\ncat OUTPUT.faa | sed 's/ .*//' | gzip -c > OUTPUT.faa.gz\n\"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"#!/bin/bash\n\nset -e\n\n# Decompress the genome, if it is in gzip format\n# If not, just rename it\ngunzip -c ${fasta} > INPUT.fasta || \\\ncat ${fasta} > INPUT.fasta\n\nprodigal \\\n    -a OUTPUT.faa \\\n    -i INPUT.fasta\n\ncat OUTPUT.faa | sed 's/ .*//' | gzip -c > OUTPUT.faa.gz\n\"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tax_id",
+            "fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "tax_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__diamond-build-tax-db",
+        "directive": [
+            "container \"${container__prodigal}\"",
+            "label 'io_limited'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rename_genes": {
+        "name_process": "rename_genes",
+        "string_process": "\nprocess rename_genes {\n    container \"python:3\"\n    label \"io_limited\"\n                            \n    \n    input:\n    tuple file(faa_gz), val(tax_id)\n\n    output:\n    tuple file(\"${faa_gz}.renamed.faa.gz\"), val(tax_id)\n\n\"\"\"#!/usr/bin/env python3\n\nimport gzip\nimport random\nimport string\n\ndef get_random_string(letters, length):\n    return ''.join((random.choice(letters) for i in range(length)))\n\ndef random_gi(numbers = \"1234567890\"):\n    return \">{}_{}{}.1\\\\n\".format(\n        get_random_string(string.ascii_uppercase, 2),\n        get_random_string(string.ascii_uppercase, 4),\n        get_random_string(numbers, 4),\n    )\n\n\nwith gzip.open(\"${faa_gz}\", \"rt\") as handle_in:\n    with gzip.open(\"${faa_gz}.renamed.faa.gz\", \"wt\") as handle_out:\n        for line in handle_in:\n            if line[0] == \">\":\n                handle_out.write(random_gi())\n            else:\n                handle_out.write(line)\n\"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "\"\"\"#!/usr/bin/env python3\n\nimport gzip\nimport random\nimport string\n\ndef get_random_string(letters, length):\n    return ''.join((random.choice(letters) for i in range(length)))\n\ndef random_gi(numbers = \"1234567890\"):\n    return \">{}_{}{}.1\\\\n\".format(\n        get_random_string(string.ascii_uppercase, 2),\n        get_random_string(string.ascii_uppercase, 4),\n        get_random_string(numbers, 4),\n    )\n\n\nwith gzip.open(\"${faa_gz}\", \"rt\") as handle_in:\n    with gzip.open(\"${faa_gz}.renamed.faa.gz\", \"wt\") as handle_out:\n        for line in handle_in:\n            if line[0] == \">\":\n                handle_out.write(random_gi())\n            else:\n                handle_out.write(line)\n\"\"\"",
+        "nb_lignes_script": 24,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tax_id",
+            "faa_gz"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "tax_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__diamond-build-tax-db",
+        "directive": [
+            "container \"python:3\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "format_gene_taxid_table": {
+        "name_process": "format_gene_taxid_table",
+        "string_process": "\nprocess format_gene_taxid_table {\n    container \"${container__ubuntu}\"\n    label \"io_limited\"\n                            \n    \n    input:\n    tuple file(faa_gz), val(tax_id)\n\n    output:\n    file \"genome_prot2taxid.tsv.gz\"\n\n\"\"\"#!/bin/bash\n\ngunzip -c \"${faa_gz}\" | \\\n    grep '>' | \\\n    tr -d '>' | \\\n    while read gene_id; do\n        gi=\\${RANDOM}\\${RANDOM}\\${RANDOM}\\${RANDOM}\n        gi=\\${gi:0:9}        \n        echo \\$(echo \\$gene_id | sed 's/.1\\$//') \\$gene_id ${tax_id} \\$gi\n    done | tr ' ' '\\\\t' | gzip -c > genome_prot2taxid.tsv.gz\n\"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"#!/bin/bash\n\ngunzip -c \"${faa_gz}\" | \\\n    grep '>' | \\\n    tr -d '>' | \\\n    while read gene_id; do\n        gi=\\${RANDOM}\\${RANDOM}\\${RANDOM}\\${RANDOM}\n        gi=\\${gi:0:9}        \n        echo \\$(echo \\$gene_id | sed 's/.1\\$//') \\$gene_id ${tax_id} \\$gi\n    done | tr ' ' '\\\\t' | gzip -c > genome_prot2taxid.tsv.gz\n\"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tax_id",
+            "faa_gz"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__diamond-build-tax-db",
+        "directive": [
+            "container \"${container__ubuntu}\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "join_gene_taxid_tables": {
+        "name_process": "join_gene_taxid_tables",
+        "string_process": "\nprocess join_gene_taxid_tables {\n    container \"${container__ubuntu}\"\n    label \"io_limited\"\n                            \n    \n    input:\n    file \"genome_prot2taxid.*.tsv.gz\"\n\n    output:\n    file \"genome_prot2taxid.tsv.gz\"\n\n\"\"\"#!/bin/bash\n\n# Write the header\necho \"accession\taccession.version\ttaxid\tgi\" > genome_prot2taxid.tsv\n\n# Add the rows for each genome\nfor fp in genome_prot2taxid.*.tsv.gz; do\n    gunzip -c \\$fp >> genome_prot2taxid.tsv\ndone\n\ngzip genome_prot2taxid.tsv\n\"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"#!/bin/bash\n\n# Write the header\necho \"accession\taccession.version\ttaxid\tgi\" > genome_prot2taxid.tsv\n\n# Add the rows for each genome\nfor fp in genome_prot2taxid.*.tsv.gz; do\n    gunzip -c \\$fp >> genome_prot2taxid.tsv\ndone\n\ngzip genome_prot2taxid.tsv\n\"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__diamond-build-tax-db",
+        "directive": [
+            "container \"${container__ubuntu}\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "join_genes": {
+        "name_process": "join_genes",
+        "string_process": "\nprocess join_genes {\n    container \"${container__ubuntu}\"\n    label \"io_limited\"\n                            \n    \n    input:\n    file \"genome.*.faa.gz\"\n\n    output:\n    file \"database.faa.gz\"\n\n\"\"\"#!/bin/bash\n\nfor f in genome.*.faa.gz; do\n    gunzip -c \\$f >> database.faa\ndone\n\ngzip database.faa\n\n\"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"#!/bin/bash\n\nfor f in genome.*.faa.gz; do\n    gunzip -c \\$f >> database.faa\ndone\n\ngzip database.faa\n\n\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__diamond-build-tax-db",
+        "directive": [
+            "container \"${container__ubuntu}\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "diamondDB": {
+        "name_process": "diamondDB",
+        "string_process": "\nprocess diamondDB {\n    \n    container \"${container__diamond}\"\n    label 'mem_medium'\n                            \n    publishDir \"${params.output_folder}\", mode: \"copy\"\n    \n    input:\n    tuple file(\"database.faa.gz\"), file(taxonmap), file(taxonnodes)\n\n    output:\n    file \"${params.output_prefix}.dmnd\"\n\n    \"\"\"#!/bin/bash\n\nset -e\n\n# Decompress the FASTA\ngunzip database.faa.gz\n\ndiamond \\\n    makedb \\\n    --in database.faa \\\n    --db ${params.output_prefix}.dmnd \\\n    --threads ${task.cpus} \\\n    --taxonmap ${taxonmap} \\\n    --taxonnodes ${taxonnodes}\n    \"\"\"\n\n}",
+        "nb_lignes_process": 29,
+        "string_script": "\"\"\"#!/bin/bash\n\nset -e\n\n# Decompress the FASTA\ngunzip database.faa.gz\n\ndiamond \\\n    makedb \\\n    --in database.faa \\\n    --db ${params.output_prefix}.dmnd \\\n    --threads ${task.cpus} \\\n    --taxonmap ${taxonmap} \\\n    --taxonnodes ${taxonnodes}\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "Diamond"
+        ],
+        "tools_url": [
+            "https://bio.tools/diamond"
+        ],
+        "tools_dico": [
+            {
+                "name": "Diamond",
+                "uri": "https://bio.tools/diamond",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0258",
+                                    "term": "Sequence alignment analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Sequence aligner for protein and translated DNA searches and functions as a drop-in replacement for the NCBI BLAST software tools. It is suitable for protein-protein search as well as DNA-protein search on short reads and longer sequences including contigs and assemblies, providing a speedup of BLAST ranging up to x20,000.",
+                "homepage": "https://github.com/bbuchfink/diamond"
+            }
+        ],
+        "inputs": [
+            "taxonmap",
+            "taxonnodes"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__diamond-build-tax-db",
+        "directive": [
+            "container \"${container__diamond}\"",
+            "label 'mem_medium'",
+            "publishDir \"${params.output_folder}\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

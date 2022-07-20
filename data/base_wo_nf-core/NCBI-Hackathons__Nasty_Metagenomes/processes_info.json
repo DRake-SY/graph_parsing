@@ -1,0 +1,960 @@
+{
+    "fasterqDump": {
+        "name_process": "fasterqDump",
+        "string_process": " process fasterqDump {\n\n    tag { accession_id }\n    publishDir \"reads\", pattern: \"${accession_id}/*fq.gz\"           \n    maxRetries 1           \n\n    input:\n    val accession_id from IN_accessions_raw.splitText(){ it.trim() }.filter{ it.trim() != \"\" }\n\n    output:\n    set val({ \"$name\" != \"null\" ? \"$name\" : \"$accession_id\" }), file(\"${accession_id}/*fq\") optional true into IN_fastq_raw\n\n    script:\n    \"\"\"\n    {\n        echo \"Downloading the following accession: ${accession_id}\"\n        fasterq-dump ${accession_id} -e ${task.cpus} -p\n        if [ ${params.compress_fastq} = true ]\n        then\n            echo \"Compressing FastQ files...\"\n            if [ -f ${accession_id}_1.fastq ]\n            then\n                pigz -p ${task.cpus} ${accession_id}_1.fastq ${accession_id}_2.fastq\n            elif [ -f ${accession_id}_3.fastq ]\n            then\n                echo \"No paired end reads were found to compress.\"\n                pigz -p ${task.cpus} ${accession_id}_3.fastq\n            else\n                echo \"FastQ files weren't compressed. Check if FastQ files were downloaded.\"\n            fi\n        elsenex\n            echo \"FastQ files won't be compressed because compress_fastq options was set to: '${params.compress_fastq}.'\"\n        fi\n\n    } || {\n        # If exit code other than 0\n        if [ \\$? -eq 0 ]\n        then\n            echo \"pass\" > .status\n        else\n            echo \"fail\" > .status\n            echo \"Could not download accession $accession_id\" > .fail\n        fi\n    }\n    \"\"\"\n\n    }",
+        "nb_lignes_process": 45,
+        "string_script": "    \"\"\"\n    {\n        echo \"Downloading the following accession: ${accession_id}\"\n        fasterq-dump ${accession_id} -e ${task.cpus} -p\n        if [ ${params.compress_fastq} = true ]\n        then\n            echo \"Compressing FastQ files...\"\n            if [ -f ${accession_id}_1.fastq ]\n            then\n                pigz -p ${task.cpus} ${accession_id}_1.fastq ${accession_id}_2.fastq\n            elif [ -f ${accession_id}_3.fastq ]\n            then\n                echo \"No paired end reads were found to compress.\"\n                pigz -p ${task.cpus} ${accession_id}_3.fastq\n            else\n                echo \"FastQ files weren't compressed. Check if FastQ files were downloaded.\"\n            fi\n        elsenex\n            echo \"FastQ files won't be compressed because compress_fastq options was set to: '${params.compress_fastq}.'\"\n        fi\n\n    } || {\n        # If exit code other than 0\n        if [ \\$? -eq 0 ]\n        then\n            echo \"pass\" > .status\n        else\n            echo \"fail\" > .status\n            echo \"Could not download accession $accession_id\" > .fail\n        fi\n    }\n    \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "IN_accessions_raw"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "IN_fastq_raw"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag { accession_id }",
+            "publishDir \"reads\", pattern: \"${accession_id}/*fq.gz\"",
+            "maxRetries 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastp": {
+        "name_process": "fastp",
+        "string_process": "\nprocess fastp {\n\n    tag {sample_id}\n    publishDir \"results/fastp/\", pattern: \"*.html\"\n\n    input:\n    set sample_id, file(fastq_pair) from IN_fastq_raw\n\n    output:\n    set sample_id, file('*_QC*')  into OUT_fastq_QC\n\n    script:\n    \"\"\"\n\n    fastp -i ${fastq_pair[0]} -I ${fastq_pair[1]} -o ${sample_id}_QC_1.fq.gz -O ${sample_id}_QC_2.fq.gz -h ${sample_id}.html\n    \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n\n    fastp -i ${fastq_pair[0]} -I ${fastq_pair[1]} -o ${sample_id}_QC_1.fq.gz -O ${sample_id}_QC_2.fq.gz -h ${sample_id}.html\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "fastPHASE"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastphase"
+        ],
+        "tools_dico": [
+            {
+                "name": "fastPHASE",
+                "uri": "https://bio.tools/fastphase",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3454",
+                                    "term": "Phasing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Imputation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Data imputation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "fastPHASE is a program to estimate missing genotypes and unobserved haplotypes. It is an implementation of the model described in Scheet & Stephens (2006). This is a cluster-based model for haplotype variation, and gains its utility from implicitly modeling the genealogy of chromosomes in a random sample from a population as a tree but summarizing all haplotype variation in the \"tips\" of the trees.",
+                "homepage": "http://scheet.org/software.html"
+            }
+        ],
+        "inputs": [
+            "IN_fastq_raw"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "OUT_fastq_QC"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}",
+            "publishDir \"results/fastp/\", pattern: \"*.html\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "magicBLAST": {
+        "name_process": "magicBLAST",
+        "string_process": " process magicBLAST {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(fastq_pair) from OUT_fastq_QC_1\n    file blastdb from IN_blastDB.collect()\n\n    output:\n    set sample_id, file('*_out.sam') into OUT_magicblast\n\n    script:\n    \"\"\"\n    echo \\$(echo ${blastdb[0]} | sed -r 's/^(.*)\\\\.[a-z]+\\$/\\\\1/') > blastdb_name.txt\n    magicblast -query ${fastq_pair[0]} -query_mate ${fastq_pair[1]} -infmt fastq -db \\$(cat blastdb_name.txt) -outfmt sam -out ${sample_id}_out.sam -num_threads ${task.cpus} -paired -no_unaligned\n    \"\"\"\n    }",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    echo \\$(echo ${blastdb[0]} | sed -r 's/^(.*)\\\\.[a-z]+\\$/\\\\1/') > blastdb_name.txt\n    magicblast -query ${fastq_pair[0]} -query_mate ${fastq_pair[1]} -infmt fastq -db \\$(cat blastdb_name.txt) -outfmt sam -out ${sample_id}_out.sam -num_threads ${task.cpus} -paired -no_unaligned\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "OUT_fastq_QC_1",
+            "IN_blastDB"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "OUT_magicblast"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "samtools": {
+        "name_process": "samtools",
+        "string_process": " process samtools {\n\n    tag {sample_id}\n\n\n    input:\n    set sample_id, file(samfile) from OUT_magicblast\n\n    output:\n    set sample_id, file('*.depth') into OUT_samtools\n\n    script:\n    \"\"\"\n    samtools sort -o sorted.bam -O bam -@ ${task.cpus} ${samfile} && rm *.sam  >> .command.log 2>&1\n    samtools depth sorted.bam > ${sample_id}.depth\n    \"\"\"\n\n    }",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    samtools sort -o sorted.bam -O bam -@ ${task.cpus} ${samfile} && rm *.sam  >> .command.log 2>&1\n    samtools depth sorted.bam > ${sample_id}.depth\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "OUT_magicblast"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "OUT_samtools"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "check_coverage": {
+        "name_process": "check_coverage",
+        "string_process": " process check_coverage {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(depth_file) from OUT_samtools\n    each file(amr_reference) from IN_reference\n\n    output:\n    set sample_id, file(\"*.fasta\") into OUT_baits\n\n    script:\n    template \"magicBlast_depth_parser.pl\"\n    }",
+        "nb_lignes_process": 12,
+        "string_script": "    template \"magicBlast_depth_parser.pl\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "OUT_samtools",
+            "IN_reference"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "OUT_baits"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mash_sketch": {
+        "name_process": "mash_sketch",
+        "string_process": " process mash_sketch {\n\n    tag {amr_reference}\n    storeDir 'mash_sketch/'\n\n    input:\n    file(amr_reference) from IN_reference_1\n\n    output:\n    file(\"*.msh\") into OUT_mash_sketch\n\n    script:\n    \"\"\"\n    mash sketch -i ${amr_reference}\n    \"\"\"\n\n    }",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    mash sketch -i ${amr_reference}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "Mash"
+        ],
+        "tools_url": [
+            "https://bio.tools/mash"
+        ],
+        "tools_dico": [
+            {
+                "name": "Mash",
+                "uri": "https://bio.tools/mash",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2533",
+                            "term": "DNA mutation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Sequence distance matrix generation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Sequence distance calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Phylogenetic distance matrix generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Sequence distance matrix construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast genome and metagenome distance estimation using MinHash.",
+                "homepage": "https://github.com/marbl/mash"
+            }
+        ],
+        "inputs": [
+            "IN_reference_1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "OUT_mash_sketch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {amr_reference}",
+            "storeDir 'mash_sketch/'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mash_screen": {
+        "name_process": "mash_screen",
+        "string_process": " process mash_screen {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(fastq_pair) from OUT_fastq_QC_1\n    file(mash_sketch) from OUT_mash_sketch\n\n    output:\n    set sample_id, file(\"*.screen\") into OUT_mash_screen\n\n    script:\n    \"\"\"\n    mash screen -p ${task.cpus} -w ${mash_sketch} ${fastq_pair} | awk '\\$1>${params.mash_treshold}' > ${sample_id}.amr.screen\n    cut -f 5 ${sample_id}.amr.screen\n    \"\"\"\n    }",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    mash screen -p ${task.cpus} -w ${mash_sketch} ${fastq_pair} | awk '\\$1>${params.mash_treshold}' > ${sample_id}.amr.screen\n    cut -f 5 ${sample_id}.amr.screen\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Mash"
+        ],
+        "tools_url": [
+            "https://bio.tools/mash"
+        ],
+        "tools_dico": [
+            {
+                "name": "Mash",
+                "uri": "https://bio.tools/mash",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2533",
+                            "term": "DNA mutation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Sequence distance matrix generation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Sequence distance calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Phylogenetic distance matrix generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0289",
+                                    "term": "Sequence distance matrix construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast genome and metagenome distance estimation using MinHash.",
+                "homepage": "https://github.com/marbl/mash"
+            }
+        ],
+        "inputs": [
+            "OUT_fastq_QC_1",
+            "OUT_mash_sketch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "OUT_mash_screen"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mash_hits_compiler": {
+        "name_process": "mash_hits_compiler",
+        "string_process": " process mash_hits_compiler {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(mash_results) from OUT_mash_screen\n    file(amr_reference) from IN_reference_2\n\n    output:\n    set sample_id, file(\"*.fasta\") into OUT_baits\n\n    script:\n    template \"mash_hits_compiler.py\"\n    }",
+        "nb_lignes_process": 12,
+        "string_script": "    template \"mash_hits_compiler.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "OUT_mash_screen",
+            "IN_reference_2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "OUT_baits"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_fastq": {
+        "name_process": "prepare_fastq",
+        "string_process": " process prepare_fastq {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(fastq_pair) from OUT_fastq_QC_1\n\n    output:\n    set sample_id, file(\"*.fq\") into OUT_preprare_fastq\n\n    script:\n    \"\"\"\n    pigz -dc ${fastq_pair} > ${sample_id}.fq\n    \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    pigz -dc ${fastq_pair} > ${sample_id}.fq\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "OUT_fastq_QC_1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "OUT_preprare_fastq"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "read_translator": {
+        "name_process": "read_translator",
+        "string_process": " process read_translator {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(fastq) from OUT_preprare_fastq\n\n    output:\n    set sample_id, file(\"translated_reads.fa\") into OUT_translator\n\n    script:\n    template \"read_translator.py\"\n    }",
+        "nb_lignes_process": 11,
+        "string_script": "    template \"read_translator.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "OUT_preprare_fastq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "OUT_translator"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hmmer": {
+        "name_process": "hmmer",
+        "string_process": " process hmmer {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(translated_reads) from OUT_translator\n    file hmmerdb from IN_hmmerDB.collect()\n    val hmmr_threshold from IN_threshold\n\n    output:\n    set sample_id, file(\"hmmresult*\") into OUT_hmmer\n\n    script:\n    \"\"\"\n    count=0\n\n    #echo ${hmmerdb}\n\n    for hmmfile in ${hmmerdb};\n    do\n\t    hmmsearch --cpu ${task.cpus} --noali -T ${hmmr_threshold} --acc --incT ${hmmr_threshold} -o \"hmmresult_\\$count\" \\$hmmfile ${translated_reads}\n\t    count=`expr \\$count + 1`\n    done\n    \"\"\"\n    }",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    count=0\n\n    #echo ${hmmerdb}\n\n    for hmmfile in ${hmmerdb};\n    do\n\t    hmmsearch --cpu ${task.cpus} --noali -T ${hmmr_threshold} --acc --incT ${hmmr_threshold} -o \"hmmresult_\\$count\" \\$hmmfile ${translated_reads}\n\t    count=`expr \\$count + 1`\n    done\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "OUT_translator",
+            "IN_hmmerDB",
+            "IN_threshold"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "OUT_hmmer"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hits_compiler": {
+        "name_process": "hits_compiler",
+        "string_process": " process hits_compiler{\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(hmmresult) from OUT_hmmer\n    file nf_to_seq from IN_nf_to_seq\n\n    output:\n    set sample_id, file(\"hit_nucleotide_seqs.fa\") into OUT_baits\n\n    script:\n    template \"hits_compiler.py\"\n    }",
+        "nb_lignes_process": 12,
+        "string_script": "    template \"hits_compiler.py\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "OUT_hmmer",
+            "IN_nf_to_seq"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "OUT_baits"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "guided_assembly": {
+        "name_process": "guided_assembly",
+        "string_process": "\nprocess guided_assembly {\n\n    tag {sample_id}\n\n    input:\n    set sample_id, file(baits), file(fastq_pairs) from OUT_baits.join(OUT_fastq_QC_2)\n\n    output:\n    set sample_id, file(\"*.ga.fa\") into OUT_guided_assembly\n\n    script:\n    \"\"\"\n    mkdir temp\n    cp -L ${fastq_pairs} temp/\n    rm ${fastq_pairs} && mv temp/* . && rm -r temp\n    gunzip *.gz\n\n    guidedassembler --cores ${task.cpus} --fastq *_1.* --fastq *_2.*  --targets ${baits} --contigs_out ${sample_id}.ga.fa\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    mkdir temp\n    cp -L ${fastq_pairs} temp/\n    rm ${fastq_pairs} && mv temp/* . && rm -r temp\n    gunzip *.gz\n\n    guidedassembler --cores ${task.cpus} --fastq *_1.* --fastq *_2.*  --targets ${baits} --contigs_out ${sample_id}.ga.fa\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "OUT_baits",
+            "OUT_fastq_QC_2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "OUT_guided_assembly"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NCBI-Hackathons__Nasty_Metagenomes",
+        "directive": [
+            "tag {sample_id}"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

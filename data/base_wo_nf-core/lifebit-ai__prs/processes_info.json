@@ -1,0 +1,460 @@
+{
+    "transform_target_pheno": {
+        "name_process": "transform_target_pheno",
+        "string_process": "\nprocess transform_target_pheno {\n    publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\"\n\n    input:\n    file pheno from target_pheno_ch\n\n    output:\n    tuple file(\"target.pheno\"), file(\"target.cov\") into (transformed_target_pheno_ch, transformed_target_pheno_for_plots_ch, transformed_target_pheno_for_ldpred_ch)\n\n    script:\n    \"\"\"\n    transform_target_pheno.R --input_pheno ${pheno}\n    \"\"\"\n\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    transform_target_pheno.R --input_pheno ${pheno}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "target_pheno_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "transform_saige_base": {
+        "name_process": "transform_saige_base",
+        "string_process": " process transform_saige_base {\n    publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\"\n\n    input:\n    file saige_base from saige_base_ch\n\n    output:\n    file(\"base.data\") into (transformed_base_ch, transformed_base_ldpred_ch)\n    \n    script:\n    \"\"\"\n    transform_base_saige.R --input_saige ${saige_base}\n    \"\"\"\n    }",
+        "nb_lignes_process": 12,
+        "string_script": "    \"\"\"\n    transform_base_saige.R --input_saige ${saige_base}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "saige_base_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "download_gwas_catalogue": {
+        "name_process": "download_gwas_catalogue",
+        "string_process": " process download_gwas_catalogue {\n    label \"high_memory\"\n    publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\"\n    \n    input:\n    val(ftp_link) from gwas_catalogue_ftp_ch\n    \n    output:\n    file(\"*\") into downloaded_gwas_catalogue_ch\n    \n    script:\n    \"\"\"\n    wget ${ftp_link}\n    \"\"\"\n  }",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    wget ${ftp_link}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gwas_catalogue_ftp_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "downloaded_gwas_catalogue_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "label \"high_memory\"",
+            "publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "transform_gwas_catalogue_base": {
+        "name_process": "transform_gwas_catalogue_base",
+        "string_process": " process transform_gwas_catalogue_base {\n    label \"high_memory\"\n    publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\"\n    \n    input:\n    file gwas_catalogue_base from downloaded_gwas_catalogue_ch\n    \n    output:\n    file(\"base.data\") into transformed_base_ch\n    \n    script:\n    \"\"\"\n    transform_base_gwas_catalogue.R --input_gwas_cat ${gwas_catalogue_base}\n    \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    transform_base_gwas_catalogue.R --input_gwas_cat ${gwas_catalogue_base}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "downloaded_gwas_catalogue_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformed_base_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "label \"high_memory\"",
+            "publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "polygen_risk_calcs": {
+        "name_process": "polygen_risk_calcs",
+        "string_process": "\nprocess polygen_risk_calcs {\n  publishDir \"${params.outdir}\", mode: \"copy\"\n\n  input:\n  file base from transformed_base_ch\n  tuple val(name), file(\"*\") from target_plink_dir_ch\n  tuple file(pheno), file(cov) from transformed_target_pheno_ch\n\n  output:\n  file(\"*\") into all_results_ch\n  file(\"PRSice.best\") into best_PRS_ch\n  file(\"PRSice*\") into results_for_report_ch\n\n  shell:\n  quantile_flag = params.quantile =~ false ? '' : \"--quantile ${params.quantile}\"\n  quant_break_flag = params.quant_break =~ false ? '' : \"--quant-break ${params.quant_break}\"\n  quant_ref_flag = params.quant_ref =~ false ? '' : \"--quant-ref ${params.quant_ref}\"\n  quant_extract_flag = params.quant_extract =~ false ? '' : \"--quant-extract ${params.quant_extract}\"\n  '''\n  PRSice.R \\\\\n    --prsice /usr/local/bin/PRSice_linux \\\\\n    --base !{base} \\\\\n    --snp SNPID \\\\\n    --chr CHR \\\\\n    --bp POS \\\\\n    --A1 Allele1 \\\\\n    --A2 Allele2 \\\\\n    --pvalue p.value \\\\\n    --stat BETA \\\\\n    --beta \\\\\n    --target !{name}_chr#_filtered \\\\\n    --binary-target !{params.binary_trait} \\\\\n    --pheno !{pheno} \\\\\n    --cov !{cov} !{extra_flags} !{quantile_flag} !{quant_break_flag} !{quant_ref_flag} !{quant_extract_flag} \\\\\n\n  # Remove date from image names (only for images produced by PRSice)\n  images=$(ls *.png)\n  for image in $images; do\n    date=$(echo $image | grep -Eo '_[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}')\n    if ! [[ -z \"${date// }\" ]]; then\n      mv \"${image}\" \"${image/${date}/}\"\n    fi\n  done\n\n  # Remove date for quantile table (if quantile plot was produced)\n  if ls PRSice_QUANTILES*.txt 1> /dev/null 2>&1; then\n    table=$(ls PRSice_QUANTILES*.txt)\n    date=$(echo $table | grep -Eo '_[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}')\n    if ! [[ -z \"${date// }\" ]]; then\n      mv \"${table}\" \"${table/${date}/}\"\n    fi\n  fi\n  '''\n}",
+        "nb_lignes_process": 53,
+        "string_script": "  quantile_flag = params.quantile =~ false ? '' : \"--quantile ${params.quantile}\"\n  quant_break_flag = params.quant_break =~ false ? '' : \"--quant-break ${params.quant_break}\"\n  quant_ref_flag = params.quant_ref =~ false ? '' : \"--quant-ref ${params.quant_ref}\"\n  quant_extract_flag = params.quant_extract =~ false ? '' : \"--quant-extract ${params.quant_extract}\"\n  '''\n  PRSice.R \\\\\n    --prsice /usr/local/bin/PRSice_linux \\\\\n    --base !{base} \\\\\n    --snp SNPID \\\\\n    --chr CHR \\\\\n    --bp POS \\\\\n    --A1 Allele1 \\\\\n    --A2 Allele2 \\\\\n    --pvalue p.value \\\\\n    --stat BETA \\\\\n    --beta \\\\\n    --target !{name}_chr#_filtered \\\\\n    --binary-target !{params.binary_trait} \\\\\n    --pheno !{pheno} \\\\\n    --cov !{cov} !{extra_flags} !{quantile_flag} !{quant_break_flag} !{quant_ref_flag} !{quant_extract_flag} \\\\\n\n  # Remove date from image names (only for images produced by PRSice)\n  images=$(ls *.png)\n  for image in $images; do\n    date=$(echo $image | grep -Eo '_[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}')\n    if ! [[ -z \"${date// }\" ]]; then\n      mv \"${image}\" \"${image/${date}/}\"\n    fi\n  done\n\n  # Remove date for quantile table (if quantile plot was produced)\n  if ls PRSice_QUANTILES*.txt 1> /dev/null 2>&1; then\n    table=$(ls PRSice_QUANTILES*.txt)\n    date=$(echo $table | grep -Eo '_[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}')\n    if ! [[ -z \"${date// }\" ]]; then\n      mv \"${table}\" \"${table/${date}/}\"\n    fi\n  fi\n  '''",
+        "nb_lignes_script": 38,
+        "language_script": "bash",
+        "tools": [
+            "NullSeq"
+        ],
+        "tools_url": [
+            "https://bio.tools/nullseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "NullSeq",
+                "uri": "https://bio.tools/nullseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0364",
+                                    "term": "Random sequence generation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Creates Random Coding Sequences with specified GC content and Amino Acid usage.",
+                "homepage": "https://github.com/amarallab/NullSeq"
+            }
+        ],
+        "inputs": [
+            "transformed_base_ch",
+            "target_plink_dir_ch",
+            "transformed_target_pheno_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "all_results_ch",
+            "best_PRS_ch",
+            "results_for_report_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_plink": {
+        "name_process": "merge_plink",
+        "string_process": " process merge_plink {\n      publishDir \"${params.outdir}/LDpred\", mode: \"copy\"\n        input:\n        tuple val(name), file(\"*\") from target_plink_dir_to_merge_ch\n\n        output:\n        file(\"merged.*\") into (merged_plink_ch, merged_plink_ldpred_gibbs_ch, merged_plink_ldpred_score_ch)\n\n        script:\n        \"\"\" \n        ls *.bed > bed.txt\n        ls *.bim > bim.txt\n        ls *.fam > fam.txt\n\n        paste bed.txt bim.txt fam.txt > merge.temp.list\n\n        grep -v \"_chr1_\" merge.temp.list > merge.list\n\n        plink --keep-allele-order --bfile ${name}_chr1_filtered --merge-list merge.list --make-bed --out merged\n        \"\"\"\n    }",
+        "nb_lignes_process": 19,
+        "string_script": "        \"\"\" \n        ls *.bed > bed.txt\n        ls *.bim > bim.txt\n        ls *.fam > fam.txt\n\n        paste bed.txt bim.txt fam.txt > merge.temp.list\n\n        grep -v \"_chr1_\" merge.temp.list > merge.list\n\n        plink --keep-allele-order --bfile ${name}_chr1_filtered --merge-list merge.list --make-bed --out merged\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "pLink"
+        ],
+        "tools_url": [
+            "https://bio.tools/pLink-2"
+        ],
+        "tools_dico": [
+            {
+                "name": "pLink",
+                "uri": "https://bio.tools/pLink-2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0154",
+                            "term": "Small molecules"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3649",
+                                    "term": "Target-Decoy"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fragment weight comparison"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "PMF"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Peptide mass fingerprinting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fingerprinting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A high-speed search engine pLink 2 with systematic evaluation for proteome-scale identification of cross-linked peptides.",
+                "homepage": "http://pfind.ict.ac.cn/software/pLink/index.html"
+            }
+        ],
+        "inputs": [
+            "target_plink_dir_to_merge_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "publishDir \"${params.outdir}/LDpred\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ldpred_coord": {
+        "name_process": "ldpred_coord",
+        "string_process": " process ldpred_coord {\n      label \"ldpred\"\n      publishDir \"${params.outdir}/LDpred\", mode: \"copy\"\n        \n        input:\n        each file(base) from transformed_base_ldpred_ch\n        each file(merged_plink_file) from merged_plink_ch\n        \n        output:\n        file(\"ldpred.coord\") into harmonised_coord_ch\n\n        shell:\n        '''\n        sed \"s/ /\\\\t/g\" !{base}  > test_sumstats_tab.tsv\n        ldpred coord \\\n        --chr CHR \\\n        --out ldpred.coord \\\n        --gf merged \\\n        --ssf-format CUSTOM \\\n        --ssf test_sumstats_tab.tsv \\\n        --pos POS \\\n        --A1 Allele1 \\\n        --A2 Allele2 \\\n        --pval p.value \\\n        --eff BETA \\\n        --se SE \\\n        --N 1000 \\\n        --rs SNPID 1> ldpred_coord.log\n        '''\n    }",
+        "nb_lignes_process": 28,
+        "string_script": "        '''\n        sed \"s/ /\\\\t/g\" !{base}  > test_sumstats_tab.tsv\n        ldpred coord \\\n        --chr CHR \\\n        --out ldpred.coord \\\n        --gf merged \\\n        --ssf-format CUSTOM \\\n        --ssf test_sumstats_tab.tsv \\\n        --pos POS \\\n        --A1 Allele1 \\\n        --A2 Allele2 \\\n        --pval p.value \\\n        --eff BETA \\\n        --se SE \\\n        --N 1000 \\\n        --rs SNPID 1> ldpred_coord.log\n        '''",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "transformed_base_ldpred_ch",
+            "merged_plink_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "harmonised_coord_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "label \"ldpred\"",
+            "publishDir \"${params.outdir}/LDpred\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ldpred_gibbs": {
+        "name_process": "ldpred_gibbs",
+        "string_process": " process ldpred_gibbs {\n      label \"ldpred\"\n      publishDir \"${params.outdir}/LDpred\", mode: \"copy\"\n        \n        input:\n        each file(cf_file) from harmonised_coord_ch\n        each file(merged_plink_file) from merged_plink_ldpred_gibbs_ch\n        \n        \n        output:\n        file(\"ldpred.weights*\") into ldpred_weights_ch\n\n        script:\n        \"\"\"\n        ldpred gibbs \\\n        --cf ${cf_file} \\\n        --ldr 150 \\\n        --f 1 0.3 0.1 0.03 0.01 \\\n        --out ldpred.weights \\\n        --ldf merged 1> ldpred.weights.log\n        \"\"\"\n    }",
+        "nb_lignes_process": 20,
+        "string_script": "        \"\"\"\n        ldpred gibbs \\\n        --cf ${cf_file} \\\n        --ldr 150 \\\n        --f 1 0.3 0.1 0.03 0.01 \\\n        --out ldpred.weights \\\n        --ldf merged 1> ldpred.weights.log\n        \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "harmonised_coord_ch",
+            "merged_plink_ldpred_gibbs_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ldpred_weights_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "label \"ldpred\"",
+            "publishDir \"${params.outdir}/LDpred\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ldpred_score": {
+        "name_process": "ldpred_score",
+        "string_process": " process ldpred_score {\n          label \"ldpred\"\n          publishDir \"${params.outdir}/LDpred\", mode: \"copy\"\n        \n        input:\n        each file(ldpred_weights) from ldpred_weights_ch\n        each file(merged_plink_file) from merged_plink_ldpred_score_ch\n        tuple file(pheno), file(cov) from transformed_target_pheno_for_ldpred_ch\n        \n        output:\n        file(\"ldpred.scores*\") into ldpred_scores_ch\n\n        script:\n        \"\"\"\n        ldpred score \\\n        --gf merged \\\n        --rf ldpred.weights \\\n        --f 1 0.3 0.1 0.03 0.01 \\\n        --out ldpred.score \\\n        --pf merged.fam 1> ldpred.scores.log\n        \"\"\"\n    }",
+        "nb_lignes_process": 20,
+        "string_script": "        \"\"\"\n        ldpred score \\\n        --gf merged \\\n        --rf ldpred.weights \\\n        --f 1 0.3 0.1 0.03 0.01 \\\n        --out ldpred.score \\\n        --pf merged.fam 1> ldpred.scores.log\n        \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ldpred_weights_ch",
+            "merged_plink_ldpred_score_ch",
+            "transformed_target_pheno_for_ldpred_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ldpred_scores_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "label \"ldpred\"",
+            "publishDir \"${params.outdir}/LDpred\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "additional_plots": {
+        "name_process": "additional_plots",
+        "string_process": "\nprocess additional_plots {\n  publishDir \"${params.outdir}\", mode: \"copy\"\n\n  input:\n  tuple file(pheno), file(cov) from transformed_target_pheno_for_plots_ch\n  file prs from best_PRS_ch\n  file metadata from pheno_metadata_ch\n\n  output:\n  file(\"*.png\") into more_plots_ch\n\n  script:\n  \"\"\"\n  plot_prs_vs_cov.R --input_cov ${cov} --input_prs ${prs} --input_metadata ${metadata}\n  plot_prs_density.R --input_pheno ${pheno} --input_prs ${prs}\n  \"\"\"\n\n  \n\n}",
+        "nb_lignes_process": 19,
+        "string_script": "  \"\"\"\n  plot_prs_vs_cov.R --input_cov ${cov} --input_prs ${prs} --input_metadata ${metadata}\n  plot_prs_density.R --input_pheno ${pheno} --input_prs ${prs}\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "transformed_target_pheno_for_plots_ch",
+            "best_PRS_ch",
+            "pheno_metadata_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "more_plots_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "produce_report": {
+        "name_process": "produce_report",
+        "string_process": "\nprocess produce_report {\n  publishDir params.outdir, mode: \"copy\"\n\n  input:\n  file plots from more_plots_ch\n  file(\"*\") from results_for_report_ch\n\n  output:\n  file (\"MultiQC/multiqc_report.html\") into reports\n\n  script:\n  if (params.quantile) {\n    quantile_plot = \"PRSice_QUANTILES_PLOT.png\"\n    quantile_table = \"PRSice_QUANTILES.txt\"\n  } else {\n    quantile_plot = \"FALSE\"\n    quantile_table = \"FALSE\"\n  }\n  \"\"\"\n  cp /opt/bin/* .\n\n  R -e \"rmarkdown::render('prs_report.Rmd', params = list(barplot='PRSice_BARPLOT.png', highres.plot='PRSice_HIGH-RES_PLOT.png', density.plot='prs-density.png', quantile.plot='${quantile_plot}', quantile.table='${quantile_table}', prs.prsice='PRSice.prsice', prs.summary='PRSice.summary'))\"\n  mkdir MultiQC && mv prs_report.html MultiQC/multiqc_report.html\n\n  \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "  if (params.quantile) {\n    quantile_plot = \"PRSice_QUANTILES_PLOT.png\"\n    quantile_table = \"PRSice_QUANTILES.txt\"\n  } else {\n    quantile_plot = \"FALSE\"\n    quantile_table = \"FALSE\"\n  }\n  \"\"\"\n  cp /opt/bin/* .\n\n  R -e \"rmarkdown::render('prs_report.Rmd', params = list(barplot='PRSice_BARPLOT.png', highres.plot='PRSice_HIGH-RES_PLOT.png', density.plot='prs-density.png', quantile.plot='${quantile_plot}', quantile.table='${quantile_table}', prs.prsice='PRSice.prsice', prs.summary='PRSice.summary'))\"\n  mkdir MultiQC && mv prs_report.html MultiQC/multiqc_report.html\n\n  \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "more_plots_ch",
+            "results_for_report_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "reports"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "publishDir params.outdir, mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "detect_and_update_build": {
+        "name_process": "detect_and_update_build",
+        "string_process": "\nprocess detect_and_update_build {\n    publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\"\n    \n    input:\n    tuple val(name), file(\"*\") from target_plink_build_ch\n    file base from transformed_base_ch\n    file header from header_ch\n    \n    output:\n    file(\"matching.base.data\") into matching_base_build_ch\n    \n    shell:\n    '''\n    # Step 1 - Combine all input *bim files into 1 file and transform to a 23andme format so that Python package \"snps\" can read it\n    \n    cat *bim \\\n    | cut -f 1,2,4,5,6 \\\n    | awk '{print $2\"\\t\"$1\"\\t\"$3\"\\t\"$4 $5}' > all_bims.tsv\n    cat !{header} all_bims.tsv > all_bims-transformed.tsv\n    \n    # Step 2 - Transform the base.data file to a 23andme format so that Python package \"snps\" can read it\n\n    cat base.data \\\n    | sed '1d' \\\n    | cut -f 1,2,3,4,5 -d \" \" \\\n    | awk '{print $3\"\\t\"$1\"\\t\"$2\"\\t\"$4 $5}' > base.tsv\n    cat !{header} base.tsv > base-transformed.tsv\n\n    # Step 3 - Use Python package \"snsp\" to detect build of target and base and update base build if need be\n    \n    detect_and_update_build.py --input_target all_bims-transformed.tsv --input_base base-transformed.tsv\n\n    # Step 4 - If step 3 produced a file, use it to update the build of the base\n\n    if ls new_base_coordinates.txt 1> /dev/null 2>&1\n    then\n      update_base_build.R --input_base base.data --input_coordinates new_base_coordinates.txt\n    else\n      mv base.data matching.base.data\n    fi\n    '''\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    '''\n    # Step 1 - Combine all input *bim files into 1 file and transform to a 23andme format so that Python package \"snps\" can read it\n    \n    cat *bim \\\n    | cut -f 1,2,4,5,6 \\\n    | awk '{print $2\"\\t\"$1\"\\t\"$3\"\\t\"$4 $5}' > all_bims.tsv\n    cat !{header} all_bims.tsv > all_bims-transformed.tsv\n    \n    # Step 2 - Transform the base.data file to a 23andme format so that Python package \"snps\" can read it\n\n    cat base.data \\\n    | sed '1d' \\\n    | cut -f 1,2,3,4,5 -d \" \" \\\n    | awk '{print $3\"\\t\"$1\"\\t\"$2\"\\t\"$4 $5}' > base.tsv\n    cat !{header} base.tsv > base-transformed.tsv\n\n    # Step 3 - Use Python package \"snsp\" to detect build of target and base and update base build if need be\n    \n    detect_and_update_build.py --input_target all_bims-transformed.tsv --input_base base-transformed.tsv\n\n    # Step 4 - If step 3 produced a file, use it to update the build of the base\n\n    if ls new_base_coordinates.txt 1> /dev/null 2>&1\n    then\n      update_base_build.R --input_base base.data --input_coordinates new_base_coordinates.txt\n    else\n      mv base.data matching.base.data\n    fi\n    '''",
+        "nb_lignes_script": 28,
+        "language_script": "bash",
+        "tools": [
+            "NullSeq"
+        ],
+        "tools_url": [
+            "https://bio.tools/nullseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "NullSeq",
+                "uri": "https://bio.tools/nullseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0364",
+                                    "term": "Random sequence generation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Creates Random Coding Sequences with specified GC content and Amino Acid usage.",
+                "homepage": "https://github.com/amarallab/NullSeq"
+            }
+        ],
+        "inputs": [
+            "target_plink_build_ch",
+            "transformed_base_ch",
+            "header_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "matching_base_build_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__prs",
+        "directive": [
+            "publishDir \"${params.outdir}/transformed_PRSice_inputs\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

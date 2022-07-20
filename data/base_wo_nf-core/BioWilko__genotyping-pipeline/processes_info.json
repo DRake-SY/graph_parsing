@@ -1,0 +1,169 @@
+{
+    "custom_metadata": {
+        "name_process": "custom_metadata",
+        "string_process": "\nprocess custom_metadata {\n  output:\n    file(\"custom_metadata.tsv\") into metadata_ch\n\n  \"\"\"\n  id_array=(${id_str})\n  head -1 ${metadata} > custom_metadata.tsv\n  for i in \"\\${id_array[@]}\"\n  do\n    grep \"\\$i\" ${metadata} >> custom_metadata.tsv || true\n  done\n  \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\n  id_array=(${id_str})\n  head -1 ${metadata} > custom_metadata.tsv\n  for i in \"\\${id_array[@]}\"\n  do\n    grep \"\\$i\" ${metadata} >> custom_metadata.tsv || true\n  done\n  \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "metadata_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BioWilko__genotyping-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "pull_cog_ids": {
+        "name_process": "pull_cog_ids",
+        "string_process": "\nprocess pull_cog_ids {\n  conda environment\n  input:\n    file metadata from metadata_ch\n  output:\n    file(\"cog_ids.csv\") into id_ch\n    file(\"sender_ids.tsv\") into sender_ids_ch\n\n  \"\"\"\n  #!/usr/bin/env python\n  import pandas as pd\n  import numpy as np\n\n  metadata_df = pd.read_csv(\"${metadata}\", sep=\"\\t\")\n  metadata_df = metadata_df.drop_duplicates(subset=\"central_sample_id\")\n  metadata_df = metadata_df.loc[metadata_df[\"exclude\"].isnull()]\n  metadata_df[\"coverage\"] = \"\"\n  id_df = metadata_df.copy()\n\n  for index, row in metadata_df.iterrows():\n    try:\n      coverage_df = pd.read_csv(\"${data_dir}\" + row[\"central_sample_id\"] + \".cov.txt\", index_col=\"sample\", sep=\"\\t\")\n      metadata_df.at[index, \"coverage\"] = coverage_df.at[(row[\"central_sample_id\"]),\"perc\"]\n    except:\n      id_df.drop(labels=index, inplace=True)\n      metadata_df.at[index, \"coverage\"] = \"N/A\"\n\n\n  id_df[\"central_sample_id\"].to_csv(\"cog_ids.csv\", index=False, header=False)\n  metadata_df[[\"central_sample_id\", \"sender_sample_id\", \"coverage\"]].to_csv(\"sender_ids.tsv\", index=False, sep=\"\\t\")\n  \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "\"\"\"\n  #!/usr/bin/env python\n  import pandas as pd\n  import numpy as np\n\n  metadata_df = pd.read_csv(\"${metadata}\", sep=\"\\t\")\n  metadata_df = metadata_df.drop_duplicates(subset=\"central_sample_id\")\n  metadata_df = metadata_df.loc[metadata_df[\"exclude\"].isnull()]\n  metadata_df[\"coverage\"] = \"\"\n  id_df = metadata_df.copy()\n\n  for index, row in metadata_df.iterrows():\n    try:\n      coverage_df = pd.read_csv(\"${data_dir}\" + row[\"central_sample_id\"] + \".cov.txt\", index_col=\"sample\", sep=\"\\t\")\n      metadata_df.at[index, \"coverage\"] = coverage_df.at[(row[\"central_sample_id\"]),\"perc\"]\n    except:\n      id_df.drop(labels=index, inplace=True)\n      metadata_df.at[index, \"coverage\"] = \"N/A\"\n\n\n  id_df[\"central_sample_id\"].to_csv(\"cog_ids.csv\", index=False, header=False)\n  metadata_df[[\"central_sample_id\", \"sender_sample_id\", \"coverage\"]].to_csv(\"sender_ids.tsv\", index=False, sep=\"\\t\")\n  \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "id_ch",
+            "sender_ids_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "BioWilko__genotyping-pipeline",
+        "directive": [
+            "conda environment"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cat_msa": {
+        "name_process": "cat_msa",
+        "string_process": "\nprocess cat_msa {\n  input:\n    val samp_ids from aln_ids_ch.toList()\n  output:\n    file(\"combined_msa.fasta\") into msa_out_ch\n  script:\n    id_str = samp_ids.join(',')\n\n  \"\"\"\n  cat ${data_dir}{${id_str}}.nanopolish-indel.muscle.out.fasta > temp_msa.fasta\n  awk -F'.' '/^>/ {print \\$1; next}{print}' < temp_msa.fasta > combined_msa.fasta\n  \"\"\"    \n}",
+        "nb_lignes_process": 12,
+        "string_script": "    id_str = samp_ids.join(',')\n\n  \"\"\"\n  cat ${data_dir}{${id_str}}.nanopolish-indel.muscle.out.fasta > temp_msa.fasta\n  awk -F'.' '/^>/ {print \\$1; next}{print}' < temp_msa.fasta > combined_msa.fasta\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "aln_ids_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "msa_out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BioWilko__genotyping-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "cat_consensus": {
+        "name_process": "cat_consensus",
+        "string_process": "\nprocess cat_consensus {\n  input:\n    val samp_ids from consensus_id_ch.toList()\n  output:\n    file(\"combined_consensus.fasta\") into consensus_out_ch\n  script:\n    id_str = samp_ids.join(',')\n\n  \"\"\"\n  cat ${data_dir}/{${id_str}}.nanopolish-indel.consensus.fasta > temp_consensus.fasta\n  awk -F'.' '/^>/ {print \\$1; next}{print}' < temp_consensus.fasta > combined_consensus.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "    id_str = samp_ids.join(',')\n\n  \"\"\"\n  cat ${data_dir}/{${id_str}}.nanopolish-indel.consensus.fasta > temp_consensus.fasta\n  awk -F'.' '/^>/ {print \\$1; next}{print}' < temp_consensus.fasta > combined_consensus.fasta\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "consensus_id_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "consensus_out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BioWilko__genotyping-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "aln2type": {
+        "name_process": "aln2type",
+        "string_process": "\nprocess aln2type {\n  input:\n    file msa from msa_out_ch\n  output:\n    file(\"type_calls.csv\") into type_ch\n  \n  \"\"\"\n  aln2type ./ ./ type_calls.csv MN908947 ${msa} --no_call_deletion --output_unclassified ${definitions}\n  \"\"\"\n}",
+        "nb_lignes_process": 9,
+        "string_script": "\"\"\"\n  aln2type ./ ./ type_calls.csv MN908947 ${msa} --no_call_deletion --output_unclassified ${definitions}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "msa_out_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "type_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BioWilko__genotyping-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "pangolin": {
+        "name_process": "pangolin",
+        "string_process": "\nprocess pangolin {\n  conda pango_env\n  input:\n    file combined from consensus_out_ch\n  output:\n    file(\"lineage_report.csv\") into lineage_ch\n\n  \"\"\"\n  pangolin ${combined}\n  \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "\"\"\"\n  pangolin ${combined}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "consensus_out_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "lineage_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BioWilko__genotyping-pipeline",
+        "directive": [
+            "conda pango_env"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "report": {
+        "name_process": "report",
+        "string_process": "\nprocess report {\n  publishDir out_dir, overwrite: true\n  conda environment\n  input:\n    file types from type_ch\n    file lineage from lineage_ch\n    file sender_ids from sender_ids_ch\n  output:\n    file(\"genotype_calls.tsv\")\n\n  \"\"\"\n  #!/usr/bin/env python\n  import pandas as pd\n  from Bio import AlignIO\n  import glob\n  import os\n\n  df = pd.read_csv(\"${types}\")\n\n  group_df = df.groupby([\"sample_id\"])\n\n  ids = df[\"sample_id\"].unique()\n\n  dictionary = {}\n\n  mutation_locs = {}\n\n  definitions = glob.glob(\"${definitions}\")\n\n  mutations = [x.split(\"/\")[-1].replace(\".yml\", \"\") for x in definitions]\n\n  for definition_file in definitions:\n    steam = os.popen('grep \"one-based-reference-position:\" %s' %(definition_file))\n    location = steam.read().split(\": \")[1]\n    mutation = definition_file.split(\"/\")[-1].replace(\".yml\", \"\")\n    mutation_locs[mutation] = int(location)\n\n  for samp_id in ids:\n    samp_df = group_df.get_group(samp_id)\n    alignment = AlignIO.read(open(\"${data_dir}/%s.nanopolish-indel.muscle.out.fasta\" %(samp_id)), \"fasta\")\n    if samp_df[\"phe-label\"].any() != \"unclassified\":\n      dictionary[samp_id] = { i : \"\" for i in mutations }\n      for mutation in mutations:\n          if alignment[0].seq[mutation_locs[mutation]] != \"N\":\n            dictionary[samp_id][mutation] = \"N\"\n          else:\n            dictionary[samp_id][mutation] = \"X\"\n      for index, row in samp_df.iterrows():\n        if row[\"status\"] == \"confirmed\":\n          dictionary[samp_id][row[\"phe-label\"]] = \"Y\"\n\n  unclassified = df.loc[df[\"phe-label\"] == \"unclassified\"]\n\n  for index, row in unclassified.iterrows():\n    dictionary[row[\"sample_id\"]] = dict.fromkeys(mutations, \"N\")\n\n  type_calls = pd.DataFrame.from_dict(dictionary, orient='index')\n  lineage_df = pd.read_csv(\"${lineage}\", index_col=\"taxon\")\n  lineage_df = lineage_df[\"lineage\"]\n  sender_ids = pd.read_csv(\"${sender_ids}\", index_col=\"central_sample_id\", sep=\"\\t\")\n\n  lineage_df = sender_ids.join(lineage_df, how=\"outer\")\n\n  report_df = lineage_df.join(type_calls, how=\"outer\")\n\n  report_df.to_csv(\"genotype_calls.tsv\", sep=\"\\t\")\n  \"\"\"\n}",
+        "nb_lignes_process": 67,
+        "string_script": "\"\"\"\n  #!/usr/bin/env python\n  import pandas as pd\n  from Bio import AlignIO\n  import glob\n  import os\n\n  df = pd.read_csv(\"${types}\")\n\n  group_df = df.groupby([\"sample_id\"])\n\n  ids = df[\"sample_id\"].unique()\n\n  dictionary = {}\n\n  mutation_locs = {}\n\n  definitions = glob.glob(\"${definitions}\")\n\n  mutations = [x.split(\"/\")[-1].replace(\".yml\", \"\") for x in definitions]\n\n  for definition_file in definitions:\n    steam = os.popen('grep \"one-based-reference-position:\" %s' %(definition_file))\n    location = steam.read().split(\": \")[1]\n    mutation = definition_file.split(\"/\")[-1].replace(\".yml\", \"\")\n    mutation_locs[mutation] = int(location)\n\n  for samp_id in ids:\n    samp_df = group_df.get_group(samp_id)\n    alignment = AlignIO.read(open(\"${data_dir}/%s.nanopolish-indel.muscle.out.fasta\" %(samp_id)), \"fasta\")\n    if samp_df[\"phe-label\"].any() != \"unclassified\":\n      dictionary[samp_id] = { i : \"\" for i in mutations }\n      for mutation in mutations:\n          if alignment[0].seq[mutation_locs[mutation]] != \"N\":\n            dictionary[samp_id][mutation] = \"N\"\n          else:\n            dictionary[samp_id][mutation] = \"X\"\n      for index, row in samp_df.iterrows():\n        if row[\"status\"] == \"confirmed\":\n          dictionary[samp_id][row[\"phe-label\"]] = \"Y\"\n\n  unclassified = df.loc[df[\"phe-label\"] == \"unclassified\"]\n\n  for index, row in unclassified.iterrows():\n    dictionary[row[\"sample_id\"]] = dict.fromkeys(mutations, \"N\")\n\n  type_calls = pd.DataFrame.from_dict(dictionary, orient='index')\n  lineage_df = pd.read_csv(\"${lineage}\", index_col=\"taxon\")\n  lineage_df = lineage_df[\"lineage\"]\n  sender_ids = pd.read_csv(\"${sender_ids}\", index_col=\"central_sample_id\", sep=\"\\t\")\n\n  lineage_df = sender_ids.join(lineage_df, how=\"outer\")\n\n  report_df = lineage_df.join(type_calls, how=\"outer\")\n\n  report_df.to_csv(\"genotype_calls.tsv\", sep=\"\\t\")\n  \"\"\"",
+        "nb_lignes_script": 56,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "type_ch",
+            "lineage_ch",
+            "sender_ids_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "BioWilko__genotyping-pipeline",
+        "directive": [
+            "publishDir out_dir, overwrite: true",
+            "conda environment"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

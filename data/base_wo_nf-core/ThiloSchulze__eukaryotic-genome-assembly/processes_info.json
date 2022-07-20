@@ -1,0 +1,457 @@
+{
+    "qualityControl": {
+        "name_process": "qualityControl",
+        "string_process": "\nprocess qualityControl {\n  publishDir \"${params.output}/raw_reads_quality_control\"\n  label 'fast'\n\n  input:\n  tuple val(name), path(control)\n\n  output:\n  path \"*fastqc.{html,zip}\"\n  path \"fastqc_command.txt\"\n\n                                                                      \n                                                                         \n\n  script:\n  \"\"\"\n  fastqc_command=\"fastqc --threads ${task.cpus} --quiet $control\"\n  \\$fastqc_command\n  echo \"\\$fastqc_command\" > 'fastqc_command.txt'\n  \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  fastqc_command=\"fastqc --threads ${task.cpus} --quiet $control\"\n  \\$fastqc_command\n  echo \"\\$fastqc_command\" > 'fastqc_command.txt'\n  \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "name",
+            "control"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}/raw_reads_quality_control\"",
+            "label 'fast'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trimming": {
+        "name_process": "trimming",
+        "string_process": "\nprocess trimming {\n  publishDir \"${params.output}/trimmed_reads\"\n  label 'normal'\n\n  input:\n  tuple val(name), path(read)\n\n  output:\n  tuple val(name), path(\"*{1,2}.fq.gz\"), emit: trimmedReads\n  path \"*.txt\"\n  path \"*.{zip,html}\"\n  path \"*.fq.gz\"\n\n  script:\n\n  flagsTrimming = \"--fastqc --gzip --quality $params.trim_quality \\\n--length $params.trim_min_length --cores $task.cpus\"\n  if ( params.trim_phred64 )\n    flagsTrimming += \" --phred64\"\n  if ( params.trim_forward_leading )\n    flagsTrimming += \" --clip_R1 $params.trim_forward_leading\"\n  if ( params.trim_forward_trailing )\n    flagsTrimming += \" --three_prime_clip_R1 $params.trim_forward_trailing\"\n  if ( params.trim_reverse_leading )\n    flagsTrimming += \" --clip_R2 $params.trim_reverse_leading\"\n  if ( params.trim_reverse_trailing )\n    flagsTrimming += \" --three_prime_clip_R2 $params.trim_reverse_trailing\"\n  if ( !params.single_end )\n    flagsTrimming += \" --paired --retain_unpaired\"\n  commandTrimming = \"trim_galore $flagsTrimming $read\"\n\n  \"\"\"\n  $commandTrimming\n  echo \"$commandTrimming\" > 'trim_galore_command.txt'\n  \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "  flagsTrimming = \"--fastqc --gzip --quality $params.trim_quality \\\n--length $params.trim_min_length --cores $task.cpus\"\n  if ( params.trim_phred64 )\n    flagsTrimming += \" --phred64\"\n  if ( params.trim_forward_leading )\n    flagsTrimming += \" --clip_R1 $params.trim_forward_leading\"\n  if ( params.trim_forward_trailing )\n    flagsTrimming += \" --three_prime_clip_R1 $params.trim_forward_trailing\"\n  if ( params.trim_reverse_leading )\n    flagsTrimming += \" --clip_R2 $params.trim_reverse_leading\"\n  if ( params.trim_reverse_trailing )\n    flagsTrimming += \" --three_prime_clip_R2 $params.trim_reverse_trailing\"\n  if ( !params.single_end )\n    flagsTrimming += \" --paired --retain_unpaired\"\n  commandTrimming = \"trim_galore $flagsTrimming $read\"\n\n  \"\"\"\n  $commandTrimming\n  echo \"$commandTrimming\" > 'trim_galore_command.txt'\n  \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "name",
+            "read"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}/trimmed_reads\"",
+            "label 'normal'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assembly": {
+        "name_process": "assembly",
+        "string_process": "\nprocess assembly {\n  publishDir \"${params.output}/spades_assembly\"\n  label 'big_mem'\n\n  input:\n  tuple val(name), path(trimmed_reads)\n  val kmers\n\n  output:\n  path \"*\" optional true\n  path \"K*\", type: 'dir', emit: 'contigs'\n\n  script:\n\n                                                                \n  kmersFormatted = kmers.toString().replaceAll(\"[ \\\\[\\\\]]\", \"\")\n  additionalSpadesFlags = \"\"\n  if ( params.meta )\n    additionalSpadesFlags += \"--meta \\\\\\n\"\n\n  \"\"\"\n  cat \"${trimmed_reads[0]}\" \"${trimmed_reads[2]}\" > unpaired_reads.fq.gz\n  spades.py\\\n    -1 ${trimmed_reads[1]}\\\n    -2 ${trimmed_reads[3]}\\\n    -s unpaired_reads.fq.gz\\\n    -k \"${kmersFormatted}\"\\\n    --threads ${task.cpus}\\\n    --memory ${task.memory.toGiga()}\\\n    --tmp-dir ./corrected/tmp\\\n    ${additionalSpadesFlags}-o .\n  \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "  kmersFormatted = kmers.toString().replaceAll(\"[ \\\\[\\\\]]\", \"\")\n  additionalSpadesFlags = \"\"\n  if ( params.meta )\n    additionalSpadesFlags += \"--meta \\\\\\n\"\n\n  \"\"\"\n  cat \"${trimmed_reads[0]}\" \"${trimmed_reads[2]}\" > unpaired_reads.fq.gz\n  spades.py\\\n    -1 ${trimmed_reads[1]}\\\n    -2 ${trimmed_reads[3]}\\\n    -s unpaired_reads.fq.gz\\\n    -k \"${kmersFormatted}\"\\\n    --threads ${task.cpus}\\\n    --memory ${task.memory.toGiga()}\\\n    --tmp-dir ./corrected/tmp\\\n    ${additionalSpadesFlags}-o .\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "name",
+            "trimmed_reads",
+            "kmers"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}/spades_assembly\"",
+            "label 'big_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assemblyQualityAssessment": {
+        "name_process": "assemblyQualityAssessment",
+        "string_process": "\nprocess assemblyQualityAssessment {\n  publishDir \"${params.output}/quast_quality_assessment\"\n  label 'normal'\n\n  input:\n  path contig_dirs\n\n  output:\n  path \"*_quast_quality_assessment\", type: 'dir'\n\n                                         \n\n  script:\n  \"\"\"\n  for contig_dir in $contig_dirs\n  do\n    if [ -f \"\\$contig_dir/final_contigs.fasta\" ]\n    then\n      mkdir -p \"\\$contig_dir\"\n      kmer=\"\\${contig_dir:1}\"\n      ln -s \"\\${contig_dir}/final_contigs.fasta\" \"\\$kmer\"\n      quast.py\\\n        --eukaryote\\\n        --large\\\n        --min-contig 100\\\n        --threads ${task.cpus}\\\n        --output-dir \"\\${contig_dir}_quast_quality_assessment\"\\\n        \"\\${kmer}\"\n    fi\n  done\n  \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "  \"\"\"\n  for contig_dir in $contig_dirs\n  do\n    if [ -f \"\\$contig_dir/final_contigs.fasta\" ]\n    then\n      mkdir -p \"\\$contig_dir\"\n      kmer=\"\\${contig_dir:1}\"\n      ln -s \"\\${contig_dir}/final_contigs.fasta\" \"\\$kmer\"\n      quast.py\\\n        --eukaryote\\\n        --large\\\n        --min-contig 100\\\n        --threads ${task.cpus}\\\n        --output-dir \"\\${contig_dir}_quast_quality_assessment\"\\\n        \"\\${kmer}\"\n    fi\n  done\n  \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "contig_dirs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}/quast_quality_assessment\"",
+            "label 'normal'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "quastReport": {
+        "name_process": "quastReport",
+        "string_process": "\nprocess quastReport {\n  echo true\n\n  input:\n  path quast_result\n\n  output:\n  path \"quast_short.tsv\"\n\n  script:\n  \"\"\"\n  echo -e \"\\nAssembly quality assessment:\"\n  echo \"k-mer size\\t# contigs\\tLargest contig\\tTotal length\\tGC (%)\\tN50\\tN75 \\\n    \\tL50\\tL75\" > summarized_results.tsv\n  tail -n 1 \"${quast_result}/transposed_report.tsv\" |\n    awk -F '\\t' '{ print \\$1 \"\\t\" \\$14 \"\\t\" \\$15 \"\\t\" \\$16 \"\\t\" \\$17 \"\\t\" \\$18\\\n    \"\\t\" \\$19 \"\\t\" \\$20 \"\\t\" \\$21 }' >>\\\n    summarized_results.tsv\n  column -t -s \\$'\\t' < summarized_results.tsv\n  tail -n +2 < summarized_results.tsv > quast_short.tsv\n  \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "  \"\"\"\n  echo -e \"\\nAssembly quality assessment:\"\n  echo \"k-mer size\\t# contigs\\tLargest contig\\tTotal length\\tGC (%)\\tN50\\tN75 \\\n    \\tL50\\tL75\" > summarized_results.tsv\n  tail -n 1 \"${quast_result}/transposed_report.tsv\" |\n    awk -F '\\t' '{ print \\$1 \"\\t\" \\$14 \"\\t\" \\$15 \"\\t\" \\$16 \"\\t\" \\$17 \"\\t\" \\$18\\\n    \"\\t\" \\$19 \"\\t\" \\$20 \"\\t\" \\$21 }' >>\\\n    summarized_results.tsv\n  column -t -s \\$'\\t' < summarized_results.tsv\n  tail -n +2 < summarized_results.tsv > quast_short.tsv\n  \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "quast_result"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "echo true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rawReadStats": {
+        "name_process": "rawReadStats",
+        "string_process": "\nprocess rawReadStats {\n  publishDir \"${params.output}\"\n  echo true\n\n  input:\n  tuple val(name), path(read)\n\n  output:\n  path \"raw_read_stats.tsv\"\n\n  script:\n  \"\"\"\n  seqkit stats --tabular $read >> raw_read_stats.tsv\n  \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "  \"\"\"\n  seqkit stats --tabular $read >> raw_read_stats.tsv\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "name",
+            "read"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}\"",
+            "echo true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trimmedReadStats": {
+        "name_process": "trimmedReadStats",
+        "string_process": "\nprocess trimmedReadStats {\n  publishDir \"${params.output}\"\n  echo true\n\n  input:\n  tuple val(name), path(read)\n\n  output:\n  path \"trimmed_read_stats.tsv\"\n\n  script:\n  \"\"\"\n  seqkit stats --tabular $read >> trimmed_read_stats.tsv\n  \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "  \"\"\"\n  seqkit stats --tabular $read >> trimmed_read_stats.tsv\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "name",
+            "read"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}\"",
+            "echo true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "summarizeSeqStats": {
+        "name_process": "summarizeSeqStats",
+        "string_process": "\nprocess summarizeSeqStats {\n  publishDir \"${params.output}\"\n\n  input:\n  path rawReadSeqStats\n  path quastStats\n\n  output:\n  path \"seq_stats_summary.tsv\"\n\n  script:\n  \"\"\"\n  echo \"files\\traw_reads_num_seqs\\traw_reads_sum_len\\traw_reads_min_len\\t\\\nraw_reads_avg_len\\traw_reads_max_len\\tassembly_kmer_size\\tassembly_contigs\\t\\\nassembly_largest_contigs\\tassembly_len\\tassembly_percent_gc\\tassembly_n50\\t\\\nassembly_n75\\tassembly_l50\\tassembly_l75\"\\\n> seq_stats_summary.tsv\n\n  raw_read_stats=\\$(\\\n    tail -n +2 < \"$rawReadSeqStats\" |\\\n    awk '{ (length(names) == 0) ? names=\\$1 : names=names \",\" \\$1 ; num_seqs\\\n      += \\$4; sum_len += \\$5; min_len += \\$6; avg_len = \\$7; max_len = \\$8 }\\\n      END { print names \"\\t\" num_seqs \"\\t\" sum_len \"\\t\" min_len \"\\t\" avg_len\\\n      \"\\t\" max_len}'\\\n  )\n\n  echo \"\\${raw_read_stats}\\t\\$( cat \"$quastStats\" )\" >> seq_stats_summary.tsv\n  \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "  \"\"\"\n  echo \"files\\traw_reads_num_seqs\\traw_reads_sum_len\\traw_reads_min_len\\t\\\nraw_reads_avg_len\\traw_reads_max_len\\tassembly_kmer_size\\tassembly_contigs\\t\\\nassembly_largest_contigs\\tassembly_len\\tassembly_percent_gc\\tassembly_n50\\t\\\nassembly_n75\\tassembly_l50\\tassembly_l75\"\\\n> seq_stats_summary.tsv\n\n  raw_read_stats=\\$(\\\n    tail -n +2 < \"$rawReadSeqStats\" |\\\n    awk '{ (length(names) == 0) ? names=\\$1 : names=names \",\" \\$1 ; num_seqs\\\n      += \\$4; sum_len += \\$5; min_len += \\$6; avg_len = \\$7; max_len = \\$8 }\\\n      END { print names \"\\t\" num_seqs \"\\t\" sum_len \"\\t\" min_len \"\\t\" avg_len\\\n      \"\\t\" max_len}'\\\n  )\n\n  echo \"\\${raw_read_stats}\\t\\$( cat \"$quastStats\" )\" >> seq_stats_summary.tsv\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "ENdb"
+        ],
+        "tools_url": [
+            "https://bio.tools/ENdb"
+        ],
+        "tools_dico": [
+            {
+                "name": "ENdb",
+                "uri": "https://bio.tools/ENdb",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0219",
+                            "term": "Data submission, annotation and curation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0440",
+                                    "term": "Promoter prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0224",
+                                    "term": "Query and retrieval"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0224",
+                                    "term": "Database retrieval"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A manually curated database of experimentally supported enhancers for human and mouse. Enhancers are a class of cis-regulatory elements that can increase gene transcription by forming loops in intergenic regions, introns and exons",
+                "homepage": "http://www.licpathway.net/ENdb"
+            }
+        ],
+        "inputs": [
+            "rawReadSeqStats",
+            "quastStats"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extractMitogenome": {
+        "name_process": "extractMitogenome",
+        "string_process": "\nprocess extractMitogenome {\n    publishDir \"${params.output}/$params.job_name/host_assembly\", mode: 'copy'\n\n    label 'normal'\n\n                         \n    tag \"$params.job_name\"\n\n    input:\n                                                                                                 \n    tuple val(name), path(host_assembled)\n\n    output:\n                                                                                                                                 \n    tuple val(name), path('mitogenome.fa'), emit: host_filtered\n    tuple val(name), path('mitogenome_candidates*')\n\n    when:\n                                                                                 \n    ! params.endosymbiont_only\n\n    script:\n                          \n                                                     \n                                                                                               \n                               \n                                                                      \n                                                                                                                   \n                                                                               \n                                                                                                                           \n                                                                                                          \n    \"\"\"\n    touch mitogenome.fa\n    touch prev_seqid.txt\n    touch unique_seqid.txt\n    touch possible_mitogenomes.fa\n    cat $host_assembled | bfg \"cov_[1-9][0-9][0-9]{1,}\\\\.[0-9]+\" > possible_mitogenomes.fa\n    makeblastdb -in ${params.mitogenome_bait} -title cox1 -parse_seqids -dbtype nucl -hash_index -out db\n    echo \"blastdb created\"\n    for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}\n      do\n        echo \"starting iteration with word size \\$i\"\n        cat unique_seqid.txt > prev_seqid.txt\n        blastn -query possible_mitogenomes.fa -db db -outfmt \"10 qseqid\" -word_size \\$i > seqid.txt\n        echo \"blastn complete\"\n        cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt\n        echo \"made seqids unique\"\n        cat possible_mitogenomes.fa | bfg -f unique_seqid.txt > \"mitogenome_candidates_wordsize_\\$i.fa\"\n        if [[ \\$(wc -l unique_seqid.txt) = \"0 unique_seqid.txt\" ]];\n        then\n          cat possible_mitogenomes.fa | bfg -f prev_seqid.txt > mitogenome.fa\n          echo \"multiple possible mitogenomes found\"\n          break\n        fi\n        if [[ \\$(wc -l unique_seqid.txt) = \"1 unique_seqid.txt\" ]];\n        then\n          cat possible_mitogenomes.fa | bfg -f unique_seqid.txt > mitogenome.fa\n          echo \"mitogenome found\"\n          break\n        fi\n      done\n    echo \"process successful\"\n    \"\"\"\n}",
+        "nb_lignes_process": 63,
+        "string_script": "    \"\"\"\n    touch mitogenome.fa\n    touch prev_seqid.txt\n    touch unique_seqid.txt\n    touch possible_mitogenomes.fa\n    cat $host_assembled | bfg \"cov_[1-9][0-9][0-9]{1,}\\\\.[0-9]+\" > possible_mitogenomes.fa\n    makeblastdb -in ${params.mitogenome_bait} -title cox1 -parse_seqids -dbtype nucl -hash_index -out db\n    echo \"blastdb created\"\n    for i in {${params.min_blast_wordsize}..${params.max_blast_wordsize}..1}\n      do\n        echo \"starting iteration with word size \\$i\"\n        cat unique_seqid.txt > prev_seqid.txt\n        blastn -query possible_mitogenomes.fa -db db -outfmt \"10 qseqid\" -word_size \\$i > seqid.txt\n        echo \"blastn complete\"\n        cat -n seqid.txt | sort -uk2 | sort -nk1 | cut -f2- | cat > unique_seqid.txt\n        echo \"made seqids unique\"\n        cat possible_mitogenomes.fa | bfg -f unique_seqid.txt > \"mitogenome_candidates_wordsize_\\$i.fa\"\n        if [[ \\$(wc -l unique_seqid.txt) = \"0 unique_seqid.txt\" ]];\n        then\n          cat possible_mitogenomes.fa | bfg -f prev_seqid.txt > mitogenome.fa\n          echo \"multiple possible mitogenomes found\"\n          break\n        fi\n        if [[ \\$(wc -l unique_seqid.txt) = \"1 unique_seqid.txt\" ]];\n        then\n          cat possible_mitogenomes.fa | bfg -f unique_seqid.txt > mitogenome.fa\n          echo \"mitogenome found\"\n          break\n        fi\n      done\n    echo \"process successful\"\n    \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [
+            "G-BLASTN",
+            "BreakSeq"
+        ],
+        "tools_url": [
+            "https://bio.tools/g-blastn",
+            "https://bio.tools/breakseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "G-BLASTN",
+                "uri": "https://bio.tools/g-blastn",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acids"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0346",
+                                    "term": "Sequence similarity search"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2976",
+                                "term": "Protein sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0857",
+                                "term": "Sequence search results"
+                            }
+                        ]
+                    }
+                ],
+                "description": "GPU-accelerated nucleotide alignment tool based on the widely used NCBI-BLAST.",
+                "homepage": "http://www.comp.hkbu.edu.hk/~chxw/software/G-BLASTN.html"
+            },
+            {
+                "name": "BreakSeq",
+                "uri": "https://bio.tools/breakseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Structural variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Genomic structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "DNA structural variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Database of known human breakpoint junctions and software to search short reads against them.",
+                "homepage": "http://sv.gersteinlab.org/breakseq/"
+            }
+        ],
+        "inputs": [
+            "name",
+            "host_assembled"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "name"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ThiloSchulze__eukaryotic-genome-assembly",
+        "directive": [
+            "publishDir \"${params.output}/$params.job_name/host_assembly\", mode: 'copy'",
+            "label 'normal'",
+            "tag \"$params.job_name\""
+        ],
+        "when": "! params.endosymbiont_only",
+        "stub": ""
+    }
+}

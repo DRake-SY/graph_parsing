@@ -1,0 +1,256 @@
+{
+    "publishCountyResults": {
+        "name_process": "publishCountyResults",
+        "string_process": "process publishCountyResults {\n\n    container 'covidestim/webworker:latest'\n    time '1h'\n    memory '4GB'\n\n    input:\n        file allResults\n        file inputData\n        file rejects\n        file allWarnings\n        file optVals\n        file metadata\n    output:\n        file 'summary.pack.gz'\n        file 'estimates.csv'\n        file 'estimates.csv.gz'\n\n    publishDir \"$params.webdir/$params.date\", enabled: params.s3pub\n    publishDir \"$params.webdir/stage\",  enabled: params.s3pub, overwrite: true\n\n    \"\"\"\n    # Create a WebPack file for serving to web browsers\n    serialize.R -o summary.pack --pop /opt/webworker/data/fipspop.csv $allResults && \\\n      gzip summary.pack\n\n    # Gzip the estimates\n    cat $allResults > estimates.csv\n    gzip -k estimates.csv\n\n    if [ \"$params.PGCONN\" != \"null\" ]; then\n      # Add a run.date column and insert the results into the database.\n      # `tagColumn` is an awk script from the `webworker` container.\n      tagColumnAfter 'run.date' \"$params.date\" < $allResults | \\\n        psql -f /opt/webworker/scripts/copy_county_estimates_dev.sql \"$params.PGCONN\"\n\n      # Do the same for warnings, but prepend the 'run.date' column because of a\n      # preexisting poor choice of SQL table structure..\n      tagColumnBefore 'run.date' \"$params.date\" < $allWarnings | \\\n        psql -f /opt/webworker/scripts/copy_warnings_dev.sql \"$params.PGCONN\"\n\n      # Do the same for rejects, but prepend the 'run.date' column because of a\n      # preexisting poor choice of SQL table structure..\n      tagColumnBefore 'run.date' \"$params.date\" < $rejects | \\\n        psql -f /opt/webworker/scripts/copy_rejects.sql \"$params.PGCONN\"\n\n      # Copy all metadata\n      jq --arg date \"$params.date\" -r \\\n        'map([.fips, \\$date, (. | tojson)] | @tsv) | .[]' < $metadata | \\\n        psql -f /opt/webworker/scripts/copy_county_run_info.sql \"$params.PGCONN\"\n\n      # And finally, copy the input data\n      # Note, the RR column is being ELIMINATED here because it would conflict\n      # with the schema of the api.inputs table\n      tagColumnAfter 'run.date' \"$params.date\" < $inputData | \\\n        cut -d, -f1,2,3,4,6 | \\\n        psql -f /opt/webworker/scripts/copy_inputs_dev.sql \"$params.PGCONN\"\n    else\n      echo \"PGCONN not supplied, DB inserts skipped.\"\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 60,
+        "string_script": "\"\"\"\n    # Create a WebPack file for serving to web browsers\n    serialize.R -o summary.pack --pop /opt/webworker/data/fipspop.csv $allResults && \\\n      gzip summary.pack\n\n    # Gzip the estimates\n    cat $allResults > estimates.csv\n    gzip -k estimates.csv\n\n    if [ \"$params.PGCONN\" != \"null\" ]; then\n      # Add a run.date column and insert the results into the database.\n      # `tagColumn` is an awk script from the `webworker` container.\n      tagColumnAfter 'run.date' \"$params.date\" < $allResults | \\\n        psql -f /opt/webworker/scripts/copy_county_estimates_dev.sql \"$params.PGCONN\"\n\n      # Do the same for warnings, but prepend the 'run.date' column because of a\n      # preexisting poor choice of SQL table structure..\n      tagColumnBefore 'run.date' \"$params.date\" < $allWarnings | \\\n        psql -f /opt/webworker/scripts/copy_warnings_dev.sql \"$params.PGCONN\"\n\n      # Do the same for rejects, but prepend the 'run.date' column because of a\n      # preexisting poor choice of SQL table structure..\n      tagColumnBefore 'run.date' \"$params.date\" < $rejects | \\\n        psql -f /opt/webworker/scripts/copy_rejects.sql \"$params.PGCONN\"\n\n      # Copy all metadata\n      jq --arg date \"$params.date\" -r \\\n        'map([.fips, \\$date, (. | tojson)] | @tsv) | .[]' < $metadata | \\\n        psql -f /opt/webworker/scripts/copy_county_run_info.sql \"$params.PGCONN\"\n\n      # And finally, copy the input data\n      # Note, the RR column is being ELIMINATED here because it would conflict\n      # with the schema of the api.inputs table\n      tagColumnAfter 'run.date' \"$params.date\" < $inputData | \\\n        cut -d, -f1,2,3,4,6 | \\\n        psql -f /opt/webworker/scripts/copy_inputs_dev.sql \"$params.PGCONN\"\n    else\n      echo \"PGCONN not supplied, DB inserts skipped.\"\n    fi\n    \"\"\"",
+        "nb_lignes_script": 39,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "allResults",
+            "inputData",
+            "rejects",
+            "allWarnings",
+            "optVals",
+            "metadata"
+        ],
+        "nb_inputs": 6,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container 'covidestim/webworker:latest'",
+            "time '1h'",
+            "memory '4GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "publishStateResults": {
+        "name_process": "publishStateResults",
+        "string_process": "\nprocess publishStateResults {\n\n    container 'covidestim/webworker:latest'\n    time '1h'\n    memory '4GB'\n\n    input:\n        file allResults\n        file inputData\n        file rejects\n        file warning\n        file optVals\n        file method\n        file metadata\n    output:\n        file 'summary.pack.gz'\n        file 'estimates.csv'\n        file 'estimates.csv.gz'\n\n    publishDir \"$params.webdir/$params.date/state\", enabled: params.s3pub\n    publishDir \"$params.webdir/stage/state\", enabled: params.s3pub, overwrite: true\n\n    \"\"\"\n    RtLiveConvert.R \\\n      -o summary.pack \\\n      --pop /opt/webworker/data/statepop.csv \\\n      --input $inputData \\\n      --method $method \\\n      $allResults && \\\n      gzip summary.pack\n\n    cat $allResults > estimates.csv\n    gzip -k estimates.csv\n\n    if [ \"$params.PGCONN\" != \"null\" ]; then\n\n      # Add a run.date column and insert the results into the database.\n      # `tagColumn` is an awk script from the `webworker` container.\n      tagColumnAfter 'run.date' \"$params.date\" < $allResults | \\\n        psql -f /opt/webworker/scripts/copy_state_estimates.sql \"$params.PGCONN\"\n\n      # Do the same for rejects, but prepend the 'run.date' column because of a\n      # preexisting poor choice of SQL table structure..\n      tagColumnBefore 'run.date' \"$params.date\" < $rejects | \\\n        psql -f /opt/webworker/scripts/copy_state_rejects.sql \"$params.PGCONN\"\n\n      # Copy all metadata. The `jq` call is transforming the JSON metadata\n      # into TSV, which allows a \"state\" and \"date\" to be associated with\n      # each JSON record.\n      jq --arg date \"$params.date\" -r \\\n        'map([.state, \\$date, (. | tojson)] | @tsv) | .[]' < $metadata | \\\n        psql -f /opt/webworker/scripts/copy_state_run_info.sql \"$params.PGCONN\"\n\n      # And finally, copy the input data\n      # Note, the fracpos,volume,RR columns are being ELIMINATED here because\n      # it would conflict with the schema of the api.state_input_data table\n      tagColumnAfter 'run.date' \"$params.date\" < $inputData | \\\n        cut -d, -f1,2,3,4,8 | \\\n        psql -f /opt/webworker/scripts/copy_state_input_data.sql \"$params.PGCONN\"\n\n      # Now, refresh the `api.state_performance` view\n      psql -c \"REFRESH MATERIALIZED VIEW api.state_performance\" \"$params.PGCONN\"\n    else\n      echo \"PGCONN not supplied, DB inserts skipped.\"\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 66,
+        "string_script": "\"\"\"\n    RtLiveConvert.R \\\n      -o summary.pack \\\n      --pop /opt/webworker/data/statepop.csv \\\n      --input $inputData \\\n      --method $method \\\n      $allResults && \\\n      gzip summary.pack\n\n    cat $allResults > estimates.csv\n    gzip -k estimates.csv\n\n    if [ \"$params.PGCONN\" != \"null\" ]; then\n\n      # Add a run.date column and insert the results into the database.\n      # `tagColumn` is an awk script from the `webworker` container.\n      tagColumnAfter 'run.date' \"$params.date\" < $allResults | \\\n        psql -f /opt/webworker/scripts/copy_state_estimates.sql \"$params.PGCONN\"\n\n      # Do the same for rejects, but prepend the 'run.date' column because of a\n      # preexisting poor choice of SQL table structure..\n      tagColumnBefore 'run.date' \"$params.date\" < $rejects | \\\n        psql -f /opt/webworker/scripts/copy_state_rejects.sql \"$params.PGCONN\"\n\n      # Copy all metadata. The `jq` call is transforming the JSON metadata\n      # into TSV, which allows a \"state\" and \"date\" to be associated with\n      # each JSON record.\n      jq --arg date \"$params.date\" -r \\\n        'map([.state, \\$date, (. | tojson)] | @tsv) | .[]' < $metadata | \\\n        psql -f /opt/webworker/scripts/copy_state_run_info.sql \"$params.PGCONN\"\n\n      # And finally, copy the input data\n      # Note, the fracpos,volume,RR columns are being ELIMINATED here because\n      # it would conflict with the schema of the api.state_input_data table\n      tagColumnAfter 'run.date' \"$params.date\" < $inputData | \\\n        cut -d, -f1,2,3,4,8 | \\\n        psql -f /opt/webworker/scripts/copy_state_input_data.sql \"$params.PGCONN\"\n\n      # Now, refresh the `api.state_performance` view\n      psql -c \"REFRESH MATERIALIZED VIEW api.state_performance\" \"$params.PGCONN\"\n    else\n      echo \"PGCONN not supplied, DB inserts skipped.\"\n    fi\n    \"\"\"",
+        "nb_lignes_script": 43,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "allResults",
+            "inputData",
+            "rejects",
+            "warning",
+            "optVals",
+            "method",
+            "metadata"
+        ],
+        "nb_inputs": 7,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container 'covidestim/webworker:latest'",
+            "time '1h'",
+            "memory '4GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "runTractSampler": {
+        "name_process": "runTractSampler",
+        "string_process": "process runTractSampler {\n\n    container \"covidestim/covidestim:$params.branch\"                       \n    cpus 3\n    memory '3 GB'                                                          \n\n                                    \n    time          { params.time[task.attempt - 1] }\n    errorStrategy { task.attempt == params.time.size() ? 'ignore' : 'retry' }\n    maxRetries    { params.time.size() - 1 }\n\n                                                                     \n                                                                            \n                                                         \n    tag \"${tractData.getSimpleName()}\"\n\n                                                                             \n    publishDir \"$params.outdir/raw\", pattern: \"*.RDS\", enabled: params.raw\n\n    input:\n        tuple val(runID), file(tractData), file(metadata)\n    output:\n        path 'summary.csv', emit: summary               \n        path 'warning.csv', emit: warning\n        path 'optvals.csv', emit: optvals\n        path 'method.csv',  emit: method\n        path 'produced_metadata.json', emit: metadata\n        path \"${task.tag}.RDS\" optional !params.raw\n\n    shell:\n    '''\n    #!/usr/local/bin/Rscript\n    library(tidyverse); library(covidestim)\n\n    runner          <- purrr::quietly(covidestim::run)\n    runnerOptimizer <- purrr::quietly(covidestim::runOptimizer)\n\n    d <- read_csv(\n      \"!{tractData}\",\n      col_types = cols(\n        date = col_date(),\n        !{params.key} = col_character(),\n        .default = col_number() # covers cases/deaths/fracpos/volume/RR\n      )\n    ) %>% group_by(!{params.key})\n\n    metadata <- jsonlite::read_json(\"!{metadata}\", simplifyVector = T)\n\n    print(\"Tracts in this process:\")\n    print(pull(d, !{params.key}) %>% unique)\n\n    allResults <- group_map(d, function(tractData, groupKeys) {\n\n      region <- groupKeys[[\"!{params.key}\"]]\n\n      d_cases  <- select(tractData, date, observation = cases)\n      d_deaths <- select(tractData, date, observation = deaths)\n      d_vax    <- select(tractData, date, observation = RR)\n\n      cfg <- covidestim(ndays    = nrow(tractData),\n                        seed     = sample.int(.Machine$integer.max, 1),\n                        region   = region,\n                        pop_size = get_pop(region)) +\n        input_cases(d_cases) +\n        input_deaths(d_deaths) +\n        input_vaccines(d_vax)\n\n      print(cfg)\n      resultOptimizer <- runnerOptimizer(cfg, cores = 1, tries = 10)\n   \n      run_summary <- summary(resultOptimizer$result)\n      warnings    <- resultOptimizer$warnings\n      opt_vals    <- resultOptimizer$result$opt_vals\n\n      # If it's the last attempt\n      if (\"!{task.attempt == params.time.size()}\" == \"true\" &&\n          \"!{params.alwayssample}\" == \"false\") {\n        return(list(\n          run_summary = bind_cols(!{params.key} = region, run_summary),\n          warnings    = bind_cols(!{params.key} = region, warnings = warnings),\n          opt_vals    = bind_cols(!{params.key} = region, optvals  = opt_vals),\n          method      = bind_cols(!{params.key} = region, method   = \"optimizer\"),\n          raw         = resultOptimizer\n        ))\n      }\n\n      result <- runner(cfg, cores = !{task.cpus})\n \n      run_summary <- summary(result$result)\n      warnings    <- result$warnings\n\n      # Error on treedepth warning, or any divergent transitions warning\n      # indicating >= 10 divergent transitions\n      if (any(str_detect(warnings, 'treedepth')) ||\n          any(str_detect(warnings, ' [0-9]{2,} divergent')))\n        quit(status=1)\n\n      return(list(\n        run_summary = bind_cols(!{params.key} = region, run_summary),\n        warnings    = bind_cols(!{params.key} = region, warnings = warnings),\n        opt_vals    = tibble(!{params.key} = region,    optvals = numeric()),\n        method      = bind_cols(!{params.key} = region, method = \"sampler\"),\n        raw         = result\n      ))\n    })\n\n    write_csv(purrr::map(allResults, 'run_summary') %>% bind_rows, 'summary.csv')\n    write_csv(purrr::map(allResults, 'warnings')    %>% bind_rows, 'warning.csv')\n    write_csv(purrr::map(allResults, 'opt_vals')    %>% bind_rows, 'optvals.csv')\n    write_csv(purrr::map(allResults, 'method')      %>% bind_rows, 'method.csv')\n\n    jsonlite::write_json(metadata, 'produced_metadata.json', null = \"null\")\n\n    if (\"!{params.raw}\" == \"true\")\n      saveRDS(purrr::map(allResults, 'raw'), \"!{task.tag}.RDS\")\n    '''\n}",
+        "nb_lignes_process": 115,
+        "string_script": "    '''\n    #!/usr/local/bin/Rscript\n    library(tidyverse); library(covidestim)\n\n    runner          <- purrr::quietly(covidestim::run)\n    runnerOptimizer <- purrr::quietly(covidestim::runOptimizer)\n\n    d <- read_csv(\n      \"!{tractData}\",\n      col_types = cols(\n        date = col_date(),\n        !{params.key} = col_character(),\n        .default = col_number() # covers cases/deaths/fracpos/volume/RR\n      )\n    ) %>% group_by(!{params.key})\n\n    metadata <- jsonlite::read_json(\"!{metadata}\", simplifyVector = T)\n\n    print(\"Tracts in this process:\")\n    print(pull(d, !{params.key}) %>% unique)\n\n    allResults <- group_map(d, function(tractData, groupKeys) {\n\n      region <- groupKeys[[\"!{params.key}\"]]\n\n      d_cases  <- select(tractData, date, observation = cases)\n      d_deaths <- select(tractData, date, observation = deaths)\n      d_vax    <- select(tractData, date, observation = RR)\n\n      cfg <- covidestim(ndays    = nrow(tractData),\n                        seed     = sample.int(.Machine$integer.max, 1),\n                        region   = region,\n                        pop_size = get_pop(region)) +\n        input_cases(d_cases) +\n        input_deaths(d_deaths) +\n        input_vaccines(d_vax)\n\n      print(cfg)\n      resultOptimizer <- runnerOptimizer(cfg, cores = 1, tries = 10)\n   \n      run_summary <- summary(resultOptimizer$result)\n      warnings    <- resultOptimizer$warnings\n      opt_vals    <- resultOptimizer$result$opt_vals\n\n      # If it's the last attempt\n      if (\"!{task.attempt == params.time.size()}\" == \"true\" &&\n          \"!{params.alwayssample}\" == \"false\") {\n        return(list(\n          run_summary = bind_cols(!{params.key} = region, run_summary),\n          warnings    = bind_cols(!{params.key} = region, warnings = warnings),\n          opt_vals    = bind_cols(!{params.key} = region, optvals  = opt_vals),\n          method      = bind_cols(!{params.key} = region, method   = \"optimizer\"),\n          raw         = resultOptimizer\n        ))\n      }\n\n      result <- runner(cfg, cores = !{task.cpus})\n \n      run_summary <- summary(result$result)\n      warnings    <- result$warnings\n\n      # Error on treedepth warning, or any divergent transitions warning\n      # indicating >= 10 divergent transitions\n      if (any(str_detect(warnings, 'treedepth')) ||\n          any(str_detect(warnings, ' [0-9]{2,} divergent')))\n        quit(status=1)\n\n      return(list(\n        run_summary = bind_cols(!{params.key} = region, run_summary),\n        warnings    = bind_cols(!{params.key} = region, warnings = warnings),\n        opt_vals    = tibble(!{params.key} = region,    optvals = numeric()),\n        method      = bind_cols(!{params.key} = region, method = \"sampler\"),\n        raw         = result\n      ))\n    })\n\n    write_csv(purrr::map(allResults, 'run_summary') %>% bind_rows, 'summary.csv')\n    write_csv(purrr::map(allResults, 'warnings')    %>% bind_rows, 'warning.csv')\n    write_csv(purrr::map(allResults, 'opt_vals')    %>% bind_rows, 'optvals.csv')\n    write_csv(purrr::map(allResults, 'method')      %>% bind_rows, 'method.csv')\n\n    jsonlite::write_json(metadata, 'produced_metadata.json', null = \"null\")\n\n    if (\"!{params.raw}\" == \"true\")\n      saveRDS(purrr::map(allResults, 'raw'), \"!{task.tag}.RDS\")\n    '''",
+        "nb_lignes_script": 85,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "runID",
+            "tractData",
+            "metadata"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container \"covidestim/covidestim:$params.branch\"",
+            "cpus 3",
+            "memory '3 GB'",
+            "time { params.time[task.attempt - 1] }",
+            "errorStrategy { task.attempt == params.time.size() ? 'ignore' : 'retry' }",
+            "maxRetries { params.time.size() - 1 }",
+            "tag \"${tractData.getSimpleName()}\"",
+            "publishDir \"$params.outdir/raw\", pattern: \"*.RDS\", enabled: params.raw"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "runTractOptimizer": {
+        "name_process": "runTractOptimizer",
+        "string_process": "\nprocess runTractOptimizer {\n\n    container \"covidestim/covidestim:$params.branch\"                       \n    cpus 1\n    memory '3 GB'                                                          \n\n    time '6h'\n\n    errorStrategy \"retry\"\n    maxRetries 1\n\n                                                                     \n                                                                            \n                                                         \n    tag \"${tractData.getSimpleName()}\"\n\n                                                                             \n    publishDir \"$params.outdir/raw\", pattern: \"*.RDS\", enabled: params.raw\n\n    input:\n        tuple val(runID), file(tractData), file(metadata)\n    output:\n        path 'summary.csv', emit: summary               \n        path 'warning.csv', emit: warning\n        path 'optvals.csv', emit: optvals\n        path 'method.csv',  emit: method\n        path 'produced_metadata.json', emit: metadata\n        path \"${task.tag}.RDS\" optional !params.raw\n\n    shell:\n    '''\n    #!/usr/local/bin/Rscript\n    library(tidyverse); library(covidestim)\n\n    runner <- purrr::quietly(covidestim::runOptimizer)\n\n    d <- read_csv(\n      \"!{tractData}\",\n      col_types = cols(\n        date = col_date(),\n        !{params.key} = col_character(),\n        .default = col_number() # covers cases/deaths/fracpos/volume/RR\n      )\n    ) %>%\n      group_by(!{params.key})\n\n    metadata <- jsonlite::read_json(\"!{metadata}\", simplifyVector = T)\n\n    print(\"Tracts in this process:\")\n    print(pull(d, !{params.key}) %>% unique)\n\n    allResults <- group_map(d, function(tractData, groupKeys) {\n\n      region <- groupKeys[[\"!{params.key}\"]]\n      regionMetadata <- filter(metadata, !{params.key} == region)\n\n      print(paste0(\"Beginning \", region))\n\n      d_cases  <- select(tractData, date, observation = cases)\n      d_deaths <- select(tractData, date, observation = deaths)\n      d_vax    <- select(tractData, date, observation = RR)\n\n      if (is.null(regionMetadata$nonReportingBegins) || is.na(regionMetadata$nonReportingBegins)) {\n        inputDeaths <- input_deaths(d_deaths)\n      } else {\n        message(\"Clipping deaths!\")\n        inputDeaths <- input_deaths(\n          d_deaths,\n          lastDeathDate = as.Date(regionMetadata$nonReportingBegins)\n        )\n      }\n\n      cfg <- covidestim(ndays    = nrow(tractData),\n                        seed     = sample.int(.Machine$integer.max, 1),\n                        region   = region,\n                        pop_size = get_pop(region)) +\n        input_cases(d_cases) +\n        inputDeaths +\n        input_vaccines(d_vax)\n\n      print(\"Configuration:\")\n      print(cfg)\n\n      result <- runner(cfg, cores = 1, tries = 10)\n      print(\"Warning messages from optimizer:\")\n      print(result$warnings)\n      print(\"Messages from optimizer:\")\n      print(result$messages)\n\n      run_summary <- summary(result$result)\n      warnings    <- result$warnings\n\n      print(\"Summary:\")\n      print(run_summary)\n\n      list(\n        run_summary = bind_cols(!{params.key} = region, run_summary),\n        warnings    = bind_cols(!{params.key} = region, warnings = warnings),\n        opt_vals    = bind_cols(!{params.key} = region, optvals = result$result$opt_vals),\n        method      = bind_cols(!{params.key} = region, method = 'optimizer'),\n        raw         = result\n      )\n    })\n\n    write_csv(purrr::map(allResults, 'run_summary') %>% bind_rows, 'summary.csv')\n    write_csv(purrr::map(allResults, 'warnings')    %>% bind_rows, 'warning.csv')\n    write_csv(purrr::map(allResults, 'opt_vals')    %>% bind_rows, 'optvals.csv')\n    write_csv(purrr::map(allResults, 'method')      %>% bind_rows, 'method.csv')\n\n    jsonlite::write_json(metadata, 'produced_metadata.json', null = \"null\")\n\n    if (\"!{params.raw}\" == \"true\")\n      saveRDS(purrr::map(allResults, 'raw'), \"!{task.tag}.RDS\")\n    '''\n}",
+        "nb_lignes_process": 114,
+        "string_script": "    '''\n    #!/usr/local/bin/Rscript\n    library(tidyverse); library(covidestim)\n\n    runner <- purrr::quietly(covidestim::runOptimizer)\n\n    d <- read_csv(\n      \"!{tractData}\",\n      col_types = cols(\n        date = col_date(),\n        !{params.key} = col_character(),\n        .default = col_number() # covers cases/deaths/fracpos/volume/RR\n      )\n    ) %>%\n      group_by(!{params.key})\n\n    metadata <- jsonlite::read_json(\"!{metadata}\", simplifyVector = T)\n\n    print(\"Tracts in this process:\")\n    print(pull(d, !{params.key}) %>% unique)\n\n    allResults <- group_map(d, function(tractData, groupKeys) {\n\n      region <- groupKeys[[\"!{params.key}\"]]\n      regionMetadata <- filter(metadata, !{params.key} == region)\n\n      print(paste0(\"Beginning \", region))\n\n      d_cases  <- select(tractData, date, observation = cases)\n      d_deaths <- select(tractData, date, observation = deaths)\n      d_vax    <- select(tractData, date, observation = RR)\n\n      if (is.null(regionMetadata$nonReportingBegins) || is.na(regionMetadata$nonReportingBegins)) {\n        inputDeaths <- input_deaths(d_deaths)\n      } else {\n        message(\"Clipping deaths!\")\n        inputDeaths <- input_deaths(\n          d_deaths,\n          lastDeathDate = as.Date(regionMetadata$nonReportingBegins)\n        )\n      }\n\n      cfg <- covidestim(ndays    = nrow(tractData),\n                        seed     = sample.int(.Machine$integer.max, 1),\n                        region   = region,\n                        pop_size = get_pop(region)) +\n        input_cases(d_cases) +\n        inputDeaths +\n        input_vaccines(d_vax)\n\n      print(\"Configuration:\")\n      print(cfg)\n\n      result <- runner(cfg, cores = 1, tries = 10)\n      print(\"Warning messages from optimizer:\")\n      print(result$warnings)\n      print(\"Messages from optimizer:\")\n      print(result$messages)\n\n      run_summary <- summary(result$result)\n      warnings    <- result$warnings\n\n      print(\"Summary:\")\n      print(run_summary)\n\n      list(\n        run_summary = bind_cols(!{params.key} = region, run_summary),\n        warnings    = bind_cols(!{params.key} = region, warnings = warnings),\n        opt_vals    = bind_cols(!{params.key} = region, optvals = result$result$opt_vals),\n        method      = bind_cols(!{params.key} = region, method = 'optimizer'),\n        raw         = result\n      )\n    })\n\n    write_csv(purrr::map(allResults, 'run_summary') %>% bind_rows, 'summary.csv')\n    write_csv(purrr::map(allResults, 'warnings')    %>% bind_rows, 'warning.csv')\n    write_csv(purrr::map(allResults, 'opt_vals')    %>% bind_rows, 'optvals.csv')\n    write_csv(purrr::map(allResults, 'method')      %>% bind_rows, 'method.csv')\n\n    jsonlite::write_json(metadata, 'produced_metadata.json', null = \"null\")\n\n    if (\"!{params.raw}\" == \"true\")\n      saveRDS(purrr::map(allResults, 'raw'), \"!{task.tag}.RDS\")\n    '''",
+        "nb_lignes_script": 83,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "runID",
+            "tractData",
+            "metadata"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container \"covidestim/covidestim:$params.branch\"",
+            "cpus 1",
+            "memory '3 GB'",
+            "time '6h'",
+            "errorStrategy \"retry\"",
+            "maxRetries 1",
+            "tag \"${tractData.getSimpleName()}\"",
+            "publishDir \"$params.outdir/raw\", pattern: \"*.RDS\", enabled: params.raw"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "makeSyntheticIntervals": {
+        "name_process": "makeSyntheticIntervals",
+        "string_process": "\nprocess makeSyntheticIntervals {\n\n    container 'covidestim/webworker:latest'\n    time '10m'\n\n    input:\n      file data\n      file metadata\n      file backup\n    output:\n      path 'synthetic_summary.csv', emit: summary\n      path 'produced_metadata.json', emit: metadata\n      path 'backup.RDS' optional true\n\n    publishDir \"$params.webdir/synthetic-backup\", enabled: params.s3pub, pattern: 'newBackup.RDS', saveAs: { 'backup.RDS' }\n\n    \"\"\"\n    makeSyntheticIntervals.R \\\n      -o synthetic_summary.csv \\\n      --statepop /opt/webworker/data/statepop.csv \\\n      --backup $backup \\\n      --writeBackup newBackup.RDS \\\n      --vars infections,Rt,cum.incidence \\\n      --minSampled 10 \\\n      --metadata $metadata \\\n      --writeMetadata produced_metadata.json \\\n      $data\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "\"\"\"\n    makeSyntheticIntervals.R \\\n      -o synthetic_summary.csv \\\n      --statepop /opt/webworker/data/statepop.csv \\\n      --backup $backup \\\n      --writeBackup newBackup.RDS \\\n      --vars infections,Rt,cum.incidence \\\n      --minSampled 10 \\\n      --metadata $metadata \\\n      --writeMetadata produced_metadata.json \\\n      $data\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "data",
+            "metadata",
+            "backup"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container 'covidestim/webworker:latest'",
+            "time '10m'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "jhuVaxData": {
+        "name_process": "jhuVaxData",
+        "string_process": "\nprocess jhuVaxData {\n    container 'covidestim/webworker:latest'                                        \n\n                                                          \n    errorStrategy 'retry'\n    maxRetries 1\n    time '50m'\n\n                                                                             \n                                                              \n    memory '8 GB'\n\n    output:\n      path 'data.csv',      emit: data\n      path 'rejects.csv',   emit: rejects\n      path 'metadata.json', emit: metadata\n\n                                                                        \n                                   \n    shell:\n\n    if (params.timemachine != false)\n      \"\"\"\n      echo \"Error: Cannot use timemachine for jhuVaxData!\"\n      exit 1\n      \"\"\"\n    else \n      \"\"\"\n      echo \"Not using time machine; pulling latest data\"\n      git clone https://github.com/covidestim/covidestim-sources && \\\n        cd covidestim-sources && \\\n        git submodule init && \\\n        git submodule update --depth 1 --remote data-sources/jhu-data && \\\n        make -B data-products/case-death-rr.csv \\\n          data-products/jhu-counties-rejects.csv \\\n          data-products/case-death-rr-metadata.json && \\\n        mv data-products/case-death-rr.csv ../data.csv && \\\n        mv data-products/case-death-rr-metadata.json ../metadata.json && \\\n        mv data-products/jhu-counties-rejects.csv ../rejects.csv\n      \"\"\"\n\n    stub:\n    \"\"\"\n    echo \"Running stub method\"\n    git clone --depth 1 https://github.com/covidestim/covidestim-sources && \\\n      cd covidestim-sources && \\\n      mv example-output/case-death-rr.csv ../data.csv && \\\n      mv example-output/case-death-rr-metadata.json ../metadata.json && \\\n      mv example-output/jhu-counties-rejects.csv ../rejects.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 50,
+        "string_script": "    if (params.timemachine != false)\n      \"\"\"\n      echo \"Error: Cannot use timemachine for jhuVaxData!\"\n      exit 1\n      \"\"\"\n    else \n      \"\"\"\n      echo \"Not using time machine; pulling latest data\"\n      git clone https://github.com/covidestim/covidestim-sources && \\\n        cd covidestim-sources && \\\n        git submodule init && \\\n        git submodule update --depth 1 --remote data-sources/jhu-data && \\\n        make -B data-products/case-death-rr.csv \\\n          data-products/jhu-counties-rejects.csv \\\n          data-products/case-death-rr-metadata.json && \\\n        mv data-products/case-death-rr.csv ../data.csv && \\\n        mv data-products/case-death-rr-metadata.json ../metadata.json && \\\n        mv data-products/jhu-counties-rejects.csv ../rejects.csv\n      \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container 'covidestim/webworker:latest'",
+            "errorStrategy 'retry'",
+            "maxRetries 1",
+            "time '50m'",
+            "memory '8 GB'"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    echo \"Running stub method\"\n    git clone --depth 1 https://github.com/covidestim/covidestim-sources && \\\n      cd covidestim-sources && \\\n      mv example-output/case-death-rr.csv ../data.csv && \\\n      mv example-output/case-death-rr-metadata.json ../metadata.json && \\\n      mv example-output/jhu-counties-rejects.csv ../rejects.csv\n    \"\"\""
+    },
+    "jhuStateVaxData": {
+        "name_process": "jhuStateVaxData",
+        "string_process": "\nprocess jhuStateVaxData {\n    container 'covidestim/webworker:latest'                                        \n\n                                                          \n    errorStrategy 'retry'\n    maxRetries 1\n    time '50m'\n\n                                                                             \n                                \n    memory '8 GB'\n\n    output:\n      path 'data.csv',      emit: data\n      path 'rejects.csv',   emit: rejects\n      path 'metadata.json', emit: metadata\n\n                                                                        \n                                   \n    shell:\n\n    if (params.timemachine != false)\n      \"\"\"\n      echo \"Error: Cannot use timemachine for jhuStateVaxData!\"\n      exit 1\n      \"\"\"\n    else \n      '''\n      echo \"Not using time machine; pulling latest data\"\n      git clone https://github.com/covidestim/covidestim-sources && \\\n        cd covidestim-sources && \\\n        git submodule init && \\\n        git submodule update --depth 1 --remote data-sources/jhu-data && \\\n        make -B data-products/case-death-rr-state.csv \\\n          data-products/jhu-states-rejects.csv \\\n          data-products/case-death-rr-state-metadata.json && \\\n        mv data-products/case-death-rr-state.csv ../data.csv && \\\n        mv data-products/jhu-states-rejects.csv ../rejects.csv && \\\n        mv data-products/case-death-rr-state-metadata.json ../metadata.json\n      '''\n\n    stub:\n    \"\"\"\n    echo \"Running stub method\"\n    git clone --depth 1 https://github.com/covidestim/covidestim-sources && \\\n      cd covidestim-sources && \\\n      mv example-output/case-death-rr-state.csv ../data.csv && \\\n      mv example-output/case-death-rr-state-metadata.json ../metadata.json && \\\n      mv example-output/jhu-states-rejects.csv ../rejects.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 50,
+        "string_script": "    if (params.timemachine != false)\n      \"\"\"\n      echo \"Error: Cannot use timemachine for jhuStateVaxData!\"\n      exit 1\n      \"\"\"\n    else \n      '''\n      echo \"Not using time machine; pulling latest data\"\n      git clone https://github.com/covidestim/covidestim-sources && \\\n        cd covidestim-sources && \\\n        git submodule init && \\\n        git submodule update --depth 1 --remote data-sources/jhu-data && \\\n        make -B data-products/case-death-rr-state.csv \\\n          data-products/jhu-states-rejects.csv \\\n          data-products/case-death-rr-state-metadata.json && \\\n        mv data-products/case-death-rr-state.csv ../data.csv && \\\n        mv data-products/jhu-states-rejects.csv ../rejects.csv && \\\n        mv data-products/case-death-rr-state-metadata.json ../metadata.json\n      '''",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container 'covidestim/webworker:latest'",
+            "errorStrategy 'retry'",
+            "maxRetries 1",
+            "time '50m'",
+            "memory '8 GB'"
+        ],
+        "when": "",
+        "stub": "\n    \"\"\"\n    echo \"Running stub method\"\n    git clone --depth 1 https://github.com/covidestim/covidestim-sources && \\\n      cd covidestim-sources && \\\n      mv example-output/case-death-rr-state.csv ../data.csv && \\\n      mv example-output/case-death-rr-state-metadata.json ../metadata.json && \\\n      mv example-output/jhu-states-rejects.csv ../rejects.csv\n    \"\"\""
+    },
+    "filterTestTracts": {
+        "name_process": "filterTestTracts",
+        "string_process": "\nprocess filterTestTracts {\n\n    container 'covidestim/webworker:latest'\n    time '10m'\n\n    input:\n      file allTractData\n      file rejects\n      file metadata\n    output:\n      path 'filtered_data.csv', emit: data\n      path 'rejects.csv', emit: rejects\n      path 'produced_metadata.json', emit: metadata\n\n    \"\"\"\n    filterTestTracts.R \\\n      -o filtered_data.csv \\\n      --writeMetadata produced_metadata.json \\\n      --metadata $metadata \\\n      --tracts /opt/webworker/data/test-tracts.csv \\\n      --key $params.key \\\n      $allTractData\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n    filterTestTracts.R \\\n      -o filtered_data.csv \\\n      --writeMetadata produced_metadata.json \\\n      --metadata $metadata \\\n      --tracts /opt/webworker/data/test-tracts.csv \\\n      --key $params.key \\\n      $allTractData\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "allTractData",
+            "rejects",
+            "metadata"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container 'covidestim/webworker:latest'",
+            "time '10m'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "splitTractData": {
+        "name_process": "splitTractData",
+        "string_process": "\nprocess splitTractData {\n\n    container 'rocker/tidyverse'\n    time '1h'                                                            \n    memory '4GB'                                                                     \n\n    input:\n      file allTractData\n      file rejects\n      file metadata\n    output:\n      path '*.csv', emit: timeseries\n      path '*.json', emit: metadata\n\n    shell:\n    \"\"\"\n    #!/usr/local/bin/Rscript\n    library(tidyverse)\n\n    d <- read_csv(\"!{allTractData}\")\n\n    metadata <- jsonlite::read_json(\"!{metadata}\", simplifyVector = T)\n\n    tractsUnique <- pull(d, !{params.key}) %>% unique\n\n    tractsGrouped        <- 1:length(tractsUnique) %% !{params.ngroups}\n    names(tractsGrouped) <- tractsUnique\n\n    group_by(d, flight = tractsGrouped[!{params.key}]) %>%\n      arrange(!{params.key}, date) %>%\n      group_walk(\n        ~write_csv(\n          .x,\n          ifelse(\n            # If there is only one tract in this group\n            (!{params.ngroups} == 10000000) ||\n            (pull(.x, !{params.key}) %>% unique %>% length) == 1,\n            # Then name the CSV file after that tract\n            paste0(.x[[\"!{params.key}\"]][1], \".csv\"),\n            # Otherwise, name it after the number (index) of the group\n            paste0(.y[[\"flight\"]], \".csv\")\n          )\n        )\n      )\n\n    group_by(metadata, flight = tractsGrouped[!{params.key}]) %>%\n      group_walk(\n        ~jsonlite::write_json(\n          .x,\n          ifelse(\n            # If there is only one tract in this group\n            (!{params.ngroups} == 10000000) ||\n            (pull(.x, !{params.key}) %>% unique %>% length) == 1,\n            # Then name the JSON file after that tract\n            paste0(.x[[\"!{params.key}\"]][1], \".json\"),\n            # Otherwise, name it after the number (index) of the group\n            paste0(.y[[\"flight\"]], \".json\")\n          ),\n          null = 'null'\n        )\n      )\n    \"\"\"\n}",
+        "nb_lignes_process": 62,
+        "string_script": "    \"\"\"\n    #!/usr/local/bin/Rscript\n    library(tidyverse)\n\n    d <- read_csv(\"!{allTractData}\")\n\n    metadata <- jsonlite::read_json(\"!{metadata}\", simplifyVector = T)\n\n    tractsUnique <- pull(d, !{params.key}) %>% unique\n\n    tractsGrouped        <- 1:length(tractsUnique) %% !{params.ngroups}\n    names(tractsGrouped) <- tractsUnique\n\n    group_by(d, flight = tractsGrouped[!{params.key}]) %>%\n      arrange(!{params.key}, date) %>%\n      group_walk(\n        ~write_csv(\n          .x,\n          ifelse(\n            # If there is only one tract in this group\n            (!{params.ngroups} == 10000000) ||\n            (pull(.x, !{params.key}) %>% unique %>% length) == 1,\n            # Then name the CSV file after that tract\n            paste0(.x[[\"!{params.key}\"]][1], \".csv\"),\n            # Otherwise, name it after the number (index) of the group\n            paste0(.y[[\"flight\"]], \".csv\")\n          )\n        )\n      )\n\n    group_by(metadata, flight = tractsGrouped[!{params.key}]) %>%\n      group_walk(\n        ~jsonlite::write_json(\n          .x,\n          ifelse(\n            # If there is only one tract in this group\n            (!{params.ngroups} == 10000000) ||\n            (pull(.x, !{params.key}) %>% unique %>% length) == 1,\n            # Then name the JSON file after that tract\n            paste0(.x[[\"!{params.key}\"]][1], \".json\"),\n            # Otherwise, name it after the number (index) of the group\n            paste0(.y[[\"flight\"]], \".json\")\n          ),\n          null = 'null'\n        )\n      )\n    \"\"\"",
+        "nb_lignes_script": 46,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "allTractData",
+            "rejects",
+            "metadata"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "covidestim__dailyFlow",
+        "directive": [
+            "container 'rocker/tidyverse'",
+            "time '1h'",
+            "memory '4GB'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

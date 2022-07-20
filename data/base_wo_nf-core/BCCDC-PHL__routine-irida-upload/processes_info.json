@@ -1,0 +1,59 @@
+{
+    "create_sample_list": {
+        "name_process": "create_sample_list",
+        "string_process": "process create_sample_list {\n\n  tag { run_id }\n\n  executor 'local'\n\n  input:\n  path(run_dir)\n\n  output:\n  tuple val(run_id), path(\"SampleList.csv\")\n\n  script:\n  run_id = run_dir.baseName\n  if (params.instrument_type == \"nextseq\") {\n    data_prefix = \"Cloud_\"\n    awk_string = \"BEGIN { OFS=FS }; \\$2 ~ /^[[:digit:]]+\\$/ { print \\$1, \\$2 }\"\n  } else {\n    data_prefix = \"\"\n    awk_string = \"BEGIN { OFS=FS }; \\$10 ~ /^[[:digit:]]+\\$/ { print \\$2, \\$10 }\"\n  }\n  \"\"\"\n  cp ${run_dir}/SampleSheet*.csv SampleSheet_Copy.csv\n  echo \"[Data]\" > SampleList_Header.csv\n  echo \"Sample_Name,Project_ID,File_Forward,File_Reverse\" >> SampleList_Header.csv\n  sed -e '1,/\\\\[${data_prefix}Data\\\\]/d' SampleSheet_Copy.csv > SampleSheet_Data.csv\n  tail -n+2 SampleSheet_Data.csv | awk -F \",\" '${awk_string}' > Sample_Name_Project_ID.csv\n  touch Reads_R1.csv\n  while IFS=\",\" read -r sample_name project_id; do \\\n    ls -1 ${run_dir}/${params.fastq_subdir}/\\${sample_name}*R1*.fastq.gz | xargs -n 1 basename >> Reads_R1.csv; \\\n  done < Sample_Name_Project_ID.csv\n  touch Reads_R2.csv\n  while IFS=\",\" read -r sample_name project_id; do \\\n    ls -1 ${run_dir}/${params.fastq_subdir}/\\${sample_name}*R2*.fastq.gz | xargs -n 1 basename >> Reads_R2.csv; \\\n  done < Sample_Name_Project_ID.csv\n  paste -d \",\" Sample_Name_Project_ID.csv Reads_R1.csv Reads_R2.csv > SampleList_Body.csv\n  cat SampleList_Header.csv SampleList_Body.csv > SampleList.csv\n  \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "  run_id = run_dir.baseName\n  if (params.instrument_type == \"nextseq\") {\n    data_prefix = \"Cloud_\"\n    awk_string = \"BEGIN { OFS=FS }; \\$2 ~ /^[[:digit:]]+\\$/ { print \\$1, \\$2 }\"\n  } else {\n    data_prefix = \"\"\n    awk_string = \"BEGIN { OFS=FS }; \\$10 ~ /^[[:digit:]]+\\$/ { print \\$2, \\$10 }\"\n  }\n  \"\"\"\n  cp ${run_dir}/SampleSheet*.csv SampleSheet_Copy.csv\n  echo \"[Data]\" > SampleList_Header.csv\n  echo \"Sample_Name,Project_ID,File_Forward,File_Reverse\" >> SampleList_Header.csv\n  sed -e '1,/\\\\[${data_prefix}Data\\\\]/d' SampleSheet_Copy.csv > SampleSheet_Data.csv\n  tail -n+2 SampleSheet_Data.csv | awk -F \",\" '${awk_string}' > Sample_Name_Project_ID.csv\n  touch Reads_R1.csv\n  while IFS=\",\" read -r sample_name project_id; do \\\n    ls -1 ${run_dir}/${params.fastq_subdir}/\\${sample_name}*R1*.fastq.gz | xargs -n 1 basename >> Reads_R1.csv; \\\n  done < Sample_Name_Project_ID.csv\n  touch Reads_R2.csv\n  while IFS=\",\" read -r sample_name project_id; do \\\n    ls -1 ${run_dir}/${params.fastq_subdir}/\\${sample_name}*R2*.fastq.gz | xargs -n 1 basename >> Reads_R2.csv; \\\n  done < Sample_Name_Project_ID.csv\n  paste -d \",\" Sample_Name_Project_ID.csv Reads_R1.csv Reads_R2.csv > SampleList_Body.csv\n  cat SampleList_Header.csv SampleList_Body.csv > SampleList.csv\n  \"\"\"",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "run_dir"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "run_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BCCDC-PHL__routine-irida-upload",
+        "directive": [
+            "tag { run_id }",
+            "executor 'local'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "irida_uploader": {
+        "name_process": "irida_uploader",
+        "string_process": "\nprocess irida_uploader {\n\n  tag { run_id }\n\n  executor 'local'\n\n  publishDir \"${params.outdir}\", pattern: \"${run_id}_irida_uploader*\", mode: 'copy'\n  publishDir \"${params.outdir}\", pattern: \"pipeline_complete.json\", mode: 'copy'\n\n  input:\n    tuple val(run_id), path(sample_list), path(config)\n    path(reads)\n\n  output:\n    tuple val(run_id), path(\"${run_id}_irida_uploader.log\"), path(\"${run_id}_irida_uploader_status.info\"), path(\"pipeline_complete.json\")\n\n  script:\n    def config = config.name != 'NO_FILE' ? \"-c ${config}\" : \"\"\n    \"\"\"\n    irida-uploader ${config} --config_parser directory -d . || true\n    mv irida-uploader.log ${run_id}_irida_uploader.log\n    mv irida_uploader_status.info ${run_id}_irida_uploader_status.info\n    echo \"{\\\\\"pipeline_name\\\\\": \\\\\"BCCDC-PHL/routine-irida-upload\\\\\", \\\\\"timestamp_completed\\\\\": \\\\\"\\$(date --iso=seconds)\\\\\"}\" > pipeline_complete.json\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    def config = config.name != 'NO_FILE' ? \"-c ${config}\" : \"\"\n    \"\"\"\n    irida-uploader ${config} --config_parser directory -d . || true\n    mv irida-uploader.log ${run_id}_irida_uploader.log\n    mv irida_uploader_status.info ${run_id}_irida_uploader_status.info\n    echo \"{\\\\\"pipeline_name\\\\\": \\\\\"BCCDC-PHL/routine-irida-upload\\\\\", \\\\\"timestamp_completed\\\\\": \\\\\"\\$(date --iso=seconds)\\\\\"}\" > pipeline_complete.json\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "run_id",
+            "sample_list",
+            "config",
+            "reads"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "run_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BCCDC-PHL__routine-irida-upload",
+        "directive": [
+            "tag { run_id }",
+            "executor 'local'",
+            "publishDir \"${params.outdir}\", pattern: \"${run_id}_irida_uploader*\", mode: 'copy'",
+            "publishDir \"${params.outdir}\", pattern: \"pipeline_complete.json\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

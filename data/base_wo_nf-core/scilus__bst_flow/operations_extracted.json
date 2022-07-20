@@ -1,0 +1,279 @@
+{
+    "OPERATION_1": {
+        "string": "in_data = Channel\n        .fromFilePairs(\"$root/**/{*fa.nii.gz,*fodf.nii.gz,*tracking_mask.nii.gz}\",\n                        size: 3,\n                        maxDepth:2,\n                        flat: true) {it.parent.name}",
+        "origin": [],
+        "gives": [
+            [
+                "in_data",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_2": {
+        "string": "map_pft = Channel\n        .fromFilePairs(\"$root/**/{*map_exclude.nii.gz,*map_include.nii.gz}\",\n                        size: 2,\n                        maxDepth:2,\n                        flat: true) {it.parent.name}",
+        "origin": [],
+        "gives": [
+            [
+                "map_pft",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "atlas_anat = Channel.fromPath(\"$params.atlas_anat\")",
+        "origin": [
+            [
+                "\"$params.atlas_anat\"",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "atlas_anat",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "atlas_bundles = Channel.fromPath(\"$params.atlas_directory/*.trk\")",
+        "origin": [
+            [
+                "\"$params.atlas_directory/*.trk\"",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "atlas_bundles",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_5": {
+        "string": "anat_for_registration, anat_for_deformation, fod_and_mask_for_priors = in_data\n    .map{sid, anat, fodf, tracking_mask -> \n        [tuple(sid, anat),\n        tuple(sid, anat),\n        tuple(sid, fodf, tracking_mask)]}\n    .separate(3)",
+        "origin": [
+            [
+                "in_data",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "anat_for_registration",
+                "P"
+            ],
+            [
+                "anat_for_deformation",
+                "P"
+            ],
+            [
+                "fod_and_mask_for_priors",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_6": {
+        "string": "map_in_for_tracking, map_ex_for_tracking = map_pft\n    .map{sid, map_exclude , map_include -> \n        [tuple(sid, map_include),\n        tuple(sid, map_exclude)]}\n    .separate(2)",
+        "origin": [
+            [
+                "map_pft",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "map_in_for_tracking",
+                "P"
+            ],
+            [
+                "map_ex_for_tracking",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_7": {
+        "string": "anat_for_registration\n    .combine(atlas_anat)\n    .set{anats_for_registration}PROCESS DEF Register_Anat",
+        "origin": [
+            [
+                "anat_for_registration",
+                "P"
+            ],
+            [
+                "atlas_anat",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "anats_for_registration",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_8": {
+        "string": "anat_for_deformation\n    .join(deformation_for_warping)\n    .set{anat_deformation_for_warp}PROCESS DEF Warp_Bundle",
+        "origin": [
+            [
+                "anat_for_deformation",
+                "P"
+            ],
+            [
+                "deformation_for_warping",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "anat_deformation_for_warp",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_9": {
+        "string": "fod_and_mask_for_priors\n    .combine(bundles_for_priors, by: 0)\n    .set{fod_mask_bundles_for_priors}",
+        "origin": [
+            [
+                "fod_and_mask_for_priors",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "fod_mask_bundles_for_priors",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_10": {
+        "string": "efod_for_tracking\n        .into{fod_for_local_tracking; fod_for_PFT_tracking}",
+        "origin": [
+            [
+                "efod_for_tracking",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "fod_for_local_tracking",
+                "P"
+            ],
+            [
+                "fod_for_PFT_tracking",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_11": {
+        "string": "fod_for_tracking\n        .into{fod_for_local_tracking; fod_for_PFT_tracking}",
+        "origin": [
+            [
+                "fod_for_tracking",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "fod_for_local_tracking",
+                "P"
+            ],
+            [
+                "fod_for_PFT_tracking",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_12": {
+        "string": "tracking_mask_for_local_tracking\n    .combine(fod_for_local_tracking, by: [0,1])\n    .combine(seeding_mask_for_local_tracking, by: [0,1])\n    .set{mask_seeding_mask_fod_for_tracking}PROCESS DEF Local_Tracking",
+        "origin": [
+            [
+                "tracking_mask_for_local_tracking",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "mask_seeding_mask_fod_for_tracking",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_13": {
+        "string": "map_in_for_tracking\n    .combine(masks_for_map_in, by: 0)\n    .set{masks_map_in_for_bs}PROCESS DEF Generate_Map_Include",
+        "origin": [
+            [
+                "map_in_for_tracking",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "masks_map_in_for_bs",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_14": {
+        "string": "map_ex_for_tracking\n    .combine(masks_for_map_ex, by: 0)\n    .set{masks_map_ex_for_bs}PROCESS DEF Generate_Map_Exclude",
+        "origin": [
+            [
+                "map_ex_for_tracking",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "masks_map_ex_for_bs",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_15": {
+        "string": "map_ex_for_PFT_tracking\n    .combine(map_in_for_PFT_tracking, by: [0,1])\n    .combine(fod_for_PFT_tracking, by: [0,1])\n    .combine(seeding_mask_for_PFT_tracking, by: [0,1])\n    .set{maps_seeding_mask_fod_for_tracking}PROCESS DEF PFT_Tracking",
+        "origin": [
+            [
+                "map_ex_for_PFT_tracking",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "maps_seeding_mask_fod_for_tracking",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_16": {
+        "string": "local_bundles_for_recobundles\n    .concat(pft_bundles_for_recobundles)\n    .set{bundles_for_recobundles}",
+        "origin": [
+            [
+                "local_bundles_for_recobundles",
+                "P"
+            ],
+            [
+                "pft_bundles_for_recobundles",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "bundles_for_recobundles",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_17": {
+        "string": "bundles_for_recobundles\n    .combine(models_for_recobundles, by: [0,1])\n    .set{bundles_models_for_recobundles}PROCESS DEF Recobundles_Segmentation",
+        "origin": [
+            [
+                "bundles_for_recobundles",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "bundles_models_for_recobundles",
+                "P"
+            ]
+        ]
+    }
+}

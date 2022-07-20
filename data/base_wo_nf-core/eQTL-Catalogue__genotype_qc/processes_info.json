@@ -1,0 +1,1423 @@
+{
+    "crossmap_genotypes": {
+        "name_process": "crossmap_genotypes",
+        "string_process": "\nprocess crossmap_genotypes{\n    input:\n    file chain_file from chain_file_ch\n    file ref_genome from ref_genome_ch\n    each file(vcf) from vcf_file_ch\n\n    output:\n    file \"${vcf.simpleName}_mapped.vcf.gz\" into mapped_vcf_ch\n\n    shell:\n    \"\"\"\n    #Exlcude structural variants, beause they break latest version of CrossMap.py\n    bcftools view --exclude-types other ${vcf} -Oz -o ${vcf.simpleName}_noSVs.vcf.gz\n\n    #Run CrossMap.py\n    CrossMap.py vcf ${chain_file} ${vcf.simpleName}_noSVs.vcf.gz ${ref_genome} ${vcf.simpleName}_mapped.vcf\n    bgzip ${vcf.simpleName}_mapped.vcf\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    #Exlcude structural variants, beause they break latest version of CrossMap.py\n    bcftools view --exclude-types other ${vcf} -Oz -o ${vcf.simpleName}_noSVs.vcf.gz\n\n    #Run CrossMap.py\n    CrossMap.py vcf ${chain_file} ${vcf.simpleName}_noSVs.vcf.gz ${ref_genome} ${vcf.simpleName}_mapped.vcf\n    bgzip ${vcf.simpleName}_mapped.vcf\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "chain_file_ch",
+            "ref_genome_ch",
+            "vcf_file_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "mapped_vcf_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "filter_vcf": {
+        "name_process": "filter_vcf",
+        "string_process": "\nprocess filter_vcf{\n\n    publishDir \"${params.outdir}\", mode: 'copy',\n        saveAs: {filename -> if (filename == \"filtered.vcf.gz\") \"${params.output_name}.vcf.gz\" else null }\n\n    input:\n    file input_vcf from filter_vcf_input\n\n    output:\n    set file(\"filtered.vcf.gz\"), file(\"filtered.vcf.gz.csi\") into split_vcf_input, missingness_input\n\n    script:\n    \"\"\"\n    #Add tags\n    bcftools +fill-tags ${input_vcf} -Oz -o tagged.vcf.gz\n\n    #Filter rare and non-HWE variants and those with abnormal alleles and duplicates\n    bcftools filter -i 'INFO/HWE > 1e-6 & F_MISSING < 0.05 & MAF[0] > 0.01' tagged.vcf.gz |\\\n     bcftools filter -e 'REF=\"N\" | REF=\"I\" | REF=\"D\"' |\\\n     bcftools filter -e \"ALT='.'\" |\\\n     bcftools norm -d all |\\\n     bcftools norm -m+any |\\\n     bcftools view -m2 -M2 -Oz -o filtered.vcf.gz\n\n     #Index the output file\n     bcftools index filtered.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    #Add tags\n    bcftools +fill-tags ${input_vcf} -Oz -o tagged.vcf.gz\n\n    #Filter rare and non-HWE variants and those with abnormal alleles and duplicates\n    bcftools filter -i 'INFO/HWE > 1e-6 & F_MISSING < 0.05 & MAF[0] > 0.01' tagged.vcf.gz |\\\n     bcftools filter -e 'REF=\"N\" | REF=\"I\" | REF=\"D\"' |\\\n     bcftools filter -e \"ALT='.'\" |\\\n     bcftools norm -d all |\\\n     bcftools norm -m+any |\\\n     bcftools view -m2 -M2 -Oz -o filtered.vcf.gz\n\n     #Index the output file\n     bcftools index filtered.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "filter_vcf_input"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "split_vcf_input",
+            "missingness_input"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy' , saveAs: {filename -> if (filename == \"filtered.vcf.gz\") \"${params.output_name}.vcf.gz\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_vcf": {
+        "name_process": "merge_vcf",
+        "string_process": "\nprocess merge_vcf{\n    input:\n    file input_files from filtered_vcfs.collect()\n\n    output:\n    file \"output.vcf.gz\" into merged_vcf_ch\n\n    shell:\n    \"\"\"\n    bcftools concat ${input_files} | bcftools sort -Oz -o output.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "    \"\"\"\n    bcftools concat ${input_files} | bcftools sort -Oz -o output.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "filtered_vcfs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_vcf_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "keep_chromosomes": {
+        "name_process": "keep_chromosomes",
+        "string_process": "\nprocess keep_chromosomes{\n    publishDir \"${params.outdir}\", mode: 'copy',\n        saveAs: {filename -> if (filename == \"renamed.vcf.gz\") \"${params.output_name}.vcf.gz\" else null }\n    \n    input:\n    file input_vcf from merged_vcf_ch\n\n    output:\n    file \"renamed.vcf.gz\" into final_vcf_ch\n\n    shell:\n    \"\"\"\n    bcftools index ${input_vcf}\n    bcftools view -r 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,X ${input_vcf} |\\\n     bcftools annotate --set-id 'chr%CHROM\\\\_%POS\\\\_%REF\\\\_%FIRST_ALT' -Oz -o renamed.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    bcftools index ${input_vcf}\n    bcftools view -r 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,X ${input_vcf} |\\\n     bcftools annotate --set-id 'chr%CHROM\\\\_%POS\\\\_%REF\\\\_%FIRST_ALT' -Oz -o renamed.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "merged_vcf_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "final_vcf_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy' , saveAs: {filename -> if (filename == \"renamed.vcf.gz\") \"${params.output_name}.vcf.gz\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "maf_filter": {
+        "name_process": "maf_filter",
+        "string_process": "\nprocess maf_filter{\n    publishDir \"${params.outdir}\", mode: 'copy',\n        saveAs: {filename -> if (filename == \"filtered.vcf.gz\") \"${params.output_name}.MAF001.vcf.gz\" else null }\n    \n    input:\n    file input_vcf from final_vcf_ch\n\n    output:\n    file \"filtered.vcf.gz\" into filtered_vcf_channel\n\n    shell:\n    \"\"\"\n    bcftools filter -i 'MAF[0] > 0.01' ${input_vcf} -Oz -o filtered.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    bcftools filter -i 'MAF[0] > 0.01' ${input_vcf} -Oz -o filtered.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "final_vcf_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "filtered_vcf_channel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy' , saveAs: {filename -> if (filename == \"filtered.vcf.gz\") \"${params.output_name}.MAF001.vcf.gz\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "harmonise_genotypes": {
+        "name_process": "harmonise_genotypes",
+        "string_process": "\nprocess harmonise_genotypes{\n    input:\n    set file(study_name_bed), file(study_name_bim), file(study_name_fam) from bfile_ch\n    set file(vcf_file), file(vcf_file_index) from ref_panel_harmonise_genotypes.collect()\n\n    output:\n    set file(\"harmonised.bed\"), file(\"harmonised.bim\"), file(\"harmonised.fam\") into harmonised_genotypes\n\n    script:\n    \"\"\"\n    java -jar /usr/bin/GenotypeHarmonizer.jar\\\n     --input ${study_name_bed.baseName}\\\n     --inputType PLINK_BED\\\n     --ref ${vcf_file.simpleName}\\\n     --refType VCF\\\n     --update-id\\\n     --output harmonised\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    java -jar /usr/bin/GenotypeHarmonizer.jar\\\n     --input ${study_name_bed.baseName}\\\n     --inputType PLINK_BED\\\n     --ref ${vcf_file.simpleName}\\\n     --refType VCF\\\n     --update-id\\\n     --output harmonised\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bfile_ch",
+            "ref_panel_harmonise_genotypes"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "harmonised_genotypes"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "plink_to_vcf": {
+        "name_process": "plink_to_vcf",
+        "string_process": "\nprocess plink_to_vcf{\n\n    input:\n    set file(bed), file(bim), file(fam) from harmonised_genotypes\n\n    output:\n    file \"harmonised.vcf.gz\" into harmonised_vcf_ch\n\n    script:\n    \"\"\"\n    plink2 --bfile ${bed.simpleName} --recode vcf-iid --out ${bed.simpleName}\n    bgzip harmonised.vcf\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    plink2 --bfile ${bed.simpleName} --recode vcf-iid --out ${bed.simpleName}\n    bgzip harmonised.vcf\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "harmonised_genotypes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "harmonised_vcf_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "vcf_fixref": {
+        "name_process": "vcf_fixref",
+        "string_process": "\nprocess vcf_fixref{\n    \n    input:\n    file input_vcf from harmonised_vcf_ch\n    file fasta from ref_genome_ch.collect()\n    set file(vcf_file), file(vcf_file_index) from ref_panel_vcf_fixref.collect()\n\n    output:\n    file \"fixref.vcf.gz\" into filter_vcf_input\n\n    script:\n    \"\"\"\n    bcftools index ${input_vcf}\n    bcftools +fixref ${input_vcf} -- -f ${fasta} -i ${vcf_file} | \\\n     bcftools norm --check-ref x -f ${fasta} -Oz -o fixref.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    bcftools index ${input_vcf}\n    bcftools +fixref ${input_vcf} -- -f ${fasta} -i ${vcf_file} | \\\n     bcftools norm --check-ref x -f ${fasta} -Oz -o fixref.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "harmonised_vcf_ch",
+            "ref_genome_ch",
+            "ref_panel_vcf_fixref"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "filter_vcf_input"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calculate_missingness": {
+        "name_process": "calculate_missingness",
+        "string_process": "\nprocess calculate_missingness{\n    publishDir \"${params.outdir}\", mode: 'copy',\n        saveAs: {filename -> if (filename == \"genotypes.imiss\") \"${params.output_name}.imiss\" else null }\n    \n    input:\n    set file(input_vcf), file(input_vcf_index) from missingness_input \n\n    output:\n    file \"genotypes.imiss\" into missing_individuals\n\n    script:\n    \"\"\"\n    vcftools --gzvcf ${input_vcf} --missing-indv --out genotypes\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    vcftools --gzvcf ${input_vcf} --missing-indv --out genotypes\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "VCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/vcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "VCFtools",
+                "uri": "https://bio.tools/vcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3675",
+                                    "term": "Variant filtering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Provide easily accessible methods for working with complex genetic variation data in the form of VCF files.",
+                "homepage": "https://vcftools.github.io/index.html"
+            }
+        ],
+        "inputs": [
+            "missingness_input"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "missing_individuals"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy' , saveAs: {filename -> if (filename == \"genotypes.imiss\") \"${params.output_name}.imiss\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "split_by_chr": {
+        "name_process": "split_by_chr",
+        "string_process": "\nprocess split_by_chr{\n\n    publishDir \"${params.outdir}/by_chr\", mode: 'copy',\n        saveAs: {filename -> if (filename.indexOf(\".vcf.gz\") > 0) filename else null }\n    \n    input:\n    set file(input_vcf), file(input_vcf_index) from split_vcf_input\n    each chr from Channel.from(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)\n\n    output:\n    file \"chr_${chr}.vcf.gz\" into individual_chromosomes\n\n    script:\n    \"\"\"\n    bcftools view -r ${chr} ${input_vcf} -Oz -o chr_${chr}.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    bcftools view -r ${chr} ${input_vcf} -Oz -o chr_${chr}.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "split_vcf_input"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "individual_chromosomes"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}/by_chr\", mode: 'copy' , saveAs: {filename -> if (filename.indexOf(\".vcf.gz\") > 0) filename else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "main_vcf_to_binary": {
+        "name_process": "main_vcf_to_binary",
+        "string_process": "\nprocess main_vcf_to_binary{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n    \n    input:\n    file \"vcf_main.vcf.gz\" from main_vcf\n\n    output:\n    set file('main.bed'), file('main.bim'), file('main.fam') into main_to_delete_dublicates\n\n    script:\n    \"\"\"\n    # do ld pruning and save resulted snps in file  \n    plink2 --vcf vcf_main.vcf.gz --vcf-half-call h --indep-pairwise 50000 200 0.05 --out main_pruned_varaints_list --threads ${task.cpus}\n\n    # make bfiles for pruned 1000 genome proj \n    plink2 --vcf vcf_main.vcf.gz --vcf-half-call h --extract main_pruned_varaints_list.prune.in --make-bed --out main\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    # do ld pruning and save resulted snps in file  \n    plink2 --vcf vcf_main.vcf.gz --vcf-half-call h --indep-pairwise 50000 200 0.05 --out main_pruned_varaints_list --threads ${task.cpus}\n\n    # make bfiles for pruned 1000 genome proj \n    plink2 --vcf vcf_main.vcf.gz --vcf-half-call h --extract main_pruned_varaints_list.prune.in --make-bed --out main\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "main_vcf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "main_to_delete_dublicates"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "remove_family": {
+        "name_process": "remove_family",
+        "string_process": " process remove_family{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n\n    input:\n    set file('main.bed'), file('main.bim'), file('main.fam') from main_to_delete_dublicates\n    file 'ids_to_remove.txt' from file(params.ids_to_remove_file)\n\n    output:\n    set file('main_no_dubl.bed'), file('main_no_dubl.bim'), file('main_no_dubl.fam') into  main_to_extract_snps, main_binary_source\n\n    script:\n    \"\"\"\n    plink2 --bfile main --remove-fam ids_to_remove.txt --make-bed --out main\n    \n    # finds dublicate vars\n    plink2 --bfile main --list-duplicate-vars --out dubl\n\n    # delete dublicate vars\n    plink2 --bfile main --exclude dubl.dupvar --snps-only --make-bed --out main_no_dubl\n    \"\"\"\n    }",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    plink2 --bfile main --remove-fam ids_to_remove.txt --make-bed --out main\n    \n    # finds dublicate vars\n    plink2 --bfile main --list-duplicate-vars --out dubl\n\n    # delete dublicate vars\n    plink2 --bfile main --exclude dubl.dupvar --snps-only --make-bed --out main_no_dubl\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "main_to_delete_dublicates"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "main_to_extract_snps",
+            "main_binary_source"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "remove_dubl": {
+        "name_process": "remove_dubl",
+        "string_process": " process remove_dubl{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n\n    input:\n    set file('main.bed'), file('main.bim'), file('main.fam') from main_to_delete_dublicates\n  \n    output:\n    set file('main_no_dubl.bed'), file('main_no_dubl.bim'), file('main_no_dubl.fam') into main_to_extract_snps, main_binary_source\n\n    script:\n    \"\"\"\n    # finds dublicate vars\n    plink2 --bfile main --list-duplicate-vars --out dubl\n    \n    # delete dublicate vars\n    plink2 --bfile main --exclude dubl.dupvar --snps-only --make-bed --out main_no_dubl\n    \"\"\"\n    }",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    # finds dublicate vars\n    plink2 --bfile main --list-duplicate-vars --out dubl\n    \n    # delete dublicate vars\n    plink2 --bfile main --exclude dubl.dupvar --snps-only --make-bed --out main_no_dubl\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "main_to_delete_dublicates"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "main_to_extract_snps",
+            "main_binary_source"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_SNPs_list_from_main_dataset": {
+        "name_process": "get_SNPs_list_from_main_dataset",
+        "string_process": "\nprocess get_SNPs_list_from_main_dataset{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n\n    input: \n    set file('main_source.bed'), file('main_source.bim'), file('main_source.fam') from main_to_extract_snps\n\n    output:\n    file 'main_snps_list.snplist' into main_snps_file\n\n    script:\n    \"\"\"\n    plink2 --bfile main_source --write-snplist --out main_snps_list --snps-only\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    plink2 --bfile main_source --write-snplist --out main_snps_list --snps-only\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "main_to_extract_snps"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "main_snps_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "convertVCFtoBED": {
+        "name_process": "convertVCFtoBED",
+        "string_process": "\nprocess convertVCFtoBED{\n    input:\n    file 'source.vcf.gz' from vcf_file\n\n    output:\n    set file ('binary_source.bed'), file('binary_source.bim'), file('binary_source.fam') into bed_files, calculate_relatedness_ch\n    file('sample_list.txt') into relatedness_sample_list_ch\n\n    script:\n    \"\"\"\n    #Convert VCF to plink\n    plink2 --vcf source.vcf.gz --out binary_source --threads ${task.cpus}\n    plink2 --bfile binary_source --list-duplicate-vars --out list_dubl\n    plink2 --bfile binary_source --exclude list_dubl.dupvar --snps-only --make-bed --out binary_source\n\n    #Extract sample ids\n    bcftools query -l source.vcf.gz > sample_list.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    #Convert VCF to plink\n    plink2 --vcf source.vcf.gz --out binary_source --threads ${task.cpus}\n    plink2 --bfile binary_source --list-duplicate-vars --out list_dubl\n    plink2 --bfile binary_source --exclude list_dubl.dupvar --snps-only --make-bed --out binary_source\n\n    #Extract sample ids\n    bcftools query -l source.vcf.gz > sample_list.txt\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "vcf_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bed_files",
+            "calculate_relatedness_ch",
+            "relatedness_sample_list_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calculate_relatedness_matrix": {
+        "name_process": "calculate_relatedness_matrix",
+        "string_process": "\nprocess calculate_relatedness_matrix{\n    publishDir \"${params.outdir}\", mode: 'copy'\n\n    input:\n    set file('binary_source.bed'), file('binary_source.bim'), file('binary_source.fam') from calculate_relatedness_ch\n    file('sample_list.txt') from relatedness_sample_list_ch\n    \n    output:\n    file(\"relatedness_matrix.tsv\") into relatedness_matrix_ch\n\n    script:\n    \"\"\"\n    #Filter low MAF and low HWE snps\n    plink2 --bfile binary_source --maf 0.05 --hwe 1e-6 --hwe-all --make-bed --out binary_filtered\n\n    #Perform LD pruning\n    plink2 --bfile binary_filtered --indep-pairwise 250 50 0.2 --out pruned_genotypes\n\n    #Make pruned plink file \n    plink2 --bfile binary_filtered --extract pruned_genotypes.prune.in --make-bed --out binary_pruned\n\n    #Calculate relatedness\n    plink2 --make-rel square --bfile binary_pruned\n\n    #Format relatedness matrix\n    Rscript $baseDir/bin/format_kinship.R \\\\\n        --kinship plink.rel \\\\\n        --fam sample_list.txt \\\\\n        --out relatedness_matrix.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    #Filter low MAF and low HWE snps\n    plink2 --bfile binary_source --maf 0.05 --hwe 1e-6 --hwe-all --make-bed --out binary_filtered\n\n    #Perform LD pruning\n    plink2 --bfile binary_filtered --indep-pairwise 250 50 0.2 --out pruned_genotypes\n\n    #Make pruned plink file \n    plink2 --bfile binary_filtered --extract pruned_genotypes.prune.in --make-bed --out binary_pruned\n\n    #Calculate relatedness\n    plink2 --make-rel square --bfile binary_pruned\n\n    #Format relatedness matrix\n    Rscript $baseDir/bin/format_kinship.R \\\\\n        --kinship plink.rel \\\\\n        --fam sample_list.txt \\\\\n        --out relatedness_matrix.tsv\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "calculate_relatedness_ch",
+            "relatedness_sample_list_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "relatedness_matrix_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extract_SNPs_and_make_bed": {
+        "name_process": "extract_SNPs_and_make_bed",
+        "string_process": "\nprocess extract_SNPs_and_make_bed{\n    input:\n    set file ('binary_source.bed'), file('binary_source.bim'), file('binary_source.fam') from bed_files\n    file 'main.snplist' from main_snps_file\n\n    output:\n    set file('new_dataset_overlapped.bed'), file('new_dataset_overlapped.bim'), file('new_dataset_overlapped.fam') into new_dataset_overlapped1, new_dataset_overlapped2\n    file 'overlapped_snps.snplist' into new_dataset_overlapped_snplist\n\n                                                           \n                                            \n    script:\n    \"\"\"\n    plink2 --bfile binary_source --extract main.snplist --make-bed --out new_dataset_overlapped\n    plink2 --bfile new_dataset_overlapped --write-snplist --out overlapped_snps\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    plink2 --bfile binary_source --extract main.snplist --make-bed --out new_dataset_overlapped\n    plink2 --bfile new_dataset_overlapped --write-snplist --out overlapped_snps\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bed_files",
+            "main_snps_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "new_dataset_overlapped1",
+            "new_dataset_overlapped2",
+            "new_dataset_overlapped_snplist"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "extract_overlapped_SNPs_from_main_dataset": {
+        "name_process": "extract_overlapped_SNPs_from_main_dataset",
+        "string_process": "\nprocess extract_overlapped_SNPs_from_main_dataset {\n    input:\n    set file('new_dataset_overlapped.bed'), file('new_dataset_overlapped.bim'), file('new_dataset_overlapped.fam') from new_dataset_overlapped1\n    file 'overlapped_snps.snplist' from new_dataset_overlapped_snplist\n    set file('main_source.bed'), file('main_source.bim'), file('main_source.fam') from main_binary_source\n\n    output:\n    set file('main_overlapped.bed'), file('main_overlapped.bim'), file('main_overlapped.fam') into main_to_kins, main_bed_to_pca\n\n    script:\n    \"\"\"\n    plink2 --bfile main_source --extract overlapped_snps.snplist --make-bed --out main_overlapped\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    plink2 --bfile main_source --extract overlapped_snps.snplist --make-bed --out main_overlapped\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "new_dataset_overlapped1",
+            "new_dataset_overlapped_snplist",
+            "main_binary_source"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "main_to_kins",
+            "main_bed_to_pca"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calc_kins_matrices": {
+        "name_process": "calc_kins_matrices",
+        "string_process": "\nprocess calc_kins_matrices{\n    input:\n    set file('main_overlapped.bed'), file('main_overlapped.bim'), file('main_overlapped.fam') from main_to_kins\n\n    output:\n    set file(\"main_overlapped_kins.grm.bin\"), file(\"main_overlapped_kins.grm.id\"), file(\"main_overlapped_kins.grm.adjust\"), file(\"main_overlapped_kins.grm.details\") into main_to_pca\n    \n    script:\n    \"\"\"\n    ldak --calc-kins-direct main_overlapped_kins --bfile main_overlapped --ignore-weights YES --power -0.25\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "    \"\"\"\n    ldak --calc-kins-direct main_overlapped_kins --bfile main_overlapped --ignore-weights YES --power -0.25\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "main_to_kins"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "main_to_pca"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calc_pca_and_loads": {
+        "name_process": "calc_pca_and_loads",
+        "string_process": "\nprocess calc_pca_and_loads{\n    publishDir \"${params.outdir}\", mode: 'copy'\n\n    input:\n    set file(\"main_overlapped_kins.grm.bin\"), file(\"main_overlapped_kins.grm.id\"), file(\"main_overlapped_kins.grm.adjust\"), file(\"main_overlapped_kins.grm.details\") from main_to_pca\n    set file('main_overlapped.bed'), file('main_overlapped.bim'), file('main_overlapped.fam') from main_bed_to_pca\n\n    output:\n    file 'main_overlapped_loads.load' into loads_for_mapping\n    file 'main_overlapped_pca.vect' into plot_data_vect\n     \n    script: \n    \"\"\"\n    ldak --pca main_overlapped_pca --grm main_overlapped_kins --axes $params.num_pc\n    ldak --calc-pca-loads main_overlapped_loads --grm main_overlapped_kins --pcastem main_overlapped_pca --bfile main_overlapped\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    ldak --pca main_overlapped_pca --grm main_overlapped_kins --axes $params.num_pc\n    ldak --calc-pca-loads main_overlapped_loads --grm main_overlapped_kins --pcastem main_overlapped_pca --bfile main_overlapped\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "main_to_pca",
+            "main_bed_to_pca"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "loads_for_mapping",
+            "plot_data_vect"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "map_new_dataset": {
+        "name_process": "map_new_dataset",
+        "string_process": "\nprocess map_new_dataset{\n    publishDir \"${params.outdir}\", mode: 'copy'\n    \n    input:\n    set file('new_dataset_overlapped.bed'), file('new_dataset_overlapped.bim'), file('new_dataset_overlapped.fam') from new_dataset_overlapped2\n    file 'main_overlapped_loads.load' from loads_for_mapping\n\n    output:\n    file 'new_dataset_scores.profile.adj' into plot_data\n\n    script:\n    \"\"\"\n    ldak  --calc-scores new_dataset_scores --bfile new_dataset_overlapped --scorefile main_overlapped_loads.load --power 0\n    \"\"\"\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    ldak  --calc-scores new_dataset_scores --bfile new_dataset_overlapped --scorefile main_overlapped_loads.load --power 0\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "new_dataset_overlapped2",
+            "loads_for_mapping"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "plot_data"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "plot_pca": {
+        "name_process": "plot_pca",
+        "string_process": "\nprocess plot_pca{\n    publishDir \"${params.outdir}\", mode: 'copy'\n    \n    input:\n    file 'new_dataset_scores.profile.adj' from plot_data\n    file 'main_overlapped_pca.vect' from plot_data_vect\n    file 'samples_data.tsv' from populations_file\n\n    output:\n    set file('main_pca.png'), file('projections_only.png'), file('projections_on_main.png'), file('populations.tsv'), file('knn_threshold.png'), file('knn.png')\n\n    script:\n    \"\"\"\n    Rscript $baseDir/bin/plot_pca.R main_overlapped_pca.vect new_dataset_scores.profile.adj samples_data.tsv $params.data_name\n    \"\"\"\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    Rscript $baseDir/bin/plot_pca.R main_overlapped_pca.vect new_dataset_scores.profile.adj samples_data.tsv $params.data_name\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "plot_data",
+            "plot_data_vect",
+            "populations_file"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__genotype_qc",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

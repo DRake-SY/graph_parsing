@@ -1,0 +1,147 @@
+{
+    "Register_Anat": {
+        "name_process": "Register_Anat",
+        "string_process": "\nprocess Register_Anat {\n    cpus params.register_processes\n    memory '2 GB'\n\n    input:\n    set sid, file(native_anat), file(atlas) from anats_for_registration\n\n    output:\n    set sid, \"${sid}__output0GenericAffine.mat\" into transformation_for_recognition, transformation_for_centroids\n    set sid, \"${sid}__output0GenericAffine.mat\" into transformation_for_average\n    file \"${sid}__outputWarped.nii.gz\"\n    file \"${sid}__native_anat.nii.gz\"\n    script:\n    \"\"\"\n    export ANTS_RANDOM_SEED=1234\n    antsRegistrationSyNQuick.sh -d 3 -f ${native_anat} -m ${atlas} -n ${params.register_processes} -o ${sid}__output -t a\n    cp ${native_anat} ${sid}__native_anat.nii.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    export ANTS_RANDOM_SEED=1234\n    antsRegistrationSyNQuick.sh -d 3 -f ${native_anat} -m ${atlas} -n ${params.register_processes} -o ${sid}__output -t a\n    cp ${native_anat} ${sid}__native_anat.nii.gz\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "anats_for_registration"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformation_for_recognition",
+            "transformation_for_centroids",
+            "transformation_for_average"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "scilus__rbx_flow",
+        "directive": [
+            "cpus params.register_processes",
+            "memory '2 GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Transform_Centroids": {
+        "name_process": "Transform_Centroids",
+        "string_process": "\nprocess Transform_Centroids {\n    input:\n    set sid, file(anat), file(transfo) from anat_and_transformation\n    each file(centroid) from atlas_centroids\n    output:\n    file \"${sid}__${centroid.baseName}.trk\"\n    script:\n    \"\"\"\n    scil_apply_transform_to_tractogram.py ${centroid} ${anat} ${transfo} ${sid}__${centroid.baseName}.trk --inverse --cut_invalid\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "    \"\"\"\n    scil_apply_transform_to_tractogram.py ${centroid} ${anat} ${transfo} ${sid}__${centroid.baseName}.trk --inverse --cut_invalid\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "anat_and_transformation",
+            "atlas_centroids"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__rbx_flow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "Recognize_Bundles": {
+        "name_process": "Recognize_Bundles",
+        "string_process": "\nprocess Recognize_Bundles {\n    cpus params.rbx_processes\n    memory params.rbx_memory_limit\n\n    input:\n    set sid, file(tractograms), file(refenrence), file(transfo), file(config), file(directory) from tractogram_and_transformation\n    output:\n    set sid, \"*.trk\" into bundles_for_cleaning\n    file \"results.json\"\n    file \"logfile.txt\"\n    script:\n    \"\"\"\n    if [ `echo $tractograms | wc -w` -gt 1 ]; then\n        scil_streamlines_math.py lazy_concatenate $tractograms tracking_concat.trk\n    else\n        mv $tractograms tracking_concat.trk\n    fi\n    scil_remove_invalid_streamlines.py tracking_concat.trk tractogram_ic.trk --reference ${refenrence} --remove_single_point --remove_overlapping_points\n    mkdir tmp/\n    scil_recognize_multi_bundles.py tractogram_ic.trk ${config} ${directory}/*/ ${transfo} --inverse --out_dir tmp/ \\\n        --log_level DEBUG --multi_parameters $params.multi_parameters --minimal_vote_ratio $params.minimal_vote_ratio \\\n        --tractogram_clustering_thr $params.wb_clustering_thr --seeds $params.seeds --processes $params.rbx_processes\n    rm tractogram_ic.trk tracking_concat.trk\n    mv tmp/* ./\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    if [ `echo $tractograms | wc -w` -gt 1 ]; then\n        scil_streamlines_math.py lazy_concatenate $tractograms tracking_concat.trk\n    else\n        mv $tractograms tracking_concat.trk\n    fi\n    scil_remove_invalid_streamlines.py tracking_concat.trk tractogram_ic.trk --reference ${refenrence} --remove_single_point --remove_overlapping_points\n    mkdir tmp/\n    scil_recognize_multi_bundles.py tractogram_ic.trk ${config} ${directory}/*/ ${transfo} --inverse --out_dir tmp/ \\\n        --log_level DEBUG --multi_parameters $params.multi_parameters --minimal_vote_ratio $params.minimal_vote_ratio \\\n        --tractogram_clustering_thr $params.wb_clustering_thr --seeds $params.seeds --processes $params.rbx_processes\n    rm tractogram_ic.trk tracking_concat.trk\n    mv tmp/* ./\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tractogram_and_transformation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bundles_for_cleaning"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__rbx_flow",
+        "directive": [
+            "cpus params.rbx_processes",
+            "memory params.rbx_memory_limit"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Clean_Bundles": {
+        "name_process": "Clean_Bundles",
+        "string_process": "\nprocess Clean_Bundles {\n    input:\n    set sid, file(bundle) from all_bundles_for_cleaning\n    output:\n    set sid, val(bname), \"${sid}__*_cleaned.trk\" optional true into bundle_for_density\n    script:\n    bname = bundle.name.take(bundle.name.lastIndexOf('.'))\n    \"\"\"\n    scil_outlier_rejection.py ${bundle} \"${sid}__${bname}_cleaned.trk\" --alpha $params.outlier_alpha\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "    bname = bundle.name.take(bundle.name.lastIndexOf('.'))\n    \"\"\"\n    scil_outlier_rejection.py ${bundle} \"${sid}__${bname}_cleaned.trk\" --alpha $params.outlier_alpha\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_bundles_for_cleaning"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bundle_for_density"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__rbx_flow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "Compute_Density_Bundles": {
+        "name_process": "Compute_Density_Bundles",
+        "string_process": "\nprocess Compute_Density_Bundles {\n    input:\n    set sid, val(bname), file(bundle), file(transfo), file(atlas) from all_bundles_transfo_for_average\n    output:\n    set bname, \"*.nii.gz\" into bundle_for_average\n    when:\n    params.run_average_bundles\n    script:\n    \"\"\"\n    scil_apply_transform_to_tractogram.py $bundle $atlas $transfo tmp.trk --remove_invalid\n    scil_compute_streamlines_density_map.py tmp.trk \"${sid}__${bname}_density.nii.gz\"\n    scil_image_math.py lower_threshold \"${sid}__${bname}_density.nii.gz\" 1 \"${sid}__${bname}_binary.nii.gz\"\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    scil_apply_transform_to_tractogram.py $bundle $atlas $transfo tmp.trk --remove_invalid\n    scil_compute_streamlines_density_map.py tmp.trk \"${sid}__${bname}_density.nii.gz\"\n    scil_image_math.py lower_threshold \"${sid}__${bname}_density.nii.gz\" 1 \"${sid}__${bname}_binary.nii.gz\"\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_bundles_transfo_for_average"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bundle_for_average"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__rbx_flow",
+        "directive": [],
+        "when": "params.run_average_bundles",
+        "stub": ""
+    },
+    "Average_Bundles": {
+        "name_process": "Average_Bundles",
+        "string_process": "\nprocess Average_Bundles {\n    publishDir = params.Average_Bundles_Publish_Dir\n    input:\n    set val(bname), file(bundles_bin) from all_bundle_for_average\n    output:\n    file \"${bname}_density.nii.gz\"\n    file \"${bname}_binary.nii.gz\"\n    script:\n    \"\"\"\n    scil_image_math.py addition *_density.nii.gz 0 ${bname}_density.nii.gz\n    scil_image_math.py addition *_binary.nii.gz 0 ${bname}_binary.nii.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "    \"\"\"\n    scil_image_math.py addition *_density.nii.gz 0 ${bname}_density.nii.gz\n    scil_image_math.py addition *_binary.nii.gz 0 ${bname}_binary.nii.gz\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_bundle_for_average"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__rbx_flow",
+        "directive": [
+            "publishDir = params.Average_Bundles_Publish_Dir"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

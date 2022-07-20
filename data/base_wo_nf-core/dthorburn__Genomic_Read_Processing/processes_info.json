@@ -1,0 +1,989 @@
+{
+    "GATK_BP": {
+        "name_process": "GATK_BP",
+        "string_process": " process GATK_BP {\n    errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n    maxRetries 3\n    maxForks params.BP_Forks\n\n    tag { SampleID }\n\n    executor = 'pbspro'\n    clusterOptions = \"-lselect=1:ncpus=${params.BP_threads}:mem=${params.BP_memory}gb -lwalltime=${params.BP_walltime}:00:00\"\n\n    publishDir(\n      path: \"${params.ProcBamDir}\",\n      mode: 'copy',\n    )\n\n    input:\n    set SampleID, path(bam), path(bai) from all_bams\n\n    output:\n    tuple val(SampleID), path(\"${SampleID}_BP.bam\"), path(\"${SampleID}_BP.bam.bai\") into processed_bams\n    path(\"*.txt\")\n\n    beforeScript 'module load anaconda3/personal; source activate NF_GATK; module load samtools/1.2'\n\n    script:\n    if( params.VC_mode == \"DNAseq\" )\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.BP_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk MarkDuplicates \\\\\n        --TMP_DIR tmp/ \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}_BP.bam \\\\\n        -M ${SampleID}_MD.txt ${params.MD_args}\n\n      samtools index ${SampleID}_BP.bam\n      \"\"\"\n    else if( params.VC_mode == \"RNAseq\")\n                                  \n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.BP_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n\n      taskset -c 0-\\${n_slots} gatk MarkDuplicates \\\\\n        --TMP_DIR tmp/ \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}_MD.bam \\\\\n        -M ${SampleID}_MD.txt ${params.MD_args}\n\n      echo \"Finished with MD for ${SampleID}:`date`\"\n\n      taskset -c 0-\\${n_slots} gatk QualityScoreDistribution \\\\\n        --TMP_DIR tmp/ \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}.qualityscores.txt \\\\\n        -CHART ${SampleID}.qualityscores.chart\n      Quality=`tail -n2 ${SampleID}.qualityscores.txt | head -n 1 | awk -F\" \" '{print \\\\\\$1}'`\n\n      if [[ \\$Quality -gt 59 ]]\n      then\n        taskset -c 0-\\${n_slots} gatk -T SplitNCigarReads \\\\\n          --TMP_DIR tmp/ \\\\\n          --fix_misencoded_quality_scores \\\\\n          -R ${ref_genome} \\\\\n          -I ${SampleID}_MD.bam \\\\\n          -o ${SampleID}_BP.bam \\\\\n          -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 \\\\\n          --filter_reads_with_N_cigar\n      else\n        taskset -c 0-\\${n_slots} gatk -T SplitNCigarReads \\\\\n          --TMP_DIR tmp/ \\\\\n          -R ${ref_genome} \\\\\n          -I ${SampleID}_MD.bam \\\\\n          -O ${SampleID}_BP.bam \\\\\n          -RF ReassignOneMappingQuality -RMQF 255 -RMQT 60 \\\\\n          --filter_reads_with_N_cigar\n      fi\n\n      samtools index ${SampleID}_BP.bam\n      \"\"\" \n      else\n        error \"Invalid variant calling mode (${params.VC_mode}), use either DNAseq or RNAseq\"\n  }",
+        "nb_lignes_process": 83,
+        "string_script": "    if( params.VC_mode == \"DNAseq\" )\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.BP_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk MarkDuplicates \\\\\n        --TMP_DIR tmp/ \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}_BP.bam \\\\\n        -M ${SampleID}_MD.txt ${params.MD_args}\n\n      samtools index ${SampleID}_BP.bam\n      \"\"\"\n    else if( params.VC_mode == \"RNAseq\")\n                                  \n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.BP_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n\n      taskset -c 0-\\${n_slots} gatk MarkDuplicates \\\\\n        --TMP_DIR tmp/ \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}_MD.bam \\\\\n        -M ${SampleID}_MD.txt ${params.MD_args}\n\n      echo \"Finished with MD for ${SampleID}:`date`\"\n\n      taskset -c 0-\\${n_slots} gatk QualityScoreDistribution \\\\\n        --TMP_DIR tmp/ \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}.qualityscores.txt \\\\\n        -CHART ${SampleID}.qualityscores.chart\n      Quality=`tail -n2 ${SampleID}.qualityscores.txt | head -n 1 | awk -F\" \" '{print \\\\\\$1}'`\n\n      if [[ \\$Quality -gt 59 ]]\n      then\n        taskset -c 0-\\${n_slots} gatk -T SplitNCigarReads \\\\\n          --TMP_DIR tmp/ \\\\\n          --fix_misencoded_quality_scores \\\\\n          -R ${ref_genome} \\\\\n          -I ${SampleID}_MD.bam \\\\\n          -o ${SampleID}_BP.bam \\\\\n          -rf ReassignOneMappingQuality -RMQF 255 -RMQT 60 \\\\\n          --filter_reads_with_N_cigar\n      else\n        taskset -c 0-\\${n_slots} gatk -T SplitNCigarReads \\\\\n          --TMP_DIR tmp/ \\\\\n          -R ${ref_genome} \\\\\n          -I ${SampleID}_MD.bam \\\\\n          -O ${SampleID}_BP.bam \\\\\n          -RF ReassignOneMappingQuality -RMQF 255 -RMQT 60 \\\\\n          --filter_reads_with_N_cigar\n      fi\n\n      samtools index ${SampleID}_BP.bam\n      \"\"\" \n      else\n        error \"Invalid variant calling mode (${params.VC_mode}), use either DNAseq or RNAseq\"",
+        "nb_lignes_script": 58,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "all_bams"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "processed_bams"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.BP_Forks",
+            "tag { SampleID }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.BP_threads}:mem=${params.BP_memory}gb -lwalltime=${params.BP_walltime}:00:00\"",
+            "publishDir( path: \"${params.ProcBamDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "RNA_HC": {
+        "name_process": "RNA_HC",
+        "string_process": " process RNA_HC {\n      errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n      maxRetries 3\n      maxForks params.HC_Forks\n\n      tag { SampleID+\"-\"+chrom }\n\n      executor = 'pbspro'\n      clusterOptions = \"-lselect=1:ncpus=${params.HC_threads}:mem=${params.HC_memory}gb:mpiprocs=1:ompthreads=${params.HC_threads} -lwalltime=${params.HC_walltime}:00:00\"\n\n      publishDir(\n        path: \"${params.HCDir}\",\n        mode: 'copy',\n      )\n\n      input:\n      each chrom from chromosomes_ch\n      set SampleID, path(bam), path(bai) from processed_bams\n      path ref_genome\n      path ref_dict\n      path ref_index\n\n      output:\n                                                                \n                                                         \n      tuple sampleID, chrom, path(\"${SampleID}-${chrom}.vcf\"), path(\"${SampleID}-${chrom}.vcf.idx\") into SV_ch\n      \n      beforeScript 'module load anaconda3/personal; source activate NF_GATK'\n\n      script:\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.HC_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk --java-options \\\"-Xmx${params.HCG_memory}G -XX:+UseParallelGC -XX:ParallelGCThreads=\\${n_slots}\\\" HaplotypeCaller \\\\\n        --tmp-dir tmp/ \\\\\n        --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP \\\\\n        --native-pair-hmm-threads \\${n_slots} \\\\\n        -R ${ref_genome} \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}-${chrom}.vcf \\\\\n        -L ${chrom} \\\\\n        --standard-min-confidence-threshold-for-calling 20 ${params.HC_args}\n      \"\"\"\n    }",
+        "nb_lignes_process": 43,
+        "string_script": "      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.HC_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk --java-options \\\"-Xmx${params.HCG_memory}G -XX:+UseParallelGC -XX:ParallelGCThreads=\\${n_slots}\\\" HaplotypeCaller \\\\\n        --tmp-dir tmp/ \\\\\n        --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP \\\\\n        --native-pair-hmm-threads \\${n_slots} \\\\\n        -R ${ref_genome} \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}-${chrom}.vcf \\\\\n        -L ${chrom} \\\\\n        --standard-min-confidence-threshold-for-calling 20 ${params.HC_args}\n      \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chromosomes_ch",
+            "processed_bams",
+            "ref_genome",
+            "ref_dict",
+            "ref_index"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "SV_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.HC_Forks",
+            "tag { SampleID+\"-\"+chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.HC_threads}:mem=${params.HC_memory}gb:mpiprocs=1:ompthreads=${params.HC_threads} -lwalltime=${params.HC_walltime}:00:00\"",
+            "publishDir( path: \"${params.HCDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "RNA_SV": {
+        "name_process": "RNA_SV",
+        "string_process": " process RNA_SV {\n      errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n      maxRetries 3\n      maxForks params.SV_Forks\n\n      tag { SampleID+\"-\"+chrom }\n\n      executor = 'pbspro'\n      clusterOptions = \"-lselect=1:ncpus=${params.SV_threads}:mem=${params.SV_memory}gb -lwalltime=${params.SV_walltime}:00:00\"\n\n      publishDir(\n        path: \"${params.SVDir}\",\n        mode: 'copy',\n      )\n\n      input:\n                                      \n                                                  \n      set SampleID, chrom, path(vcf), path(idx) from SV_ch\n      path ref_genome\n      path ref_dict\n      path ref_index\n\n      output:\n      tuple chrom, path(\"${chrom}-${SampleID}_SNPs.raw.vcf\"), path(\"${chrom}-${SampleID}_SNPs.raw.vcf.idx\") into MV_ch\n      tuple chrom, path(\"${chrom}-${SampleID}_INDELs.raw.vcf\"), path(\"${chrom}-${SampleID}_INDELs.raw.vcf.idx\") into raw_indel_ch\n      \n      beforeScript 'module load anaconda3/personal; source activate NF_GATK'\n\n      script:\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.SV_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include SNP \\\\\n        --select-type-to-include MNP \\\\\n        -O ${chrom}-${SampleID}_SNPs.raw.vcf ${params.SV_args}\n\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include INDEL \\\\\n        -O ${chrom}-${SampleID}_INDELs.raw.vcf ${params.SV_args}\n      \"\"\"\n    }",
+        "nb_lignes_process": 48,
+        "string_script": "      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.SV_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include SNP \\\\\n        --select-type-to-include MNP \\\\\n        -O ${chrom}-${SampleID}_SNPs.raw.vcf ${params.SV_args}\n\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include INDEL \\\\\n        -O ${chrom}-${SampleID}_INDELs.raw.vcf ${params.SV_args}\n      \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "SV_ch",
+            "ref_genome",
+            "ref_dict",
+            "ref_index"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "MV_ch",
+            "raw_indel_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.SV_Forks",
+            "tag { SampleID+\"-\"+chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.SV_threads}:mem=${params.SV_memory}gb -lwalltime=${params.SV_walltime}:00:00\"",
+            "publishDir( path: \"${params.SVDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "RNA_MV": {
+        "name_process": "RNA_MV",
+        "string_process": " process RNA_MV {\n      errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n      maxRetries 3\n      maxForks params.MV_Forks\n\n      tag { chrom }\n\n      executor = 'pbspro'\n      clusterOptions = \"-lselect=1:ncpus=${params.MV_threads}:mem=${params.MV_memory}gb -lwalltime=${params.MV_walltime}:00:00\"\n\n      publishDir(\n        path: \"${params.MVDir}\",\n        mode: 'copy',\n      )\n\n      input:\n                                      \n      set chrom, path(vcf), path(idx) from MV_chr_ch\n                                        \n\n      output:\n      tuple chrom, path(\"${chrom}.vcf\"), path(\"${chrom}.vcf.idx\") into vf_ch\n      \n      beforeScript 'module load vcftools/0.1.13; module load htslib/1.3.2; module load anaconda3/personal; source activate NF_GATK'\n\n      script:\n                                                          \n                                                          \n      def vcf_compress = vcf.collect{ \"bgzip $it; tabix -p vcf ${it}.gz\" }.join('\\n')\n      def vcf_params = vcf.collect{ \"${it}.gz\" }.join(' ')\n      \"\"\"\n      ${vcf_compress}\n\n      vcf-merge -c snps -d ${params.MV_args} ${vcf_params} > ${chrom}.vcf\n\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.MV_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk IndexFeatureFile --tmp-dir tmp/ -I ${chrom}.vcf\n      \"\"\"\n    }",
+        "nb_lignes_process": 39,
+        "string_script": "      def vcf_compress = vcf.collect{ \"bgzip $it; tabix -p vcf ${it}.gz\" }.join('\\n')\n      def vcf_params = vcf.collect{ \"${it}.gz\" }.join(' ')\n      \"\"\"\n      ${vcf_compress}\n\n      vcf-merge -c snps -d ${params.MV_args} ${vcf_params} > ${chrom}.vcf\n\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.MV_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk IndexFeatureFile --tmp-dir tmp/ -I ${chrom}.vcf\n      \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "MV_chr_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "vf_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.MV_Forks",
+            "tag { chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.MV_threads}:mem=${params.MV_memory}gb -lwalltime=${params.MV_walltime}:00:00\"",
+            "publishDir( path: \"${params.MVDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "DNA_HCG": {
+        "name_process": "DNA_HCG",
+        "string_process": " process DNA_HCG {\n      errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n      maxRetries 3\n      maxForks params.HCG_Forks\n\n      tag { SampleID+\"-\"+chrom }\n\n      executor = 'pbspro'\n      clusterOptions = \"-lselect=1:ncpus=${params.HCG_threads}:mem=${params.HCG_memory}gb:mpiprocs=1:ompthreads=${params.HCG_threads} -lwalltime=${params.HCG_walltime}:00:00\"\n\n      publishDir(\n        path: \"${params.HCDir}\",\n        mode: 'copy',\n      )\n\n      input:\n      each chrom from chromosomes_ch\n      set SampleID, path(bam), path(bai) from processed_bams\n      path ref_genome\n      path ref_dict\n      path ref_index\n\n      output:\n      tuple chrom, path(\"${SampleID}-${chrom}.vcf\") into HCG_ch\n      path(\"${SampleID}-${chrom}.vcf.idx\") into idx_ch\n      \n      beforeScript 'module load anaconda3/personal; source activate NF_GATK'\n\n      script:\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.GVCF_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk --java-options \\\"-Xmx${params.HCG_memory}G -XX:+UseParallelGC -XX:ParallelGCThreads=\\${n_slots}\\\" HaplotypeCaller \\\\\n        --tmp-dir tmp/ \\\\\n        --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP \\\\\n        --native-pair-hmm-threads \\${n_slots} \\\\\n        -ERC GVCF \\\\\n        -L ${chrom} \\\\\n        -R ${ref_genome} \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}-${chrom}.vcf ${params.GVCF_args}\n      \"\"\"\n    }",
+        "nb_lignes_process": 42,
+        "string_script": "      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.GVCF_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk --java-options \\\"-Xmx${params.HCG_memory}G -XX:+UseParallelGC -XX:ParallelGCThreads=\\${n_slots}\\\" HaplotypeCaller \\\\\n        --tmp-dir tmp/ \\\\\n        --pair-hmm-implementation AVX_LOGLESS_CACHING_OMP \\\\\n        --native-pair-hmm-threads \\${n_slots} \\\\\n        -ERC GVCF \\\\\n        -L ${chrom} \\\\\n        -R ${ref_genome} \\\\\n        -I ${bam} \\\\\n        -O ${SampleID}-${chrom}.vcf ${params.GVCF_args}\n      \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chromosomes_ch",
+            "processed_bams",
+            "ref_genome",
+            "ref_dict",
+            "ref_index"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "HCG_ch",
+            "idx_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.HCG_Forks",
+            "tag { SampleID+\"-\"+chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.HCG_threads}:mem=${params.HCG_memory}gb:mpiprocs=1:ompthreads=${params.HCG_threads} -lwalltime=${params.HCG_walltime}:00:00\"",
+            "publishDir( path: \"${params.HCDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "DNA_DBI": {
+        "name_process": "DNA_DBI",
+        "string_process": " process DNA_DBI {\n      errorStrategy { sleep(600); return 'retry' }\n      maxRetries 3\n      maxForks params.DBI_Forks\n\n      tag { chrom }\n\n      executor = 'pbspro'\n      clusterOptions = \"-lselect=1:ncpus=${params.DBI_threads}:mem=${params.DBI_memory}gb -lwalltime=${params.DBI_walltime}:00:00\"\n\n      publishDir(\n        path: \"${params.DBIDir}\",\n        mode: 'copy',\n      )\n\n      input:\n                                                                                \n      set chrom, path(vcf) from HCG_chr_ch\n                                                                                                                           \n      path(idx) from idx_ch.collect()\n      path ref_genome\n      path ref_dict\n      path ref_index\n\n      output:\n      set chrom, path(\"DB.${chrom}\", type: 'dir') into DBI_ch\n      \n      beforeScript 'module load anaconda3/personal; source activate NF_GATK'\n\n      script:\n                                                          \n      def vcf_params = vcf.collect{ \"-V $it\" }.join(' ')\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      DB_name=\"DB.${chrom}\"\n\n      n_slots=`expr ${params.DBI_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk GenomicsDBImport \\\\\n        --tmp-dir tmp/ \\\\\n        ${vcf_params} \\\\\n        --genomicsdb-workspace-path \\${DB_name} \\\\\n        -L ${chrom} ${params.DBI_args}\n      \"\"\"\n    }",
+        "nb_lignes_process": 43,
+        "string_script": "      def vcf_params = vcf.collect{ \"-V $it\" }.join(' ')\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      DB_name=\"DB.${chrom}\"\n\n      n_slots=`expr ${params.DBI_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk GenomicsDBImport \\\\\n        --tmp-dir tmp/ \\\\\n        ${vcf_params} \\\\\n        --genomicsdb-workspace-path \\${DB_name} \\\\\n        -L ${chrom} ${params.DBI_args}\n      \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "HCG_chr_ch",
+            "idx_ch",
+            "ref_genome",
+            "ref_dict",
+            "ref_index"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "DBI_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(600); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.DBI_Forks",
+            "tag { chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.DBI_threads}:mem=${params.DBI_memory}gb -lwalltime=${params.DBI_walltime}:00:00\"",
+            "publishDir( path: \"${params.DBIDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "DNA_GVCF": {
+        "name_process": "DNA_GVCF",
+        "string_process": " process DNA_GVCF {\n      errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n      maxRetries 3\n      maxForks params.GVCF_Forks\n\n      tag { chrom }\n\n      executor = 'pbspro'\n      clusterOptions = \"-lselect=1:ncpus=${params.GVCF_threads}:mem=${params.GVCF_memory}gb -lwalltime=${params.GVCF_walltime}:00:00\"\n\n      publishDir(\n        path: \"${params.GVCFDir}\",\n        mode: 'copy',\n      )\n\n      input:\n      set chrom, path(database) from DBI_ch\n      path ref_genome\n      path ref_dict\n      path ref_index\n\n      output:\n      tuple chrom, path(\"${chrom}.vcf\"), path(\"${chrom}.vcf.idx\") into sv_ch\n      \n      beforeScript 'module load anaconda3/personal; source activate NF_GATK'\n\n      script:\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.GVCF_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk GenotypeGVCFs \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V gendb://${database} \\\\\n        -O ${chrom}.vcf \\\\\n        -L ${chrom} ${params.GVCF_args}\n      \"\"\"\n    }",
+        "nb_lignes_process": 37,
+        "string_script": "      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.GVCF_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk GenotypeGVCFs \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V gendb://${database} \\\\\n        -O ${chrom}.vcf \\\\\n        -L ${chrom} ${params.GVCF_args}\n      \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "DBI_ch",
+            "ref_genome",
+            "ref_dict",
+            "ref_index"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "sv_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.GVCF_Forks",
+            "tag { chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.GVCF_threads}:mem=${params.GVCF_memory}gb -lwalltime=${params.GVCF_walltime}:00:00\"",
+            "publishDir( path: \"${params.GVCFDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "DNA_SV": {
+        "name_process": "DNA_SV",
+        "string_process": " process DNA_SV {\n      errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n      maxRetries 3\n      maxForks params.SV_Forks\n\n      tag { chrom }\n\n      executor = 'pbspro'\n      clusterOptions = \"-lselect=1:ncpus=${params.SV_threads}:mem=${params.SV_memory}gb -lwalltime=${params.SV_walltime}:00:00\"\n\n      publishDir(\n        path: \"${params.SVDir}\",\n        mode: 'copy',\n      )\n\n      input:\n                                      \n      set chrom, path(vcf), path(idx) from sv_ch\n      path ref_genome\n      path ref_dict\n      path ref_index\n\n      output:\n      tuple chrom, path(\"${chrom}_SNPs.raw.vcf\"), path(\"${chrom}_SNPs.raw.vcf.idx\") into vf_ch\n      tuple chrom, path(\"${chrom}_INDELs.raw.vcf\"), path(\"${chrom}_INDELs.raw.vcf.idx\") into raw_indel_ch\n      \n      beforeScript 'module load anaconda3/personal; source activate NF_GATK'\n\n      script:\n      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.SV_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include SNP \\\\\n        --select-type-to-include MNP \\\\\n        -O ${chrom}_SNPs.raw.vcf ${params.SV_args}\n\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include INDEL \\\\\n        -O ${chrom}_INDELs.raw.vcf ${params.SV_args}\n      \"\"\"\n    }",
+        "nb_lignes_process": 47,
+        "string_script": "      \"\"\"\n      if [ ! -d tmp ]; then mkdir tmp; fi\n      n_slots=`expr ${params.SV_threads} / 2 - 3`\n      if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include SNP \\\\\n        --select-type-to-include MNP \\\\\n        -O ${chrom}_SNPs.raw.vcf ${params.SV_args}\n\n      taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n        --tmp-dir tmp/ \\\\\n        -R ${ref_genome} \\\\\n        -V ${vcf} \\\\\n        --select-type-to-include INDEL \\\\\n        -O ${chrom}_INDELs.raw.vcf ${params.SV_args}\n      \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sv_ch",
+            "ref_genome",
+            "ref_dict",
+            "ref_index"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "vf_ch",
+            "raw_indel_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.SV_Forks",
+            "tag { chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.SV_threads}:mem=${params.SV_memory}gb -lwalltime=${params.SV_walltime}:00:00\"",
+            "publishDir( path: \"${params.SVDir}\", mode: 'copy', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "GATK_VF": {
+        "name_process": "GATK_VF",
+        "string_process": " process GATK_VF {\n    errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }\n    maxRetries 3\n    maxForks params.VF_Forks\n\n    tag { chrom }\n\n    executor = 'pbspro'\n    clusterOptions = \"-lselect=1:ncpus=${params.VF_threads}:mem=${params.VF_memory}gb -lwalltime=${params.VF_walltime}:00:00\"\n\n    publishDir(\n      path: \"${params.VFDir}\",\n      mode: 'move',\n    )\n\n    input:\n                                    \n    set chrom, path(vcf), path(idx) from vf_ch\n    val Filters from filter_ch\n    path ref_genome\n    path ref_dict\n    path ref_index\n\n    output:\n    path(\"${chrom}.${params.VC_mode}.SNPs.filtered.vcf\")\n    path(\"${chrom}.${params.VC_mode}.SNPs.filtered.vcf.idx\")\n    \n    beforeScript 'module load anaconda3/personal; source activate NF_GATK'\n\n    script:\n    \"\"\"\n    if [ ! -d tmp ]; then mkdir tmp; fi\n    n_slots=`expr ${params.VF_threads} / 2 - 3`\n    if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n    taskset -c 0-\\${n_slots} gatk VariantFiltration \\\\\n      --tmp-dir tmp/ \\\\\n      -R ${ref_genome} \\\\\n      -V ${vcf} \\\\\n      -O temp_filtered.vcf \\\\\n      ${Filters} ${params.VF_args}\n\n    taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n      --tmp-dir tmp/ \\\\\n      -R ${ref_genome} \\\\\n      -V temp_filtered.vcf \\\\\n      -O ${chrom}.${params.VC_mode}.SNPs.filtered.vcf \\\\\n      -select 'vc.isNotFiltered()'\n    \"\"\"\n  }",
+        "nb_lignes_process": 47,
+        "string_script": "    \"\"\"\n    if [ ! -d tmp ]; then mkdir tmp; fi\n    n_slots=`expr ${params.VF_threads} / 2 - 3`\n    if [ \\$n_slots -le 0 ]; then n_slots=1; fi\n    taskset -c 0-\\${n_slots} gatk VariantFiltration \\\\\n      --tmp-dir tmp/ \\\\\n      -R ${ref_genome} \\\\\n      -V ${vcf} \\\\\n      -O temp_filtered.vcf \\\\\n      ${Filters} ${params.VF_args}\n\n    taskset -c 0-\\${n_slots} gatk SelectVariants \\\\\n      --tmp-dir tmp/ \\\\\n      -R ${ref_genome} \\\\\n      -V temp_filtered.vcf \\\\\n      -O ${chrom}.${params.VC_mode}.SNPs.filtered.vcf \\\\\n      -select 'vc.isNotFiltered()'\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vf_ch",
+            "filter_ch",
+            "ref_genome",
+            "ref_dict",
+            "ref_index"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.VF_Forks",
+            "tag { chrom }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.VF_threads}:mem=${params.VF_memory}gb -lwalltime=${params.VF_walltime}:00:00\"",
+            "publishDir( path: \"${params.VFDir}\", mode: 'move', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "IndexRef": {
+        "name_process": "IndexRef",
+        "string_process": " process IndexRef {\n    errorStrategy { sleep(Math.pow(2, task.attempt) * 200 as long); return 'retry' }\n    maxRetries 3\n\n    tag{ ref_name }\n\n    publishDir(\n      path: \"${ref_dir}/\",\n      mode: 'copy',\n    )\n\n    executor = 'pbspro'\n    clusterOptions = \"-lselect=1:ncpus=${params.BWA_threads}:mem=${params.BWA_memory}gb -lwalltime=${params.BWA_walltime}:00:00\"\n\n    input:\n    path ref_genome\n    val ref_name\n\n    output:\n    path \"${ref_name}*\" into ref_ch\n\n    beforeScript 'module load anaconda3/personal; source activate TrimGalore; module load samtools/1.3.1'\n    \n    script:\n    \"\"\"\n    bwa-mem2 index ${ref_genome}\n    samtools faidx ${ref_genome}\n    \"\"\"\n  }",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    bwa-mem2 index ${ref_genome}\n    samtools faidx ${ref_genome}\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "ref_genome",
+            "ref_name"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ref_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 200 as long); return 'retry' }",
+            "maxRetries 3",
+            "tag{ ref_name }",
+            "publishDir( path: \"${ref_dir}/\", mode: 'copy', )",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.BWA_threads}:mem=${params.BWA_memory}gb -lwalltime=${params.BWA_walltime}:00:00\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Trimming": {
+        "name_process": "Trimming",
+        "string_process": " process Trimming {\n    errorStrategy { sleep(Math.pow(2, task.attempt) * 200 as long); return 'retry' }\n    maxRetries 3\n    maxForks params.Trim_Forks\n\n    tag { sampleID }\n\n    publishDir(\n      path: \"${params.TrimDir}\",\n      mode: 'copy',\n    )\n    \n    executor = 'pbspro'\n    clusterOptions = \"-lselect=1:ncpus=${params.TG_threads}:mem=${params.TG_memory}gb -lwalltime=${params.TG_walltime}:00:00\"\n    \n    input:\n                                                                                                                                                                                                              \n    set sampleID, path(reads) from raw_fastqs\n    \n    output:\n                                                                \n    tuple val(sampleID), path(\"*_val_{1,2}.fq.gz\") into trimmed_fastqs, for_qc\n    \n                                                                                                             \n    beforeScript 'module load anaconda3/personal; source activate TrimGalore; module load trimmomatic/0.36'\n      \n    script:\n    def (read1, read2) = reads\n    \n    if( params.mode == 'trim_galore' )\n        \"\"\"\n        trim_galore --paired --gzip -j 4 ${params.TG_args} \\\\\n          --clip_R1 ${params.TG_Clip_R1} --clip_R2 ${params.TG_Clip_R2} \\\\\n          --quality ${params.TG_qual} ${read1} ${read2}\n        \"\"\"\n    else if( params.mode == 'trimmomatic' )\n        \"\"\"\n        mdkir 01_Orphaned\n        trimmomatic PE -validatePairs -threads ${params.TG_threads} ${params.TM_args} ${read1} ${read2} \\\\\n          ${sampleID}_val_1.fq.gz ./01_Orphaned/${sampleID}_orphaned_R1.fastq.gz \\\\\n          ${sampleID}_val_2.fq.gz ./01_Orphaned/${sampleID}_orphaned_R2.fastq.gz \\\\\n          HEADCROP:${params.TG_Clip_R1} TRAILING:${params.TG_qual}\n        \"\"\"\n    else\n        error \"Invalid alignment mode: ${params.mode}, use either trim_galore or trimmomatic\"\n  }",
+        "nb_lignes_process": 44,
+        "string_script": "    def (read1, read2) = reads\n    \n    if( params.mode == 'trim_galore' )\n        \"\"\"\n        trim_galore --paired --gzip -j 4 ${params.TG_args} \\\\\n          --clip_R1 ${params.TG_Clip_R1} --clip_R2 ${params.TG_Clip_R2} \\\\\n          --quality ${params.TG_qual} ${read1} ${read2}\n        \"\"\"\n    else if( params.mode == 'trimmomatic' )\n        \"\"\"\n        mdkir 01_Orphaned\n        trimmomatic PE -validatePairs -threads ${params.TG_threads} ${params.TM_args} ${read1} ${read2} \\\\\n          ${sampleID}_val_1.fq.gz ./01_Orphaned/${sampleID}_orphaned_R1.fastq.gz \\\\\n          ${sampleID}_val_2.fq.gz ./01_Orphaned/${sampleID}_orphaned_R2.fastq.gz \\\\\n          HEADCROP:${params.TG_Clip_R1} TRAILING:${params.TG_qual}\n        \"\"\"\n    else\n        error \"Invalid alignment mode: ${params.mode}, use either trim_galore or trimmomatic\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "Trimmomatic"
+        ],
+        "tools_url": [
+            "https://bio.tools/trimmomatic"
+        ],
+        "tools_dico": [
+            {
+                "name": "Trimmomatic",
+                "uri": "https://bio.tools/trimmomatic",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A flexible read trimming tool for Illumina NGS data",
+                "homepage": "http://www.usadellab.org/cms/index.php?page=trimmomatic"
+            }
+        ],
+        "inputs": [
+            "raw_fastqs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trimmed_fastqs",
+            "for_qc beforeScript"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 200 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.Trim_Forks",
+            "tag { sampleID }",
+            "publishDir( path: \"${params.TrimDir}\", mode: 'copy', )",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.TG_threads}:mem=${params.TG_memory}gb -lwalltime=${params.TG_walltime}:00:00\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FastQC": {
+        "name_process": "FastQC",
+        "string_process": " process FastQC {\n                                      \n    errorStrategy { sleep(Math.pow(2, task.attempt) * 3600 as long); return 'retry' }\n    maxRetries 3\n    maxForks params.QC_Forks\n\n    tag { sampleID }\n\n    executor = 'pbspro'\n    clusterOptions = \"-lselect=1:ncpus=8:mem=12gb -lwalltime=2:00:00\"\n\n    publishDir(\n      path: \"${params.TrimDir}/01_FastQC\",\n      mode: 'move',\n    )\n\n    input:\n    set sampleID, path(reads) from for_qc\n\n    output:\n    path \"*.html\"\n\n    beforeScript 'module load fastqc/0.11.9'\n\n    script:\n    def (read1, read2) = reads\n    \"\"\"\n    mkdir tmp\n    fastqc -t 8 -d ./tmp/ ${params.FastQC_args} ${read1}\n    fastqc -t 8 -d ./tmp/ ${params.FastQC_args} ${read2}\n    \"\"\"\n  }",
+        "nb_lignes_process": 30,
+        "string_script": "    def (read1, read2) = reads\n    \"\"\"\n    mkdir tmp\n    fastqc -t 8 -d ./tmp/ ${params.FastQC_args} ${read1}\n    fastqc -t 8 -d ./tmp/ ${params.FastQC_args} ${read2}\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "for_qc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 3600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.QC_Forks",
+            "tag { sampleID }",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=8:mem=12gb -lwalltime=2:00:00\"",
+            "publishDir( path: \"${params.TrimDir}/01_FastQC\", mode: 'move', )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Mapping": {
+        "name_process": "Mapping",
+        "string_process": " process Mapping {\n                                      \n    errorStrategy { sleep(Math.pow(2, task.attempt) * 3600 as long); return 'retry' }\n    maxRetries 3\n    maxForks params.Map_Forks\n\n    tag { trimmedID }\n\n    publishDir(\n      path: \"${params.MapDir}\",\n      mode: 'move',\n    )\n    \n    executor = 'pbspro'\n    clusterOptions = \"-lselect=1:ncpus=${params.BWA_threads}:mem=${params.BWA_memory}gb -lwalltime=${params.BWA_walltime}:00:00\"\n    \n    input:\n    path ref_genome\n    path ref_index from ref_ch.collect()\n    set trimmedID, path(trimmed_reads) from trimmed_fastqs\n    \n    output:\n                                                                                                                                                           \n    path(\"${trimmedID}.bam\")\n    path(\"${trimmedID}.bam.bai\")\n    \n    beforeScript 'module load anaconda3/personal; source activate TrimGalore; module load samtools/1.3.1'\n    \n    script:\n    def (read1, read2) = trimmed_reads\n                                                                                                                                                  \n    \"\"\"\n    header=`zcat ${read1} | head -n 1`\n    RG_ID=`echo \\$header | head -n 1 | cut -f 3-4 -d\":\" | sed 's/@//' | sed 's/:/_/g'`\n    RG_PU=`echo \\$header | head -n 1 | cut -f 1-4 -d\":\" | sed 's/@//' | sed 's/:/_/g'`\n    bwa-mem2 mem -M -t ${params.BWA_threads} ${params.BWA_args} \\\\\n      -R \"@RG\\\\tID:\\${RG_ID}\\\\tPU:\\${RG_PU}\\\\tSM:${trimmedID}\\\\tLB:${params.BWA_RG_LB}\\\\tPL:${params.BWA_RG_PL}\" \\\\\n      ${ref_genome} ${read1} ${read2} > ${trimmedID}.sam\n    samtools sort -o ./${trimmedID}.bam ${trimmedID}.sam\n    samtools index ${trimmedID}.bam\n    \"\"\"\n  }",
+        "nb_lignes_process": 40,
+        "string_script": "    def (read1, read2) = trimmed_reads\n                                                                                                                                                  \n    \"\"\"\n    header=`zcat ${read1} | head -n 1`\n    RG_ID=`echo \\$header | head -n 1 | cut -f 3-4 -d\":\" | sed 's/@//' | sed 's/:/_/g'`\n    RG_PU=`echo \\$header | head -n 1 | cut -f 1-4 -d\":\" | sed 's/@//' | sed 's/:/_/g'`\n    bwa-mem2 mem -M -t ${params.BWA_threads} ${params.BWA_args} \\\\\n      -R \"@RG\\\\tID:\\${RG_ID}\\\\tPU:\\${RG_PU}\\\\tSM:${trimmedID}\\\\tLB:${params.BWA_RG_LB}\\\\tPL:${params.BWA_RG_PL}\" \\\\\n      ${ref_genome} ${read1} ${read2} > ${trimmedID}.sam\n    samtools sort -o ./${trimmedID}.bam ${trimmedID}.sam\n    samtools index ${trimmedID}.bam\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "ref_genome",
+            "ref_ch",
+            "trimmed_fastqs"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "dthorburn__Genomic_Read_Processing",
+        "directive": [
+            "errorStrategy { sleep(Math.pow(2, task.attempt) * 3600 as long); return 'retry' }",
+            "maxRetries 3",
+            "maxForks params.Map_Forks",
+            "tag { trimmedID }",
+            "publishDir( path: \"${params.MapDir}\", mode: 'move', )",
+            "executor = 'pbspro'",
+            "clusterOptions = \"-lselect=1:ncpus=${params.BWA_threads}:mem=${params.BWA_memory}gb -lwalltime=${params.BWA_walltime}:00:00\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

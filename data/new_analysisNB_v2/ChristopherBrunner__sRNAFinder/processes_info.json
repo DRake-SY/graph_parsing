@@ -1,0 +1,336 @@
+{
+    "createsRNAbedFile": {
+        "name_process": "createsRNAbedFile",
+        "string_process": "\nprocess createsRNAbedFile {\n    input:\n        file \"${params.org}GenomeLength.txt\" from lengthGenome_sRNAbed\n        val windowSize\n        val step\n    output:\n        file \"genomeSRNAs.bed\" into sRNAWindowsBED\n\n    \"\"\"\n#!/usr/bin/env python3\n\nnameCount = 1\n\nwith open(\"${params.org}GenomeLength.txt\", \"r\") as chromLen:\n    with open(\"genomeSRNAs.bed\", \"w\") as genomeSRNAs:\n        # Function for adding one window to the sRNA BED file\n        def printSRNA(geneID, start, end, strand):\n            global nameCount\n            genomeSRNAs.write(geneID + \"\\\\t\" + str(start) + \"\\\\t\" + str(end) + \"\\\\tsRNA\" + str(f\"{nameCount:07}\") + \"\\\\t.\\\\t\" + strand + \"\\\\n\")\n            nameCount += 1\n\n        # Iterate through all lines, each line contains one chromosome region that is supposed to be analyzed\n        for gene in chromLen:\n            geneID = gene.split()[0]\n            start = int(gene.split()[1])\n            end = int(gene.split()[2])\n            maxStartPos = end - ${windowSize}\n\n            # For each genomic region append an sRNA window to the BED file\n            # Therefore iterate through the region with window size times the step to get a fraction of window size, creating a sliding window across the genome\n            for index in range(start, end, int(${windowSize}*${step})):\n                # Once the index exceeds the maximum start position, add one more window until the end of the region and then break out of the loop for this chromosome location\n                if index > maxStartPos:\n                    printSRNA(geneID, index, end, \"+\")  # Pos. strand\n                    printSRNA(geneID, index, end, \"-\")  # Neg. strand\n                    break\n                else:\n                    printSRNA(geneID, index, index+${windowSize}, \"+\") # Pos. strand\n                    printSRNA(geneID, index, index+${windowSize}, \"-\") # Neg. strand\n        \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n\nnameCount = 1\n\nwith open(\"${params.org}GenomeLength.txt\", \"r\") as chromLen:\n    with open(\"genomeSRNAs.bed\", \"w\") as genomeSRNAs:\n        # Function for adding one window to the sRNA BED file\n        def printSRNA(geneID, start, end, strand):\n            global nameCount\n            genomeSRNAs.write(geneID + \"\\\\t\" + str(start) + \"\\\\t\" + str(end) + \"\\\\tsRNA\" + str(f\"{nameCount:07}\") + \"\\\\t.\\\\t\" + strand + \"\\\\n\")\n            nameCount += 1\n\n        # Iterate through all lines, each line contains one chromosome region that is supposed to be analyzed\n        for gene in chromLen:\n            geneID = gene.split()[0]\n            start = int(gene.split()[1])\n            end = int(gene.split()[2])\n            maxStartPos = end - ${windowSize}\n\n            # For each genomic region append an sRNA window to the BED file\n            # Therefore iterate through the region with window size times the step to get a fraction of window size, creating a sliding window across the genome\n            for index in range(start, end, int(${windowSize}*${step})):\n                # Once the index exceeds the maximum start position, add one more window until the end of the region and then break out of the loop for this chromosome location\n                if index > maxStartPos:\n                    printSRNA(geneID, index, end, \"+\")  # Pos. strand\n                    printSRNA(geneID, index, end, \"-\")  # Neg. strand\n                    break\n                else:\n                    printSRNA(geneID, index, index+${windowSize}, \"+\") # Pos. strand\n                    printSRNA(geneID, index, index+${windowSize}, \"-\") # Neg. strand\n        \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "lengthGenome_sRNAbed",
+            "windowSize",
+            "step"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "sRNAWindowsBED"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ChristopherBrunner__sRNAFinder",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "createProteinBEDFile": {
+        "name_process": "createProteinBEDFile",
+        "string_process": "\nprocess createProteinBEDFile {\n    input:\n         file gffFile\n     output:\n         file \"genomeAnnotation.bed\" into proteinCodingBED\n     \"\"\"\n     awk 'OFS=\"\\t\" {if (\\$3==\"gene\") {print \\$1,\\$4-1,\\$5,\\$9,\".\",\\$7,\\$3}}' ${gffFile}| perl -pe 's/\\tID=.*Name=/\\t/' | perl -pe 's/;.*\\\\w\\t/\\t/' > genomeAnnotation.bed\n     \"\"\"\n }",
+        "nb_lignes_process": 8,
+        "string_script": "\"\"\"\n     awk 'OFS=\"\\t\" {if (\\$3==\"gene\") {print \\$1,\\$4-1,\\$5,\\$9,\".\",\\$7,\\$3}}' ${gffFile}| perl -pe 's/\\tID=.*Name=/\\t/' | perl -pe 's/;.*\\\\w\\t/\\t/' > genomeAnnotation.bed\n     \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gffFile"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "proteinCodingBED"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ChristopherBrunner__sRNAFinder",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "runsRNACharP": {
+        "name_process": "runsRNACharP",
+        "string_process": "\nprocess runsRNACharP {\n    input:\n        file sRNACharP_nf\n        file nextflow_sRNACharP_config\n    output:\n        file \"${params.org}_FeatureTable.tsv\" into sRNACharPresult\n    \"\"\"\n    nextflow run ${sRNACharP_nf} -c ${nextflow_sRNACharP_config} --org=\"${params.org}\" --dir=\"${params.dir}\" --genome=\"${params.org}_genome.fasta\"  --sRNAs=\"${params.org}_genomesRNAWindows.bed\" --genomeAnnotation=\"${params.org}_genomeAnnotation_proteincoding.bed\"\n    \"\"\"\n}",
+        "nb_lignes_process": 9,
+        "string_script": "\"\"\"\n    nextflow run ${sRNACharP_nf} -c ${nextflow_sRNACharP_config} --org=\"${params.org}\" --dir=\"${params.dir}\" --genome=\"${params.org}_genome.fasta\"  --sRNAs=\"${params.org}_genomesRNAWindows.bed\" --genomeAnnotation=\"${params.org}_genomeAnnotation_proteincoding.bed\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "Nextflow"
+        ],
+        "tools_url": [
+            "https://bio.tools/nextflow"
+        ],
+        "tools_dico": [
+            {
+                "name": "Nextflow",
+                "uri": "https://bio.tools/nextflow",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Nextflow enables scalable and reproducible scientific workflows using software containers. It allows the adaptation of pipelines written in the most common scripting languages.",
+                "homepage": "https://www.nextflow.io/"
+            }
+        ],
+        "inputs": [
+            "sRNACharP_nf",
+            "nextflow_sRNACharP_config"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sRNACharPresult"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ChristopherBrunner__sRNAFinder",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "runsRNARanking": {
+        "name_process": "runsRNARanking",
+        "string_process": "\nprocess runsRNARanking {\n    input:\n        file \"${params.org}_FeatureTable.tsv\" from sRNACharPresult\n        file RF_classifier4sRNA_R\n        file RF_classifier4sRNA_rds\n    output:\n        file \"PipelineOutFile\" into sRNARankingResult\n    \"\"\"\n    Rscript --vanilla ${RF_classifier4sRNA_R} -i ${params.org}_FeatureTable.tsv -o PipelineOutFile\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "\"\"\"\n    Rscript --vanilla ${RF_classifier4sRNA_R} -i ${params.org}_FeatureTable.tsv -o PipelineOutFile\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sRNACharPresult",
+            "RF_classifier4sRNA_R",
+            "RF_classifier4sRNA_rds"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "sRNARankingResult"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ChristopherBrunner__sRNAFinder",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "joinScoreAndCoordinates": {
+        "name_process": "joinScoreAndCoordinates",
+        "string_process": "\nprocess joinScoreAndCoordinates {\n    input:\n        file \"PipelineOutFile\" from sRNARankingResult\n        file \"genomeSRNAs.bed\" from sRNAWindowsBEDJoin\n    output:\n        file \"PipelineOutFileJOINED\" into sRNARankingJoined\n    \"\"\"\n    sort -k1 PipelineOutFile | perl -p -e 's/\"//g' > PipelineOutFileSORTED\n    join -1 1 -2 4 PipelineOutFileSORTED genomeSRNAs.bed | sed 's/ /\\t/g' | sort -k1 > PipelineOutFileJOINED\n    sed -i '1i\\\n    name\\tNosRNA\\tsRNA\\tgeneID\\tstart\\tend\\tscore\\tstrand\n    ' PipelineOutFileJOINED\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    sort -k1 PipelineOutFile | perl -p -e 's/\"//g' > PipelineOutFileSORTED\n    join -1 1 -2 4 PipelineOutFileSORTED genomeSRNAs.bed | sed 's/ /\\t/g' | sort -k1 > PipelineOutFileJOINED\n    sed -i '1i\\\n    name\\tNosRNA\\tsRNA\\tgeneID\\tstart\\tend\\tscore\\tstrand\n    ' PipelineOutFileJOINED\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "joineRML"
+        ],
+        "tools_url": [
+            "https://bio.tools/joinerml"
+        ],
+        "tools_dico": [
+            {
+                "name": "joineRML",
+                "uri": "https://bio.tools/joinerml",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3569",
+                            "term": "Applied mathematics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Joint Modelling of Multivariate Longitudinal Data and Time-to-Event Outcomes.",
+                "homepage": "https://cran.r-project.org/web/packages/joineRML/"
+            }
+        ],
+        "inputs": [
+            "sRNARankingResult",
+            "sRNAWindowsBEDJoin"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sRNARankingJoined"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ChristopherBrunner__sRNAFinder",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "plotGenomesRNAs": {
+        "name_process": "plotGenomesRNAs",
+        "string_process": "\nprocess plotGenomesRNAs {\n    input:\n        file \"GenomesRNAScores\" from sRNARankingJoinedPlot\n        file \"chromLen\" from lengthGenomePlot\n        val windowSize\n        val step\n    output:\n        file \"figuresRNA.html\" into GenomePlotsRNA\n        file \"figureNosRNA.html\" into GenomePlotNosRNA\n    \"\"\"\n#!/usr/bin/env python3\nimport csv\nimport plotly.express as px\nimport plotly.graph_objects as go\n\nsRNA_list = []\n\n# Read lines of the joined ranking score and window location with csv\nwith open(\"GenomesRNAScores\", \"r\") as sRNA_data:\n    sRNA_reader = csv.DictReader(sRNA_data, delimiter=\"\\t\")\n    \n    # Append lines to sRNA_list as a dictionary\n    for sRNA in sRNA_reader:\n        sRNA_list.append(dict(sRNA))\n\n# Change chromosome regions to genome coordinates\nwith open(\"chromLen\", \"r\") as chromLen:   \n    chromLenPrev = 0\n    \n    for chrom in chromLen:\n        for sRNA in sRNA_list:\n            if (sRNA['geneID'] == chrom.split()[0]):\n                sRNA['start'] = int(sRNA['start']) + chromLenPrev\n                sRNA['end'] = int(sRNA['end']) + chromLenPrev\n        \n        chromLenPrev = chromLenPrev + int(chrom.split()[2])\n\n# Create a plotly express bar chart, one for sRNA Values and the other for NosRNA Values:\n# sRNA Values\nfiguresRNA = px.bar(sRNA_list,                                      # List containing the dictionary for each sRNA window\n                facet_row=\"strand\",                                 # Splits each figure into two subplots, depending on the strand\n                x=\"start\",                                          # x-axis set to start poisiton\n                y=\"sRNA\",                                           # y-axis set to sRNA (value for being an sRNA)\n                hover_data=[\"end\", \"name\", \"start\", \"strand\"],      # Additional information added as hover data (end position, start position, name of the sRNA and the strand)\n                labels={\"sRNA\":\"Probability for an sRNA\",           # Rename the x- and y-axis labels aswell as the end position\n                 \"start\":\"Start position\", \"end\":\"End position\"}\n)\n\n# NosRNA Values\nfigureNosRNA = px.bar(sRNA_list,\n                facet_row=\"strand\",\n                x=\"start\", \n                y=\"NosRNA\",                                              # y-axis set to NosRNA (value for not being an sRNA)\n                hover_data=[\"end\", \"name\", \"start\", \"strand\"], \n                labels={\"NosRNA\":\"Probability for not being an sRNA\",\n                 \"start\":\"Start position\", \"end\":\"End position\"}          \n)\n\n# Read the reference data like the scores table with csv\nif \"${params.refFile}\" != \"\":\n    with open(\"${params.dir}/${params.refFile}\") as ref_data:\n        ref_reader = csv.DictReader(ref_data, delimiter=\"\\t\")\n        \n        # Add each reference sRNA\n        for ref_sRNA in ref_reader:\n\n            # Function to add the reference sRNA as a subplot to one of each of the figure's subplots\n            def addTrace(figure, subplot):\n                # Reference sRNA added as a red line on the x-axis\n                figure.add_trace(go.Scatter(\n                                        x=[ref_sRNA['start'], ref_sRNA['end']],\n                                        y=[0, 0],\n                                        hoverinfo=\"x\",\n                                        mode=\"lines\",\n                                        line=go.scatter.Line(color=\"red\", width=15),\n                                        showlegend=False),\n                                        subplot,\n                                        1)\n            # If reference sRNA is on the positive strand, add the current subplot trace to the second subplot (pos. strand) of each figure\n            if ref_sRNA['strand'] == '+':\n                addTrace(figuresRNA, 2)\n                addTrace(figureNosRNA, 2)\n            # Otherwise add them to the first subplot of each figure (neg. strand)\n            else:\n                addTrace(figuresRNA, 1)\n                addTrace(figureNosRNA, 1)\n\n# Rename each of the figures title\nfiguresRNA.update_layout(title_text=\"sRNA Values for ${params.org} (window size: \" + str(${windowSize}) + \" and step size: \" + str(int(${windowSize}*${step})) + \")\")\nfigureNosRNA.update_layout(title_text=\"NosRNA Values for ${params.org} (window size: \" + str(${windowSize}) + \" and step size: \" + str(int(${windowSize}*${step})) + \")\")\n\n# Fix each y-axis to the range 0 to 1\nfiguresRNA.update_yaxes(range=[0, 1])\nfigureNosRNA.update_yaxes(range=[0, 1])\n\nfiguresRNA.write_html(\"figuresRNA.html\")\nfigureNosRNA.write_html(\"figureNosRNA.html\")\n    \"\"\"\n}",
+        "nb_lignes_process": 98,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\nimport csv\nimport plotly.express as px\nimport plotly.graph_objects as go\n\nsRNA_list = []\n\n# Read lines of the joined ranking score and window location with csv\nwith open(\"GenomesRNAScores\", \"r\") as sRNA_data:\n    sRNA_reader = csv.DictReader(sRNA_data, delimiter=\"\\t\")\n    \n    # Append lines to sRNA_list as a dictionary\n    for sRNA in sRNA_reader:\n        sRNA_list.append(dict(sRNA))\n\n# Change chromosome regions to genome coordinates\nwith open(\"chromLen\", \"r\") as chromLen:   \n    chromLenPrev = 0\n    \n    for chrom in chromLen:\n        for sRNA in sRNA_list:\n            if (sRNA['geneID'] == chrom.split()[0]):\n                sRNA['start'] = int(sRNA['start']) + chromLenPrev\n                sRNA['end'] = int(sRNA['end']) + chromLenPrev\n        \n        chromLenPrev = chromLenPrev + int(chrom.split()[2])\n\n# Create a plotly express bar chart, one for sRNA Values and the other for NosRNA Values:\n# sRNA Values\nfiguresRNA = px.bar(sRNA_list,                                      # List containing the dictionary for each sRNA window\n                facet_row=\"strand\",                                 # Splits each figure into two subplots, depending on the strand\n                x=\"start\",                                          # x-axis set to start poisiton\n                y=\"sRNA\",                                           # y-axis set to sRNA (value for being an sRNA)\n                hover_data=[\"end\", \"name\", \"start\", \"strand\"],      # Additional information added as hover data (end position, start position, name of the sRNA and the strand)\n                labels={\"sRNA\":\"Probability for an sRNA\",           # Rename the x- and y-axis labels aswell as the end position\n                 \"start\":\"Start position\", \"end\":\"End position\"}\n)\n\n# NosRNA Values\nfigureNosRNA = px.bar(sRNA_list,\n                facet_row=\"strand\",\n                x=\"start\", \n                y=\"NosRNA\",                                              # y-axis set to NosRNA (value for not being an sRNA)\n                hover_data=[\"end\", \"name\", \"start\", \"strand\"], \n                labels={\"NosRNA\":\"Probability for not being an sRNA\",\n                 \"start\":\"Start position\", \"end\":\"End position\"}          \n)\n\n# Read the reference data like the scores table with csv\nif \"${params.refFile}\" != \"\":\n    with open(\"${params.dir}/${params.refFile}\") as ref_data:\n        ref_reader = csv.DictReader(ref_data, delimiter=\"\\t\")\n        \n        # Add each reference sRNA\n        for ref_sRNA in ref_reader:\n\n            # Function to add the reference sRNA as a subplot to one of each of the figure's subplots\n            def addTrace(figure, subplot):\n                # Reference sRNA added as a red line on the x-axis\n                figure.add_trace(go.Scatter(\n                                        x=[ref_sRNA['start'], ref_sRNA['end']],\n                                        y=[0, 0],\n                                        hoverinfo=\"x\",\n                                        mode=\"lines\",\n                                        line=go.scatter.Line(color=\"red\", width=15),\n                                        showlegend=False),\n                                        subplot,\n                                        1)\n            # If reference sRNA is on the positive strand, add the current subplot trace to the second subplot (pos. strand) of each figure\n            if ref_sRNA['strand'] == '+':\n                addTrace(figuresRNA, 2)\n                addTrace(figureNosRNA, 2)\n            # Otherwise add them to the first subplot of each figure (neg. strand)\n            else:\n                addTrace(figuresRNA, 1)\n                addTrace(figureNosRNA, 1)\n\n# Rename each of the figures title\nfiguresRNA.update_layout(title_text=\"sRNA Values for ${params.org} (window size: \" + str(${windowSize}) + \" and step size: \" + str(int(${windowSize}*${step})) + \")\")\nfigureNosRNA.update_layout(title_text=\"NosRNA Values for ${params.org} (window size: \" + str(${windowSize}) + \" and step size: \" + str(int(${windowSize}*${step})) + \")\")\n\n# Fix each y-axis to the range 0 to 1\nfiguresRNA.update_yaxes(range=[0, 1])\nfigureNosRNA.update_yaxes(range=[0, 1])\n\nfiguresRNA.write_html(\"figuresRNA.html\")\nfigureNosRNA.write_html(\"figureNosRNA.html\")\n    \"\"\"",
+        "nb_lignes_script": 88,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sRNARankingJoinedPlot",
+            "lengthGenomePlot",
+            "windowSize",
+            "step"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "GenomePlotsRNA",
+            "GenomePlotNosRNA"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ChristopherBrunner__sRNAFinder",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "filterGenomeWindows": {
+        "name_process": "filterGenomeWindows",
+        "string_process": "\nprocess filterGenomeWindows {\n    input:\n        file \"GenomesRNAScores\" from sRNARankingJoinedFilter\n        file \"chromLen\" from lengthGenomeFilter\n        val windowSize\n        val step\n    output:\n        file \"FilteredGenomeWindows\" into pipelineRerun\n    \"\"\"\n    cut -f1,3 chromLen > onlyChromLen\n    awk 'NR>1 && OFS=\"\\t\" {if (\\$3 > 0.405) { print \\$4, \\$5, \\$6 }}' GenomesRNAScores | uniq -f1 > FilteredGenome\n    bedtools slop -i FilteredGenome -g onlyChromLen -b ${windowSize}/2 > ExtendedFilteredGenome\n    bedtools merge -i ExtendedFilteredGenome > FilteredGenomeWindows\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    cut -f1,3 chromLen > onlyChromLen\n    awk 'NR>1 && OFS=\"\\t\" {if (\\$3 > 0.405) { print \\$4, \\$5, \\$6 }}' GenomesRNAScores | uniq -f1 > FilteredGenome\n    bedtools slop -i FilteredGenome -g onlyChromLen -b ${windowSize}/2 > ExtendedFilteredGenome\n    bedtools merge -i ExtendedFilteredGenome > FilteredGenomeWindows\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "BEDTools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bedtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BEDTools",
+                "uri": "https://bio.tools/bedtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BEDTools is an extensive suite of utilities for comparing genomic features in BED format.",
+                "homepage": "https://github.com/arq5x/bedtools2"
+            }
+        ],
+        "inputs": [
+            "sRNARankingJoinedFilter",
+            "lengthGenomeFilter",
+            "windowSize",
+            "step"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "pipelineRerun"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ChristopherBrunner__sRNAFinder",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

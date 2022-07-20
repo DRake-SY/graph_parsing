@@ -1,0 +1,1780 @@
+{
+    "read_length": {
+        "name_process": "read_length",
+        "string_process": "\nprocess read_length {\n\n  input:\n    set val(id), file(reads) from reads_ch \n\n  output:\n    file \"readLength_file.txt\" into readlen_file_ch\n\n  shell:\n\n  '''\n  gunzip -c *_1.{fq,fastq}.gz | sed '2q;d' | wc -m | awk '{print $1-1}' >> readLength_file.txt\n  '''\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  '''\n  gunzip -c *_1.{fq,fastq}.gz | sed '2q;d' | wc -m | awk '{print $1-1}' >> readLength_file.txt\n  '''",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reads_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "readlen_file_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_star_genome_index": {
+        "name_process": "prepare_star_genome_index",
+        "string_process": "\nprocess prepare_star_genome_index {\n\n  input:\n    path genome from params.genome\n    path annot from params.annot\n    val x from read_len_ch1\n    val cpus from params.cpus\n\n  output:\n    path STARhaploid into genome_dir_ch\n\n  script:\n\n  \"\"\"\n  mkdir STARhaploid\n\n  STAR --runMode genomeGenerate \\\n       --genomeDir STARhaploid \\\n       --genomeFastaFiles ${genome} \\\n       --sjdbGTFfile ${annot} \\\n       --sjdbOverhang ${x} \\\n       --runThreadN ${cpus} \n  \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "  \"\"\"\n  mkdir STARhaploid\n\n  STAR --runMode genomeGenerate \\\n       --genomeDir STARhaploid \\\n       --genomeFastaFiles ${genome} \\\n       --sjdbGTFfile ${annot} \\\n       --sjdbOverhang ${x} \\\n       --runThreadN ${cpus} \n  \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "params",
+            "params",
+            "read_len_ch1",
+            "params"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "genome_dir_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "rnaseq_mapping_star": {
+        "name_process": "rnaseq_mapping_star",
+        "string_process": "\nprocess rnaseq_mapping_star {\n\n  input: \n    path genome from params.genome \n    path STARhaploid from genome_dir_ch\n    set val(id), file(reads) from reads_ch1\n    val x from read_len_ch2\n    val id from params.id\n    val cpus from params.cpus\n\n  output: \n    tuple \\\n      val(id), \\\n      path(\"${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\"), \\\n      path(\"${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam.bai\") into aligned_bam_ch\n\n  script: \n\n  \"\"\"\n  # Align reads to genome\n  STAR --genomeDir STARhaploid \\\n       --readFilesIn ${reads} \\\n       --readFilesCommand zcat \\\n       --runThreadN ${cpus} \\\n       --outSAMstrandField intronMotif \\\n       --outFilterMultimapNmax 30 \\\n       --alignIntronMax 1000000 \\\n       --alignMatesGapMax 1000000 \\\n       --outMultimapperOrder Random \\\n       --outSAMunmapped Within \\\n       --outSAMattrIHstart 0 \\\n       --outFilterIntronMotifs RemoveNoncanonicalUnannotated \\\n       --sjdbOverhang ${x} \\\n       --outFilterMismatchNmax ${(x-(x%13))/13} \\\n       --outSAMattributes NH nM NM MD HI \\\n       --outSAMattrRGline  ID:${id} PU:Illumina PL:Illumina LB:${id}.SOFT.NOTRIM SM:${id}.SOFT.NOTRIM CN:Seq_centre \\\n       --outSAMtype BAM SortedByCoordinate \\\n       --twopassMode Basic \\\n       --outFileNamePrefix ${id}.SOFT.NOTRIM.STAR.pass2. \\\n       --outSAMprimaryFlag AllBestScore\n\n  # Index the BAM file\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  \"\"\"\n}",
+        "nb_lignes_process": 44,
+        "string_script": "  \"\"\"\n  # Align reads to genome\n  STAR --genomeDir STARhaploid \\\n       --readFilesIn ${reads} \\\n       --readFilesCommand zcat \\\n       --runThreadN ${cpus} \\\n       --outSAMstrandField intronMotif \\\n       --outFilterMultimapNmax 30 \\\n       --alignIntronMax 1000000 \\\n       --alignMatesGapMax 1000000 \\\n       --outMultimapperOrder Random \\\n       --outSAMunmapped Within \\\n       --outSAMattrIHstart 0 \\\n       --outFilterIntronMotifs RemoveNoncanonicalUnannotated \\\n       --sjdbOverhang ${x} \\\n       --outFilterMismatchNmax ${(x-(x%13))/13} \\\n       --outSAMattributes NH nM NM MD HI \\\n       --outSAMattrRGline  ID:${id} PU:Illumina PL:Illumina LB:${id}.SOFT.NOTRIM SM:${id}.SOFT.NOTRIM CN:Seq_centre \\\n       --outSAMtype BAM SortedByCoordinate \\\n       --twopassMode Basic \\\n       --outFileNamePrefix ${id}.SOFT.NOTRIM.STAR.pass2. \\\n       --outSAMprimaryFlag AllBestScore\n\n  # Index the BAM file\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [
+            "STAR",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/star",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "params",
+            "genome_dir_ch",
+            "reads_ch1",
+            "read_len_ch2",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "id",
+            "aligned_bam_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "clean_up_reads": {
+        "name_process": "clean_up_reads",
+        "string_process": "\nprocess clean_up_reads {\n\n  input:\n    tuple val(id), path(bam), path(index) from aligned_bam_ch\n    path variants from params.variants\n    val id from params.id\n    val cpus from params.cpus\n\n  output:\n    path (\"STAR_original/phaser_version.bam\") into phaser_ch\n    path (\"STAR_original/phaser_version.bam.bai\") into phaser_bai_ch\n    path (\"STAR_original/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") into pp_um_ch\n\n  script:\n\n  \"\"\"\n  mkdir STAR_original\n\n  #KEEP ONLY PROPERLY PAIRED READS\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam\n\n  #KEEP UNIQUELY MAPPED READS\n  samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam | grep -P \"NH:i:1\\t|^@\" | samtools view -bS - > ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  #Create BAM compatible with PHASER:\n  gunzip -c ${variants} | grep -q 'chr' || (samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam | sed -e 's/chr//' >> phaser_version.sam; samtools view -bh phaser_version.sam >> phaser_version.bam; samtools index phaser_version.bam; rm phaser_version.sam)\n  gunzip -c  ${variants} | grep -q 'chr' && (samtools view -bh ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam >> phaser_version.bam; samtools index phaser_version.bam)\n\n  mv phaser_version.bam STAR_original/phaser_version.bam\n  mv phaser_version.bam.bai STAR_original/phaser_version.bam.bai\n  mv ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam STAR_original/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "  \"\"\"\n  mkdir STAR_original\n\n  #KEEP ONLY PROPERLY PAIRED READS\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam\n\n  #KEEP UNIQUELY MAPPED READS\n  samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam | grep -P \"NH:i:1\\t|^@\" | samtools view -bS - > ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  #Create BAM compatible with PHASER:\n  gunzip -c ${variants} | grep -q 'chr' || (samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam | sed -e 's/chr//' >> phaser_version.sam; samtools view -bh phaser_version.sam >> phaser_version.bam; samtools index phaser_version.bam; rm phaser_version.sam)\n  gunzip -c  ${variants} | grep -q 'chr' && (samtools view -bh ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam >> phaser_version.bam; samtools index phaser_version.bam)\n\n  mv phaser_version.bam STAR_original/phaser_version.bam\n  mv phaser_version.bam.bai STAR_original/phaser_version.bam.bai\n  mv ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam STAR_original/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "aligned_bam_ch",
+            "params",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "phaser_ch",
+            "phaser_bai_ch",
+            "pp_um_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "phaser_step": {
+        "name_process": "phaser_step",
+        "string_process": "\nprocess phaser_step {\n\n  input:\n  path variants from params.variants\n  path (\"phaser_version.bam\") from phaser_ch\n  path (\"phaser_version.bam.bai\") from phaser_bai_ch\n  val id from params.id\n  val cpus from params.cpus\n\n  output:\n  path (\"${id}_output_phaser.vcf\") into (phaser_out_ch1, phaser_out_ch2)\n\n  script:\n\n  \"\"\"\n  tabix -f -p vcf ${variants}\n\n  python2 /phaser/phaser/phaser.py --vcf ${variants} --bam phaser_version.bam --paired_end 1 --mapq 0 --baseq 10 --isize 0 --include_indels 1 --sample ${id} --id_separator + --pass_only 0 --gw_phase_vcf 1 --threads ${cpus} --o ${id}_output_phaser\n\n  gunzip ${id}_output_phaser.vcf.gz\n  rm phaser_version.bam\n  rm phaser_version.bam.bai\n  \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "  \"\"\"\n  tabix -f -p vcf ${variants}\n\n  python2 /phaser/phaser/phaser.py --vcf ${variants} --bam phaser_version.bam --paired_end 1 --mapq 0 --baseq 10 --isize 0 --include_indels 1 --sample ${id} --id_separator + --pass_only 0 --gw_phase_vcf 1 --threads ${cpus} --o ${id}_output_phaser\n\n  gunzip ${id}_output_phaser.vcf.gz\n  rm phaser_version.bam\n  rm phaser_version.bam.bai\n  \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "params",
+            "phaser_ch",
+            "phaser_bai_ch",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "create_parental_genomes": {
+        "name_process": "create_parental_genomes",
+        "string_process": "\nprocess create_parental_genomes {\n\n  input:\n    path genome from params.genome\n    path annot from params.annot\n    path (\"${id}_output_phaser.vcf\") from phaser_out_ch1\n    val id from params.id\n    path gencode_bed from params.gencode_bed\n\n  output:\n    path (\"STAR_2Gen_Ref/maternal.chain\") into maternal_chain_ch\n    path (\"STAR_2Gen_Ref/paternal.chain\") into paternal_chain_ch\n    path (\"STAR_2Gen_Ref/${id}_maternal.fa\") into (mat_fa1, mat_fa2)\n    path (\"STAR_2Gen_Ref/${id}_paternal.fa\") into (pat_fa1, pat_fa2)\n    path (\"STAR_2Gen_Ref/mat_annotation.gtf\") into (mat_annotation_ch1, mat_annotation_ch2)\n    path (\"STAR_2Gen_Ref/not_lifted_m.txt\") into not_lift_m_ch\n    path (\"STAR_2Gen_Ref/pat_annotation.gtf\") into (pat_annotation_ch1, pat_annotation_ch2)\n    path (\"STAR_2Gen_Ref/not_lifted_p.txt\") into not_lift_p_ch\n    path (\"STAR_2Gen_Ref/map_over.txt\") into adjusted_ref_ch\n    path (\"STAR_2Gen_Ref/${id}_output_phaser.mother.vcf.gz\") into mothervcf_ch\n    path (\"STAR_2Gen_Ref/${id}_output_phaser.father.vcf.gz\") into fathervcf_ch\n    path (\"STAR_2Gen_Ref/mat.bed\") into mat_bed_ch\n    path (\"STAR_2Gen_Ref/pat.bed\") into pat_bed_ch\n \n  script:\n\n  \"\"\"\n  mkdir STAR_2Gen_Ref\n  java -Xmx10000m -jar /vcf2diploid_v0.2.6a/vcf2diploid.jar -id ${id} -chr ${genome} -vcf ${id}_output_phaser.vcf -outDir STAR_2Gen_Ref > logfile.txt\n  \n  liftOver -gff ${annot} STAR_2Gen_Ref/maternal.chain STAR_2Gen_Ref/mat_annotation.gtf STAR_2Gen_Ref/not_lifted_m.txt\n  liftOver -gff ${annot} STAR_2Gen_Ref/paternal.chain STAR_2Gen_Ref/pat_annotation.gtf STAR_2Gen_Ref/not_lifted_p.txt\n\n  liftOver ${gencode_bed} STAR_2Gen_Ref/maternal.chain STAR_2Gen_Ref/mat.bed STAR_2Gen_Ref/not_bed_lifted_m.txt\n  liftOver ${gencode_bed} STAR_2Gen_Ref/paternal.chain STAR_2Gen_Ref/pat.bed STAR_2Gen_Ref/not_bed_lifted_p.txt\n  \n  \n  cat STAR_2Gen_Ref/chr1_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr2_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr3_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr4_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr5_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr6_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr7_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr8_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr9_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr10_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr11_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr12_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr13_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr14_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr15_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr16_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr17_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr18_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr19_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr20_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr21_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr22_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chrX_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chrY_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chrM_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  \n  \n  cat STAR_2Gen_Ref/chr1_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr2_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr3_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr4_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr5_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr6_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr7_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr8_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr9_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr10_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr11_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr12_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr13_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr14_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr15_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr16_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr17_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr18_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr19_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr20_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr21_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr22_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chrX_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chrY_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chrM_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  \n  \n  sed 's/\\\\*/N/g' STAR_2Gen_Ref/${id}_maternal.fa > STAR_2Gen_Ref/${id}_maternal.hold.fa\n  mv STAR_2Gen_Ref/${id}_maternal.hold.fa STAR_2Gen_Ref/${id}_maternal.fa\n  \n  sed 's/\\\\*/N/g' STAR_2Gen_Ref/${id}_paternal.fa > STAR_2Gen_Ref/${id}_paternal.hold.fa\n  mv STAR_2Gen_Ref/${id}_paternal.hold.fa STAR_2Gen_Ref/${id}_paternal.fa\n\n  mv ${id}_output_phaser.vcf STAR_2Gen_Ref/${id}_output_phaser.vcf\n  cd STAR_2Gen_Ref/\n  \n  perl ${baseDir}/bin/adjust_reference.pl ${id}_output_phaser.vcf ${id}\n\n  perl ${baseDir}/bin/adjust_reference_vcf.pl ${id}_output_phaser.vcf ${id}\n\n  grep \"^#\" ${id}_output_phaser.mother.vcf > ${id}_output_phaser.mother.s.vcf\n  grep -v \"^#\" ${id}_output_phaser.mother.vcf | sort -k1,1V -k2,2g >> ${id}_output_phaser.mother.s.vcf\n  grep \"^#\" ${id}_output_phaser.father.vcf > ${id}_output_phaser.father.s.vcf\n  grep -v \"^#\" ${id}_output_phaser.father.vcf | sort -k1,1V -k2,2g >> ${id}_output_phaser.father.s.vcf\n  mv ${id}_output_phaser.mother.s.vcf ${id}_output_phaser.mother.vcf\n  mv ${id}_output_phaser.father.s.vcf ${id}_output_phaser.father.vcf\n  bcftools view ${id}_output_phaser.mother.vcf -Oz -o ${id}_output_phaser.mother.vcf.gz\n  bcftools view ${id}_output_phaser.father.vcf -Oz -o ${id}_output_phaser.father.vcf.gz\n  tabix ${id}_output_phaser.father.vcf.gz\n  tabix ${id}_output_phaser.mother.vcf.gz\n\n  \"\"\"\n}",
+        "nb_lignes_process": 116,
+        "string_script": "  \"\"\"\n  mkdir STAR_2Gen_Ref\n  java -Xmx10000m -jar /vcf2diploid_v0.2.6a/vcf2diploid.jar -id ${id} -chr ${genome} -vcf ${id}_output_phaser.vcf -outDir STAR_2Gen_Ref > logfile.txt\n  \n  liftOver -gff ${annot} STAR_2Gen_Ref/maternal.chain STAR_2Gen_Ref/mat_annotation.gtf STAR_2Gen_Ref/not_lifted_m.txt\n  liftOver -gff ${annot} STAR_2Gen_Ref/paternal.chain STAR_2Gen_Ref/pat_annotation.gtf STAR_2Gen_Ref/not_lifted_p.txt\n\n  liftOver ${gencode_bed} STAR_2Gen_Ref/maternal.chain STAR_2Gen_Ref/mat.bed STAR_2Gen_Ref/not_bed_lifted_m.txt\n  liftOver ${gencode_bed} STAR_2Gen_Ref/paternal.chain STAR_2Gen_Ref/pat.bed STAR_2Gen_Ref/not_bed_lifted_p.txt\n  \n  \n  cat STAR_2Gen_Ref/chr1_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr2_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr3_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr4_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr5_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr6_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr7_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr8_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr9_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr10_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr11_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr12_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr13_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr14_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr15_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr16_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr17_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr18_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr19_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr20_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr21_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chr22_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chrX_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chrY_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  cat STAR_2Gen_Ref/chrM_${id}_maternal.fa >> STAR_2Gen_Ref/${id}_maternal.fa\n  \n  \n  cat STAR_2Gen_Ref/chr1_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr2_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr3_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr4_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr5_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr6_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr7_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr8_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr9_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr10_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr11_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr12_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr13_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr14_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr15_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr16_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr17_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr18_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr19_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr20_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr21_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chr22_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chrX_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chrY_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  cat STAR_2Gen_Ref/chrM_${id}_paternal.fa >> STAR_2Gen_Ref/${id}_paternal.fa\n  \n  \n  sed 's/\\\\*/N/g' STAR_2Gen_Ref/${id}_maternal.fa > STAR_2Gen_Ref/${id}_maternal.hold.fa\n  mv STAR_2Gen_Ref/${id}_maternal.hold.fa STAR_2Gen_Ref/${id}_maternal.fa\n  \n  sed 's/\\\\*/N/g' STAR_2Gen_Ref/${id}_paternal.fa > STAR_2Gen_Ref/${id}_paternal.hold.fa\n  mv STAR_2Gen_Ref/${id}_paternal.hold.fa STAR_2Gen_Ref/${id}_paternal.fa\n\n  mv ${id}_output_phaser.vcf STAR_2Gen_Ref/${id}_output_phaser.vcf\n  cd STAR_2Gen_Ref/\n  \n  perl ${baseDir}/bin/adjust_reference.pl ${id}_output_phaser.vcf ${id}\n\n  perl ${baseDir}/bin/adjust_reference_vcf.pl ${id}_output_phaser.vcf ${id}\n\n  grep \"^#\" ${id}_output_phaser.mother.vcf > ${id}_output_phaser.mother.s.vcf\n  grep -v \"^#\" ${id}_output_phaser.mother.vcf | sort -k1,1V -k2,2g >> ${id}_output_phaser.mother.s.vcf\n  grep \"^#\" ${id}_output_phaser.father.vcf > ${id}_output_phaser.father.s.vcf\n  grep -v \"^#\" ${id}_output_phaser.father.vcf | sort -k1,1V -k2,2g >> ${id}_output_phaser.father.s.vcf\n  mv ${id}_output_phaser.mother.s.vcf ${id}_output_phaser.mother.vcf\n  mv ${id}_output_phaser.father.s.vcf ${id}_output_phaser.father.vcf\n  bcftools view ${id}_output_phaser.mother.vcf -Oz -o ${id}_output_phaser.mother.vcf.gz\n  bcftools view ${id}_output_phaser.father.vcf -Oz -o ${id}_output_phaser.father.vcf.gz\n  tabix ${id}_output_phaser.father.vcf.gz\n  tabix ${id}_output_phaser.mother.vcf.gz\n\n  \"\"\"",
+        "nb_lignes_script": 89,
+        "language_script": "bash",
+        "tools": [
+            "LiftOver",
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/liftover",
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "LiftOver",
+                "uri": "https://bio.tools/liftover",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This service converts genome coordinates and genome annotation files between assemblies.",
+                "homepage": "http://api.bioinfo.no/wsdl/LiftOverService.wsdl"
+            },
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "params",
+            "params",
+            "phaser_out_ch1",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "maternal_chain_ch",
+            "paternal_chain_ch",
+            "",
+            "",
+            "",
+            "not_lift_m_ch",
+            "",
+            "not_lift_p_ch",
+            "adjusted_ref_ch",
+            "mothervcf_ch",
+            "fathervcf_ch",
+            "mat_bed_ch",
+            "pat_bed_ch"
+        ],
+        "nb_outputs": 13,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "STAR_reference_maternal_genomes": {
+        "name_process": "STAR_reference_maternal_genomes",
+        "string_process": "\nprocess STAR_reference_maternal_genomes {\n\n  input:\n    path (\"STAR_2Gen_Ref/${id}_maternal.fa\") from mat_fa1\n    path (\"STAR_2Gen_Ref/mat_annotation.gtf\") from mat_annotation_ch1\n    val x from read_len_ch3\n    val id from params.id\n    val cpus from params.cpus\n\n  output:\n    path Maternal_STAR into Maternal_STAR_ch  \n\n  script:\n\n  \"\"\"\n  mkdir Maternal_STAR\n\n  STAR --runMode genomeGenerate --genomeDir Maternal_STAR --genomeFastaFiles STAR_2Gen_Ref/${id}_maternal.fa --sjdbGTFfile STAR_2Gen_Ref/mat_annotation.gtf --sjdbOverhang ${x} --runThreadN ${cpus} --outTmpDir mat\n  \"\"\"    \n\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  mkdir Maternal_STAR\n\n  STAR --runMode genomeGenerate --genomeDir Maternal_STAR --genomeFastaFiles STAR_2Gen_Ref/${id}_maternal.fa --sjdbGTFfile STAR_2Gen_Ref/mat_annotation.gtf --sjdbOverhang ${x} --runThreadN ${cpus} --outTmpDir mat\n  \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "mat_fa1",
+            "mat_annotation_ch1",
+            "read_len_ch3",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "Maternal_STAR_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "STAR_reference_paternal_genomes": {
+        "name_process": "STAR_reference_paternal_genomes",
+        "string_process": "\nprocess STAR_reference_paternal_genomes {\n\n  input:\n    path (\"STAR_2Gen_Ref/${id}_paternal.fa\") from pat_fa1\n    path (\"STAR_2Gen_Ref/pat_annotation.gtf\") from pat_annotation_ch1\n    val x from read_len_ch4\n    val id from params.id\n    val cpus from params.cpus\n\n  output:\n    path Paternal_STAR into Paternal_STAR_ch\n    \n  script:\n\n  \"\"\"\n  mkdir Paternal_STAR\n\n  STAR --runMode genomeGenerate --genomeDir Paternal_STAR --genomeFastaFiles STAR_2Gen_Ref/${id}_paternal.fa --sjdbGTFfile STAR_2Gen_Ref/pat_annotation.gtf --sjdbOverhang ${x} --runThreadN ${cpus} --outTmpDir pat\n  \"\"\"    \n\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  mkdir Paternal_STAR\n\n  STAR --runMode genomeGenerate --genomeDir Paternal_STAR --genomeFastaFiles STAR_2Gen_Ref/${id}_paternal.fa --sjdbGTFfile STAR_2Gen_Ref/pat_annotation.gtf --sjdbOverhang ${x} --runThreadN ${cpus} --outTmpDir pat\n  \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "pat_fa1",
+            "pat_annotation_ch1",
+            "read_len_ch4",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "Paternal_STAR_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "map_paternal_gen_filter": {
+        "name_process": "map_paternal_gen_filter",
+        "string_process": "\nprocess map_paternal_gen_filter {\n  tag \"$id\"\n  \n  input:\n    path Paternal_STAR from Paternal_STAR_ch\n    set val(id), file(reads) from reads_ch2\n    path (\"STAR_2Gen_Ref/pat_annotation.gtf\") from pat_annotation_ch2\n    path (\"STAR_2Gen_Ref/${id}_paternal.fa\") from pat_fa2\n    val x from read_len_ch5\n    val id from params.id\n    val cpus from params.cpus\n\n  output:\n    path (\"STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") into (paternal_mapgen_ch1, paternal_mapgen_ch2)\n    path (\"STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam\") into pat_rsem_ch\n\n  script:\n\n  \"\"\"\n  STAR --genomeDir Paternal_STAR \\\n       --runThreadN ${cpus} \\\n       --quantMode TranscriptomeSAM \\\n       --readFilesIn $reads \\\n       --readFilesCommand zcat \\\n       --outSAMstrandField intronMotif \\\n       --outFilterMultimapNmax 30 \\\n       --alignIntronMax 1000000 \\\n       --alignMatesGapMax 1000000 \\\n       --outMultimapperOrder Random \\\n       --outSAMunmapped Within \\\n       --outSAMattrIHstart 0 \\\n       --outFilterIntronMotifs RemoveNoncanonicalUnannotated \\\n       --sjdbOverhang ${x} \\\n       --outFilterMismatchNmax ${(x-(x%13))/13} \\\n       --outSAMattributes NH nM NM MD HI \\\n       --outSAMattrRGline  ID:${id}.SOFT.NOTRIM PU:Illumina PL:Illumina LB:${id}.SOFT.NOTRIM SM:${id}.SOFT.NOTRIM CN:Seq_centre \\\n       --outSAMtype BAM SortedByCoordinate \\\n       --twopassMode Basic \\\n       --outFileNamePrefix ${id}.SOFT.NOTRIM.STAR.pass2. \\\n       --outSAMprimaryFlag AllBestScore\n\n  \n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n\n  #KEEP ONLY PROPERLY PAIRED READS\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam\n\n  #KEEP UNIQUELY MAPPED READS\n  samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam | grep -P \"NH:i:1\\t|^@\" | samtools view -bS - > ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  mkdir STAR_Paternal\n  mv ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  ##Create RSEM Files:\n  mkdir RSEM_MAT_GEN\n\n  /RSEM/rsem-prepare-reference -p ${cpus} --gtf STAR_2Gen_Ref/pat_annotation.gtf STAR_2Gen_Ref/${id}_paternal.fa RSEM_MAT_GEN/RSEM_MAT_GEN\n\n  /RSEM/rsem-calculate-expression --bam --output-genome-bam --sampling-for-bam -p ${cpus} --paired-end  ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.toTranscriptome.out.bam RSEM_MAT_GEN/RSEM_MAT_GEN ${id}.RSEM.TEST\n\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.RSEM.TEST.genome.PP.bam ${id}.RSEM.TEST.genome.bam\n  samtools sort -@ ${cpus} -o ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  mv ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  samtools index ${id}.RSEM.TEST.genome.PP.bam\n  samtools view -h ${id}.RSEM.TEST.genome.PP.bam | grep -P \"ZW:f:1|^@\" | samtools view -bS - > ${id}.RSEM.TEST.genome.PP.SM.bam\n  samtools index ${id}.RSEM.TEST.genome.PP.SM.bam\n  mv ${id}.RSEM.TEST.genome.PP.SM.bam STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam\n  \"\"\"\n\n}",
+        "nb_lignes_process": 71,
+        "string_script": "  \"\"\"\n  STAR --genomeDir Paternal_STAR \\\n       --runThreadN ${cpus} \\\n       --quantMode TranscriptomeSAM \\\n       --readFilesIn $reads \\\n       --readFilesCommand zcat \\\n       --outSAMstrandField intronMotif \\\n       --outFilterMultimapNmax 30 \\\n       --alignIntronMax 1000000 \\\n       --alignMatesGapMax 1000000 \\\n       --outMultimapperOrder Random \\\n       --outSAMunmapped Within \\\n       --outSAMattrIHstart 0 \\\n       --outFilterIntronMotifs RemoveNoncanonicalUnannotated \\\n       --sjdbOverhang ${x} \\\n       --outFilterMismatchNmax ${(x-(x%13))/13} \\\n       --outSAMattributes NH nM NM MD HI \\\n       --outSAMattrRGline  ID:${id}.SOFT.NOTRIM PU:Illumina PL:Illumina LB:${id}.SOFT.NOTRIM SM:${id}.SOFT.NOTRIM CN:Seq_centre \\\n       --outSAMtype BAM SortedByCoordinate \\\n       --twopassMode Basic \\\n       --outFileNamePrefix ${id}.SOFT.NOTRIM.STAR.pass2. \\\n       --outSAMprimaryFlag AllBestScore\n\n  \n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n\n  #KEEP ONLY PROPERLY PAIRED READS\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam\n\n  #KEEP UNIQUELY MAPPED READS\n  samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam | grep -P \"NH:i:1\\t|^@\" | samtools view -bS - > ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  mkdir STAR_Paternal\n  mv ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  ##Create RSEM Files:\n  mkdir RSEM_MAT_GEN\n\n  /RSEM/rsem-prepare-reference -p ${cpus} --gtf STAR_2Gen_Ref/pat_annotation.gtf STAR_2Gen_Ref/${id}_paternal.fa RSEM_MAT_GEN/RSEM_MAT_GEN\n\n  /RSEM/rsem-calculate-expression --bam --output-genome-bam --sampling-for-bam -p ${cpus} --paired-end  ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.toTranscriptome.out.bam RSEM_MAT_GEN/RSEM_MAT_GEN ${id}.RSEM.TEST\n\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.RSEM.TEST.genome.PP.bam ${id}.RSEM.TEST.genome.bam\n  samtools sort -@ ${cpus} -o ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  mv ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  samtools index ${id}.RSEM.TEST.genome.PP.bam\n  samtools view -h ${id}.RSEM.TEST.genome.PP.bam | grep -P \"ZW:f:1|^@\" | samtools view -bS - > ${id}.RSEM.TEST.genome.PP.SM.bam\n  samtools index ${id}.RSEM.TEST.genome.PP.SM.bam\n  mv ${id}.RSEM.TEST.genome.PP.SM.bam STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam\n  \"\"\"",
+        "nb_lignes_script": 51,
+        "language_script": "bash",
+        "tools": [
+            "STAR",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/star",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "Paternal_STAR_ch",
+            "reads_ch2",
+            "pat_annotation_ch2",
+            "pat_fa2",
+            "read_len_ch5",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "",
+            "pat_rsem_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [
+            "tag \"$id\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "map_maternal_gen_filter": {
+        "name_process": "map_maternal_gen_filter",
+        "string_process": "\nprocess map_maternal_gen_filter {\n  tag \"$id\"\n\n  input:\n    path Maternal_STAR from Maternal_STAR_ch\n    set val(id), file(reads) from reads_ch3\n    path (\"STAR_2Gen_Ref/mat_annotation.gtf\") from mat_annotation_ch2\n    path (\"STAR_2Gen_Ref/${id}_maternal.fa\") from mat_fa2\n    val x from read_len_ch6\n    val id from params.id\n    val cpus from params.cpus\n\n  output:\n    path (\"STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") into (maternal_mapgen_ch1, maternal_mapgen_ch2) \n    path (\"STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam\") into mat_rsem_ch\n\n  script:\n\n  \"\"\"\n  STAR --genomeDir Maternal_STAR \\\n       --runThreadN ${cpus} \\\n       --quantMode TranscriptomeSAM \\\n       --readFilesIn $reads \\\n       --readFilesCommand zcat \\\n       --outSAMstrandField intronMotif \\\n       --outFilterMultimapNmax 30 \\\n       --alignIntronMax 1000000 \\\n       --alignMatesGapMax 1000000 \\\n       --outMultimapperOrder Random \\\n       --outSAMunmapped Within \\\n       --outSAMattrIHstart 0 \\\n       --outFilterIntronMotifs RemoveNoncanonicalUnannotated \\\n       --sjdbOverhang ${x} \\\n       --outFilterMismatchNmax ${(x-(x%13))/13} \\\n       --outSAMattributes NH nM NM MD HI \\\n       --outSAMattrRGline  ID:${id}.SOFT.NOTRIM PU:Illumina PL:Illumina LB:${id}.SOFT.NOTRIM SM:${id}.SOFT.NOTRIM CN:Seq_centre \\\n       --outSAMtype BAM SortedByCoordinate \\\n       --twopassMode Basic \\\n       --outFileNamePrefix ${id}.SOFT.NOTRIM.STAR.pass2. \\\n       --outSAMprimaryFlag AllBestScore\n\n\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n\n  #KEEP ONLY PROPERLY PAIRED READS\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam\n\n  #KEEP UNIQUELY MAPPED READS\n  samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam | grep -P \"NH:i:1\\t|^@\" | samtools view -bS - > ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  mkdir STAR_Maternal\n  mv ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  ##Create RSEM Files:\n  mkdir RSEM_MAT_GEN\n\n  /RSEM/rsem-prepare-reference -p ${cpus} --gtf STAR_2Gen_Ref/mat_annotation.gtf STAR_2Gen_Ref/${id}_maternal.fa RSEM_MAT_GEN/RSEM_MAT_GEN\n  /RSEM/rsem-calculate-expression --bam --output-genome-bam --sampling-for-bam -p ${cpus} --paired-end  ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.toTranscriptome.out.bam RSEM_MAT_GEN/RSEM_MAT_GEN ${id}.RSEM.TEST\n  \n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.RSEM.TEST.genome.PP.bam ${id}.RSEM.TEST.genome.bam\n  samtools sort -@ ${cpus} -o ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  mv ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  samtools view -h ${id}.RSEM.TEST.genome.PP.bam | grep -P \"ZW:f:1|^@\" | samtools view -bS - > ${id}.RSEM.TEST.genome.PP.SM.bam\n  samtools index ${id}.RSEM.TEST.genome.PP.SM.bam\n  mv ${id}.RSEM.TEST.genome.PP.SM.bam STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam\n  \"\"\"\n\n}",
+        "nb_lignes_process": 69,
+        "string_script": "  \"\"\"\n  STAR --genomeDir Maternal_STAR \\\n       --runThreadN ${cpus} \\\n       --quantMode TranscriptomeSAM \\\n       --readFilesIn $reads \\\n       --readFilesCommand zcat \\\n       --outSAMstrandField intronMotif \\\n       --outFilterMultimapNmax 30 \\\n       --alignIntronMax 1000000 \\\n       --alignMatesGapMax 1000000 \\\n       --outMultimapperOrder Random \\\n       --outSAMunmapped Within \\\n       --outSAMattrIHstart 0 \\\n       --outFilterIntronMotifs RemoveNoncanonicalUnannotated \\\n       --sjdbOverhang ${x} \\\n       --outFilterMismatchNmax ${(x-(x%13))/13} \\\n       --outSAMattributes NH nM NM MD HI \\\n       --outSAMattrRGline  ID:${id}.SOFT.NOTRIM PU:Illumina PL:Illumina LB:${id}.SOFT.NOTRIM SM:${id}.SOFT.NOTRIM CN:Seq_centre \\\n       --outSAMtype BAM SortedByCoordinate \\\n       --twopassMode Basic \\\n       --outFileNamePrefix ${id}.SOFT.NOTRIM.STAR.pass2. \\\n       --outSAMprimaryFlag AllBestScore\n\n\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n\n  #KEEP ONLY PROPERLY PAIRED READS\n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam\n\n  #KEEP UNIQUELY MAPPED READS\n  samtools view -h ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.bam | grep -P \"NH:i:1\\t|^@\" | samtools view -bS - > ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n  samtools index ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  mkdir STAR_Maternal\n  mv ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\n\n  ##Create RSEM Files:\n  mkdir RSEM_MAT_GEN\n\n  /RSEM/rsem-prepare-reference -p ${cpus} --gtf STAR_2Gen_Ref/mat_annotation.gtf STAR_2Gen_Ref/${id}_maternal.fa RSEM_MAT_GEN/RSEM_MAT_GEN\n  /RSEM/rsem-calculate-expression --bam --output-genome-bam --sampling-for-bam -p ${cpus} --paired-end  ${id}.SOFT.NOTRIM.STAR.pass2.Aligned.toTranscriptome.out.bam RSEM_MAT_GEN/RSEM_MAT_GEN ${id}.RSEM.TEST\n  \n  samtools view -@ ${cpus} -f 0x0002 -b -o ${id}.RSEM.TEST.genome.PP.bam ${id}.RSEM.TEST.genome.bam\n  samtools sort -@ ${cpus} -o ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  mv ${id}.RSEM.TEST.genome.PP.s.bam ${id}.RSEM.TEST.genome.PP.bam\n  samtools view -h ${id}.RSEM.TEST.genome.PP.bam | grep -P \"ZW:f:1|^@\" | samtools view -bS - > ${id}.RSEM.TEST.genome.PP.SM.bam\n  samtools index ${id}.RSEM.TEST.genome.PP.SM.bam\n  mv ${id}.RSEM.TEST.genome.PP.SM.bam STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam\n  \"\"\"",
+        "nb_lignes_script": 49,
+        "language_script": "bash",
+        "tools": [
+            "STAR",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/star",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "Maternal_STAR_ch",
+            "reads_ch3",
+            "mat_annotation_ch2",
+            "mat_fa2",
+            "read_len_ch6",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "",
+            "mat_rsem_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [
+            "tag \"$id\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extra_reads_rsem": {
+        "name_process": "extra_reads_rsem",
+        "string_process": "\nprocess extra_reads_rsem {\n\n  input:\n    path (\"STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") from maternal_mapgen_ch1\n    path (\"STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam\") from mat_rsem_ch\n    path (\"STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") from paternal_mapgen_ch1\n    path (\"STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam\") from pat_rsem_ch\n    val id from params.id\n\n  output:\n    path (\"Maternal.RSEM.bam\") into mat_rsembam\n    path (\"Paternal.RSEM.bam\") into pat_rsembam\n\n  script:\n\n  \"\"\"\n  samtools view STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam | cut -f1 | sort | uniq >> maternal_tags_UM.txt\n  samtools view STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam | cut -f1 | sort | uniq > maternal_tags_UM.RSEM.txt\n\n  perl ${baseDir}/bin/filter_rsem.pl maternal\n\n  samtools view STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam | cut -f1 | sort | uniq >> paternal_tags_UM.txt\n  samtools view STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam | cut -f1 | sort | uniq > paternal_tags_UM.RSEM.txt\n\n  perl ${baseDir}/bin/filter_rsem.pl paternal\n\n\n  samtools view -H STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam > Maternal.RSEM.sam\n  samtools view STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam | grep -Fwf extra.rsem.maternal.txt | sed -e 's/339\\tchr/83\\tchr/' | sed -e 's/355\\tchr/99\\tchr/' | sed -e 's/403\\tchr/147\\tchr/' | sed -e 's/419\\tchr/163\\tchr/' >> Maternal.RSEM.sam\n  samtools view -bS Maternal.RSEM.sam -o Maternal.RSEM.bam\n\n  samtools view -H STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam > Paternal.RSEM.sam\n  samtools view STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam | grep -Fwf extra.rsem.paternal.txt | sed -e 's/339\\tchr/83\\tchr/' | sed -e 's/355\\tchr/99\\tchr/' | sed -e 's/403\\tchr/147\\tchr/' | sed -e 's/419\\tchr/163\\tchr/' >> Paternal.RSEM.sam\n  samtools view -bS Paternal.RSEM.sam -o Paternal.RSEM.bam\n  \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "  \"\"\"\n  samtools view STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam | cut -f1 | sort | uniq >> maternal_tags_UM.txt\n  samtools view STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam | cut -f1 | sort | uniq > maternal_tags_UM.RSEM.txt\n\n  perl ${baseDir}/bin/filter_rsem.pl maternal\n\n  samtools view STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam | cut -f1 | sort | uniq >> paternal_tags_UM.txt\n  samtools view STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam | cut -f1 | sort | uniq > paternal_tags_UM.RSEM.txt\n\n  perl ${baseDir}/bin/filter_rsem.pl paternal\n\n\n  samtools view -H STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam > Maternal.RSEM.sam\n  samtools view STAR_Maternal/${id}.RSEM.TEST.genome.PP.SM.bam | grep -Fwf extra.rsem.maternal.txt | sed -e 's/339\\tchr/83\\tchr/' | sed -e 's/355\\tchr/99\\tchr/' | sed -e 's/403\\tchr/147\\tchr/' | sed -e 's/419\\tchr/163\\tchr/' >> Maternal.RSEM.sam\n  samtools view -bS Maternal.RSEM.sam -o Maternal.RSEM.bam\n\n  samtools view -H STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam > Paternal.RSEM.sam\n  samtools view STAR_Paternal/${id}.RSEM.TEST.genome.PP.SM.bam | grep -Fwf extra.rsem.paternal.txt | sed -e 's/339\\tchr/83\\tchr/' | sed -e 's/355\\tchr/99\\tchr/' | sed -e 's/403\\tchr/147\\tchr/' | sed -e 's/419\\tchr/163\\tchr/' >> Paternal.RSEM.sam\n  samtools view -bS Paternal.RSEM.sam -o Paternal.RSEM.bam\n  \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "maternal_mapgen_ch1",
+            "mat_rsem_ch",
+            "paternal_mapgen_ch1",
+            "pat_rsem_ch",
+            "params"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "mat_rsembam",
+            "pat_rsembam"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "add_rsemreads_bam": {
+        "name_process": "add_rsemreads_bam",
+        "string_process": "\nprocess add_rsemreads_bam {\n  publishDir \"$params.outdir/\", mode: 'copy'\n\n  input:\n    path (\"Maternal.RSEM.bam\") from mat_rsembam\n    path (\"Paternal.RSEM.bam\") from pat_rsembam\n    path (\"STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") from paternal_mapgen_ch2\n    path (\"STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") from maternal_mapgen_ch2\n    path (\"STAR_2Gen_Ref/map_over.txt\") from adjusted_ref_ch\n    path (\"${id}_output_phaser.vcf\") from phaser_out_ch2\n    val id from params.id\n    val cpus from params.cpus\n    path (\"STAR_original/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam\") from pp_um_ch\n    path (\"STAR_2Gen_Ref/${id}_output_phaser.mother.vcf.gz\") from mothervcf_ch\n    path (\"STAR_2Gen_Ref/${id}_output_phaser.father.vcf.gz\") from fathervcf_ch\n    path (\"STAR_2Gen_Ref/mat.bed\") from mat_bed_ch\n    path (\"STAR_2Gen_Ref/pat.bed\") from pat_bed_ch\n    path gencode_bed from params.gencode_bed\n\n\n  output:\n    path (\"results*.txt\")\n    path (\"${id}_gene_level_ae.txt\")\n    \n  script:\n\n  \"\"\"\n  samtools merge Maternal.RSEM.STAR.bam STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam Maternal.RSEM.bam\n  samtools merge Paternal.RSEM.STAR.bam STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam Paternal.RSEM.bam\n  samtools view Maternal.RSEM.STAR.bam | cut -f1 | sort | uniq >> maternal_tags.txt\n  samtools view Paternal.RSEM.STAR.bam | cut -f1 | sort | uniq >> paternal_tags.txt\n  cat maternal_tags.txt paternal_tags.txt | sort | uniq -u >> unique_tags.txt\n  cat maternal_tags.txt paternal_tags.txt | sort | uniq -d >> duplicate_tags.txt\n  samtools view Maternal.RSEM.STAR.bam | grep -Fwf duplicate_tags.txt >> tempout_mat.sam\n  samtools view Paternal.RSEM.STAR.bam | grep -Fwf duplicate_tags.txt >> tempout_pat.sam\n  sort -k 1,1 tempout_mat.sam > tempout_mat.sort.sam\n  sort -k 1,1 tempout_pat.sam > tempout_pat.sort.sam\n\n  perl ${baseDir}/bin/filter_2genomes.pl tempout_mat.sort.sam tempout_pat.sort.sam\n\n  cat maternal_wins.txt unique_tags.txt > maternal_wins_final.txt\n  cat paternal_wins.txt unique_tags.txt > paternal_wins_final.txt\n  samtools view -H Maternal.RSEM.STAR.bam > final_mat.sam\n  samtools view -H Paternal.RSEM.STAR.bam > final_pat.sam\n  samtools view Maternal.RSEM.STAR.bam | grep -Fwf maternal_wins_final.txt >> final_mat.sam\n  samtools view Paternal.RSEM.STAR.bam | grep -Fwf paternal_wins_final.txt >> final_pat.sam\n  samtools view -bS final_mat.sam -o final_mat.bam\n  samtools sort -@ ${cpus} -o final_mat.sorted.bam final_mat.bam\n  samtools index final_mat.sorted.bam\n  samtools view -bS final_pat.sam -o final_pat.bam\n  samtools sort -@ ${cpus} -o final_pat.sorted.bam final_pat.bam\n  samtools index final_pat.sorted.bam\n\n  perl ${baseDir}/bin/compare_basic_map.pl ${id}_output_phaser.vcf STAR_original/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam ${id} results_1genome_${id}.SOFT.NOTRIM_baq.txt results_1genome_${id}.SOFT.NOTRIM.txt\n\n  perl ${baseDir}/bin/compare_2genomes.pl STAR_2Gen_Ref/map_over.txt ${id}_output_phaser.vcf final_mat.sorted.bam final_pat.sorted.bam ${id} results_2genomes_${id}.RSEM.STAR.SOFT.NOTRIM_baq.txt results_2genomes_${id}.RSEM.STAR.SOFT.NOTRIM.txt\n\n  tabix STAR_2Gen_Ref/${id}_output_phaser.mother.vcf.gz\n  tabix STAR_2Gen_Ref/${id}_output_phaser.father.vcf.gz\n\n  python2 /phaser/phaser/phaser.py --vcf STAR_2Gen_Ref/${id}_output_phaser.mother.vcf.gz --bam final_mat.sorted.bam --paired_end 1 --mapq 0 --baseq 10 --isize 0 --include_indels 1 --sample ${id} --id_separator + --pass_only 0 --gw_phase_vcf 1 --threads ${cpus} --o ${id}_mat_output_phaser\n\n  python2 /phaser/phaser/phaser.py --vcf STAR_2Gen_Ref/${id}_output_phaser.father.vcf.gz --bam final_pat.sorted.bam --paired_end 1 --mapq 0 --baseq 10 --isize 0 --include_indels 1 --sample ${id} --id_separator + --pass_only 0 --gw_phase_vcf 1 --threads ${cpus} --o ${id}_pat_output_phaser\n\n  python2 /phaser/phaser_gene_ae/phaser_gene_ae.py --haplotypic_counts ${id}_mat_output_phaser.haplotypic_counts.txt --features STAR_2Gen_Ref/mat.bed --id_separator +  --o ${id}_maternal_phaser_gene_ae.txt\n\n  python2 /phaser/phaser_gene_ae/phaser_gene_ae.py --haplotypic_counts ${id}_pat_output_phaser.haplotypic_counts.txt --features STAR_2Gen_Ref/pat.bed --id_separator +  --o ${id}_paternal_phaser_gene_ae.txt\n\n  perl ${baseDir}/bin/merge_gene_level.pl ${gencode_bed} ${id}_maternal_phaser_gene_ae.txt ${id}_paternal_phaser_gene_ae.txt ${id}\n  \"\"\"\n\n}",
+        "nb_lignes_process": 71,
+        "string_script": "  \"\"\"\n  samtools merge Maternal.RSEM.STAR.bam STAR_Maternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam Maternal.RSEM.bam\n  samtools merge Paternal.RSEM.STAR.bam STAR_Paternal/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam Paternal.RSEM.bam\n  samtools view Maternal.RSEM.STAR.bam | cut -f1 | sort | uniq >> maternal_tags.txt\n  samtools view Paternal.RSEM.STAR.bam | cut -f1 | sort | uniq >> paternal_tags.txt\n  cat maternal_tags.txt paternal_tags.txt | sort | uniq -u >> unique_tags.txt\n  cat maternal_tags.txt paternal_tags.txt | sort | uniq -d >> duplicate_tags.txt\n  samtools view Maternal.RSEM.STAR.bam | grep -Fwf duplicate_tags.txt >> tempout_mat.sam\n  samtools view Paternal.RSEM.STAR.bam | grep -Fwf duplicate_tags.txt >> tempout_pat.sam\n  sort -k 1,1 tempout_mat.sam > tempout_mat.sort.sam\n  sort -k 1,1 tempout_pat.sam > tempout_pat.sort.sam\n\n  perl ${baseDir}/bin/filter_2genomes.pl tempout_mat.sort.sam tempout_pat.sort.sam\n\n  cat maternal_wins.txt unique_tags.txt > maternal_wins_final.txt\n  cat paternal_wins.txt unique_tags.txt > paternal_wins_final.txt\n  samtools view -H Maternal.RSEM.STAR.bam > final_mat.sam\n  samtools view -H Paternal.RSEM.STAR.bam > final_pat.sam\n  samtools view Maternal.RSEM.STAR.bam | grep -Fwf maternal_wins_final.txt >> final_mat.sam\n  samtools view Paternal.RSEM.STAR.bam | grep -Fwf paternal_wins_final.txt >> final_pat.sam\n  samtools view -bS final_mat.sam -o final_mat.bam\n  samtools sort -@ ${cpus} -o final_mat.sorted.bam final_mat.bam\n  samtools index final_mat.sorted.bam\n  samtools view -bS final_pat.sam -o final_pat.bam\n  samtools sort -@ ${cpus} -o final_pat.sorted.bam final_pat.bam\n  samtools index final_pat.sorted.bam\n\n  perl ${baseDir}/bin/compare_basic_map.pl ${id}_output_phaser.vcf STAR_original/${id}.SOFT.NOTRIM.STAR.pass2.Aligned.sortedByCoord.out.PP.UM.bam ${id} results_1genome_${id}.SOFT.NOTRIM_baq.txt results_1genome_${id}.SOFT.NOTRIM.txt\n\n  perl ${baseDir}/bin/compare_2genomes.pl STAR_2Gen_Ref/map_over.txt ${id}_output_phaser.vcf final_mat.sorted.bam final_pat.sorted.bam ${id} results_2genomes_${id}.RSEM.STAR.SOFT.NOTRIM_baq.txt results_2genomes_${id}.RSEM.STAR.SOFT.NOTRIM.txt\n\n  tabix STAR_2Gen_Ref/${id}_output_phaser.mother.vcf.gz\n  tabix STAR_2Gen_Ref/${id}_output_phaser.father.vcf.gz\n\n  python2 /phaser/phaser/phaser.py --vcf STAR_2Gen_Ref/${id}_output_phaser.mother.vcf.gz --bam final_mat.sorted.bam --paired_end 1 --mapq 0 --baseq 10 --isize 0 --include_indels 1 --sample ${id} --id_separator + --pass_only 0 --gw_phase_vcf 1 --threads ${cpus} --o ${id}_mat_output_phaser\n\n  python2 /phaser/phaser/phaser.py --vcf STAR_2Gen_Ref/${id}_output_phaser.father.vcf.gz --bam final_pat.sorted.bam --paired_end 1 --mapq 0 --baseq 10 --isize 0 --include_indels 1 --sample ${id} --id_separator + --pass_only 0 --gw_phase_vcf 1 --threads ${cpus} --o ${id}_pat_output_phaser\n\n  python2 /phaser/phaser_gene_ae/phaser_gene_ae.py --haplotypic_counts ${id}_mat_output_phaser.haplotypic_counts.txt --features STAR_2Gen_Ref/mat.bed --id_separator +  --o ${id}_maternal_phaser_gene_ae.txt\n\n  python2 /phaser/phaser_gene_ae/phaser_gene_ae.py --haplotypic_counts ${id}_pat_output_phaser.haplotypic_counts.txt --features STAR_2Gen_Ref/pat.bed --id_separator +  --o ${id}_paternal_phaser_gene_ae.txt\n\n  perl ${baseDir}/bin/merge_gene_level.pl ${gencode_bed} ${id}_maternal_phaser_gene_ae.txt ${id}_paternal_phaser_gene_ae.txt ${id}\n  \"\"\"",
+        "nb_lignes_script": 43,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "mat_rsembam",
+            "pat_rsembam",
+            "paternal_mapgen_ch2",
+            "maternal_mapgen_ch2",
+            "adjusted_ref_ch",
+            "phaser_out_ch2",
+            "params",
+            "params",
+            "pp_um_ch",
+            "mothervcf_ch",
+            "fathervcf_ch",
+            "mat_bed_ch",
+            "pat_bed_ch",
+            "params"
+        ],
+        "nb_inputs": 14,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "anna-saukkonen__PAC",
+        "directive": [
+            "publishDir \"$params.outdir/\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

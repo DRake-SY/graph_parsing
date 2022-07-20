@@ -1,0 +1,651 @@
+{
+    "trim_reads": {
+        "name_process": "trim_reads",
+        "string_process": "\nprocess trim_reads {\n    publishDir \"results/0.trimmed_reads\", pattern: '*.fq', saveAs: { \"${file(it).getSimpleName()}.${file(it).getExtension()}\"}\n    conda \"$baseDir/conda_envs/trim.yml\"\n    input:\n        set val(label), path(reads) from metagenome_fastq_pair\n    output:\n        path(\"interleaved_paired_only_trimmed_shuffled_temp.fq\") into (MEGAHIT_input, METASPADES_input, IDBA_UD_input, read_mapping_input)\n    script:\n        \"\"\"\n        sickle pe -t sanger -f ${reads[0]} -r ${reads[1]} -o r1_trimmed.fq -p r2_trimmed.fq -s s_trimmed.fq.gz\n\n        paste - - - - < r1_trimmed.fq > r1_temp.tab\n        paste - - - - < r2_trimmed.fq > r2_temp.tab\n        paste r1_temp.tab r2_temp.tab > interleaved_temp.tab\n        rm r1_temp.tab r2_temp.tab r1_trimmed.fq r2_trimmed.fq\n\n        shuf < interleaved_temp.tab > interleaved_shuffled_temp.tab\n        rm interleaved_temp.tab\n\n        tr '\\t' '\\n' < interleaved_shuffled_temp.tab > interleaved_paired_only_trimmed_shuffled_temp.fq\n        \"\"\"\n                                                                                                                                                                       \n}",
+        "nb_lignes_process": 22,
+        "string_script": "        \"\"\"\n        sickle pe -t sanger -f ${reads[0]} -r ${reads[1]} -o r1_trimmed.fq -p r2_trimmed.fq -s s_trimmed.fq.gz\n\n        paste - - - - < r1_trimmed.fq > r1_temp.tab\n        paste - - - - < r2_trimmed.fq > r2_temp.tab\n        paste r1_temp.tab r2_temp.tab > interleaved_temp.tab\n        rm r1_temp.tab r2_temp.tab r1_trimmed.fq r2_trimmed.fq\n\n        shuf < interleaved_temp.tab > interleaved_shuffled_temp.tab\n        rm interleaved_temp.tab\n\n        tr '\\t' '\\n' < interleaved_shuffled_temp.tab > interleaved_paired_only_trimmed_shuffled_temp.fq\n        \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "sickle"
+        ],
+        "tools_url": [
+            "https://bio.tools/sickle"
+        ],
+        "tools_dico": [
+            {
+                "name": "sickle",
+                "uri": "https://bio.tools/sickle",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A  tool that uses sliding windows along with quality and length thresholds to determine when quality is sufficiently low to trim the 3'-end of reads and also determines when the quality is sufficiently high enough to trim the 5'-end of reads.",
+                "homepage": "https://github.com/najoshi/sickle"
+            }
+        ],
+        "inputs": [
+            "metagenome_fastq_pair"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/0.trimmed_reads\", pattern: '*.fq', saveAs: { \"${file(it).getSimpleName()}.${file(it).getExtension()}\"}",
+            "conda \"$baseDir/conda_envs/trim.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_metaspades": {
+        "name_process": "run_metaspades",
+        "string_process": "\nprocess run_metaspades {\n    publishDir \"results/1a_metaspades\", pattern: \"${label}.fasta\", mode: 'copy'\n    conda \"$baseDir/conda_envs/assembly.yml\"\n    input:\n        set val(tool), val(label), val(run_params), path(reads) from METASPADES_run_params\n    output:\n        path(\"${label}.fasta\") into METASPADES_assemblies\n    script:\n        \"\"\"\n        spades.py ${run_params} -o ${label} --12 $reads -t ${task.cpus}\n        mv ${label}/contigs.fasta ${label}.fasta\n        \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "        \"\"\"\n        spades.py ${run_params} -o ${label} --12 $reads -t ${task.cpus}\n        mv ${label}/contigs.fasta ${label}.fasta\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "METASPADES_run_params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "METASPADES_assemblies"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/1a_metaspades\", pattern: \"${label}.fasta\", mode: 'copy'",
+            "conda \"$baseDir/conda_envs/assembly.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_idba_ud": {
+        "name_process": "run_idba_ud",
+        "string_process": "\nprocess run_idba_ud {\n    publishDir \"results/1b_idba_ud\", pattern: \"${label}.fasta\", mode: 'copy'\n    conda \"$baseDir/conda_envs/assembly.yml\"\n    input:\n        set val(tool), val(label), val(run_params), path(reads) from IDBA_UD_run_params\n    output:\n        path(\"${label}.fasta\") into IDBAUD_assemblies\n    script:\n        \"\"\"\n        fq2fa --paired $reads reads.fasta;\n        idba_ud ${run_params} -r reads.fasta -o ${label} --num_threads ${task.cpus}\n        mv ${label}/contig.fa ${label}.fasta\n        \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "        \"\"\"\n        fq2fa --paired $reads reads.fasta;\n        idba_ud ${run_params} -r reads.fasta -o ${label} --num_threads ${task.cpus}\n        mv ${label}/contig.fa ${label}.fasta\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "IDBA_UD_run_params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "IDBAUD_assemblies"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/1b_idba_ud\", pattern: \"${label}.fasta\", mode: 'copy'",
+            "conda \"$baseDir/conda_envs/assembly.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_megahit": {
+        "name_process": "run_megahit",
+        "string_process": "\nprocess run_megahit {\n    publishDir \"results/1c_megahit\", pattern: \"${label}.fasta\" , mode: 'copy'\n    conda \"$baseDir/conda_envs/assembly.yml\"\n    input:\n        set val(tool), val(label), val(run_params), path(reads) from MEGAHIT_run_params\n    output:\n        path(\"${label}.fasta\") into MEGAHIT_assemblies\n    script:\n        \"\"\"\n        megahit --12 $reads ${run_params} -o ${label} -t ${task.cpus}\n        mv ${label}/final.contigs.fa ${label}.fasta\n        \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "        \"\"\"\n        megahit --12 $reads ${run_params} -o ${label} -t ${task.cpus}\n        mv ${label}/final.contigs.fa ${label}.fasta\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "MEGAHIT"
+        ],
+        "tools_url": [
+            "https://bio.tools/megahit"
+        ],
+        "tools_dico": [
+            {
+                "name": "MEGAHIT",
+                "uri": "https://bio.tools/megahit",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0610",
+                            "term": "Ecology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct de Bruijn graph to achieve low memory usage, whereas its goal is not to make memory usage as low as possible.",
+                "homepage": "https://github.com/voutcn/megahit"
+            }
+        ],
+        "inputs": [
+            "MEGAHIT_run_params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "MEGAHIT_assemblies"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/1c_megahit\", pattern: \"${label}.fasta\" , mode: 'copy'",
+            "conda \"$baseDir/conda_envs/assembly.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "coverage_analysis": {
+        "name_process": "coverage_analysis",
+        "string_process": "\nprocess coverage_analysis {\n    publishDir \"results/2_coverages\", pattern: \"*.depth.tsv\"\n    conda \"$baseDir/conda_envs/coverage.yml\"\n    input:  \n        set path(assembly), path(reads) from assembly_coverage_input\n    output:\n        set path(assembly), path(\"assembly_sorted.bam\"), path(\"*.depth.tsv\") into (METABAT2_input, MAXBIN2_input, CONCOCT_coverage_input)\n    script:\n        \"\"\"\n        bowtie2-build ${assembly} ${assembly}\n        bowtie2 -p ${task.cpus} -x ${assembly} --interleaved ${reads} | samtools view -bS - > assembly.bam\n        samtools sort -@ ${task.cpus} -O BAM assembly.bam > assembly_sorted.bam\n        jgi_summarize_bam_contig_depths --outputDepth ${assembly.baseName}.depth.tsv assembly_sorted.bam\n        \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "        \"\"\"\n        bowtie2-build ${assembly} ${assembly}\n        bowtie2 -p ${task.cpus} -x ${assembly} --interleaved ${reads} | samtools view -bS - > assembly.bam\n        samtools sort -@ ${task.cpus} -O BAM assembly.bam > assembly_sorted.bam\n        jgi_summarize_bam_contig_depths --outputDepth ${assembly.baseName}.depth.tsv assembly_sorted.bam\n        \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Rbowtie2",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/rbowtie2",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Rbowtie2",
+                "uri": "https://bio.tools/rbowtie2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0232",
+                                    "term": "Sequence merging"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0232",
+                                    "term": "Sequence splicing"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This package provides an R wrapper of the popular bowtie2 sequencing reads aligner and AdapterRemoval, a convenient tool for rapid adapter trimming, identification, and read merging.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/Rbowtie2.html"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "assembly_coverage_input"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/2_coverages\", pattern: \"*.depth.tsv\"",
+            "conda \"$baseDir/conda_envs/coverage.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_metabat2": {
+        "name_process": "run_metabat2",
+        "string_process": "\nprocess run_metabat2{\n    publishDir \"results/3a_metabat2/${assembly.baseName}_${label}\", pattern: \"${assembly.baseName}_${label}*.fa\"\n    conda \"$baseDir/conda_envs/binners.yml\"\n    input:\n        set val(tool), val(label), val(run_params), path(assembly), path(bam), path(coverage) from METABAT2_run_params\n    output:\n        path(\"${assembly.baseName}_${label}*.fa\") optional true into METABAT2_bins\n    script:\n        \"\"\"\n        jgi_summarize_bam_contig_depths --outputDepth depth.txt ${bam}\n        metabat2 -i ${assembly} -a depth.txt -o ${assembly.baseName}_${label} --unbinned --seed 42 -t ${task.cpus} ${run_params}\n        \"\"\"\n \n}",
+        "nb_lignes_process": 13,
+        "string_script": "        \"\"\"\n        jgi_summarize_bam_contig_depths --outputDepth depth.txt ${bam}\n        metabat2 -i ${assembly} -a depth.txt -o ${assembly.baseName}_${label} --unbinned --seed 42 -t ${task.cpus} ${run_params}\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "METABAT2_run_params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "METABAT2_bins"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/3a_metabat2/${assembly.baseName}_${label}\", pattern: \"${assembly.baseName}_${label}*.fa\"",
+            "conda \"$baseDir/conda_envs/binners.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_maxbin2": {
+        "name_process": "run_maxbin2",
+        "string_process": "\nprocess run_maxbin2{\n    publishDir \"results/3b_maxbin2/${assembly.baseName}_${label}\", pattern: \"${assembly.baseName}_${label}.*.fasta\"\n    conda \"$baseDir/conda_envs/binners.yml\"\n    input:\n        set val(tool), val(label), val(run_params), path(assembly), path(bam), path(coverage) from MAXBIN2_run_params\n    output:\n        path(\"${assembly.baseName}_${label}.*.fasta\") optional true into MAXBIN2_bins\n    script:\n        \"\"\"\n        jgi_summarize_bam_contig_depths --outputDepth depth.txt ${bam}\n        run_MaxBin.pl ${run_params} -thread ${task.cpus} -abund depth.txt -contig ${assembly} -out ${assembly.baseName}_${label} || echo \">no_bins\\nNNN\" > ${assembly.baseName}_${label}.nobins.fasta\n        \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "        \"\"\"\n        jgi_summarize_bam_contig_depths --outputDepth depth.txt ${bam}\n        run_MaxBin.pl ${run_params} -thread ${task.cpus} -abund depth.txt -contig ${assembly} -out ${assembly.baseName}_${label} || echo \">no_bins\\nNNN\" > ${assembly.baseName}_${label}.nobins.fasta\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "MAXBIN2_run_params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "MAXBIN2_bins"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/3b_maxbin2/${assembly.baseName}_${label}\", pattern: \"${assembly.baseName}_${label}.*.fasta\"",
+            "conda \"$baseDir/conda_envs/binners.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_concoct_coverage": {
+        "name_process": "get_concoct_coverage",
+        "string_process": "\nprocess get_concoct_coverage {\n    publishDir \"results/2_coverages\", pattern: \"${assembly.baseName}.concoct.depth.tsv\"\n    conda \"$baseDir/conda_envs/concoct.yml\"\n    input:  \n        set path(assembly), path(bam), path(depth) from CONCOCT_coverage_input\n    output:\n        set path(assembly), path(\"${assembly.baseName}_contigs10k.fa\"), path(\"${assembly.baseName}.concoct.depth.tsv\") into CONCOCT_input\n    script:\n        \"\"\"\n        cut_up_fasta.py -c 10000 -o 0 --merge_last -b ${assembly.baseName}_contigs10k.bed ${assembly} > ${assembly.baseName}_contigs10k.fa\n        samtools index ${bam} \n        concoct_coverage_table.py ${assembly.baseName}_contigs10k.bed ${bam} > ${assembly.baseName}.concoct.depth.tsv\n        \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "        \"\"\"\n        cut_up_fasta.py -c 10000 -o 0 --merge_last -b ${assembly.baseName}_contigs10k.bed ${assembly} > ${assembly.baseName}_contigs10k.fa\n        samtools index ${bam} \n        concoct_coverage_table.py ${assembly.baseName}_contigs10k.bed ${bam} > ${assembly.baseName}.concoct.depth.tsv\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "CONCOCT_coverage_input"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "CONCOCT_input"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/2_coverages\", pattern: \"${assembly.baseName}.concoct.depth.tsv\"",
+            "conda \"$baseDir/conda_envs/concoct.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_concoct": {
+        "name_process": "run_concoct",
+        "string_process": "\nprocess run_concoct {\n    publishDir \"results/3c_concoct\", pattern: \"${assembly.baseName}_${label}/*.fa\"\n    conda \"$baseDir/conda_envs/concoct.yml\"\n    input:\n        set val(tool), val(label), val(run_params), path(assembly), path(assembly10k), path(coverage) from CONCOCT_run_params\n    output: \n        path(\"${assembly.baseName}_${label}/*.fa\") into CONCOCT_bins\n    script:\n        \"\"\"\n        concoct ${run_params} -r 250 -t ${task.cpus} --coverage_file ${coverage} -s 42 --composition_file ${assembly10k} -b concoct_output\n        merge_cutup_clustering.py concoct_output_clustering_gt1000.csv > all_clustering_merged.csv\n        mkdir -p ${assembly.baseName}_${label}\n        extract_fasta_bins.py --output_path ${assembly.baseName}_${label} ${assembly} all_clustering_merged.csv\n        \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "        \"\"\"\n        concoct ${run_params} -r 250 -t ${task.cpus} --coverage_file ${coverage} -s 42 --composition_file ${assembly10k} -b concoct_output\n        merge_cutup_clustering.py concoct_output_clustering_gt1000.csv > all_clustering_merged.csv\n        mkdir -p ${assembly.baseName}_${label}\n        extract_fasta_bins.py --output_path ${assembly.baseName}_${label} ${assembly} all_clustering_merged.csv\n        \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "CONCOCT_run_params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "CONCOCT_bins"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmaguire__mag_sweep",
+        "directive": [
+            "publishDir \"results/3c_concoct\", pattern: \"${assembly.baseName}_${label}/*.fa\"",
+            "conda \"$baseDir/conda_envs/concoct.yml\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

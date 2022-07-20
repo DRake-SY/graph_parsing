@@ -1,0 +1,1815 @@
+{
+    "check_for_pangolin_update": {
+        "name_process": "check_for_pangolin_update",
+        "string_process": "\nprocess check_for_pangolin_update {\n       \n                                                                                  \n      \n    output:\n    env PANGOLIN_UPDATED\n\n    script:\n    if ( params.auto_update_pangolin )\n        \"\"\"\n        PANGO_VERSION=\\$(pangolin --all-versions)\n        echo \\$PANGO_VERSION\n        pangolin --update\n        sleep 5s\n        NEW_PANGO_VERSION=\\$(pangolin --all-versions)\n        echo \\$NEW_PANGO_VERSION\n        if [[ \"\\$PANGO_VERSION\" == \"\\$NEW_PANGO_VERSION\" ]]; then\n            PANGOLIN_UPDATED=false\n        else\n            PANGOLIN_UPDATED=true\n        fi\n        \"\"\"\n    else\n        \"\"\"\n        PANGOLIN_UPDATED=false\n        \"\"\"\n\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    if ( params.auto_update_pangolin )\n        \"\"\"\n        PANGO_VERSION=\\$(pangolin --all-versions)\n        echo \\$PANGO_VERSION\n        pangolin --update\n        sleep 5s\n        NEW_PANGO_VERSION=\\$(pangolin --all-versions)\n        echo \\$NEW_PANGO_VERSION\n        if [[ \"\\$PANGO_VERSION\" == \"\\$NEW_PANGO_VERSION\" ]]; then\n            PANGOLIN_UPDATED=false\n        else\n            PANGOLIN_UPDATED=true\n        fi\n        \"\"\"\n    else\n        \"\"\"\n        PANGOLIN_UPDATED=false\n        \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "PANGOLIN_UPDATED"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "extract_sequences_for_pangolin": {
+        "name_process": "extract_sequences_for_pangolin",
+        "string_process": "\nprocess extract_sequences_for_pangolin {\n       \n                                                                                                   \n                                                                                          \n                                     \n                            \n                                                    \n                                                               \n      \n\n    input:\n    path fasta\n    path metadata\n    env PANGOLIN_UPDATED\n\n    output:\n    path \"${fasta.baseName}.for_pangolin.fa\", emit: pangolin_fasta\n    path \"${metadata.baseName}.with_previous.csv\", emit: metadata_with_previous\n\n    script:\n    if (params.update_all_lineage_assignments || !params.previous_metadata )\n        \"\"\"\n        mv \"${fasta}\" \"${fasta.baseName}.for_pangolin.fa\"\n        mv \"${metadata}\" \"${metadata.baseName}.with_previous.csv\"\n        \"\"\"\n    else\n        \"\"\"\n        echo \"Pangolin updated: \\$PANGOLIN_UPDATED\"\n        if [ \\$PANGOLIN_UPDATED == \"true\" ]\n        then\n            mv \"${fasta}\" \"${fasta.baseName}.for_pangolin.fa\"\n            mv \"${metadata}\" \"${metadata.baseName}.with_previous.csv\"\n        else\n            $project_dir/../bin/prepare_for_pangolin.py \\\n              --in-fasta ${fasta} \\\n              --in-metadata ${metadata} \\\n              --previous-metadata ${params.previous_metadata} \\\n              --out-fasta \"${fasta.baseName}.for_pangolin.fa\" \\\n              --out-metadata \"${metadata.baseName}.with_previous.csv\"\n            if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.with_previous.csv\" | wc -l) ]]\n            then\n                echo \\$(cat \"${metadata}\" | wc -l)\n                echo \\$(cat \"${metadata.baseName}.with_previous.csv\" | wc -l)\n                exit 1\n            fi\n        fi\n        \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "    if (params.update_all_lineage_assignments || !params.previous_metadata )\n        \"\"\"\n        mv \"${fasta}\" \"${fasta.baseName}.for_pangolin.fa\"\n        mv \"${metadata}\" \"${metadata.baseName}.with_previous.csv\"\n        \"\"\"\n    else\n        \"\"\"\n        echo \"Pangolin updated: \\$PANGOLIN_UPDATED\"\n        if [ \\$PANGOLIN_UPDATED == \"true\" ]\n        then\n            mv \"${fasta}\" \"${fasta.baseName}.for_pangolin.fa\"\n            mv \"${metadata}\" \"${metadata.baseName}.with_previous.csv\"\n        else\n            $project_dir/../bin/prepare_for_pangolin.py \\\n              --in-fasta ${fasta} \\\n              --in-metadata ${metadata} \\\n              --previous-metadata ${params.previous_metadata} \\\n              --out-fasta \"${fasta.baseName}.for_pangolin.fa\" \\\n              --out-metadata \"${metadata.baseName}.with_previous.csv\"\n            if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.with_previous.csv\" | wc -l) ]]\n            then\n                echo \\$(cat \"${metadata}\" | wc -l)\n                echo \\$(cat \"${metadata.baseName}.with_previous.csv\" | wc -l)\n                exit 1\n            fi\n        fi\n        \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata",
+            "PANGOLIN_UPDATED"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "run_pangolin": {
+        "name_process": "run_pangolin",
+        "string_process": "\nprocess run_pangolin {\n       \n                                  \n                  \n                            \n      \n\n    input:\n    path fasta\n\n    output:\n    path \"pangolin/lineage_report.csv\", emit: report\n    path \"pangolin/sequences.aln.fasta\", emit: alignment\n\n    script:\n    if (params.skip_designation_hash)\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --alignment \\\n            --skip-designation-hash\n        \"\"\"\n    else\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --alignment\n        \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    if (params.skip_designation_hash)\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --alignment \\\n            --skip-designation-hash\n        \"\"\"\n    else\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --alignment\n        \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "run_pangolin_usher": {
+        "name_process": "run_pangolin_usher",
+        "string_process": "\nprocess run_pangolin_usher {\n       \n                                  \n                  \n                            \n      \n\n    cpus 4\n\n    input:\n    path fasta\n\n    output:\n    path \"pangolin/usher_lineage_report.csv\"\n\n    script:\n    if (params.skip_designation_hash)\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --outfile usher_lineage_report.csv \\\n            --usher \\\n            -t ${task.cpus} \\\n            --skip-designation-hash\n        \"\"\"\n    else\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --outfile usher_lineage_report.csv \\\n            --usher \\\n            -t ${task.cpus}\n        \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    if (params.skip_designation_hash)\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --outfile usher_lineage_report.csv \\\n            --usher \\\n            -t ${task.cpus} \\\n            --skip-designation-hash\n        \"\"\"\n    else\n        \"\"\"\n        pangolin \"${fasta}\" \\\n            --outdir pangolin \\\n            --tempdir pangolin_tmp \\\n            --outfile usher_lineage_report.csv \\\n            --usher \\\n            -t ${task.cpus}\n        \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "cpus 4"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "add_new_pangolin_lineages_to_metadata": {
+        "name_process": "add_new_pangolin_lineages_to_metadata",
+        "string_process": "\nprocess add_new_pangolin_lineages_to_metadata {\n       \n                                                            \n                                   \n                              \n      \n\n    memory { task.attempt * metadata.size() * 3.B }\n\n    input:\n    path metadata\n    path pangolin_csv\n\n    output:\n    path \"${metadata.baseName}.with_pangolin.csv\", emit: metadata\n    path \"pango.log\", emit: log\n\n    script:\n    \"\"\"\n    $project_dir/../bin/prepare_for_pangolin.py \\\n                  --in-metadata ${metadata} \\\n                  --previous-metadata ${pangolin_csv} \\\n                  --out-metadata \"${metadata.baseName}.with_pangolin.csv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/prepare_for_pangolin.py \\\n                  --in-metadata ${metadata} \\\n                  --previous-metadata ${pangolin_csv} \\\n                  --out-metadata \"${metadata.baseName}.with_pangolin.csv\"\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata",
+            "pangolin_csv"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "memory { task.attempt * metadata.size() * 3.B }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "add_pangolin_usher_to_metadata": {
+        "name_process": "add_pangolin_usher_to_metadata",
+        "string_process": "\nprocess add_pangolin_usher_to_metadata {\n       \n                                           \n                                   \n                      \n      \n\n    input:\n    path metadata\n    path usher_report\n\n    output:\n    path \"${metadata.baseName}.with_usher.csv\"\n\n    script:\n    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${metadata} \\\n          --in-data ${usher_report} \\\n          --index-column taxon \\\n          --join-on taxon \\\n          --new-columns usher_lineage usher_lineages_version \\\n          --where-column usher_lineage=lineage usher_lineages_version=version \\\n          --out-metadata \"${metadata.baseName}.with_usher.csv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${metadata} \\\n          --in-data ${usher_report} \\\n          --index-column taxon \\\n          --join-on taxon \\\n          --new-columns usher_lineage usher_lineages_version \\\n          --where-column usher_lineage=lineage usher_lineages_version=version \\\n          --out-metadata \"${metadata.baseName}.with_usher.csv\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata",
+            "usher_report"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "cache_lineages_report": {
+        "name_process": "cache_lineages_report",
+        "string_process": "\nprocess cache_lineages_report {\n       \n                                                               \n                     \n                      \n      \n    publishDir \"${publish_dir}/pangolin\", pattern: \"*.cache.csv\", mode: 'copy'\n\n    input:\n    path fasta\n    path metadata\n\n    output:\n    path \"${metadata.baseName}.cache.csv\", emit: metadata\n\n    script:\n    \"\"\"\n    $project_dir/../bin/cache_pangolin_report.py \\\n        --in-fasta ${fasta} \\\n        --in-metadata ${metadata} \\\n        --out-metadata \"${metadata.baseName}.cache.csv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/cache_pangolin_report.py \\\n        --in-fasta ${fasta} \\\n        --in-metadata ${metadata} \\\n        --out-metadata \"${metadata.baseName}.cache.csv\"\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dir}/pangolin\", pattern: \"*.cache.csv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "announce_summary": {
+        "name_process": "announce_summary",
+        "string_process": "\nprocess announce_summary {\n       \n                                    \n                   \n      \n\n    input:\n    path fasta\n    path alignment\n\n    output:\n    path \"announce.json\"\n\n    script:\n        if (params.webhook)\n            \"\"\"\n            echo '{\"text\":\"' > announce.json\n                echo \"*${params.whoami}: Finished alignment and variant calling ${params.date}*\\\\n\" >> announce.json\n                echo \"> Number of sequences in FASTA : \\$(cat ${fasta} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo \"> Number of sequences in ALIGNMENT : \\$(cat ${alignment} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo '\"}' >> announce.json\n\n            echo 'webhook ${params.webhook}'\n\n            curl -X POST -H \"Content-type: application/json\" -d @announce.json ${params.webhook}\n            \"\"\"\n        else\n            \"\"\"\n            echo '{\"text\":\"' > announce.json\n                echo \"*${params.whoami}: Finished alignment and variant calling ${params.date}*\\\\n\" >> announce.json\n                echo \"> Number of sequences in FASTA : \\$(cat ${fasta} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo \"> Number of sequences in ALIGNMENT : \\$(cat ${alignment} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo '\"}' >> announce.json\n            \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "        if (params.webhook)\n            \"\"\"\n            echo '{\"text\":\"' > announce.json\n                echo \"*${params.whoami}: Finished alignment and variant calling ${params.date}*\\\\n\" >> announce.json\n                echo \"> Number of sequences in FASTA : \\$(cat ${fasta} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo \"> Number of sequences in ALIGNMENT : \\$(cat ${alignment} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo '\"}' >> announce.json\n\n            echo 'webhook ${params.webhook}'\n\n            curl -X POST -H \"Content-type: application/json\" -d @announce.json ${params.webhook}\n            \"\"\"\n        else\n            \"\"\"\n            echo '{\"text\":\"' > announce.json\n                echo \"*${params.whoami}: Finished alignment and variant calling ${params.date}*\\\\n\" >> announce.json\n                echo \"> Number of sequences in FASTA : \\$(cat ${fasta} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo \"> Number of sequences in ALIGNMENT : \\$(cat ${alignment} | grep '>' | wc -l)\\\\n\" >> announce.json\n                echo '\"}' >> announce.json\n            \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [
+            "getnumber",
+            "CURLS"
+        ],
+        "tools_url": [
+            "https://bio.tools/getnumber",
+            "https://bio.tools/CURLS"
+        ],
+        "tools_dico": [
+            {
+                "name": "getnumber",
+                "uri": "https://bio.tools/getnumber",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3321",
+                            "term": "Molecular genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3002",
+                                "term": "Annotation track"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2968",
+                                "term": "Image"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Get the distribution of exons per transcripts, or mapping per read, or transcript per cluster.",
+                "homepage": "https://urgi.versailles.inra.fr/Tools/REPET"
+            },
+            {
+                "name": "CURLS",
+                "uri": "https://bio.tools/CURLS",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "Public health and epidemiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3421",
+                            "term": "Surgery"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Pathology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiovascular medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "https://en.wikipedia.org/wiki/Public_health"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "https://en.wikipedia.org/wiki/Epidemiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3421",
+                            "term": "https://en.wikipedia.org/wiki/Surgery"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "https://en.wikipedia.org/wiki/Pathology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "towards a wider use of basic echo applications in Africa.\n\nBACKGROUND:Point-of-care ultrasound is increasingly being used as a diagnostic tool in resource-limited settings. The majority of existing ultrasound protocols have been developed and implemented in high-resource settings. In sub-Saharan Africa (SSA), patients with heart failure of various etiologies commonly present late in the disease process, with a similar syndrome of dyspnea, edema and cardiomegaly on chest X-ray. The causes of heart failure in SSA differ from those in high-resource settings. Point-of-care ultrasound has the potential to identify the underlying etiology of heart failure, and lead to targeted therapy.\n\n||| HOMEPAGE MISSING!.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'ultrasound', 'Cardiac ultrasound resource-limited settings', 'high-resource', 'cardiomegaly SSA'",
+                "homepage": "https://www.ncbi.nlm.nih.gov/pubmed/?term=31883027"
+            }
+        ],
+        "inputs": [
+            "fasta",
+            "alignment"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "publish_metadata": {
+        "name_process": "publish_metadata",
+        "string_process": "\nprocess publish_metadata {\n       \n                                              \n                     \n                      \n      \n\n    publishDir \"${publish_dir}\", pattern: \"*/*.csv\", mode: 'copy'\n\n    input:\n    path metadata\n    val category\n\n    output:\n    path \"${category}/pangolin_master.csv\"\n\n    script:\n    \"\"\"\n    mkdir -p ${category}\n    cp ${metadata} ${category}/pangolin_master.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    mkdir -p ${category}\n    cp ${metadata} ${category}/pangolin_master.csv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata",
+            "category"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dir}\", pattern: \"*/*.csv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_git_hash": {
+        "name_process": "get_git_hash",
+        "string_process": "\nprocess get_git_hash {\n       \n                     \n      \n    publishDir \"${publish_dev}\", mode: 'copy', overwrite: true\n\n    input:\n    path commit_file\n\n    output:\n    path \"${commit_file}\"\n\n    script:\n    \"\"\"\n    echo \"\\n Git hash \\t = \\t \\$( git rev-parse HEAD) \\n\\n\" >> ${commit_file}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    echo \"\\n Git hash \\t = \\t \\$( git rev-parse HEAD) \\n\\n\" >> ${commit_file}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "commit_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_low_coverage_sequences": {
+        "name_process": "filter_low_coverage_sequences",
+        "string_process": "\nprocess filter_low_coverage_sequences {\n       \n                                                                            \n                                \n                                                 \n                      \n      \n\n    input:\n    path alignment\n    path metadata\n\n    output:\n    path \"${alignment.baseName}.low_covg_filtered.fasta\", emit: fasta_updated\n    path \"${metadata.baseName}.low_covg_filtered.csv\", emit: metadata_updated\n\n    script:\n    if (!params.min_covg)\n        \"\"\"\n        mv \"${alignment}\" \"${alignment.baseName}.low_covg_filtered.fasta\"\n        mv \"${metadata}\" \"${metadata.baseName}.low_covg_filtered.csv\"\n        \"\"\"\n    else\n        \"\"\"\n        #!/usr/bin/env python3\n        from Bio import SeqIO\n        import csv\n\n        alignment = SeqIO.index(\"${alignment}\", \"fasta\")\n\n        with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n             open(\"${metadata.baseName}.low_covg_filtered.csv\", 'w', newline = '') as csv_out, \\\n             open(\"${alignment.baseName}.low_covg_filtered.fasta\", 'w') as fasta_out:\n\n            reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n            writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n            writer.writeheader()\n\n            for row in reader:\n                if row[\"why_excluded\"]:\n                    writer.writerow(row)\n                    continue\n                id = row[\"sequence_name\"]\n                if id in alignment:\n                    seq = str(alignment[id].seq)\n                    mapped_completeness = float(len(seq.replace(\"N\", \"\")) / len(seq))\n                    if mapped_completeness >= float(${params.min_covg} / 100):\n                        writer.writerow(row)\n                        fasta_out.write(\">\" + id + \"\\\\n\")\n                        fasta_out.write(seq + \"\\\\n\")\n                    else:\n                        row[\"why_excluded\"] = \"low mapped_completeness\"\n                        writer.writerow(row)\n        \"\"\"\n}",
+        "nb_lignes_process": 54,
+        "string_script": "    if (!params.min_covg)\n        \"\"\"\n        mv \"${alignment}\" \"${alignment.baseName}.low_covg_filtered.fasta\"\n        mv \"${metadata}\" \"${metadata.baseName}.low_covg_filtered.csv\"\n        \"\"\"\n    else\n        \"\"\"\n        #!/usr/bin/env python3\n        from Bio import SeqIO\n        import csv\n\n        alignment = SeqIO.index(\"${alignment}\", \"fasta\")\n\n        with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n             open(\"${metadata.baseName}.low_covg_filtered.csv\", 'w', newline = '') as csv_out, \\\n             open(\"${alignment.baseName}.low_covg_filtered.fasta\", 'w') as fasta_out:\n\n            reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n            writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n            writer.writeheader()\n\n            for row in reader:\n                if row[\"why_excluded\"]:\n                    writer.writerow(row)\n                    continue\n                id = row[\"sequence_name\"]\n                if id in alignment:\n                    seq = str(alignment[id].seq)\n                    mapped_completeness = float(len(seq.replace(\"N\", \"\")) / len(seq))\n                    if mapped_completeness >= float(${params.min_covg} / 100):\n                        writer.writerow(row)\n                        fasta_out.write(\">\" + id + \"\\\\n\")\n                        fasta_out.write(seq + \"\\\\n\")\n                    else:\n                        row[\"why_excluded\"] = \"low mapped_completeness\"\n                        writer.writerow(row)\n        \"\"\"",
+        "nb_lignes_script": 36,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignment",
+            "metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "trim_alignment": {
+        "name_process": "trim_alignment",
+        "string_process": "\nprocess trim_alignment {\n       \n                                      \n                      \n                               \n                                  \n      \n\n    input:\n    path alignment\n\n    output:\n    path \"${alignment.baseName}.trimmed.fa\"\n\n    script:\n    if (params.trim_start && params.trim_end)\n        \"\"\"\n        #!/usr/bin/env python3\n        from Bio import SeqIO\n\n        strt = int(${params.trim_start})\n        stp = int(${params.trim_end})\n\n        with open(\"${alignment}\", \"r\") as fasta_in, \\\n             open(\"${alignment.baseName}.trimmed.fa\", \"w\") as fasta_out:\n\n            for record in SeqIO.parse(fasta_in, \"fasta\"):\n                seq = str(record.seq).upper()\n                new_seq = (\"N\" * strt) + seq[strt:stp] + (\"N\" * (len(seq) - stp))\n                fasta_out.write(\">\" + record.id + \"\\\\n\")\n                fasta_out.write(new_seq + \"\\\\n\")\n        \"\"\"\n    else\n        \"\"\"\n        mv \"${alignment.baseName}\" \"${alignment.baseName}.trimmed.fa\"\n        \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    if (params.trim_start && params.trim_end)\n        \"\"\"\n        #!/usr/bin/env python3\n        from Bio import SeqIO\n\n        strt = int(${params.trim_start})\n        stp = int(${params.trim_end})\n\n        with open(\"${alignment}\", \"r\") as fasta_in, \\\n             open(\"${alignment.baseName}.trimmed.fa\", \"w\") as fasta_out:\n\n            for record in SeqIO.parse(fasta_in, \"fasta\"):\n                seq = str(record.seq).upper()\n                new_seq = (\"N\" * strt) + seq[strt:stp] + (\"N\" * (len(seq) - stp))\n                fasta_out.write(\">\" + record.id + \"\\\\n\")\n                fasta_out.write(new_seq + \"\\\\n\")\n        \"\"\"\n    else\n        \"\"\"\n        mv \"${alignment.baseName}\" \"${alignment.baseName}.trimmed.fa\"\n        \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignment"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "distance_QC": {
+        "name_process": "distance_QC",
+        "string_process": "\nprocess distance_QC {\n       \n                                             \n                            \n                                \n      \n    publishDir \"${publish_dev}\", pattern: \"*/*.tsv\", mode: 'copy'\n\n\n    input:\n    path fasta\n    path metadata\n    val category\n\n    output:\n    path \"${category}/${category}_QC_distances.tsv\"\n\n    script:\n    \"\"\"\n    datafunk distance_to_root \\\n        --input-fasta ${fasta} \\\n        --input-metadata ${metadata}\n\n    mkdir -p ${category}\n    mv distances.tsv \"${category}/${category}_QC_distances.tsv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    datafunk distance_to_root \\\n        --input-fasta ${fasta} \\\n        --input-metadata ${metadata}\n\n    mkdir -p ${category}\n    mv distances.tsv \"${category}/${category}_QC_distances.tsv\"\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata",
+            "category"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}\", pattern: \"*/*.tsv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_on_distance_to_WH04": {
+        "name_process": "filter_on_distance_to_WH04",
+        "string_process": "\nprocess filter_on_distance_to_WH04 {\n       \n                                                    \n                                       \n             \n      \n\n    input:\n    path fasta\n    path metadata\n    path distances\n\n    output:\n    path \"${fasta.baseName}.distance_filtered.fa\", emit: fasta\n    path \"${metadata.baseName}.distance_filtered.csv\", emit: metadata\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import csv\n\n    reject = set()\n    with open(\"${distances}\", 'r', newline = '') as distances_in:\n        reader = csv.DictReader(distances_in, delimiter=\"\\t\", quotechar='\\\"', dialect = \"unix\")\n        for row in reader:\n            sequence_name = row['sequence_name']\n            distance = float(row['distance_stdevs'])\n            if distance >= 4.0:\n                reject.add(sequence_name)\n\n    alignment = SeqIO.index(\"${fasta}\", \"fasta\")\n\n    with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${metadata.baseName}.distance_filtered.csv\", 'w', newline = '') as csv_out, \\\n        open(\"${fasta.baseName}.distance_filtered.fa\", 'w') as fasta_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            if row[\"why_excluded\"]:\n                writer.writerow(row)\n                continue\n            id = row[\"sequence_name\"]\n            if id in reject:\n                row[\"why_excluded\"] = \"distance to WH04 more than 4.0 epi-week std devs\"\n                writer.writerow(row)\n                continue\n            if id in alignment:\n                writer.writerow(row)\n                seq = str(alignment[id].seq)\n                fasta_out.write(\">\" + id + \"\\\\n\")\n                fasta_out.write(seq + \"\\\\n\")\n    \"\"\"\n}",
+        "nb_lignes_process": 56,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import csv\n\n    reject = set()\n    with open(\"${distances}\", 'r', newline = '') as distances_in:\n        reader = csv.DictReader(distances_in, delimiter=\"\\t\", quotechar='\\\"', dialect = \"unix\")\n        for row in reader:\n            sequence_name = row['sequence_name']\n            distance = float(row['distance_stdevs'])\n            if distance >= 4.0:\n                reject.add(sequence_name)\n\n    alignment = SeqIO.index(\"${fasta}\", \"fasta\")\n\n    with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${metadata.baseName}.distance_filtered.csv\", 'w', newline = '') as csv_out, \\\n        open(\"${fasta.baseName}.distance_filtered.fa\", 'w') as fasta_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            if row[\"why_excluded\"]:\n                writer.writerow(row)\n                continue\n            id = row[\"sequence_name\"]\n            if id in reject:\n                row[\"why_excluded\"] = \"distance to WH04 more than 4.0 epi-week std devs\"\n                writer.writerow(row)\n                continue\n            if id in alignment:\n                writer.writerow(row)\n                seq = str(alignment[id].seq)\n                fasta_out.write(\">\" + id + \"\\\\n\")\n                fasta_out.write(seq + \"\\\\n\")\n    \"\"\"",
+        "nb_lignes_script": 38,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata",
+            "distances"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "uk_strip_header_digits_and_unalign": {
+        "name_process": "uk_strip_header_digits_and_unalign",
+        "string_process": "\nprocess uk_strip_header_digits_and_unalign {\n       \n                                                                    \n                     \n                              \n      \n\n    input:\n    path uk_fasta\n\n    output:\n    path \"${uk_fasta.baseName}.header_stripped.fasta\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import re\n    def is_iupac(strg, search=re.compile(r'[^ACGTRYSWKMBDHVNacgtryswkmbdhvn-]').search):\n        return not bool(search(strg))\n\n    fasta_in = SeqIO.parse(\"${uk_fasta}\", \"fasta\")\n    with open(\"${uk_fasta.baseName}.header_stripped.fasta\", 'w') as f:\n        for record in fasta_in:\n            seq = str(record.seq).replace('-','')\n            seq = seq.replace('?','N')\n            if not is_iupac(seq):\n                continue\n            ID = record.description.split(\"|\")[0]\n            f.write(\">\" + ID + \"\\\\n\")\n            f.write(seq + \"\\\\n\")\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import re\n    def is_iupac(strg, search=re.compile(r'[^ACGTRYSWKMBDHVNacgtryswkmbdhvn-]').search):\n        return not bool(search(strg))\n\n    fasta_in = SeqIO.parse(\"${uk_fasta}\", \"fasta\")\n    with open(\"${uk_fasta.baseName}.header_stripped.fasta\", 'w') as f:\n        for record in fasta_in:\n            seq = str(record.seq).replace('-','')\n            seq = seq.replace('?','N')\n            if not is_iupac(seq):\n                continue\n            ID = record.description.split(\"|\")[0]\n            f.write(\">\" + ID + \"\\\\n\")\n            f.write(seq + \"\\\\n\")\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "uk_add_columns_to_metadata": {
+        "name_process": "uk_add_columns_to_metadata",
+        "string_process": "\nprocess uk_add_columns_to_metadata {\n       \n                                                                                          \n                                                                            \n                        \n                                 \n                                             \n      \n\n    input:\n    path uk_metadata\n    path uk_accessions\n    path uk_updated_dates\n\n    output:\n    path \"${uk_metadata.baseName}.updated.csv\"\n\n    script:\n    \"\"\"\n    $project_dir/../bin/add_to_uk_metadata.py \\\n        --in-metadata ${uk_metadata} \\\n        --out-metadata ${uk_metadata.baseName}.updated.csv \\\n        --accession-file ${uk_accessions} \\\n        --updated-date-file ${uk_updated_dates}\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/add_to_uk_metadata.py \\\n        --in-metadata ${uk_metadata} \\\n        --out-metadata ${uk_metadata.baseName}.updated.csv \\\n        --accession-file ${uk_accessions} \\\n        --updated-date-file ${uk_updated_dates}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_metadata",
+            "uk_accessions",
+            "uk_updated_dates"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "uk_filter_omitted_sequences": {
+        "name_process": "uk_filter_omitted_sequences",
+        "string_process": "\nprocess uk_filter_omitted_sequences {\n       \n                                                                                    \n                                                                            \n                                  \n                                                   \n                          \n      \n    input:\n    path uk_fasta\n    path uk_metadata\n    path uk_omissions\n\n    output:\n    path \"${uk_fasta.baseName}.omit_filtered.fa\", emit: fasta\n    path \"${uk_metadata.baseName}.omit_filtered.csv\", emit: metadata\n\n    script:\n    if ( params.uk_omissions )\n        \"\"\"\n        #!/usr/bin/env python3\n        from Bio import SeqIO\n        import csv\n\n        alignment = SeqIO.index(\"${uk_fasta}\", \"fasta\")\n\n        omissions = set()\n        with open(\"${uk_omissions}\", \"r\") as f:\n            for line in f:\n                omissions.add(line.rstrip())\n\n        with open(\"${uk_metadata}\", 'r', newline = '') as csv_in, \\\n             open(\"${uk_metadata.baseName}.omit_filtered.csv\", 'w', newline = '') as csv_out, \\\n             open(\"${uk_fasta.baseName}.omit_filtered.fa\", \"w\") as fasta_out:\n\n            reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n            writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n            writer.writeheader()\n\n            for row in reader:\n                if row[\"central_sample_id\"] in omissions:\n                    row[\"why_excluded\"] = \"central_sample_id in omissions_file\"\n                    writer.writerow(row)\n                    continue\n\n                if row[\"fasta_header\"] not in alignment:\n                    row[\"why_excluded\"] = \"sequences was missing from input or contained non-IUPAC characters\"\n                    writer.writerow(row)\n                    continue\n\n                record = alignment[row[\"fasta_header\"]]\n                writer.writerow(row)\n                fasta_out.write(\">\" + record.id + \"\\\\n\")\n                fasta_out.write(str(record.seq) + \"\\\\n\")\n        \"\"\"\n    else\n        \"\"\"\n        mv \"${uk_fasta}\" \"${uk_fasta.baseName}.omit_filtered.fa\"\n        mv \"${uk_metadata}\" \"${uk_metadata.baseName}.omit_filtered.csv\"\n        \"\"\"\n}",
+        "nb_lignes_process": 60,
+        "string_script": "    if ( params.uk_omissions )\n        \"\"\"\n        #!/usr/bin/env python3\n        from Bio import SeqIO\n        import csv\n\n        alignment = SeqIO.index(\"${uk_fasta}\", \"fasta\")\n\n        omissions = set()\n        with open(\"${uk_omissions}\", \"r\") as f:\n            for line in f:\n                omissions.add(line.rstrip())\n\n        with open(\"${uk_metadata}\", 'r', newline = '') as csv_in, \\\n             open(\"${uk_metadata.baseName}.omit_filtered.csv\", 'w', newline = '') as csv_out, \\\n             open(\"${uk_fasta.baseName}.omit_filtered.fa\", \"w\") as fasta_out:\n\n            reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n            writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n            writer.writeheader()\n\n            for row in reader:\n                if row[\"central_sample_id\"] in omissions:\n                    row[\"why_excluded\"] = \"central_sample_id in omissions_file\"\n                    writer.writerow(row)\n                    continue\n\n                if row[\"fasta_header\"] not in alignment:\n                    row[\"why_excluded\"] = \"sequences was missing from input or contained non-IUPAC characters\"\n                    writer.writerow(row)\n                    continue\n\n                record = alignment[row[\"fasta_header\"]]\n                writer.writerow(row)\n                fasta_out.write(\">\" + record.id + \"\\\\n\")\n                fasta_out.write(str(record.seq) + \"\\\\n\")\n        \"\"\"\n    else\n        \"\"\"\n        mv \"${uk_fasta}\" \"${uk_fasta.baseName}.omit_filtered.fa\"\n        mv \"${uk_metadata}\" \"${uk_metadata.baseName}.omit_filtered.csv\"\n        \"\"\"",
+        "nb_lignes_script": 41,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_fasta",
+            "uk_metadata",
+            "uk_omissions"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "uk_filter_on_sample_date": {
+        "name_process": "uk_filter_on_sample_date",
+        "string_process": "\nprocess uk_filter_on_sample_date {\n       \n                                                                             \n                                                            \n                                  \n                                                  \n                               \n      \n\n    input:\n    path uk_fasta\n    path uk_metadata\n\n    output:\n    path \"${uk_fasta.baseName}.date_filtered.fa\", emit: fasta\n    path \"${uk_metadata.baseName}.date_filtered.csv\", emit: metadata\n\n    script:\n    if ( params.time_window && params.date)\n        \"\"\"\n        #!/usr/bin/env python3\n        import datetime\n        from Bio import SeqIO\n        import csv\n\n        indexed_fasta = SeqIO.index(\"${uk_fasta}\", \"fasta\")\n\n        window = datetime.timedelta(int(\"${params.time_window}\"))\n        todays_date = datetime.datetime.strptime(\"${params.date}\", '%Y-%m-%d').date()\n\n        with open\"${uk_metadata}\", 'r', newline = '') as csv_in, \\\n            open(\"${uk_metadata.baseName}.date_filtered.csv\", 'w', newline = '') as csv_out, \\\n            open(\"${uk_fasta.baseName}.date_filtered.fa\", \"w\") as fasta_out:\n\n            reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n            writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n            writer.writeheader()\n\n            for row in reader:\n                try:\n                    date = datetime.datetime.strptime(row[\"sample_date\"], '%Y-%m-%d').date()\n                except:\n                    row[\"why_excluded\"] = \"no sample_date\"\n                    writer.writerow(row)\n\n                if (todays_date - window) > date:\n                    row[\"why_excluded\"] = \"sample_date older than %s days\" %window\n                    writer.writerow(row)\n                    continue\n\n                if row[\"fasta_header\"] not in indexed_fasdta:\n                    row[\"why_excluded\"] = \"sequences was missing from input or contained non-IUPAC characters\"\n                    writer.writerow(row)\n                    continue\n\n                writer.writerow(row)\n\n                seq_rec = indexed_fasta[row[\"fasta_header\"]]\n                fasta_out.write(\">\" + seq_rec.id + \"\\\\n\")\n                fasta_out.write(str(seq_rec.seq) + \"\\\\n\")\n        \"\"\"\n    else\n        \"\"\"\n        mv \"${uk_fasta}\" \"${uk_fasta.baseName}.date_filtered.fa\"\n        mv \"${uk_metadata}\" \"${uk_metadata.baseName}.date_filtered.csv\"\n        \"\"\"\n}",
+        "nb_lignes_process": 66,
+        "string_script": "    if ( params.time_window && params.date)\n        \"\"\"\n        #!/usr/bin/env python3\n        import datetime\n        from Bio import SeqIO\n        import csv\n\n        indexed_fasta = SeqIO.index(\"${uk_fasta}\", \"fasta\")\n\n        window = datetime.timedelta(int(\"${params.time_window}\"))\n        todays_date = datetime.datetime.strptime(\"${params.date}\", '%Y-%m-%d').date()\n\n        with open\"${uk_metadata}\", 'r', newline = '') as csv_in, \\\n            open(\"${uk_metadata.baseName}.date_filtered.csv\", 'w', newline = '') as csv_out, \\\n            open(\"${uk_fasta.baseName}.date_filtered.fa\", \"w\") as fasta_out:\n\n            reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n            writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n            writer.writeheader()\n\n            for row in reader:\n                try:\n                    date = datetime.datetime.strptime(row[\"sample_date\"], '%Y-%m-%d').date()\n                except:\n                    row[\"why_excluded\"] = \"no sample_date\"\n                    writer.writerow(row)\n\n                if (todays_date - window) > date:\n                    row[\"why_excluded\"] = \"sample_date older than %s days\" %window\n                    writer.writerow(row)\n                    continue\n\n                if row[\"fasta_header\"] not in indexed_fasdta:\n                    row[\"why_excluded\"] = \"sequences was missing from input or contained non-IUPAC characters\"\n                    writer.writerow(row)\n                    continue\n\n                writer.writerow(row)\n\n                seq_rec = indexed_fasta[row[\"fasta_header\"]]\n                fasta_out.write(\">\" + seq_rec.id + \"\\\\n\")\n                fasta_out.write(str(seq_rec.seq) + \"\\\\n\")\n        \"\"\"\n    else\n        \"\"\"\n        mv \"${uk_fasta}\" \"${uk_fasta.baseName}.date_filtered.fa\"\n        mv \"${uk_metadata}\" \"${uk_metadata.baseName}.date_filtered.csv\"\n        \"\"\"",
+        "nb_lignes_script": 47,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_fasta",
+            "uk_metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "add_previous_uk_lineage_to_metadata": {
+        "name_process": "add_previous_uk_lineage_to_metadata",
+        "string_process": "\nprocess add_previous_uk_lineage_to_metadata {\n       \n                                               \n                     \n                      \n      \n\n    memory { 1.GB * task.attempt + metadata.size() * 2.B }\n\n    input:\n    path metadata\n\n    output:\n    path \"${metadata.baseName}.with_uk_lineage.csv\"\n\n    script:\n    if ( !params.previous_metadata )\n        \"\"\"\n        mv ${metadata} \"${metadata.baseName}.with_uk_lineage.csv\"\n        \"\"\"\n    else\n        \"\"\"\n        fastafunk add_columns \\\n              --in-metadata ${metadata} \\\n              --in-data ${params.previous_metadata} \\\n              --index-column sequence_name \\\n              --join-on sequence_name \\\n              --new-columns uk_lineage \\\n              --out-metadata \"${metadata.baseName}.with_uk_lineage.csv\"\n        \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    if ( !params.previous_metadata )\n        \"\"\"\n        mv ${metadata} \"${metadata.baseName}.with_uk_lineage.csv\"\n        \"\"\"\n    else\n        \"\"\"\n        fastafunk add_columns \\\n              --in-metadata ${metadata} \\\n              --in-data ${params.previous_metadata} \\\n              --index-column sequence_name \\\n              --join-on sequence_name \\\n              --new-columns uk_lineage \\\n              --out-metadata \"${metadata.baseName}.with_uk_lineage.csv\"\n        \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "memory { 1.GB * task.attempt + metadata.size() * 2.B }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "minimap2_to_reference": {
+        "name_process": "minimap2_to_reference",
+        "string_process": "\nprocess minimap2_to_reference {\n       \n                                   \n                  \n                 \n                             \n      \n\n    cpus 4\n\n    input:\n    path fasta\n\n    output:\n    path \"alignment.sam\"\n\n    script:\n    \"\"\"\n    minimap2 -t ${task.cpus} -a --secondary=no -x asm20 --score-N=0 ${reference_fasta} ${fasta} > alignment.sam\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    minimap2 -t ${task.cpus} -a --secondary=no -x asm20 --score-N=0 ${reference_fasta} ${fasta} > alignment.sam\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            }
+        ],
+        "inputs": [
+            "fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "cpus 4"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_mutations": {
+        "name_process": "get_mutations",
+        "string_process": "\nprocess get_mutations {\n       \n                                                   \n                \n                       \n                                               \n      \n\n    cpus 4\n    label 'retry_increasing_mem'\n\n\n    input:\n    path sam\n    val category\n\n    output:\n    path \"${category}.mutations.csv\"\n\n    script:\n    \"\"\"\n    gofasta sam variants -t ${task.cpus} \\\n      --samfile ${sam} \\\n      --reference ${reference_fasta} \\\n      --genbank ${reference_genbank} \\\n      --outfile ${category}.mutations.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    gofasta sam variants -t ${task.cpus} \\\n      --samfile ${sam} \\\n      --reference ${reference_fasta} \\\n      --genbank ${reference_genbank} \\\n      --outfile ${category}.mutations.csv\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sam",
+            "category"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "cpus 4",
+            "label 'retry_increasing_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_indels": {
+        "name_process": "get_indels",
+        "string_process": "\nprocess get_indels {\n       \n                                                \n                \n                                   \n      \n\n    publishDir \"${publish_dev}/\", pattern: \"*/*.tsv\", mode: 'copy'\n    publishDir \"${publish_dir}/\", pattern: \"*/*.tsv\", mode: 'copy', enabled: { ${category} == 'cog'}\n\n    input:\n    path sam\n    val category\n\n    output:\n    path \"${category}/${category}.insertions.tsv\", emit: insertions\n    path \"${category}/${category}.deletions.tsv\", emit: deletions\n\n    script:\n    \"\"\"\n    mkdir -p ${category}\n    gofasta sam indels \\\n      -s ${sam} \\\n      --threshold 2 \\\n      --insertions-out \"${category}/${category}.insertions.tsv\" \\\n      --deletions-out \"${category}/${category}.deletions.tsv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    mkdir -p ${category}\n    gofasta sam indels \\\n      -s ${sam} \\\n      --threshold 2 \\\n      --insertions-out \"${category}/${category}.insertions.tsv\" \\\n      --deletions-out \"${category}/${category}.deletions.tsv\"\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sam",
+            "category"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/\", pattern: \"*/*.tsv\", mode: 'copy'",
+            "publishDir \"${publish_dir}/\", pattern: \"*/*.tsv\", mode: 'copy', enabled: { ${category} == 'cog'}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alignment": {
+        "name_process": "alignment",
+        "string_process": "\nprocess alignment {\n       \n                                   \n                \n                       \n                             \n      \n\n    cpus 4\n\n    input:\n    path sam\n\n    output:\n    path \"alignment.fasta\"\n\n    script:\n    \"\"\"\n    gofasta sam toMultiAlign -t ${task.cpus} \\\n      --samfile ${sam} \\\n      --reference ${reference_fasta} \\\n      --pad \\\n      -o alignment.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    gofasta sam toMultiAlign -t ${task.cpus} \\\n      --samfile ${sam} \\\n      --reference ${reference_fasta} \\\n      --pad \\\n      -o alignment.fasta\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "cpus 4"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_snps": {
+        "name_process": "get_snps",
+        "string_process": "\nprocess get_snps {\n       \n                              \n                      \n                  \n                             \n      \n\n    publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'\n\n    input:\n    path alignment\n    val category\n\n    output:\n    path \"${category}/${category}.snps.csv\"\n\n    script:\n    \"\"\"\n    mkdir -p ${category}\n    gofasta snps -r ${reference_fasta} -q ${alignment} -o ${category}/${category}.snps.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    mkdir -p ${category}\n    gofasta snps -r ${reference_fasta} -q ${alignment} -o ${category}/${category}.snps.csv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignment",
+            "category"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_updown": {
+        "name_process": "get_updown",
+        "string_process": "\nprocess get_updown {\n       \n                              \n                      \n                         \n                             \n      \n\n    publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'\n\n    input:\n    path alignment\n    val category\n\n    output:\n    path \"${category}/${category}.updown.csv\"\n\n    script:\n    \"\"\"\n    mkdir -p ${category}\n    gofasta updown list -r ${WH04_fasta} -q ${alignment} -o ${category}/${category}.updown.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    mkdir -p ${category}\n    gofasta updown list -r ${WH04_fasta} -q ${alignment} -o ${category}/${category}.updown.csv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignment",
+            "category"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "type_AAs_and_dels": {
+        "name_process": "type_AAs_and_dels",
+        "string_process": "\nprocess type_AAs_and_dels {\n       \n                                                                          \n                                \n                              \n                                                \n      \n\n    input:\n    path alignment\n    path metadata\n\n    output:\n    path \"${metadata.baseName}.aas_dels.csv\"\n\n    script:\n    \"\"\"\n    $project_dir/../bin/type_aas_and_dels.py \\\n      --in-fasta ${alignment} \\\n      --in-metadata ${metadata} \\\n      --out-metadata \"mutations.tmp.csv\" \\\n      --reference-fasta ${reference_fasta} \\\n      --aas ${aas} \\\n      --dels ${dels} \\\n      --index-column query\n    sed \"s/query/sequence_name/g\" \"mutations.tmp.csv\" > mutations.tmp2.csv\n    sed \"s/variants/mutations/g\" \"mutations.tmp2.csv\" > \"${metadata.baseName}.aas_dels.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.aas_dels.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${metadata.baseName}.aas_dels.csv\" | wc -l)\n            exit 1\n        fi\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/type_aas_and_dels.py \\\n      --in-fasta ${alignment} \\\n      --in-metadata ${metadata} \\\n      --out-metadata \"mutations.tmp.csv\" \\\n      --reference-fasta ${reference_fasta} \\\n      --aas ${aas} \\\n      --dels ${dels} \\\n      --index-column query\n    sed \"s/query/sequence_name/g\" \"mutations.tmp.csv\" > mutations.tmp2.csv\n    sed \"s/variants/mutations/g\" \"mutations.tmp2.csv\" > \"${metadata.baseName}.aas_dels.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.aas_dels.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${metadata.baseName}.aas_dels.csv\" | wc -l)\n            exit 1\n        fi\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignment",
+            "metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "get_nuc_mutations": {
+        "name_process": "get_nuc_mutations",
+        "string_process": "\nprocess get_nuc_mutations {\n       \n                                                                                            \n                            \n                      \n      \n\n    input:\n    path snps\n    path dels\n    path ins\n\n    output:\n    path \"nuc_mutations.csv\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    import csv\n\n    sample_dict = {}\n    with open(\"${dels}\", 'r', newline = '') as csv_in:\n        for line in csv_in:\n            ref_start, length, samples = line.strip().split()\n            samples = samples.split('|')\n            var = \"del_%s_%s\" %(ref_start, length)\n            for sample in samples:\n                if sample in sample_dict:\n                    sample_dict[sample].append(var)\n                else:\n                    sample_dict[sample] = [var]\n\n    with open(\"${ins}\", 'r', newline = '') as csv_in:\n        for line in csv_in:\n            ref_start, insertion, samples= line.strip().split()\n            samples = samples.split('|')\n            var = \"ins_%s_%s\" %(ref_start, insertion)\n            for sample in samples:\n                if sample in sample_dict:\n                    sample_dict[sample].append(var)\n                else:\n                    sample_dict[sample] = [var]\n\n    with open(\"${snps}\", 'r', newline = '') as csv_in, \\\n        open(\"nuc_mutations.csv\", 'w', newline = '') as csv_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = [\"sequence_name\", \"nucleotide_mutations\"], delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            row[\"sequence_name\"] = row[\"query\"]\n            row[\"nucleotide_mutations\"] = row[\"SNPs\"]\n            if row[\"sequence_name\"] in sample_dict:\n                all_vars = [row[\"nucleotide_mutations\"]]\n                all_vars.extend(sample_dict[row[\"sequence_name\"]])\n                row[\"nucleotide_mutations\"] = '|'.join(all_vars)\n            for key in [k for k in row if k not in [\"sequence_name\", \"nucleotide_mutations\"]]:\n                del row[key]\n            writer.writerow(row)\n    \"\"\"\n}",
+        "nb_lignes_process": 61,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    import csv\n\n    sample_dict = {}\n    with open(\"${dels}\", 'r', newline = '') as csv_in:\n        for line in csv_in:\n            ref_start, length, samples = line.strip().split()\n            samples = samples.split('|')\n            var = \"del_%s_%s\" %(ref_start, length)\n            for sample in samples:\n                if sample in sample_dict:\n                    sample_dict[sample].append(var)\n                else:\n                    sample_dict[sample] = [var]\n\n    with open(\"${ins}\", 'r', newline = '') as csv_in:\n        for line in csv_in:\n            ref_start, insertion, samples= line.strip().split()\n            samples = samples.split('|')\n            var = \"ins_%s_%s\" %(ref_start, insertion)\n            for sample in samples:\n                if sample in sample_dict:\n                    sample_dict[sample].append(var)\n                else:\n                    sample_dict[sample] = [var]\n\n    with open(\"${snps}\", 'r', newline = '') as csv_in, \\\n        open(\"nuc_mutations.csv\", 'w', newline = '') as csv_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = [\"sequence_name\", \"nucleotide_mutations\"], delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            row[\"sequence_name\"] = row[\"query\"]\n            row[\"nucleotide_mutations\"] = row[\"SNPs\"]\n            if row[\"sequence_name\"] in sample_dict:\n                all_vars = [row[\"nucleotide_mutations\"]]\n                all_vars.extend(sample_dict[row[\"sequence_name\"]])\n                row[\"nucleotide_mutations\"] = '|'.join(all_vars)\n            for key in [k for k in row if k not in [\"sequence_name\", \"nucleotide_mutations\"]]:\n                del row[key]\n            writer.writerow(row)\n    \"\"\"",
+        "nb_lignes_script": 44,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "snps",
+            "dels",
+            "ins"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "restrict_metadata": {
+        "name_process": "restrict_metadata",
+        "string_process": "\nprocess restrict_metadata {\n       \n                                              \n                     \n                      \n      \n\n    input:\n    path metadata\n\n    output:\n    path \"${metadata.baseName}.restricts.csv\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    import csv\n\n    with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${metadata.baseName}.restricts.csv\", 'w', newline = '') as csv_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            if row[\"why_excluded\"] not in [None, \"\", \"None\"]:\n                writer.writerow(row)\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    import csv\n\n    with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${metadata.baseName}.restricts.csv\", 'w', newline = '') as csv_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames, delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            if row[\"why_excluded\"] not in [None, \"\", \"None\"]:\n                writer.writerow(row)\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "add_nucleotide_mutations_to_metadata": {
+        "name_process": "add_nucleotide_mutations_to_metadata",
+        "string_process": "\nprocess add_nucleotide_mutations_to_metadata {\n       \n                                           \n                                           \n                      \n      \n\n    memory { 1.GB * task.attempt + metadata.size() * 2.B }\n\n    input:\n    path metadata\n    path nucleotide_mutations\n\n    output:\n    path \"${metadata.baseName}.with_nuc_mutations.csv\"\n\n    script:\n    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${metadata} \\\n          --in-data ${nucleotide_mutations} \\\n          --index-column sequence_name \\\n          --join-on sequence_name \\\n          --new-columns nucleotide_mutations \\\n          --out-metadata \"${metadata.baseName}.with_nuc_mutations.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.with_nuc_mutations.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${metadata.baseName}.with_nuc_mutations.csv\" | wc -l)\n            exit 1\n        fi\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${metadata} \\\n          --in-data ${nucleotide_mutations} \\\n          --index-column sequence_name \\\n          --join-on sequence_name \\\n          --new-columns nucleotide_mutations \\\n          --out-metadata \"${metadata.baseName}.with_nuc_mutations.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.with_nuc_mutations.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${metadata.baseName}.with_nuc_mutations.csv\" | wc -l)\n            exit 1\n        fi\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata",
+            "nucleotide_mutations"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "memory { 1.GB * task.attempt + metadata.size() * 2.B }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "add_ambiguities_to_metadata": {
+        "name_process": "add_ambiguities_to_metadata",
+        "string_process": "\nprocess add_ambiguities_to_metadata {\n       \n                                           \n                                           \n                      \n      \n\n    memory { 1.GB * task.attempt + metadata.size() * 2.B }\n    publishDir \"${publish_dev}/\", pattern: \"*/*.csv\", mode: 'copy'\n\n    input:\n    path metadata\n    path updown\n    val category\n\n    output:\n    path \"${category}/${category}_mutations.csv\"\n\n    script:\n    \"\"\"\n    mkdir -p ${category}\n    fastafunk add_columns \\\n          --in-metadata ${metadata} \\\n          --in-data ${updown} \\\n          --index-column sequence_name \\\n          --join-on query \\\n          --new-columns ambiguities \\\n          --out-metadata \"${category}/${category}_mutations.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${category}/${category}_mutations.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${category}/${category}_mutations.csv\" | wc -l)\n            exit 1\n        fi\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    \"\"\"\n    mkdir -p ${category}\n    fastafunk add_columns \\\n          --in-metadata ${metadata} \\\n          --in-data ${updown} \\\n          --index-column sequence_name \\\n          --join-on query \\\n          --new-columns ambiguities \\\n          --out-metadata \"${category}/${category}_mutations.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${category}/${category}_mutations.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${category}/${category}_mutations.csv\" | wc -l)\n            exit 1\n        fi\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata",
+            "updown",
+            "category"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "memory { 1.GB * task.attempt + metadata.size() * 2.B }",
+            "publishDir \"${publish_dev}/\", pattern: \"*/*.csv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "haplotype_constellations": {
+        "name_process": "haplotype_constellations",
+        "string_process": "\nprocess haplotype_constellations {\n       \n                                                                                                \n                      \n                           \n                            \n      \n\n    input:\n    path alignment\n\n    output:\n    path \"${alignment.baseName}.haplotyped.csv\"\n\n    script:\n    \"\"\"\n    scorpio haplotype \\\n      --input ${alignment} \\\n      --output \"${alignment.baseName}.haplotyped.csv\" \\\n      --output-counts \\\n      -n ${params.constellations}\n\n    if [[ \\$(grep \">\" \"${alignment}\" | wc -l) != \\$(tail -n+2 \"${alignment.baseName}.haplotyped.csv\" | wc -l) ]]\n            then\n                echo \\$(grep \">\" \"${alignment}\" | wc -l)\n                echo \\$(tail -n+2 \"${alignment.baseName}.haplotyped.csv\" | wc -l)\n                exit 1\n            fi\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    scorpio haplotype \\\n      --input ${alignment} \\\n      --output \"${alignment.baseName}.haplotyped.csv\" \\\n      --output-counts \\\n      -n ${params.constellations}\n\n    if [[ \\$(grep \">\" \"${alignment}\" | wc -l) != \\$(tail -n+2 \"${alignment.baseName}.haplotyped.csv\" | wc -l) ]]\n            then\n                echo \\$(grep \">\" \"${alignment}\" | wc -l)\n                echo \\$(tail -n+2 \"${alignment.baseName}.haplotyped.csv\" | wc -l)\n                exit 1\n            fi\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignment"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "classify_constellations": {
+        "name_process": "classify_constellations",
+        "string_process": "\nprocess classify_constellations {\n       \n                                                                                                \n                      \n                          \n                            \n      \n\n    input:\n    path alignment\n\n    output:\n    path \"${alignment.baseName}.classified.csv\"\n\n    script:\n    \"\"\"\n    scorpio classify \\\n      --input ${alignment} \\\n      --output \"${alignment.baseName}.classified.csv\" \\\n      -n ${params.constellations}\n\n    if [[ \\$(grep \">\" \"${alignment}\" | wc -l) != \\$(tail -n+2 \"${alignment.baseName}.classified.csv\" | wc -l) ]]\n                then\n                    echo \\$(grep \">\" \"${alignment}\" | wc -l)\n                    echo \\$(tail -n+2 \"${alignment.baseName}.classified.csv\" | wc -l)\n                    exit 1\n                fi\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    \"\"\"\n    scorpio classify \\\n      --input ${alignment} \\\n      --output \"${alignment.baseName}.classified.csv\" \\\n      -n ${params.constellations}\n\n    if [[ \\$(grep \">\" \"${alignment}\" | wc -l) != \\$(tail -n+2 \"${alignment.baseName}.classified.csv\" | wc -l) ]]\n                then\n                    echo \\$(grep \">\" \"${alignment}\" | wc -l)\n                    echo \\$(tail -n+2 \"${alignment.baseName}.classified.csv\" | wc -l)\n                    exit 1\n                fi\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignment"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "add_constellations_to_metadata": {
+        "name_process": "add_constellations_to_metadata",
+        "string_process": "\nprocess add_constellations_to_metadata {\n       \n                                     \n                                             \n                      \n      \n\n    publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'\n \n    memory { task.attempt * (classified.size() + haplotyped.size()) * 9.B }\n\n    input:\n    path haplotyped\n    path classified\n    val category\n\n    output:\n    path \"${category}/${category}_constellations.csv\"\n\n    script:\n    \"\"\"\n    mkdir -p ${category}\n    fastafunk add_columns \\\n          --in-metadata ${classified} \\\n          --in-data ${haplotyped} \\\n          --index-column query \\\n          --join-on query \\\n          --out-metadata \"constellations.tmp.csv\"\n    sed \"s/query/sequence_name/g\" \"constellations.tmp.csv\" > \"${category}/${category}_constellations.csv\"\n\n    if [[ \\$(cat \"${haplotyped}\" | wc -l) != \\$(cat \"${category}/${category}_constellations.csv\" | wc -l) ]]\n            then\n                echo \\$(cat \"${haplotyped}\" | wc -l)\n                echo \\$(cat \"${category}/${category}_constellations.csv\" | wc -l)\n                exit 1\n            fi\n    \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    \"\"\"\n    mkdir -p ${category}\n    fastafunk add_columns \\\n          --in-metadata ${classified} \\\n          --in-data ${haplotyped} \\\n          --index-column query \\\n          --join-on query \\\n          --out-metadata \"constellations.tmp.csv\"\n    sed \"s/query/sequence_name/g\" \"constellations.tmp.csv\" > \"${category}/${category}_constellations.csv\"\n\n    if [[ \\$(cat \"${haplotyped}\" | wc -l) != \\$(cat \"${category}/${category}_constellations.csv\" | wc -l) ]]\n            then\n                echo \\$(cat \"${haplotyped}\" | wc -l)\n                echo \\$(cat \"${category}/${category}_constellations.csv\" | wc -l)\n                exit 1\n            fi\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "haplotyped",
+            "classified",
+            "category"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'",
+            "memory { task.attempt * (classified.size() + haplotyped.size()) * 9.B }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotate_with_unmapped_genome_completeness": {
+        "name_process": "annotate_with_unmapped_genome_completeness",
+        "string_process": "\nprocess annotate_with_unmapped_genome_completeness {\n       \n                                                                               \n                                \n                          \n          \n\n        input:\n        path fasta\n        path metadata\n\n        output:\n        path \"${metadata.baseName}.annotated.csv\"\n\n        script:\n        \"\"\"\n        $project_dir/../bin/annotate_with_unmapped_genome_completeness.py \\\n            --in-fasta ${fasta} \\\n            --in-metadata ${metadata} \\\n            --out-metadata \"${metadata.baseName}.annotated.csv\"\n\n        if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.annotated.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${metadata.baseName}.annotated.csv\" | wc -l)\n            exit 1\n        fi\n        \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "        \"\"\"\n        $project_dir/../bin/annotate_with_unmapped_genome_completeness.py \\\n            --in-fasta ${fasta} \\\n            --in-metadata ${metadata} \\\n            --out-metadata \"${metadata.baseName}.annotated.csv\"\n\n        if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.annotated.csv\" | wc -l) ]]\n        then\n            echo \\$(cat \"${metadata}\" | wc -l)\n            echo \\$(cat \"${metadata.baseName}.annotated.csv\" | wc -l)\n            exit 1\n        fi\n        \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "uk_remove_duplicates_COGID_by_proportionN": {
+        "name_process": "uk_remove_duplicates_COGID_by_proportionN",
+        "string_process": "\nprocess uk_remove_duplicates_COGID_by_proportionN {\n       \n                                                    \n                                  \n                                                   \n      \n\n    input:\n    path uk_fasta\n    path uk_metadata\n\n    output:\n    path \"${uk_fasta.baseName}.deduplicated_by_cogid.fa\", emit: uk_fasta_updated\n    path \"${uk_metadata.baseName}.deduplicated_by_cogid.csv\", emit: uk_metadata_updated\n\n    script:\n    \"\"\"\n    $project_dir/../bin/uk_remove_duplicates_COGID_by_proportionN.py \\\n        --in-fasta ${uk_fasta} \\\n        --in-metadata ${uk_metadata} \\\n        --out-fasta \"${uk_fasta.baseName}.deduplicated_by_cogid.fa\" \\\n        --out-metadata \"${uk_metadata.baseName}.deduplicated_by_cogid.csv\"\n\n    if [[ \\$(cat \"${uk_metadata}\" | wc -l) != \\$(cat \"${uk_metadata.baseName}.deduplicated_by_cogid.csv\" | wc -l) ]]\n    then\n        echo \\$(cat \"${uk_metadata}\" | wc -l)\n        echo \\$(cat \"${uk_metadata.baseName}.deduplicated_by_cogid.csv\" | wc -l)\n        exit 1\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/uk_remove_duplicates_COGID_by_proportionN.py \\\n        --in-fasta ${uk_fasta} \\\n        --in-metadata ${uk_metadata} \\\n        --out-fasta \"${uk_fasta.baseName}.deduplicated_by_cogid.fa\" \\\n        --out-metadata \"${uk_metadata.baseName}.deduplicated_by_cogid.csv\"\n\n    if [[ \\$(cat \"${uk_metadata}\" | wc -l) != \\$(cat \"${uk_metadata.baseName}.deduplicated_by_cogid.csv\" | wc -l) ]]\n    then\n        echo \\$(cat \"${uk_metadata}\" | wc -l)\n        echo \\$(cat \"${uk_metadata.baseName}.deduplicated_by_cogid.csv\" | wc -l)\n        exit 1\n    fi\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_fasta",
+            "uk_metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "remove_duplicates_by_date": {
+        "name_process": "remove_duplicates_by_date",
+        "string_process": "\nprocess remove_duplicates_by_date {\n       \n                                                       \n                            \n                                             \n      \n\n    memory { 1.GB * task.attempt + metadata.size() * 2.B }    \n\n    input:\n    path fasta\n    path metadata\n\n    output:\n    path \"${fasta.baseName}.deduplicated.fa\", emit: fasta_updated\n    path \"${metadata.baseName}.deduplicated.csv\", emit: metadata_updated\n\n    script:\n    \"\"\"\n    $project_dir/../bin/remove_duplicates_by_date.py \\\n        --in-fasta ${fasta} \\\n        --in-metadata ${metadata} \\\n        --out-fasta \"${fasta.baseName}.deduplicated.fa\" \\\n        --out-metadata \"${metadata.baseName}.deduplicated.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.deduplicated.csv\" | wc -l) ]]\n    then\n        echo \\$(cat \"${metadata}\" | wc -l)\n        echo \\$(cat \"${metadata.baseName}.deduplicated.csv\" | wc -l)\n        exit 1\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/remove_duplicates_by_date.py \\\n        --in-fasta ${fasta} \\\n        --in-metadata ${metadata} \\\n        --out-fasta \"${fasta.baseName}.deduplicated.fa\" \\\n        --out-metadata \"${metadata.baseName}.deduplicated.csv\"\n\n    if [[ \\$(cat \"${metadata}\" | wc -l) != \\$(cat \"${metadata.baseName}.deduplicated.csv\" | wc -l) ]]\n    then\n        echo \\$(cat \"${metadata}\" | wc -l)\n        echo \\$(cat \"${metadata.baseName}.deduplicated.csv\" | wc -l)\n        exit 1\n    fi\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "memory { 1.GB * task.attempt + metadata.size() * 2.B }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "unify_headers": {
+        "name_process": "unify_headers",
+        "string_process": "\nprocess unify_headers {\n    input:\n    path fasta\n    path metadata\n\n    output:\n    path \"${fasta.baseName}.UH.fa\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import csv\n\n    alignment = SeqIO.index(\"${fasta}\", \"fasta\")\n\n    with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${fasta.baseName}.UH.fa\", \"w\") as fasta_out:\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        id_key = \"fasta_header\"\n        if \"edin_header\" in reader.fieldnames:\n            id_key = \"edin_header\"\n        for row in reader:\n            if row[\"why_excluded\"]:\n                print(\"excluded\")\n                continue\n            if row[id_key] in alignment:\n                record = alignment[row[id_key]]\n                fasta_out.write(\">\" + row[\"sequence_name\"] + \"\\\\n\")\n                fasta_out.write(str(record.seq) + \"\\\\n\")\n            else:\n                print(id_key, row[id_key])\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import csv\n\n    alignment = SeqIO.index(\"${fasta}\", \"fasta\")\n\n    with open(\"${metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${fasta.baseName}.UH.fa\", \"w\") as fasta_out:\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        id_key = \"fasta_header\"\n        if \"edin_header\" in reader.fieldnames:\n            id_key = \"edin_header\"\n        for row in reader:\n            if row[\"why_excluded\"]:\n                print(\"excluded\")\n                continue\n            if row[id_key] in alignment:\n                record = alignment[row[id_key]]\n                fasta_out.write(\">\" + row[\"sequence_name\"] + \"\\\\n\")\n                fasta_out.write(str(record.seq) + \"\\\\n\")\n            else:\n                print(id_key, row[id_key])\n    \"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "uk_label_sourceid_duplicates_to_omit": {
+        "name_process": "uk_label_sourceid_duplicates_to_omit",
+        "string_process": "\nprocess uk_label_sourceid_duplicates_to_omit {\n       \n                                                                          \n                                  \n                                                   \n      \n\n    publishDir \"${publish_dev}/cog_gisaid/\", pattern: \"*.log\", mode: 'copy'\n\n    input:\n    path uk_metadata\n\n    output:\n    path \"${uk_metadata.baseName}.deduplicated_by_sourceid.csv\", emit: uk_metadata_updated\n    path \"deduplicated_by_sourceid.log\", emit: deduplicate_log\n\n    script:\n    \"\"\"\n    $project_dir/../bin/uk_label_sourceid_duplicates_to_omit.py \\\n        --in-metadata ${uk_metadata} \\\n        --out-metadata \"${uk_metadata.baseName}.deduplicated_by_sourceid.csv\"\n\n    if [[ \\$(cat \"${uk_metadata}\" | wc -l) != \\$(cat \"${uk_metadata.baseName}.deduplicated_by_sourceid.csv\" | wc -l) ]]\n    then\n        echo \\$(cat \"${uk_metadata}\" | wc -l)\n        echo \\$(cat \"${uk_metadata.baseName}.deduplicated_by_sourceid.csv\" | wc -l)\n        exit 1\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/uk_label_sourceid_duplicates_to_omit.py \\\n        --in-metadata ${uk_metadata} \\\n        --out-metadata \"${uk_metadata.baseName}.deduplicated_by_sourceid.csv\"\n\n    if [[ \\$(cat \"${uk_metadata}\" | wc -l) != \\$(cat \"${uk_metadata.baseName}.deduplicated_by_sourceid.csv\" | wc -l) ]]\n    then\n        echo \\$(cat \"${uk_metadata}\" | wc -l)\n        echo \\$(cat \"${uk_metadata.baseName}.deduplicated_by_sourceid.csv\" | wc -l)\n        exit 1\n    fi\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_metadata"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/cog_gisaid/\", pattern: \"*.log\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "gisaid_process_json": {
+        "name_process": "gisaid_process_json",
+        "string_process": "\nprocess gisaid_process_json {\n       \n               \n                 \n                                           \n                              \n      \n\n    input:\n    path json\n\n    output:\n    path \"gisaid.fasta\", emit: fasta\n    path \"gisaid.csv\", emit: metadata\n\n    script:\n    \"\"\"\n    datafunk process_gisaid_data \\\n        --input-json ${json} \\\n        --input-metadata False \\\n        --exclude-file ${gisaid_omissions} \\\n        --output-fasta \"gisaid.fasta\" \\\n        --output-metadata \"gisaid.csv\" \\\n        --exclude-undated\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    datafunk process_gisaid_data \\\n        --input-json ${json} \\\n        --input-metadata False \\\n        --exclude-file ${gisaid_omissions} \\\n        --output-fasta \"gisaid.fasta\" \\\n        --output-metadata \"gisaid.csv\" \\\n        --exclude-undated\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "json"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "gisaid_add_columns_to_metadata": {
+        "name_process": "gisaid_add_columns_to_metadata",
+        "string_process": "\nprocess gisaid_add_columns_to_metadata {\n    input:\n    path gisaid_fasta\n    path gisaid_metadata\n\n    output:\n    path \"${gisaid_metadata.baseName}.add_metadata.csv\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import csv\n\n    alignment = SeqIO.index(\"${gisaid_fasta}\", \"fasta\")\n\n    with open(\"${gisaid_metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${gisaid_metadata.baseName}.add_metadata.csv\", 'w', newline = '') as csv_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames + ['sequence_name', 'why_excluded'], delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            edin_header = row[\"edin_header\"]\n            new_header = edin_header.split(\"|\")[0]\n            row['sequence_name'] = new_header\n            if edin_header not in alignment:\n                row['why_excluded'] = \"filtered during loading from JSON\"\n            elif row[\"edin_epi_day\"] == '':\n                row['why_excluded'] = \"no date\"\n            else:\n                row['why_excluded'] = \"\"\n            writer.writerow(row)\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    from Bio import SeqIO\n    import csv\n\n    alignment = SeqIO.index(\"${gisaid_fasta}\", \"fasta\")\n\n    with open(\"${gisaid_metadata}\", 'r', newline = '') as csv_in, \\\n        open(\"${gisaid_metadata.baseName}.add_metadata.csv\", 'w', newline = '') as csv_out:\n\n        reader = csv.DictReader(csv_in, delimiter=\",\", quotechar='\\\"', dialect = \"unix\")\n        writer = csv.DictWriter(csv_out, fieldnames = reader.fieldnames + ['sequence_name', 'why_excluded'], delimiter=\",\", quotechar='\\\"', quoting=csv.QUOTE_MINIMAL, dialect = \"unix\")\n        writer.writeheader()\n\n        for row in reader:\n            edin_header = row[\"edin_header\"]\n            new_header = edin_header.split(\"|\")[0]\n            row['sequence_name'] = new_header\n            if edin_header not in alignment:\n                row['why_excluded'] = \"filtered during loading from JSON\"\n            elif row[\"edin_epi_day\"] == '':\n                row['why_excluded'] = \"no date\"\n            else:\n                row['why_excluded'] = \"\"\n            writer.writerow(row)\n    \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gisaid_fasta",
+            "gisaid_metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "uk_geography": {
+        "name_process": "uk_geography",
+        "string_process": "\nprocess uk_geography {\n       \n                         \n                                  \n                                \n                             \n      \n\n    memory { 1.GB * task.attempt + uk_fasta.size() * 1.B }\n    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }\n    maxRetries = 1\n\n    publishDir \"${publish_dev}/\", pattern: \"geography/*.csv\", mode: 'copy'\n    publishDir \"${publish_dev}/\", pattern: \"geography/*.txt\", mode: 'copy'\n\n    input:\n    path uk_fasta\n    path uk_metadata\n\n    output:\n    path \"geography/geography.csv\", emit: geography\n    path \"geography/*.csv\"\n    path \"geography/*.txt\"\n\n    script:\n    \"\"\"\n    mkdir geography\n    mkdir geography_tmp\n\n    fastafunk fetch \\\n      --in-fasta ${uk_fasta} \\\n      --in-metadata ${uk_metadata} \\\n      --index-column sequence_name \\\n      --filter-column central_sample_id sequence_name sample_date edin_epi_week \\\n                      adm0 adm1 adm2 adm2_private \\\n      --out-fasta geography_tmp/fetch.fa \\\n      --out-metadata geography_tmp/fetch.csv \\\n      --restrict\n\n    $project_dir/../bin/geography_cleaning/geography_cleaning.py \\\n      --metadata geography_tmp/fetch.csv \\\n      --country-col adm0 \\\n      --adm1-col adm1 \\\n      --adm2-col adm2 \\\n      --outer-postcode-col adm2_private \\\n      --mapping-utils-dir ${geography_utils} \\\n      --epiweek-col edin_epi_week \\\n      --outdir geography\n\n    #rm -rf geography_tmp\n    \"\"\"\n}",
+        "nb_lignes_process": 51,
+        "string_script": "    \"\"\"\n    mkdir geography\n    mkdir geography_tmp\n\n    fastafunk fetch \\\n      --in-fasta ${uk_fasta} \\\n      --in-metadata ${uk_metadata} \\\n      --index-column sequence_name \\\n      --filter-column central_sample_id sequence_name sample_date edin_epi_week \\\n                      adm0 adm1 adm2 adm2_private \\\n      --out-fasta geography_tmp/fetch.fa \\\n      --out-metadata geography_tmp/fetch.csv \\\n      --restrict\n\n    $project_dir/../bin/geography_cleaning/geography_cleaning.py \\\n      --metadata geography_tmp/fetch.csv \\\n      --country-col adm0 \\\n      --adm1-col adm1 \\\n      --adm2-col adm2 \\\n      --outer-postcode-col adm2_private \\\n      --mapping-utils-dir ${geography_utils} \\\n      --epiweek-col edin_epi_week \\\n      --outdir geography\n\n    #rm -rf geography_tmp\n    \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_fasta",
+            "uk_metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "memory { 1.GB * task.attempt + uk_fasta.size() * 1.B }",
+            "errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }",
+            "maxRetries = 1",
+            "publishDir \"${publish_dev}/\", pattern: \"geography/*.csv\", mode: 'copy'",
+            "publishDir \"${publish_dev}/\", pattern: \"geography/*.txt\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "add_uk_geography_to_metadata": {
+        "name_process": "add_uk_geography_to_metadata",
+        "string_process": "\nprocess add_uk_geography_to_metadata {\n       \n                                      \n                                                  \n                      \n      \n\n    publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_master.csv\"}\n    memory { 1.GB * task.attempt + uk_metadata.size() * 2.B }\n\n    input:\n    path uk_metadata\n    path geography_metadata\n\n    output:\n    path \"cog_geography.csv\", emit: metadata\n\n    script:\n    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${uk_metadata} \\\n          --in-data ${geography_metadata} \\\n          --index-column sequence_name \\\n          --join-on sequence_name \\\n          --force-overwrite \\\n          --new-columns adm1 adm1_raw adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n          --out-metadata \"cog_geography.csv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${uk_metadata} \\\n          --in-data ${geography_metadata} \\\n          --index-column sequence_name \\\n          --join-on sequence_name \\\n          --force-overwrite \\\n          --new-columns adm1 adm1_raw adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n          --out-metadata \"cog_geography.csv\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_metadata",
+            "geography_metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_master.csv\"}",
+            "memory { 1.GB * task.attempt + uk_metadata.size() * 2.B }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "gisaid_geography": {
+        "name_process": "gisaid_geography",
+        "string_process": "\nprocess gisaid_geography {\n       \n                         \n                                          \n                                \n                             \n      \n\n    memory { 1.GB * task.attempt + fasta.size() * 1.B }\n    errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }\n    maxRetries = 1\n\n    publishDir \"${publish_dev}/\", pattern: \"geography/*.csv\", mode: 'copy'\n    publishDir \"${publish_dev}/\", pattern: \"geography/*.txt\", mode: 'copy'\n\n    input:\n    path gisaid_fasta\n    path gisaid_metadata\n\n    output:\n    path \"geography/geography.csv\", emit: geography\n    path \"geography/*.csv\"\n    path \"geography/*.txt\"\n\n    script:\n    \"\"\"\n    mkdir geography\n    mkdir geography_tmp\n\n    fastafunk fetch \\\n      --in-fasta ${fasta} \\\n      --in-metadata ${metadata} \\\n      --index-column sequence_name \\\n      --filter-column gisaid_accession sequence_name sample_date epi_week \\\n                      adm0 adm1 adm2 adm2_private \\\n      --where-column gisaid_accession=covv_accession_id epi_week=edin_epi_week adm0=edin_admin_0 adm1=edin_admin_1 adm2=edin_admin_2\\\n      --out-fasta geography_tmp/fetch.fa \\\n      --out-metadata geography_tmp/fetch.csv \\\n      --restrict\n\n    $project_dir/../bin/geography_cleaning/geography_cleaning.py \\\n      --metadata geography_tmp/fetch.csv \\\n      --country-col adm0 \\\n      --adm1-col adm1 \\\n      --adm2-col adm2 \\\n      --outer-postcode-col adm2_private \\\n      --mapping-utils-dir ${geography_utils} \\\n      --epiweek-col epi_week \\\n      --sample-id-col gisaid_accession \\\n      --outdir geography\n\n    rm -rf geography_tmp\n    \"\"\"\n}",
+        "nb_lignes_process": 53,
+        "string_script": "    \"\"\"\n    mkdir geography\n    mkdir geography_tmp\n\n    fastafunk fetch \\\n      --in-fasta ${fasta} \\\n      --in-metadata ${metadata} \\\n      --index-column sequence_name \\\n      --filter-column gisaid_accession sequence_name sample_date epi_week \\\n                      adm0 adm1 adm2 adm2_private \\\n      --where-column gisaid_accession=covv_accession_id epi_week=edin_epi_week adm0=edin_admin_0 adm1=edin_admin_1 adm2=edin_admin_2\\\n      --out-fasta geography_tmp/fetch.fa \\\n      --out-metadata geography_tmp/fetch.csv \\\n      --restrict\n\n    $project_dir/../bin/geography_cleaning/geography_cleaning.py \\\n      --metadata geography_tmp/fetch.csv \\\n      --country-col adm0 \\\n      --adm1-col adm1 \\\n      --adm2-col adm2 \\\n      --outer-postcode-col adm2_private \\\n      --mapping-utils-dir ${geography_utils} \\\n      --epiweek-col epi_week \\\n      --sample-id-col gisaid_accession \\\n      --outdir geography\n\n    rm -rf geography_tmp\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gisaid_fasta",
+            "gisaid_metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "memory { 1.GB * task.attempt + fasta.size() * 1.B }",
+            "errorStrategy { task.exitStatus in 137..140 ? 'retry' : 'terminate' }",
+            "maxRetries = 1",
+            "publishDir \"${publish_dev}/\", pattern: \"geography/*.csv\", mode: 'copy'",
+            "publishDir \"${publish_dev}/\", pattern: \"geography/*.txt\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "add_gisaid_geography_to_metadata": {
+        "name_process": "add_gisaid_geography_to_metadata",
+        "string_process": "\nprocess add_gisaid_geography_to_metadata {\n       \n                                                \n                                                \n                      \n      \n\n    publishDir \"${publish_dev}/gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"gisaid_master.csv\"}, overwrite: true\n    memory { 1.GB * task.attempt + combined_metadata.size() * 2.B }\n\n    input:\n    path gisaid_metadata\n    path geography_metadata\n\n    output:\n    path \"gisaid_geography.csv\", emit: metadata\n\n    script:\n    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${gisaid_metadata} \\\n          --in-data ${geography_metadata} \\\n          --index-column sequence_name \\\n          --join-on sequence_name \\\n          --force-overwrite \\\n          --new-columns edin_admin_0 edin_admin_1 edin_admin_2 adm1 adm1_raw adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n          --where-column edin_admin_0=adm0 edin_admin_1=adm1 edin_admin_2=adm2 \\\n          --out-metadata \"gisaid_geography.csv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    fastafunk add_columns \\\n          --in-metadata ${gisaid_metadata} \\\n          --in-data ${geography_metadata} \\\n          --index-column sequence_name \\\n          --join-on sequence_name \\\n          --force-overwrite \\\n          --new-columns edin_admin_0 edin_admin_1 edin_admin_2 adm1 adm1_raw adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n          --where-column edin_admin_0=adm0 edin_admin_1=adm1 edin_admin_2=adm2 \\\n          --out-metadata \"gisaid_geography.csv\"\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gisaid_metadata",
+            "geography_metadata"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"gisaid_master.csv\"}, overwrite: true",
+            "memory { 1.GB * task.attempt + combined_metadata.size() * 2.B }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "make_delta_by_utla_summary": {
+        "name_process": "make_delta_by_utla_summary",
+        "string_process": "\nprocess make_delta_by_utla_summary {\n       \n                                     \n                     \n                 \n      \n\n    publishDir \"${publish_dir}/cog\", pattern: \"*.csv\", mode: 'copy', overwrite: false\n\n    input:\n    path metadata\n\n    output:\n    path \"UTLA_genome_counts_${params.date}.csv\"\n\n    script:\n    \"\"\"\n    $project_dir/../bin/summarise_genomes_by_utla.py \\\n      --metadata ${metadata} \\\n      --date ${params.date}\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/summarise_genomes_by_utla.py \\\n      --metadata ${metadata} \\\n      --date ${params.date}\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dir}/cog\", pattern: \"*.csv\", mode: 'copy', overwrite: false"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "publish_master_metadata": {
+        "name_process": "publish_master_metadata",
+        "string_process": "\nprocess publish_master_metadata {\n       \n                                                     \n                     \n                      \n      \n\n    publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'\n\n    input:\n    path metadata\n    val category\n\n    output:\n    path \"${category}/${category}_master.csv\"\n\n    script:\n    \"\"\"\n    mkdir -p ${category}\n    cp ${metadata} ${category}/${category}_master.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    mkdir -p ${category}\n    cp ${metadata} ${category}/${category}_master.csv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadata",
+            "category"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}\", pattern: \"*/*.csv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_cog_gisaid": {
+        "name_process": "combine_cog_gisaid",
+        "string_process": "\nprocess combine_cog_gisaid {\n       \n                                                       \n                                                                 \n                                                   \n      \n\n    publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.fa\", mode: 'copy'\n    publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_master.csv\"}\n\n    input:\n    path uk_fasta\n    path uk_metadata\n    path gisaid_fasta\n    path gisaid_metadata\n\n    output:\n    path \"cog_gisaid.fa\", emit: fasta\n    path \"cog_gisaid.csv\", emit: metadata\n\n    script:\n    \"\"\"\n        fastafunk fetch \\\n          --in-fasta ${uk_fasta} \\\n          --in-metadata ${uk_metadata} \\\n          --index-column sequence_name \\\n          --filter-column fasta_header covv_accession_id central_sample_id biosample_source_id secondary_identifier root_sample_id source_id \\\n                          sequence_name sample_date safe_sample_date epi_week epi_day collection_date received_date published_date \\\n                          country adm1 adm1_raw adm1_UK adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n                          is_uk is_cog_uk \\\n                          submission_org_code submission_user collection_pillar is_pillar_2 is_surveillance is_community is_hcw \\\n                          is_travel_history travel_history \\\n                          lineage lineages_version lineage_conflict lineage_ambiguity_score scorpio_call scorpio_support scorpio_conflict \\\n                          usher_lineage usher_lineages_version \\\n                          source_age source_sex sample_type_collected sample_type_received swab_site \\\n                          ct_n_ct_value ct_n_test_kit ct_n_test_platform ct_n_test_target \\\n                          unmapped_genome_completeness duplicate why_excluded nucleotide_mutations \\\n                          uk_lineage microreact_lineage del_lineage del_introduction phylotype \\\n          --where-column epi_week=edin_epi_week epi_day=edin_epi_day country=adm0 lineage_support=probability lineages_version=pangoLEARN_version adm1_UK=adm1_raw published_date=sequencing_submission_date \\\n          --out-fasta \"intermediate_cog.fa\" \\\n          --out-metadata \"intermediate_cog.csv\" \\\n          --restrict --low-memory\n\n        fastafunk fetch \\\n          --in-fasta ${gisaid_fasta} \\\n          --in-metadata ${gisaid_metadata} \\\n          --index-column sequence_name \\\n          --filter-column fasta_header covv_accession_id central_sample_id biosample_source_id secondary_identifier root_sample_id source_id \\\n                          sequence_name sample_date safe_sample_date epi_week epi_day collection_date received_date published_date \\\n                          country adm1 adm1_raw adm1_UK adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n                          is_uk is_cog_uk \\\n                          submission_org_code submission_user collection_pillar is_pillar_2 is_surveillance is_community is_hcw \\\n                          is_travel_history travel_history \\\n                          lineage lineages_version lineage_conflict lineage_ambiguity_score scorpio_call scorpio_support scorpio_conflict \\\n                          usher_lineage usher_lineages_version \\\n                          source_age source_sex sample_type_collected sample_type_received swab_site \\\n                          ct_n_ct_value ct_n_test_kit ct_n_test_platform ct_n_test_target \\\n                          unmapped_genome_completeness duplicate why_excluded nucleotide_mutations \\\n                          uk_lineage microreact_lineage del_lineage del_introduction phylotype \\\n          --where-column adm1=edin_admin_1 travel_history=edin_travel published_date=covv_subm_date\\\n          --out-fasta \"intermediate_gisaid.fa\" \\\n          --out-metadata \"intermediate_gisaid.csv\" \\\n          --restrict --low-memory\n\n        cat intermediate_cog.fa intermediate_gisaid.fa > cog_gisaid.fa\n        cat intermediate_cog.csv > cog_gisaid.csv\n        tail -n+2 intermediate_gisaid.csv >> cog_gisaid.csv\n\n        head -n1 intermediate_cog.csv > head_cog.txt\n        head -n1 intermediate_gisaid.csv > head_gisaid.txt\n        cmp --silent head_cog.txt head_gisaid.txt || exit 1\n    \"\"\"\n}",
+        "nb_lignes_process": 72,
+        "string_script": "    \"\"\"\n        fastafunk fetch \\\n          --in-fasta ${uk_fasta} \\\n          --in-metadata ${uk_metadata} \\\n          --index-column sequence_name \\\n          --filter-column fasta_header covv_accession_id central_sample_id biosample_source_id secondary_identifier root_sample_id source_id \\\n                          sequence_name sample_date safe_sample_date epi_week epi_day collection_date received_date published_date \\\n                          country adm1 adm1_raw adm1_UK adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n                          is_uk is_cog_uk \\\n                          submission_org_code submission_user collection_pillar is_pillar_2 is_surveillance is_community is_hcw \\\n                          is_travel_history travel_history \\\n                          lineage lineages_version lineage_conflict lineage_ambiguity_score scorpio_call scorpio_support scorpio_conflict \\\n                          usher_lineage usher_lineages_version \\\n                          source_age source_sex sample_type_collected sample_type_received swab_site \\\n                          ct_n_ct_value ct_n_test_kit ct_n_test_platform ct_n_test_target \\\n                          unmapped_genome_completeness duplicate why_excluded nucleotide_mutations \\\n                          uk_lineage microreact_lineage del_lineage del_introduction phylotype \\\n          --where-column epi_week=edin_epi_week epi_day=edin_epi_day country=adm0 lineage_support=probability lineages_version=pangoLEARN_version adm1_UK=adm1_raw published_date=sequencing_submission_date \\\n          --out-fasta \"intermediate_cog.fa\" \\\n          --out-metadata \"intermediate_cog.csv\" \\\n          --restrict --low-memory\n\n        fastafunk fetch \\\n          --in-fasta ${gisaid_fasta} \\\n          --in-metadata ${gisaid_metadata} \\\n          --index-column sequence_name \\\n          --filter-column fasta_header covv_accession_id central_sample_id biosample_source_id secondary_identifier root_sample_id source_id \\\n                          sequence_name sample_date safe_sample_date epi_week epi_day collection_date received_date published_date \\\n                          country adm1 adm1_raw adm1_UK adm2 outer_postcode adm2_raw adm2_source NUTS1 region latitude longitude location safe_location utla utla_code suggested_adm2_grouping \\\n                          is_uk is_cog_uk \\\n                          submission_org_code submission_user collection_pillar is_pillar_2 is_surveillance is_community is_hcw \\\n                          is_travel_history travel_history \\\n                          lineage lineages_version lineage_conflict lineage_ambiguity_score scorpio_call scorpio_support scorpio_conflict \\\n                          usher_lineage usher_lineages_version \\\n                          source_age source_sex sample_type_collected sample_type_received swab_site \\\n                          ct_n_ct_value ct_n_test_kit ct_n_test_platform ct_n_test_target \\\n                          unmapped_genome_completeness duplicate why_excluded nucleotide_mutations \\\n                          uk_lineage microreact_lineage del_lineage del_introduction phylotype \\\n          --where-column adm1=edin_admin_1 travel_history=edin_travel published_date=covv_subm_date\\\n          --out-fasta \"intermediate_gisaid.fa\" \\\n          --out-metadata \"intermediate_gisaid.csv\" \\\n          --restrict --low-memory\n\n        cat intermediate_cog.fa intermediate_gisaid.fa > cog_gisaid.fa\n        cat intermediate_cog.csv > cog_gisaid.csv\n        tail -n+2 intermediate_gisaid.csv >> cog_gisaid.csv\n\n        head -n1 intermediate_cog.csv > head_cog.txt\n        head -n1 intermediate_gisaid.csv > head_gisaid.txt\n        cmp --silent head_cog.txt head_gisaid.txt || exit 1\n    \"\"\"",
+        "nb_lignes_script": 50,
+        "language_script": "bash",
+        "tools": [
+            "LineagePulse",
+            "CCMP"
+        ],
+        "tools_url": [
+            "https://bio.tools/lineagepulse",
+            "https://bio.tools/CCMP"
+        ],
+        "tools_dico": [
+            {
+                "name": "LineagePulse",
+                "uri": "https://bio.tools/lineagepulse",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential gene expression profiling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential gene analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differentially expressed gene identification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential gene expression analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "It is a differential expression and expression model fitting package tailored to single-cell RNA-seq data (scRNA-seq). LineagePulse accounts for batch effects, drop-out and variable sequencing depth. One can use LineagePulse to perform longitudinal differential expression analysis across pseudotime as a continuous coordinate or between discrete groups of cells. Expression model fits can be directly extracted from LineagePulse.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/LineagePulse.html"
+            },
+            {
+                "name": "CCMP",
+                "uri": "https://bio.tools/CCMP",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Microbial ecology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Biomarkers"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Environmental microbiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Diagnostic markers"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software-as-a-service approach for fully-automated microbiome profiling | Microbiome profiling holds great promise for the development of novel disease biomarkers and therapeutics. Next-generation sequencing is currently the preferred method for microbiome data collection and multiple standardized tools, packages, and pipelines have been developed for the purpose of raw data processing and microbial annotation. However, these currently available pipelines come with entry-level barriers such as high-performance hardware, software installation, and sequential command-line scripting that often deter end-users. We thus created Cloud Computing for Microbiome Profiling (CCMP, https: ccmp.usc.edu), a public cloud-based web tool which combines the analytical power of current microbiome analysis platforms with a user-friendly interface",
+                "homepage": "https://ccmp.usc.edu"
+            }
+        ],
+        "inputs": [
+            "uk_fasta",
+            "uk_metadata",
+            "gisaid_fasta",
+            "gisaid_metadata"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.fa\", mode: 'copy'",
+            "publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_master.csv\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_mutations": {
+        "name_process": "combine_mutations",
+        "string_process": "\nprocess combine_mutations {\n       \n                                                                \n                                                                 \n                                                   \n      \n\n    publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_mutations.csv\"}\n\n    input:\n    path uk_mutations\n    path gisaid_mutations\n\n    output:\n    path \"cog_gisaid_mutations.csv\"\n\n    script:\n    \"\"\"\n    fastafunk merge \\\n      --in-metadata ${uk_mutations} ${gisaid_mutations} \\\n      --out-metadata \"cog_gisaid_mutations.csv\" \\\n      --index-column \"sequence_name\"\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    fastafunk merge \\\n      --in-metadata ${uk_mutations} ${gisaid_mutations} \\\n      --out-metadata \"cog_gisaid_mutations.csv\" \\\n      --index-column \"sequence_name\"\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_mutations",
+            "gisaid_mutations"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_mutations.csv\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_constellations": {
+        "name_process": "combine_constellations",
+        "string_process": "\nprocess combine_constellations {\n       \n                                                                     \n                                                                 \n                                                   \n      \n\n    publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_constellations.csv\"}\n\n    input:\n    path uk_constellations\n    path gisaid_constellations\n\n    output:\n    path \"cog_gisaid_constellations.csv\"\n\n    script:\n    \"\"\"\n    fastafunk merge \\\n      --in-metadata ${uk_constellations} ${gisaid_constellations} \\\n      --out-metadata \"cog_gisaid_constellations.csv\" \\\n      --index-column \"sequence_name\"\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    fastafunk merge \\\n      --in-metadata ${uk_constellations} ${gisaid_constellations} \\\n      --out-metadata \"cog_gisaid_constellations.csv\" \\\n      --index-column \"sequence_name\"\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_constellations",
+            "gisaid_constellations"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_constellations.csv\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_updown": {
+        "name_process": "combine_updown",
+        "string_process": "\nprocess combine_updown {\n       \n                                                    \n                                    \n                               \n      \n\n    publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_updown.csv\"}\n\n    input:\n    path uk_updown\n    path gisaid_updown\n\n    output:\n    path \"cog_gisaid_updown.csv\"\n\n    script:\n    \"\"\"\n    cp ${uk_updown} tmp.csv\n    tail -n+1 ${gisaid_updown} >> tmp.csv\n    grep -v \",,,,\" tmp.csv > \"cog_gisaid_updown.csv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    cp ${uk_updown} tmp.csv\n    tail -n+1 ${gisaid_updown} >> tmp.csv\n    grep -v \",,,,\" tmp.csv > \"cog_gisaid_updown.csv\"\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_updown",
+            "gisaid_updown"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/cog_gisaid\", pattern: \"*.csv\", mode: 'copy', saveAs: {\"cog_gisaid_updown.csv\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "split_recipes": {
+        "name_process": "split_recipes",
+        "string_process": "\nprocess split_recipes {\n    input:\n    path recipes\n\n    output:\n    path \"*.json\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\n    import json\n    i = 0\n\n    with open(\"${recipes}\", 'r') as f:\n        recipes = json.load(f)\n\n        for d in recipes:\n            for entry in recipes[d]:\n                new_recipes = {d:[entry]}\n                with open(\"%i.json\" %i, 'w') as handle:\n                    json.dump(new_recipes,handle)\n                i += 1\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\n    import json\n    i = 0\n\n    with open(\"${recipes}\", 'r') as f:\n        recipes = json.load(f)\n\n        for d in recipes:\n            for entry in recipes[d]:\n                new_recipes = {d:[entry]}\n                with open(\"%i.json\" %i, 'w') as handle:\n                    json.dump(new_recipes,handle)\n                i += 1\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "recipes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "publish_cog_global_recipes": {
+        "name_process": "publish_cog_global_recipes",
+        "string_process": "\nprocess publish_cog_global_recipes {\n       \n                                                                            \n                                                                                    \n                                                                      \n                                  \n                  \n      \n\n    publishDir \"${publish_dir}/\", pattern: \"*/*.*\", mode: 'copy', overwrite: false\n    publishDir \"${publish_dir}/\", pattern: \"README\", mode: 'copy', overwrite: false\n\n    memory { 1.GB * task.attempt + combined_metadata.size() * 4.B }\n    errorStrategy = { 'retry' }\n    maxRetries 3\n\n    input:\n    tuple path(uk_unaligned_fasta),path(uk_aligned_fasta),path(uk_trimmed_fasta),path(combined_fasta),path(uk_metadata),path(combined_metadata),path(combined_mutations),path(combined_constellations),path(combined_updown),path(recipe)\n\n    output:\n    path \"${recipe.baseName}.done.txt\", emit: flag\n    path \"README\", emit: readme\n    path \"public/cog_${params.date}_all.fa\", optional: true, emit: fasta\n    path \"public/cog_${params.date}_metadata.csv\", optional: true, emit: metadata\n    path \"public/cog_${params.date}_alignment.fa\", optional: true, emit: alignment\n    path \"public/cog_${params.date}_unmasked_alignment.fa\", optional: true, emit: unmasked_alignment\n    path \"*/cog_*.*\", emit: all\n\n    script:\n    \"\"\"\n    cp $project_dir/../resources/publish_readme.txt README\n\n    $project_dir/../bin/publish_from_config.py \\\n      --unaligned_fasta ${uk_unaligned_fasta} \\\n      --aligned_fasta ${uk_aligned_fasta} \\\n      --trimmed_fasta ${uk_trimmed_fasta} \\\n      --cog_global_fasta ${combined_fasta} \\\n      --cog_metadata ${uk_metadata} \\\n      --cog_global_metadata ${combined_metadata} \\\n      --mutations ${combined_mutations} \\\n      --constellations ${combined_constellations} \\\n      --updown ${combined_updown} \\\n      --recipes ${recipe} \\\n      --date ${params.date}\n      touch \"${recipe.baseName}.done.txt\"\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    \"\"\"\n    cp $project_dir/../resources/publish_readme.txt README\n\n    $project_dir/../bin/publish_from_config.py \\\n      --unaligned_fasta ${uk_unaligned_fasta} \\\n      --aligned_fasta ${uk_aligned_fasta} \\\n      --trimmed_fasta ${uk_trimmed_fasta} \\\n      --cog_global_fasta ${combined_fasta} \\\n      --cog_metadata ${uk_metadata} \\\n      --cog_global_metadata ${combined_metadata} \\\n      --mutations ${combined_mutations} \\\n      --constellations ${combined_constellations} \\\n      --updown ${combined_updown} \\\n      --recipes ${recipe} \\\n      --date ${params.date}\n      touch \"${recipe.baseName}.done.txt\"\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "uk_unaligned_fasta",
+            "uk_aligned_fasta",
+            "uk_trimmed_fasta",
+            "combined_fasta",
+            "uk_metadata",
+            "combined_metadata",
+            "combined_mutations",
+            "combined_constellations",
+            "combined_updown",
+            "recipe"
+        ],
+        "nb_inputs": 10,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dir}/\", pattern: \"*/*.*\", mode: 'copy', overwrite: false",
+            "publishDir \"${publish_dir}/\", pattern: \"README\", mode: 'copy', overwrite: false",
+            "memory { 1.GB * task.attempt + combined_metadata.size() * 4.B }",
+            "errorStrategy = { 'retry' }",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "publish_s3": {
+        "name_process": "publish_s3",
+        "string_process": "\nprocess publish_s3 {\n       \n                                  \n                                                          \n      \n    publishDir \"${publish_dev}/\", pattern: \"s3dir\", mode: 'copy'\n\n    input:\n    path fasta\n    path metadata\n    path alignment\n    path unmasked_alignment\n\n    output:\n    path s3dir\n\n\n    script:\n    \"\"\"\n    mkdir -p s3dir\n    cp ${fasta} s3dir/cog_all.fasta\n    cp ${metadata} s3dir/cog_metadata.csv\n    cp ${alignment} s3dir/cog_alignment.fasta\n    cp ${unmasked_alignment} s3dir/cog_unmasked_alignment.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    mkdir -p s3dir\n    cp ${fasta} s3dir/cog_all.fasta\n    cp ${metadata} s3dir/cog_metadata.csv\n    cp ${alignment} s3dir/cog_alignment.fasta\n    cp ${unmasked_alignment} s3dir/cog_unmasked_alignment.fasta\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta",
+            "metadata",
+            "alignment",
+            "unmasked_alignment"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "s3dir"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dev}/\", pattern: \"s3dir\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "publish_gisaid_recipes": {
+        "name_process": "publish_gisaid_recipes",
+        "string_process": "\nprocess publish_gisaid_recipes {\n       \n                                                                            \n                                                                                                \n                                                                              \n                                  \n                  \n      \n\n    publishDir \"${publish_dir}/\", pattern: \"*/*.*\", mode: 'copy', overwrite: false\n\n    memory { 1.GB * task.attempt + gisaid_metadata.size() * 8.B }\n    errorStrategy = { 'retry' }\n    maxRetries 3\n\n    input:\n    tuple path(gisaid_fasta),path(gisaid_metadata),path(gisaid_mutations),path(gisaid_constellations),path(gisaid_updown),path(recipe)\n\n    output:\n    path \"*/gisaid_*.*\", emit: all\n    path \"*/gisaid_*_global_alignment.fa\", optional: true, emit: fasta\n    path \"*/gisaid_*_global_metadata.csv\", optional: true, emit: metadata\n    path \"*/gisaid_*_global_mutations.csv\", optional: true, emit: mutations\n    path \"*/gisaid_*_global_constellations.csv\", optional: true, emit: constellations\n    path \"*/gisaid_*_global_updown.csv\", optional: true, emit: updown\n\n    script:\n    \"\"\"\n    $project_dir/../bin/publish_from_config.py \\\n      --recipes ${recipe} \\\n      --date ${params.date} \\\n      --gisaid_fasta ${gisaid_fasta} \\\n      --gisaid_metadata ${gisaid_metadata} \\\n      --mutations ${gisaid_mutations} \\\n      --constellations ${gisaid_constellations} \\\n      --updown ${gisaid_updown}\n    \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    \"\"\"\n    $project_dir/../bin/publish_from_config.py \\\n      --recipes ${recipe} \\\n      --date ${params.date} \\\n      --gisaid_fasta ${gisaid_fasta} \\\n      --gisaid_metadata ${gisaid_metadata} \\\n      --mutations ${gisaid_mutations} \\\n      --constellations ${gisaid_constellations} \\\n      --updown ${gisaid_updown}\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gisaid_fasta",
+            "gisaid_metadata",
+            "gisaid_mutations",
+            "gisaid_constellations",
+            "gisaid_updown",
+            "recipe"
+        ],
+        "nb_inputs": 6,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [
+            "publishDir \"${publish_dir}/\", pattern: \"*/*.*\", mode: 'copy', overwrite: false",
+            "memory { 1.GB * task.attempt + gisaid_metadata.size() * 8.B }",
+            "errorStrategy = { 'retry' }",
+            "maxRetries 3"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "announce_to_webhook": {
+        "name_process": "announce_to_webhook",
+        "string_process": "\nprocess announce_to_webhook {\n    input:\n    file published_files\n    val name\n\n    script:\n    if (params.webhook)\n        \"\"\"\n        echo '{\"text\":\"' > announce.json\n        echo \"*${name} Complete*\\\\n\" >> announce.json\n        echo \"> Dev outputs in : ${publish_dev}\\\\n\" >> announce.json\n        echo \"> Publishable outputs in : ${publish_dir}\\\\n\" >> announce.json\n        echo '\"}' >> announce.json\n        echo 'webhook ${params.webhook}'\n\n        curl -X POST -H \"Content-type: application/json\" -d @announce.json ${params.webhook}\n        \"\"\"\n    else\n        \"\"\"\n        touch \"announce.json\"\n        \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    if (params.webhook)\n        \"\"\"\n        echo '{\"text\":\"' > announce.json\n        echo \"*${name} Complete*\\\\n\" >> announce.json\n        echo \"> Dev outputs in : ${publish_dev}\\\\n\" >> announce.json\n        echo \"> Publishable outputs in : ${publish_dir}\\\\n\" >> announce.json\n        echo '\"}' >> announce.json\n        echo 'webhook ${params.webhook}'\n\n        curl -X POST -H \"Content-type: application/json\" -d @announce.json ${params.webhook}\n        \"\"\"\n    else\n        \"\"\"\n        touch \"announce.json\"\n        \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "imDEV",
+            "CURLS"
+        ],
+        "tools_url": [
+            "https://bio.tools/imdev",
+            "https://bio.tools/CURLS"
+        ],
+        "tools_dico": [
+            {
+                "name": "imDEV",
+                "uri": "https://bio.tools/imdev",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3391",
+                            "term": "Omics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3664",
+                                    "term": "Statistical modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "Weighted correlation network analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3658",
+                                    "term": "Statistical inference"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2939",
+                                    "term": "Principal component visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0531",
+                                    "term": "Heat map generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3441",
+                                    "term": "Plotting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2940",
+                                    "term": "Scatter plot plotting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3432",
+                                    "term": "Clustering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2990",
+                                    "term": "Classification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3435",
+                                    "term": "Standardisation and normalisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2936",
+                                    "term": "Dendrograph plotting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3465",
+                                    "term": "Correlation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3659",
+                                    "term": "Regression analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "WGCNA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "Weighted gene co-expression network analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2939",
+                                    "term": "PCA plotting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2939",
+                                    "term": "Principal component plotting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0531",
+                                    "term": "Heatmap generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0531",
+                                    "term": "Heat map construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2940",
+                                    "term": "Scatter chart plotting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2082",
+                                "term": "Matrix"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2082",
+                                "term": "Matrix"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2884",
+                                "term": "Plot"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1636",
+                                "term": "Heat map"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Data exploration and visualization in Excel.",
+                "homepage": "http://imdevsoftware.wordpress.com/"
+            },
+            {
+                "name": "CURLS",
+                "uri": "https://bio.tools/CURLS",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "Public health and epidemiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3421",
+                            "term": "Surgery"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Pathology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiovascular medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "https://en.wikipedia.org/wiki/Public_health"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "https://en.wikipedia.org/wiki/Epidemiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3421",
+                            "term": "https://en.wikipedia.org/wiki/Surgery"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "https://en.wikipedia.org/wiki/Pathology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "towards a wider use of basic echo applications in Africa.\n\nBACKGROUND:Point-of-care ultrasound is increasingly being used as a diagnostic tool in resource-limited settings. The majority of existing ultrasound protocols have been developed and implemented in high-resource settings. In sub-Saharan Africa (SSA), patients with heart failure of various etiologies commonly present late in the disease process, with a similar syndrome of dyspnea, edema and cardiomegaly on chest X-ray. The causes of heart failure in SSA differ from those in high-resource settings. Point-of-care ultrasound has the potential to identify the underlying etiology of heart failure, and lead to targeted therapy.\n\n||| HOMEPAGE MISSING!.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'ultrasound', 'Cardiac ultrasound resource-limited settings', 'high-resource', 'cardiomegaly SSA'",
+                "homepage": "https://www.ncbi.nlm.nih.gov/pubmed/?term=31883027"
+            }
+        ],
+        "inputs": [
+            "published_files",
+            "name"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "COG-UK__datapipe",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

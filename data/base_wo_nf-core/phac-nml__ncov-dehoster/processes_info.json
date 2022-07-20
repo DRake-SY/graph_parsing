@@ -1,0 +1,1933 @@
+{
+    "nanostripper": {
+        "name_process": "nanostripper",
+        "string_process": "process nanostripper {\n    publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fast5_dehosted/${barcodeName}\", mode: \"copy\"\n\n    tag { barcodeName }\n\n    input:\n    tuple path(folder), file(sars_reference), file(human_reference)\n\n    output:\n    path \"fast5_dehosted/${barcodeName}\", emit: dehostedFast5\n    val \"${barcodeName}\", emit: barcode\n\n    script:\n\n    barcodeName = folder.getBaseName().replaceAll(~/\\.*$/, '')\n\n                                                                      \n                                                                             \n    \"\"\"\n    ${params.nanostripper_tool_path}nanostripper -out ./fast5_dehosted -t 8 ${sars_reference} ${human_reference} ${folder}\n    mv ./fast5_dehosted/nanostripper_summary.txt ./fast5_dehosted/${barcodeName}\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    barcodeName = folder.getBaseName().replaceAll(~/\\.*$/, '')\n\n                                                                      \n                                                                             \n    \"\"\"\n    ${params.nanostripper_tool_path}nanostripper -out ./fast5_dehosted -t 8 ${sars_reference} ${human_reference} ${folder}\n    mv ./fast5_dehosted/nanostripper_summary.txt ./fast5_dehosted/${barcodeName}\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sars_reference",
+            "human_reference",
+            "folder"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fast5_dehosted/${barcodeName}\", mode: \"copy\"",
+            "tag { barcodeName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "guppyBasecallerGPU": {
+        "name_process": "guppyBasecallerGPU",
+        "string_process": "\nprocess guppyBasecallerGPU {\n    input:\n    path(dehosted_fast5s)\n\n    output:\n    path \"fastq_pass_dehosted_only\"\n\n    script:\n    \"\"\"\n    bash guppy-gpu.sh ${params.max_parallel_basecalling} ${params.gpu_per_node}\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "    \"\"\"\n    bash guppy-gpu.sh ${params.max_parallel_basecalling} ${params.gpu_per_node}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dehosted_fast5s"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "guppyBasecallerCPU": {
+        "name_process": "guppyBasecallerCPU",
+        "string_process": "\nprocess guppyBasecallerCPU {\n    input:\n    path(dehosted_fast5_barcode)\n\n    output:\n    path \"fastq_pass_dehosted_only/$dehosted_fast5_barcode\"\n\n    script:\n    \"\"\"\n    guppy_basecaller -c dna_r9.4.1_450bps_hac.cfg -r -i $dehosted_fast5_barcode -s fastq_pass_dehosted_only/$dehosted_fast5_barcode\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "    \"\"\"\n    guppy_basecaller -c dna_r9.4.1_450bps_hac.cfg -r -i $dehosted_fast5_barcode -s fastq_pass_dehosted_only/$dehosted_fast5_barcode\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dehosted_fast5_barcode"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "combineFastq": {
+        "name_process": "combineFastq",
+        "string_process": "\nprocess combineFastq {\n    label 'largeMem'\n\n    input:\n    path(fastq_pass_dehosted_only)\n\n    output:\n    file \"combined.fastq\"\n\n    script:\n    \"\"\"\n    cat ./${fastq_pass_dehosted_only}/*/*.fastq > combined.fastq\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    cat ./${fastq_pass_dehosted_only}/*/*.fastq > combined.fastq\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastq_pass_dehosted_only"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'largeMem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqSizeSelection_NS": {
+        "name_process": "fastqSizeSelection_NS",
+        "string_process": "\nprocess fastqSizeSelection_NS {\n    label 'mediumMem'\n\n    input:\n    file(combined_fastq)\n\n    output:\n    file \"${params.run_name}*.fastq\"\n\n    script:\n    \"\"\"\n    mkdir -p fastq_pass_combined_dehosted\n    mv $combined_fastq fastq_pass_combined_dehosted\n    artic guppyplex --min-length ${params.min_length} --max-length ${params.max_length} --directory ./fastq_pass_combined_dehosted --prefix ${params.run_name} \n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    mkdir -p fastq_pass_combined_dehosted\n    mv $combined_fastq fastq_pass_combined_dehosted\n    artic guppyplex --min-length ${params.min_length} --max-length ${params.max_length} --directory ./fastq_pass_combined_dehosted --prefix ${params.run_name} \n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "ARTIC"
+        ],
+        "tools_url": [
+            "https://bio.tools/artic"
+        ],
+        "tools_dico": [
+            {
+                "name": "ARTIC",
+                "uri": "https://bio.tools/artic",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A bioinformatics pipeline for working with virus sequencing data sequenced with nanopore",
+                "homepage": "https://github.com/artic-network/fieldbioinformatics"
+            }
+        ],
+        "inputs": [
+            "combined_fastq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'mediumMem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqDemultiplex": {
+        "name_process": "fastqDemultiplex",
+        "string_process": "\nprocess fastqDemultiplex {\n    publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fastq_pass\", mode: \"copy\"\n\n    label 'largeMem'\n\n    input:\n    file(dehosted_combined_fastq)\n\n    output:\n    path \"fastq_pass\"\n    path \"fastq_pass/*\", type: 'dir', emit: barcodes\n\n    script:\n    \"\"\"\n    guppy_barcoder --require_barcodes_both_ends -i ./ -s fastq_pass --arrangements_files 'barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg barcode_arrs_nb96.cfg'\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    guppy_barcoder --require_barcodes_both_ends -i ./ -s fastq_pass --arrangements_files 'barcode_arrs_nb12.cfg barcode_arrs_nb24.cfg barcode_arrs_nb96.cfg'\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dehosted_combined_fastq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fastq_pass\", mode: \"copy\"",
+            "label 'largeMem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineFast5Barcodes": {
+        "name_process": "combineFast5Barcodes",
+        "string_process": "\nprocess combineFast5Barcodes {\n                                                                                                   \n\n    label 'smallCPU'\n\n    input:\n    path(dehosted_fast5s)\n\n    output:\n    path \"fast5_pass_dehosted_only\"\n\n    script:\n\n    \"\"\"\n    mkdir -p fast5_pass_dehosted_only\n    mv $dehosted_fast5s fast5_pass_dehosted_only/\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    mkdir -p fast5_pass_dehosted_only\n    mv $dehosted_fast5s fast5_pass_dehosted_only/\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dehosted_fast5s"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'smallCPU'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "regenerateFast5s_NS": {
+        "name_process": "regenerateFast5s_NS",
+        "string_process": "\nprocess regenerateFast5s_NS {\n    publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fast5_pass/${barcodeName}\", mode: \"copy\"\n\n    label 'regenerateFast5s'\n    tag { barcodeName }\n\n    input:\n    path(dehosted_fastq_barcode)\n    path(fast5_dehosted)\n\n    output:\n    path \"fast5_pass/${barcodeName}\" , emit: fast5_pass\n    path \"${barcodeName}.csv\" , emit: csv\n\n    script:\n\n    barcodeName = dehosted_fastq_barcode.getBaseName().replaceAll(~/\\.*$/, '')\n\n    def rev = workflow.commitId ?: workflow.revision ?: workflow.scriptId\n\n    \"\"\"\n    bash fast5-dehost-regenerate.sh $dehosted_fastq_barcode $barcodeName $fast5_dehosted ${params.nanopore_threads}\n\n    bash generate-csv.sh ${barcodeName} ${fast5_dehosted}/${barcodeName}/nanostripper_summary.txt fast5_pass/${barcodeName}/filename_mapping.txt ${rev}\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    barcodeName = dehosted_fastq_barcode.getBaseName().replaceAll(~/\\.*$/, '')\n\n    def rev = workflow.commitId ?: workflow.revision ?: workflow.scriptId\n\n    \"\"\"\n    bash fast5-dehost-regenerate.sh $dehosted_fastq_barcode $barcodeName $fast5_dehosted ${params.nanopore_threads}\n\n    bash generate-csv.sh ${barcodeName} ${fast5_dehosted}/${barcodeName}/nanostripper_summary.txt fast5_pass/${barcodeName}/filename_mapping.txt ${rev}\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dehosted_fastq_barcode",
+            "fast5_dehosted"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fast5_pass/${barcodeName}\", mode: \"copy\"",
+            "label 'regenerateFast5s'",
+            "tag { barcodeName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generateSimpleSequencingSummary": {
+        "name_process": "generateSimpleSequencingSummary",
+        "string_process": "\nprocess generateSimpleSequencingSummary {\n    publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"sequencing_summary.txt\", mode: \"copy\"\n\n    label 'smallCPU'\n\n    input:\n    path(fast5_barcode)\n\n    output:\n    path \"sequencing_summary.txt\"\n\n    script:\n    \"\"\"\n    cat <(echo -e \"read_id\\tfilename\") <(cat ./*/filename_mapping.txt) > sequencing_summary.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    cat <(echo -e \"read_id\\tfilename\") <(cat ./*/filename_mapping.txt) > sequencing_summary.txt\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fast5_barcode"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"sequencing_summary.txt\", mode: \"copy\"",
+            "label 'smallCPU'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineCSVs": {
+        "name_process": "combineCSVs",
+        "string_process": "\nprocess combineCSVs {\n    publishDir \"${params.outdir}\", pattern: \"removal_summary.csv\", mode: \"copy\"\n\n    label 'smallCPU'\n\n    input:\n    path(csvs)\n\n    output:\n    path(\"removal_summary.csv\")\n\n    script:\n    \"\"\"\n    csvtk concat *_stats.csv > removal_summary.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    csvtk concat *_stats.csv > removal_summary.csv\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "csvs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}\", pattern: \"removal_summary.csv\", mode: \"copy\"",
+            "label 'smallCPU'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generateMinimap2Index": {
+        "name_process": "generateMinimap2Index",
+        "string_process": "process generateMinimap2Index {\n    publishDir \"${params.outdir}/compositeMinimapIndex\", pattern: \"composite_ref.mmi\", mode: \"symlink\"\n\n    label 'indexResources'\n\n    input:\n    path(human_ref)\n    path(viral_ref)\n\n    output:\n    file \"composite_ref.mmi\"\n\n    script:\n    \"\"\"\n    cat $human_ref $viral_ref > composite_reference.fa\n    minimap2 -d composite_ref.mmi composite_reference.fa\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    cat $human_ref $viral_ref > composite_reference.fa\n    minimap2 -d composite_ref.mmi composite_reference.fa\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            }
+        ],
+        "inputs": [
+            "human_ref",
+            "viral_ref"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/compositeMinimapIndex\", pattern: \"composite_ref.mmi\", mode: \"symlink\"",
+            "label 'indexResources'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqSizeSelection_MM2": {
+        "name_process": "fastqSizeSelection_MM2",
+        "string_process": "\nprocess fastqSizeSelection_MM2 {\n    label 'mediumMem'\n    tag { sampleName }\n\n    input:\n    path(fastq)\n\n    output:\n    tuple val(sampleName), path(\"${sampleName}_size_selected*.fastq\")\n\n    script:\n\n                   \n    sampleName = fastq.getBaseName().replaceAll(~/\\.fastq.*$/, '')\n    \n                                                                    \n                                       \n    if ( fastq.isDirectory() ) {\n        \"\"\"\n        artic guppyplex --min-length ${params.min_length} --max-length ${params.max_length} --prefix ${sampleName}_size_selected --directory $fastq\n        \"\"\"\n    } else {\n        \"\"\"\n        mkdir -p input_fastq\n        mv $fastq input_fastq/\n        artic guppyplex --min-length ${params.min_length} --max-length ${params.max_length} --prefix ${sampleName}_size_selected --directory input_fastq\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    sampleName = fastq.getBaseName().replaceAll(~/\\.fastq.*$/, '')\n    \n                                                                    \n                                       \n    if ( fastq.isDirectory() ) {\n        \"\"\"\n        artic guppyplex --min-length ${params.min_length} --max-length ${params.max_length} --prefix ${sampleName}_size_selected --directory $fastq\n        \"\"\"\n    } else {\n        \"\"\"\n        mkdir -p input_fastq\n        mv $fastq input_fastq/\n        artic guppyplex --min-length ${params.min_length} --max-length ${params.max_length} --prefix ${sampleName}_size_selected --directory input_fastq\n        \"\"\"\n    }",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "ARTIC"
+        ],
+        "tools_url": [
+            "https://bio.tools/artic"
+        ],
+        "tools_dico": [
+            {
+                "name": "ARTIC",
+                "uri": "https://bio.tools/artic",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A bioinformatics pipeline for working with virus sequencing data sequenced with nanopore",
+                "homepage": "https://github.com/artic-network/fieldbioinformatics"
+            }
+        ],
+        "inputs": [
+            "fastq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sampleName"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'mediumMem'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "compositeMappingMM2": {
+        "name_process": "compositeMappingMM2",
+        "string_process": "\nprocess compositeMappingMM2 {\n    label 'mediumMem'\n    tag { sampleName }\n\n    input:\n    tuple val(sampleName), path(singular_fastq), path(composite_ref)\n\n    output:\n    tuple val(sampleName), path(\"${sampleName}.sorted.bam\")\n\n    script:\n    \"\"\"\n    minimap2 -ax map-ont $composite_ref $singular_fastq | samtools view -b | samtools sort -T \"temp\" -O BAM -o ${sampleName}.sorted.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    minimap2 -ax map-ont $composite_ref $singular_fastq | samtools view -b | samtools sort -T \"temp\" -O BAM -o ${sampleName}.sorted.bam\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "sampleName",
+            "singular_fastq",
+            "composite_ref"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "sampleName"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'mediumMem'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "removeHumanReads": {
+        "name_process": "removeHumanReads",
+        "string_process": "\nprocess removeHumanReads {\n    label 'smallCPU'\n    tag { sampleName }\n\n    input:\n    tuple val(sampleName), path(sorted_bam)\n\n    output:\n    tuple val(sampleName), path(\"${sampleName}.host_removed.sorted.bam\"), optional: true, emit: bam\n    path \"${sampleName}*.csv\", emit: csv\n\n    script:\n\n    def rev = workflow.commitId ?: workflow.revision ?: workflow.scriptId\n\n    \"\"\"\n    samtools index $sorted_bam\n    dehost_nanopore.py --file $sorted_bam --min_reads ${params.min_read_count} --output ${sampleName}.host_removed.sorted.bam --revision ${rev}\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    def rev = workflow.commitId ?: workflow.revision ?: workflow.scriptId\n\n    \"\"\"\n    samtools index $sorted_bam\n    dehost_nanopore.py --file $sorted_bam --min_reads ${params.min_read_count} --output ${sampleName}.host_removed.sorted.bam --revision ${rev}\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "sampleName",
+            "sorted_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'smallCPU'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "regenerateFastqFiles": {
+        "name_process": "regenerateFastqFiles",
+        "string_process": "\nprocess regenerateFastqFiles {\n    publishDir \"${params.outdir}/${params.run_name}/run/fastq_pass/${sampleName}\", pattern: \"*.host_removed.fastq\", mode: \"copy\"\n\n    label 'smallCPU'\n    tag { sampleName }\n\n    input:\n    tuple val(sampleName), path(dehosted_bam)\n\n    output:\n    tuple val(sampleName), file(\"${sampleName}.host_removed.fastq\")\n\n    script:\n    \"\"\"\n    samtools fastq $dehosted_bam > ${sampleName}.host_removed.fastq\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    samtools fastq $dehosted_bam > ${sampleName}.host_removed.fastq\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "sampleName",
+            "dehosted_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sampleName"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.run_name}/run/fastq_pass/${sampleName}\", pattern: \"*.host_removed.fastq\", mode: \"copy\"",
+            "label 'smallCPU'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "regenerateFastqFilesFlat": {
+        "name_process": "regenerateFastqFilesFlat",
+        "string_process": "\nprocess regenerateFastqFilesFlat {\n    publishDir \"${params.outdir}/${params.run_name}/run/fastq_pass/\", pattern: \"*.host_removed.fastq\", mode: \"copy\"\n\n    label 'smallCPU'\n    tag { sampleName }\n\n    input:\n    tuple val(sampleName), path(dehosted_bam)\n\n    output:\n    tuple val(sampleName), file(\"${sampleName}.host_removed.fastq\")\n\n    script:\n    \"\"\"\n    samtools fastq $dehosted_bam > ${sampleName}.host_removed.fastq\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    samtools fastq $dehosted_bam > ${sampleName}.host_removed.fastq\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "sampleName",
+            "dehosted_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sampleName"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.run_name}/run/fastq_pass/\", pattern: \"*.host_removed.fastq\", mode: \"copy\"",
+            "label 'smallCPU'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "regenerateFast5s_MM2": {
+        "name_process": "regenerateFast5s_MM2",
+        "string_process": "\nprocess regenerateFast5s_MM2 {\n    publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fast5_pass/${sampleName}\", mode: \"copy\"\n\n    label 'regenerateFast5s'\n    tag { sampleName }\n\n    input:\n    tuple val(sampleName), path(dehosted_fastq_file), path(fast5_in)\n\n    output:\n    path \"fast5_pass/${sampleName}\"\n\n    script:\n    \"\"\"\n    mkdir -p $sampleName\n    mv $dehosted_fastq_file $sampleName/\n    bash fast5-dehost-regenerate.sh $sampleName/ $sampleName $fast5_in ${params.nanopore_threads}\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    mkdir -p $sampleName\n    mv $dehosted_fastq_file $sampleName/\n    bash fast5-dehost-regenerate.sh $sampleName/ $sampleName $fast5_in ${params.nanopore_threads}\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sampleName",
+            "dehosted_fastq_file",
+            "fast5_in"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.run_name}/run\", pattern: \"fast5_pass/${sampleName}\", mode: \"copy\"",
+            "label 'regenerateFast5s'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generateCompositeReference": {
+        "name_process": "generateCompositeReference",
+        "string_process": "process generateCompositeReference {\n    label 'smallCPU'\n\n    input:\n    path(human_ref)\n    path(viral_ref)\n\n    output:\n    file(\"composite_reference.fa\")\n\n    script:\n    \"\"\"\n    cat $human_ref $viral_ref > composite_reference.fa\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    cat $human_ref $viral_ref > composite_reference.fa\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "human_ref",
+            "viral_ref"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'smallCPU'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "grabCompositeIndex": {
+        "name_process": "grabCompositeIndex",
+        "string_process": "\nprocess grabCompositeIndex {\n    label 'smallCPU'\n\n    input:\n    path(index_folder)\n\n    output:\n    file(\"*.fa*\")\n\n    script:\n    \"\"\"\n    ln -sf $index_folder/*.fa* ./\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    ln -sf $index_folder/*.fa* ./\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "index_folder"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "label 'smallCPU'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "indexCompositeReference": {
+        "name_process": "indexCompositeReference",
+        "string_process": "\nprocess indexCompositeReference {\n    publishDir \"${params.outdir}/humanBWAIndex\", pattern: \"*.fa*\", mode: \"symlink\"\n\n    label 'indexResources'\n\n    input:\n    path(composite_ref)\n\n    output:\n    file(\"*.fa*\")\n\n    script:\n    \"\"\"\n    bwa index -a bwtsw $composite_ref\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    bwa index -a bwtsw $composite_ref\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BWA"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            }
+        ],
+        "inputs": [
+            "composite_ref"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/humanBWAIndex\", pattern: \"*.fa*\", mode: \"symlink\"",
+            "label 'indexResources'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "compositeMappingBWA": {
+        "name_process": "compositeMappingBWA",
+        "string_process": "\nprocess compositeMappingBWA {\n    publishDir \"${params.outdir}/compositeMAPs\", pattern: \"${sampleName}.*\", mode: \"copy\"\n\n    input:\n    tuple( val(sampleName), path(forward), path(reverse), path(composite_reference))\n    path(indexed_reference)\n\n    output:\n    tuple val(sampleName), path(\"${sampleName}.sorted.bam\"), emit: bam\n    path(\"${sampleName}.flagstats.txt\")\n\n    script:\n    \"\"\"\n    bwa mem -t ${params.illumina_threads} ${composite_reference} ${forward} ${reverse} | samtools sort --threads ${params.illumina_threads} -T \"temp\" -O BAM -o ${sampleName}.sorted.bam\n    samtools flagstat ${sampleName}.sorted.bam > ${sampleName}.flagstats.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    bwa mem -t ${params.illumina_threads} ${composite_reference} ${forward} ${reverse} | samtools sort --threads ${params.illumina_threads} -T \"temp\" -O BAM -o ${sampleName}.sorted.bam\n    samtools flagstat ${sampleName}.sorted.bam > ${sampleName}.flagstats.txt\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "BWA",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "sampleName",
+            "forward",
+            "reverse",
+            "composite_reference",
+            "indexed_reference"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/compositeMAPs\", pattern: \"${sampleName}.*\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dehostBamFiles": {
+        "name_process": "dehostBamFiles",
+        "string_process": "\nprocess dehostBamFiles {\n    publishDir \"${params.outdir}/dehostedBAMs\", pattern: \"${sampleName}.dehosted.bam\", mode: \"copy\"\n\n    label 'smallCPU'\n    tag { sampleName }\n\n    input:\n    tuple( val(sampleName), path(composite_bam))\n\n    output:\n    tuple val(sampleName), path(\"${sampleName}.dehosted.bam\"), emit: bam\n    path \"${sampleName}*.csv\", emit: csv\n\n    script:\n\n    def rev = workflow.commitId ?: workflow.revision ?: workflow.scriptId\n\n    \"\"\"\n    samtools index ${composite_bam}\n    dehost_illumina.py --file ${composite_bam} \\\n    --keep_id ${params.covid_ref_id} \\\n    -q ${params.keep_min_map_quality} \\\n    -Q ${params.remove_min_map_quality} \\\n    -o ${sampleName}.dehosted.bam \\\n    -R ${rev} \n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    def rev = workflow.commitId ?: workflow.revision ?: workflow.scriptId\n\n    \"\"\"\n    samtools index ${composite_bam}\n    dehost_illumina.py --file ${composite_bam} \\\n    --keep_id ${params.covid_ref_id} \\\n    -q ${params.keep_min_map_quality} \\\n    -Q ${params.remove_min_map_quality} \\\n    -o ${sampleName}.dehosted.bam \\\n    -R ${rev} \n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "sampleName",
+            "composite_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/dehostedBAMs\", pattern: \"${sampleName}.dehosted.bam\", mode: \"copy\"",
+            "label 'smallCPU'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generateDehostedReads": {
+        "name_process": "generateDehostedReads",
+        "string_process": "\nprocess generateDehostedReads {\n    publishDir \"${params.outdir}/dehosted_paired_fastqs\", pattern: \"${sampleName}_dehosted_R*\", mode: \"copy\"\n\n    label 'mediumMem'\n    tag { sampleName }\n\n    input:\n    tuple( val(sampleName), path(dehosted_bam))\n\n    output:\n    path(\"${sampleName}_dehosted_R*\")\n\n    script:\n    \"\"\"\n    samtools fastq -1 ${sampleName}_dehosted_R1.fastq.gz -2 ${sampleName}_dehosted_R2.fastq.gz ${dehosted_bam}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    samtools fastq -1 ${sampleName}_dehosted_R1.fastq.gz -2 ${sampleName}_dehosted_R2.fastq.gz ${dehosted_bam}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "sampleName",
+            "dehosted_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "phac-nml__ncov-dehoster",
+        "directive": [
+            "publishDir \"${params.outdir}/dehosted_paired_fastqs\", pattern: \"${sampleName}_dehosted_R*\", mode: \"copy\"",
+            "label 'mediumMem'",
+            "tag { sampleName }"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

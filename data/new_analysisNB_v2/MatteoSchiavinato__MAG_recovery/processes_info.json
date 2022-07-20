@@ -1,0 +1,625 @@
+{
+    "metabat2": {
+        "name_process": "metabat2",
+        "string_process": "\nprocess metabat2 {\n\n  executor = 'local'\n  cpus = params.threads\n\n  publishDir \"${params.output_dir}/metabat2\", mode: \"copy\"\n\n  output:\n    path(\"${params.sample_id}_out\", hidden:false, type:\"dir\") into Metabat2_out\n\n  script:\n    \"\"\"\n    ${METABAT2} \\\n    --inFile ${params.contigs_fasta} \\\n    --outFile ${params.sample_id}_out/${params.sample_id}.bin \\\n    --minContig ${params.min_contig_length} \\\n    --maxP ${params.perc_good_contigs} \\\n    --minS ${params.min_edge_score} \\\n    --maxEdges ${params.max_num_edges} \\\n    --minCV ${params.min_ctg_coverage} \\\n    --minClsSize ${params.min_cluster_tot_len} \\\n    --numThreads ${params.threads}\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    ${METABAT2} \\\n    --inFile ${params.contigs_fasta} \\\n    --outFile ${params.sample_id}_out/${params.sample_id}.bin \\\n    --minContig ${params.min_contig_length} \\\n    --maxP ${params.perc_good_contigs} \\\n    --minS ${params.min_edge_score} \\\n    --maxEdges ${params.max_num_edges} \\\n    --minCV ${params.min_ctg_coverage} \\\n    --minClsSize ${params.min_cluster_tot_len} \\\n    --numThreads ${params.threads}\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "Metabat2_out"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = params.threads",
+            "publishDir \"${params.output_dir}/metabat2\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "checkm_lineage_wf": {
+        "name_process": "checkm_lineage_wf",
+        "string_process": "\nprocess checkm_lineage_wf {\n\n  executor = 'local'\n  cpus = params.threads\n\n  publishDir \"${params.output_dir}/checkm\", mode: \"copy\"\n\n  input:\n    path bins from Bins_for_lineage_wf\n\n  output:\n    path \"${params.sample_id}_raw_lineage\", type: \"dir\" into Checkm_lineage_out\n    file \"checkm_lineage_wf_results.txt\" into lineage_file\n    file \"${params.sample_id}_raw_lineage/lineage.ms\" into marker_file\n\n  script:\n    \"\"\"\n    if [ ! -d ${params.sample_id}.TMP ] ; then mkdir ${params.sample_id}.TMP ; fi\n    ${CHECKM} \\\n    lineage_wf \\\n    --ali \\\n    --nt \\\n    --e_value ${params.e_value} \\\n    --length ${params.overlap_length_frac} \\\n    --file checkm_lineage_wf_results.txt \\\n    --threads ${params.threads} \\\n    --extension fa \\\n    --pplacer_threads ${params.pplacer_threads} \\\n    ${bins} \\\n    ${params.sample_id}_raw_lineage \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    \"\"\"\n    if [ ! -d ${params.sample_id}.TMP ] ; then mkdir ${params.sample_id}.TMP ; fi\n    ${CHECKM} \\\n    lineage_wf \\\n    --ali \\\n    --nt \\\n    --e_value ${params.e_value} \\\n    --length ${params.overlap_length_frac} \\\n    --file checkm_lineage_wf_results.txt \\\n    --threads ${params.threads} \\\n    --extension fa \\\n    --pplacer_threads ${params.pplacer_threads} \\\n    ${bins} \\\n    ${params.sample_id}_raw_lineage \\\n\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "Bins_for_lineage_wf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "Checkm_lineage_out",
+            "lineage_file",
+            "marker_file"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = params.threads",
+            "publishDir \"${params.output_dir}/checkm\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_bins": {
+        "name_process": "filter_bins",
+        "string_process": "\nprocess filter_bins {\n\n  executor = 'local'\n  cpus = params.threads\n\n  publishDir \"${params.output_dir}/checkm\", mode: \"copy\"\n\n  input:\n    file lineage_file\n    path bins from Bins_for_filtering\n\n  output:\n    file \"checkm_lineage_wf_results.tsv\"\n    file \"filter_bins.log\"\n    path \"${params.sample_id}_filtered_lineage\"\n    path \"${params.sample_id}_filtered_lineage/bins\" into Filtered_bins\n\n  script:\n    \"\"\"\n    { echo -e \"Bin_Id\\tMarker_lineage\\t#_genomes\\t#_markers\\t#_marker_sets\\t0\\t1\\t2\\t3\\t4\\t5+\\tCompleteness\\tContamination\\tStrain_heterogeneity\"; \\\n    tail -n+4 ${lineage_file} | \\\n    sed 's/ (/_(/' | \\\n    tr -s \" \" \"\\t\" | \\\n    cut -f 2- | \\\n    awk 'NF != 1'; } \\\n    > checkm_lineage_wf_results.tsv &&\n    ${PYTHON3} \\\n    ${params.source_dir}/filter-bins.py \\\n    --max-cont ${params.max_contamination} \\\n    --min-comp ${params.min_completeness} \\\n    --max-het ${params.max_heterogeneity} \\\n    --bins-directory ${bins} \\\n    --extension fa \\\n    --lineage-file checkm_lineage_wf_results.tsv \\\n    --output-directory ${params.sample_id}_filtered_lineage \\\n    2> filter_bins.log \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    \"\"\"\n    { echo -e \"Bin_Id\\tMarker_lineage\\t#_genomes\\t#_markers\\t#_marker_sets\\t0\\t1\\t2\\t3\\t4\\t5+\\tCompleteness\\tContamination\\tStrain_heterogeneity\"; \\\n    tail -n+4 ${lineage_file} | \\\n    sed 's/ (/_(/' | \\\n    tr -s \" \" \"\\t\" | \\\n    cut -f 2- | \\\n    awk 'NF != 1'; } \\\n    > checkm_lineage_wf_results.tsv &&\n    ${PYTHON3} \\\n    ${params.source_dir}/filter-bins.py \\\n    --max-cont ${params.max_contamination} \\\n    --min-comp ${params.min_completeness} \\\n    --max-het ${params.max_heterogeneity} \\\n    --bins-directory ${bins} \\\n    --extension fa \\\n    --lineage-file checkm_lineage_wf_results.tsv \\\n    --output-directory ${params.sample_id}_filtered_lineage \\\n    2> filter_bins.log \\\n\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "lineage_file",
+            "Bins_for_filtering"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "Filtered_bins"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = params.threads",
+            "publishDir \"${params.output_dir}/checkm\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "checkm_unique": {
+        "name_process": "checkm_unique",
+        "string_process": "\nprocess checkm_unique {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/statistics\", mode: \"copy\"\n\n  input:\n  path bins from Bins_filt_unique\n\n  output:\n  file \"checkm_unique_out.txt\"\n\n  script:\n  \"\"\"\n  ${CHECKM} \\\n  unique \\\n  -x fa \\\n  ${bins} \\\n  &> checkm_unique_out.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "  \"\"\"\n  ${CHECKM} \\\n  unique \\\n  -x fa \\\n  ${bins} \\\n  &> checkm_unique_out.txt\n  \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "UniqueProt"
+        ],
+        "tools_url": [
+            "https://bio.tools/uniqueprot"
+        ],
+        "tools_dico": [
+            {
+                "name": "UniqueProt",
+                "uri": "https://bio.tools/uniqueprot",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0157",
+                            "term": "Sequence composition, complexity and repeats"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3510",
+                            "term": "Protein sites, features and motifs"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Gene and protein families"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Genes, gene family or system"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0366",
+                                    "term": "Protein sequence cleavage"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0290",
+                                    "term": "Sequence redundancy removal"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2451",
+                                    "term": "Sequence comparison"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "UniqueProt creates representative protein sequence sets by eliminating sequence redundancy based on sequence similiarity.  This tool needs to be downloaded and run locally on your own machine.",
+                "homepage": "https://rostlab.org/owiki/index.php/Uniqueprot"
+            }
+        ],
+        "inputs": [
+            "Bins_filt_unique"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/statistics\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ccs_mapping": {
+        "name_process": "ccs_mapping",
+        "string_process": "\nprocess ccs_mapping {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/ccs_mapping\", mode: \"copy\"\n\n  output:\n    file \"${params.sample_id}.bam\" into ccs_bam\n\n  script:\n    \"\"\"\n    ${MINIMAP2} \\\n    -H \\\n    -k ${params.minimap_kmer_size} \\\n    -d contigs.mm2_index \\\n    -a \\\n    -t ${params.threads} \\\n    -x map-pb \\\n    ${params.contigs_fasta} \\\n    ${params.ccs_reads} \\\n    > ${params.sample_id}.bam \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    ${MINIMAP2} \\\n    -H \\\n    -k ${params.minimap_kmer_size} \\\n    -d contigs.mm2_index \\\n    -a \\\n    -t ${params.threads} \\\n    -x map-pb \\\n    ${params.contigs_fasta} \\\n    ${params.ccs_reads} \\\n    > ${params.sample_id}.bam \\\n\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ccs_bam"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/ccs_mapping\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ccs_map_filter_sort": {
+        "name_process": "ccs_map_filter_sort",
+        "string_process": "\nprocess ccs_map_filter_sort {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/ccs_mapping\", mode: \"copy\"\n\n  input:\n    file ccs_bam\n\n  output:\n    file \"${params.sample_id}.f.bam\" into ccs_filt_bam\n    file \"${params.sample_id}.fs.bam\" into ccs_filt_sort_bam\n    file \"${params.sample_id}.fs.bam.stats\" into ccs_filt_sort_bam_stats\n\n  script:\n    \"\"\"\n    ${SAMTOOLS} \\\n    view \\\n    -b -h -@ ${params.threads} \\\n    ${ccs_bam} \\\n    -F 0x0100 -F 0x4 \\\n    > ${params.sample_id}.f.bam &&\n    ${SAMTOOLS} \\\n    sort \\\n    -@ ${params.threads} \\\n    -T ${params.sample_id} \\\n    ${params.sample_id}.f.bam \\\n    > ${params.sample_id}.fs.bam &&\n    ${SAMTOOLS} \\\n    stats \\\n    ${params.sample_id}.fs.bam \\\n    > ${params.sample_id}.fs.bam.stats \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    ${SAMTOOLS} \\\n    view \\\n    -b -h -@ ${params.threads} \\\n    ${ccs_bam} \\\n    -F 0x0100 -F 0x4 \\\n    > ${params.sample_id}.f.bam &&\n    ${SAMTOOLS} \\\n    sort \\\n    -@ ${params.threads} \\\n    -T ${params.sample_id} \\\n    ${params.sample_id}.f.bam \\\n    > ${params.sample_id}.fs.bam &&\n    ${SAMTOOLS} \\\n    stats \\\n    ${params.sample_id}.fs.bam \\\n    > ${params.sample_id}.fs.bam.stats \\\n\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [
+            "iview",
+            "GOstats"
+        ],
+        "tools_url": [
+            "https://bio.tools/iview",
+            "https://bio.tools/gostats"
+        ],
+        "tools_dico": [
+            {
+                "name": "iview",
+                "uri": "https://bio.tools/iview",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2275",
+                            "term": "Molecular modelling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein modelling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein structure comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology structure modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Interactive HTML5 visualizer of protein-ligand complex.",
+                "homepage": "http://istar.cse.cuhk.edu.hk/iview/"
+            },
+            {
+                "name": "GOstats",
+                "uri": "https://bio.tools/gostats",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2436",
+                                    "term": "Gene-set enrichment analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2436",
+                                    "term": "GSEA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2436",
+                                    "term": "Functional enrichment analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2436",
+                                    "term": "Gene-set over-represenation analysis"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2603",
+                                "term": "Expression data"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_0582",
+                                "term": "Ontology"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2884",
+                                "term": "Plot"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1772",
+                                "term": "Score"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A set of tools for interacting with GO and microarray data. A variety of basic manipulation tools for graphs, hypothesis testing and other simple calculations.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/GOstats.html"
+            }
+        ],
+        "inputs": [
+            "ccs_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ccs_filt_bam",
+            "ccs_filt_sort_bam",
+            "ccs_filt_sort_bam_stats"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/ccs_mapping\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "index_bam": {
+        "name_process": "index_bam",
+        "string_process": "\nprocess index_bam {\n\n  input:\n    file ccs_filt_sort_bam\n\n  output:\n    file \"${ccs_filt_sort_bam}.bai\" into ccs_filt_sort_bam_index\n\n  script:\n    \"\"\"\n    ${SAMTOOLS} \\\n    index \\\n    ${ccs_filt_sort_bam} \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    ${SAMTOOLS} \\\n    index \\\n    ${ccs_filt_sort_bam} \\\n\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "CINdex"
+        ],
+        "tools_url": [
+            "https://bio.tools/cindex"
+        ],
+        "tools_dico": [
+            {
+                "name": "CINdex",
+                "uri": "https://bio.tools/cindex",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3233",
+                                    "term": "Copy number estimation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3233",
+                                    "term": "Transcript copy number estimation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The package addresses important area of high-throughput genomic analysis. It allows the automated processing and analysis of the experimental DNA copy number data generated by Affymetrix SNP 6.0 arrays or similar. It calculates the chromosome instability index to quantitatively characterize genome-wide DNA copy number alterations. This package calculates not only overall genomic instability, but also instability in terms of copy number gains and losses at the chromosome and cytoband level.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/CINdex.html"
+            }
+        ],
+        "inputs": [
+            "ccs_filt_sort_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ccs_filt_sort_bam_index"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "recover_unmapped_reads": {
+        "name_process": "recover_unmapped_reads",
+        "string_process": "\nprocess recover_unmapped_reads {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/ccs_mapping\", mode: \"copy\"\n\n  input:\n    file ccs_filt_bam\n\n  output:\n    file \"${params.sample_id}.unmapped.fasta\" into unmapped_reads_fasta\n\n  script:\n    \"\"\"\n   ${SAMTOOLS} fasta \\\n   -@ ${params.threads} \\\n   ${ccs_filt_bam} \\\n   > ${params.sample_id}.unmapped.fasta \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n   ${SAMTOOLS} fasta \\\n   -@ ${params.threads} \\\n   ${ccs_filt_bam} \\\n   > ${params.sample_id}.unmapped.fasta \\\n\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ccs_filt_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "unmapped_reads_fasta"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/ccs_mapping\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "refinem_scaffold_stats": {
+        "name_process": "refinem_scaffold_stats",
+        "string_process": "\nprocess refinem_scaffold_stats {\n\n  executor = 'local'\n  cpus = params.threads\n\n  publishDir \"${params.output_dir}/refinem\", mode: \"copy\"\n\n  input:\n    path bins from Bins_filt_refinem_stats\n    file ccs_filt_sort_bam\n    file ccs_filt_sort_bam_index\n\n  output:\n    path \"${params.sample_id}_scaffold_stats\", type: \"dir\" into Refinem_scaffold_stats_out\n\n  script:\n    \"\"\"\n    ${REFINEM} \\\n    scaffold_stats \\\n    -x fa \\\n    --cpus ${params.threads} \\\n    --cov_all_reads \\\n    --cov_min_align ${params.min_align_len} \\\n    --cov_max_edit_dist ${params.cov_max_edit_dist} \\\n    ${params.contigs_fasta} \\\n    ${bins} \\\n    ${params.sample_id}_scaffold_stats \\\n    ${ccs_filt_sort_bam} \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    ${REFINEM} \\\n    scaffold_stats \\\n    -x fa \\\n    --cpus ${params.threads} \\\n    --cov_all_reads \\\n    --cov_min_align ${params.min_align_len} \\\n    --cov_max_edit_dist ${params.cov_max_edit_dist} \\\n    ${params.contigs_fasta} \\\n    ${bins} \\\n    ${params.sample_id}_scaffold_stats \\\n    ${ccs_filt_sort_bam} \\\n\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "Bins_filt_refinem_stats",
+            "ccs_filt_sort_bam",
+            "ccs_filt_sort_bam_index"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "Refinem_scaffold_stats_out"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = params.threads",
+            "publishDir \"${params.output_dir}/refinem\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "refinem_outliers": {
+        "name_process": "refinem_outliers",
+        "string_process": "\nprocess refinem_outliers {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/refinem\", mode: \"copy\"\n\n  input:\n    path stats from Scafstats_for_outliers\n\n  output:\n    path \"${params.sample_id}_outliers\", type: \"dir\" into Refinem_outliers_out\n\n  script:\n    \"\"\"\n    ${REFINEM} \\\n    outliers \\\n    --gc_perc ${params.gc_perc} \\\n    --td_perc ${params.td_perc} \\\n    --cov_perc ${params.cov_perc} \\\n    --individual_plots \\\n    --image_type svg \\\n    --point_size 36 \\\n    --label_font_size 12 \\\n    --tick_font_size 10 \\\n    --height 6 \\\n    --width 12 \\\n    ${stats}/scaffold_stats.tsv \\\n    ${params.sample_id}_outliers \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "    \"\"\"\n    ${REFINEM} \\\n    outliers \\\n    --gc_perc ${params.gc_perc} \\\n    --td_perc ${params.td_perc} \\\n    --cov_perc ${params.cov_perc} \\\n    --individual_plots \\\n    --image_type svg \\\n    --point_size 36 \\\n    --label_font_size 12 \\\n    --tick_font_size 10 \\\n    --height 6 \\\n    --width 12 \\\n    ${stats}/scaffold_stats.tsv \\\n    ${params.sample_id}_outliers \\\n\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "Scafstats_for_outliers"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "Refinem_outliers_out"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/refinem\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "refinem_filter_outlier_bins": {
+        "name_process": "refinem_filter_outlier_bins",
+        "string_process": "\nprocess refinem_filter_outlier_bins {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/refinem\", mode: \"copy\"\n\n  input:\n    path bins from Bins_filt_filter_bins\n    path outlier_bins from Refinem_outliers_out\n\n  output:\n    file \"${params.sample_id}_filter_outlier_bins/bin_sizes.tsv\" into bin_sizes\n    path \"${params.sample_id}_filter_outlier_bins\", type: \"dir\" into Refinem_no_outliers\n\n  script:\n    \"\"\"\n    ${REFINEM} \\\n    filter_bins \\\n    -x fa \\\n    ${bins} \\\n    ${outlier_bins}/outliers.tsv \\\n    ${params.sample_id}_filter_outlier_bins &&\n    { \\\n    echo -e \"Bin\\tSize(Mbp)\"; \\\n    for i in `ls ${params.sample_id}_filter_outlier_bins/*fa`; \\\n    do \\\n    ${BIOAWK} \\\n    -c fastx \\\n    -v x=\\${i} \\\n    '{sum += length(\\$seq)} END {print x\"\\t\"sum/1e6}' \\${i}; \\\n    done | \\\n    sort -k2gr,2; } \\\n    > ${params.sample_id}_filter_outlier_bins/bin_sizes.tsv \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    \"\"\"\n    ${REFINEM} \\\n    filter_bins \\\n    -x fa \\\n    ${bins} \\\n    ${outlier_bins}/outliers.tsv \\\n    ${params.sample_id}_filter_outlier_bins &&\n    { \\\n    echo -e \"Bin\\tSize(Mbp)\"; \\\n    for i in `ls ${params.sample_id}_filter_outlier_bins/*fa`; \\\n    do \\\n    ${BIOAWK} \\\n    -c fastx \\\n    -v x=\\${i} \\\n    '{sum += length(\\$seq)} END {print x\"\\t\"sum/1e6}' \\${i}; \\\n    done | \\\n    sort -k2gr,2; } \\\n    > ${params.sample_id}_filter_outlier_bins/bin_sizes.tsv \\\n\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "Bins_filt_filter_bins",
+            "Refinem_outliers_out"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "bin_sizes",
+            "Refinem_no_outliers"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/refinem\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_gtdb_tk": {
+        "name_process": "run_gtdb_tk",
+        "string_process": "\nprocess run_gtdb_tk {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/gtdb-tk\", mode: \"copy\"\n\n  input:\n    path bins from Refinem_no_outliers\n\n  output:\n    path \"${params.sample_id}_classify_wf\" into Gtdb_out\n\n  script:\n    \"\"\"\n    ${GTDBTK} \\\n    classify_wf \\\n    --genome_dir ${bins} \\\n    --extension fa \\\n    --cpus ${params.threads} \\\n    --pplacer_cpus ${params.pplacer_threads} \\\n    --min_perc_aa ${params.min_perc_aa} \\\n    --min_af ${params.min_align_frac} \\\n    --out_dir ${params.sample_id}_classify_wf \\\n    --prefix ${params.sample_id} \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    ${GTDBTK} \\\n    classify_wf \\\n    --genome_dir ${bins} \\\n    --extension fa \\\n    --cpus ${params.threads} \\\n    --pplacer_cpus ${params.pplacer_threads} \\\n    --min_perc_aa ${params.min_perc_aa} \\\n    --min_af ${params.min_align_frac} \\\n    --out_dir ${params.sample_id}_classify_wf \\\n    --prefix ${params.sample_id} \\\n\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "Refinem_no_outliers"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "Gtdb_out"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/gtdb-tk\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "taxonomy_table": {
+        "name_process": "taxonomy_table",
+        "string_process": "\nprocess taxonomy_table {\n\n  executor = 'local'\n  cpus = 1\n\n  publishDir \"${params.output_dir}/statistics\", mode: \"copy\"\n\n  input:\n    file bin_sizes\n    path Gtdb_out\n\n  output:\n    file \"ALL.MAG_classification.tsv\"\n\n  script:\n    \"\"\"\n    ${PYTHON3} \\\n    ${launchDir}/src/MAG-taxa-detection.py \\\n    --bac-summary ${Gtdb_out}/ALL.bac120.summary.tsv \\\n    --bin-sizes ${bin_sizes} \\\n    --output-file ALL.MAG_classification.tsv \\\n\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    ${PYTHON3} \\\n    ${launchDir}/src/MAG-taxa-detection.py \\\n    --bac-summary ${Gtdb_out}/ALL.bac120.summary.tsv \\\n    --bin-sizes ${bin_sizes} \\\n    --output-file ALL.MAG_classification.tsv \\\n\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bin_sizes",
+            "Gtdb_out"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "MatteoSchiavinato__MAG_recovery",
+        "directive": [
+            "executor = 'local'",
+            "cpus = 1",
+            "publishDir \"${params.output_dir}/statistics\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

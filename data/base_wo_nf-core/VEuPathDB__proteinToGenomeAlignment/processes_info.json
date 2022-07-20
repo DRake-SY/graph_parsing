@@ -1,0 +1,287 @@
+{
+    "makeEsd": {
+        "name_process": "makeEsd",
+        "string_process": "\nprocess makeEsd {\n    input:\n    path 'target.fa' from params.targetFilePath\n \n    output:\n    path 'target.esd' into targets_esd\n\n    \"\"\"\n    fasta2esd target.fa target.esd\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "\"\"\"\n    fasta2esd target.fa target.esd\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "targets_esd"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "VEuPathDB__proteinToGenomeAlignment",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "makeEsi": {
+        "name_process": "makeEsi",
+        "string_process": "\nprocess makeEsi {\n    input:\n    path 'target.esd' from targets_esd\n    path 'target.fa' from params.targetFilePath \n\n    output:\n    path 'target.esi' into targets_esi\n\n    \"\"\"\n    esd2esi target.esd target.esi --translate yes --memorylimit $params.esd2esiMemoryLimit\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "\"\"\"\n    esd2esi target.esd target.esi --translate yes --memorylimit $params.esd2esiMemoryLimit\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "targets_esd",
+            "params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "targets_esi"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "VEuPathDB__proteinToGenomeAlignment",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "exonerate": {
+        "name_process": "exonerate",
+        "string_process": "\nprocess exonerate {\n    input:\n    file query_file from proteins\n    path 'target.esd' from targets_esd\n    path 'target.fa' from params.targetFilePath \n    path 'target.esi' from targets_esi    \n    \n    output:\n    file 'alignments.gff' into alignments_ch\n\n    \"\"\"\n    RANGE=13000\n    FLOOR=8000    \n    MAX_TRIES=12\n    for (( i = 0 ; i <= 1000 ; i++ )); do\n        randomNumber=0\n\twhile [ \"\\$randomNumber\" -le \\$FLOOR ]\n\tdo\n\t  randomNumber=\\$RANDOM\n\t  let \"randomNumber %= \\$RANGE\"\n        done\n        EXONERATE_EXONERATE_SERVER_PORT=\\$randomNumber;\n        exonerate-server --input target.esi --port \\$EXONERATE_EXONERATE_SERVER_PORT & pid=\\$!\n        ps -p \\$pid >/dev/null && break 1;\n    done\nfor (( i=1; i<=\\$MAX_TRIES; i++ ))\n do\n   sleep 10\n   echo Try \\$i of \\$MAX_TRIES to connect\n   \n   if echo version >/dev/tcp/localhost/\\$EXONERATE_EXONERATE_SERVER_PORT; then\n    echo exonerate server running on port \\$EXONERATE_EXONERATE_SERVER_PORT\n    exonerate --fsmmemory $params.fsmmemory -n 1 --geneseed 250 -S n  --minintron 20 --maxintron $params.maxintron  --showcigar n --showvulgar n --showalignment n --showtargetgff y --model protein2genome --query $query_file --target localhost:\\$EXONERATE_EXONERATE_SERVER_PORT >alignments.gff\n\n    kill \\$pid;\n    exit 0\n\n   else\n     echo Connection Failed \\$i of \\$MAX_TRIES\n   fi\n\n done\nkill \\$pid;\nexit 1\n    \"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "\"\"\"\n    RANGE=13000\n    FLOOR=8000    \n    MAX_TRIES=12\n    for (( i = 0 ; i <= 1000 ; i++ )); do\n        randomNumber=0\n\twhile [ \"\\$randomNumber\" -le \\$FLOOR ]\n\tdo\n\t  randomNumber=\\$RANDOM\n\t  let \"randomNumber %= \\$RANGE\"\n        done\n        EXONERATE_EXONERATE_SERVER_PORT=\\$randomNumber;\n        exonerate-server --input target.esi --port \\$EXONERATE_EXONERATE_SERVER_PORT & pid=\\$!\n        ps -p \\$pid >/dev/null && break 1;\n    done\nfor (( i=1; i<=\\$MAX_TRIES; i++ ))\n do\n   sleep 10\n   echo Try \\$i of \\$MAX_TRIES to connect\n   \n   if echo version >/dev/tcp/localhost/\\$EXONERATE_EXONERATE_SERVER_PORT; then\n    echo exonerate server running on port \\$EXONERATE_EXONERATE_SERVER_PORT\n    exonerate --fsmmemory $params.fsmmemory -n 1 --geneseed 250 -S n  --minintron 20 --maxintron $params.maxintron  --showcigar n --showvulgar n --showalignment n --showtargetgff y --model protein2genome --query $query_file --target localhost:\\$EXONERATE_EXONERATE_SERVER_PORT >alignments.gff\n\n    kill \\$pid;\n    exit 0\n\n   else\n     echo Connection Failed \\$i of \\$MAX_TRIES\n   fi\n\n done\nkill \\$pid;\nexit 1\n    \"\"\"",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [
+            "NPS",
+            "NullSeq",
+            "Exonerate"
+        ],
+        "tools_url": [
+            "https://bio.tools/nps",
+            "https://bio.tools/nullseq",
+            "https://bio.tools/exonerate"
+        ],
+        "tools_dico": [
+            {
+                "name": "NPS",
+                "uri": "https://bio.tools/nps",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3173",
+                            "term": "Epigenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip sequencing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0415",
+                                    "term": "Nucleic acid feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0415",
+                                    "term": "Sequence feature detection (nucleic acid)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Identify nucleosome positions given histone-modification ChIP-seq or nucleosome sequencing at the nucleosome level.",
+                "homepage": "http://liulab.dfci.harvard.edu/NPS/"
+            },
+            {
+                "name": "NullSeq",
+                "uri": "https://bio.tools/nullseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0364",
+                                    "term": "Random sequence generation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Creates Random Coding Sequences with specified GC content and Amino Acid usage.",
+                "homepage": "https://github.com/amarallab/NullSeq"
+            },
+            {
+                "name": "Exonerate",
+                "uri": "https://bio.tools/exonerate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3182",
+                                    "term": "Genome alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0302",
+                                    "term": "Protein threading"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3182",
+                                    "term": "Genome alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3182",
+                                    "term": "Whole genome alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0302",
+                                    "term": "Sequence-structure alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A tool for pairwise sequence alignment. It enables alignment for DNA-DNA and DNA-protein pairs and also gapped and ungapped alignment.",
+                "homepage": "http://www.ebi.ac.uk/%7Eguy/exonerate"
+            }
+        ],
+        "inputs": [
+            "proteins",
+            "targets_esd",
+            "params",
+            "targets_esi"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "alignments_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "VEuPathDB__proteinToGenomeAlignment",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "makeGff": {
+        "name_process": "makeGff",
+        "string_process": "\nprocess makeGff {\n    input:\n    file 'alignments.gff' from alignments_ch\n    \n    output:\n    file 'fixed.gff' into fixed_ch\n \n    '''\n    #!/usr/bin/env perl\n    use strict;\n\n    open(FILE, \"alignments.gff\") or die \"Cannot open file alignmments.gff for reading: $!\";\n    open(OUT, \">fixed.gff\") or die \"Cannot open file fixed.gff for writing: $!\";\n    my ($proteinId);\n    my $cdsCount = 0;\n    while(my $line = <FILE>) {\n      chomp $line;\n      my @a = split(/\\\\t/, $line);\n      my $type = $a[2];\n      if($type eq 'gene') {\n        ($proteinId) = $a[8] =~ /sequence (\\\\S+)/;\n        $cdsCount = 0;\n      }\n      if($type eq 'cds') {\n        $cdsCount++;\n        $a[8] = \"ID=${proteinId}_cds_${cdsCount};Parent=${proteinId}\";\n      }\n      elsif($type eq 'similarity') {\n        $a[8] = \"ID=${proteinId}\";\n      }\n      else {\n        next;\n      }\n      print OUT join(\"\\\\t\", @a) . \"\\\\n\";\n    }\n    close FILE;\n    close OUT;\n   '''\n}",
+        "nb_lignes_process": 38,
+        "string_script": "'''\n    #!/usr/bin/env perl\n    use strict;\n\n    open(FILE, \"alignments.gff\") or die \"Cannot open file alignmments.gff for reading: $!\";\n    open(OUT, \">fixed.gff\") or die \"Cannot open file fixed.gff for writing: $!\";\n    my ($proteinId);\n    my $cdsCount = 0;\n    while(my $line = <FILE>) {\n      chomp $line;\n      my @a = split(/\\\\t/, $line);\n      my $type = $a[2];\n      if($type eq 'gene') {\n        ($proteinId) = $a[8] =~ /sequence (\\\\S+)/;\n        $cdsCount = 0;\n      }\n      if($type eq 'cds') {\n        $cdsCount++;\n        $a[8] = \"ID=${proteinId}_cds_${cdsCount};Parent=${proteinId}\";\n      }\n      elsif($type eq 'similarity') {\n        $a[8] = \"ID=${proteinId}\";\n      }\n      else {\n        next;\n      }\n      print OUT join(\"\\\\t\", @a) . \"\\\\n\";\n    }\n    close FILE;\n    close OUT;\n   '''",
+        "nb_lignes_script": 30,
+        "language_script": "perl",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "alignments_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fixed_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "VEuPathDB__proteinToGenomeAlignment",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "makeResult": {
+        "name_process": "makeResult",
+        "string_process": "\nprocess makeResult {\n    input:\n    file 'result.gff' from results\n    \n    \"\"\"\n    sort -k1,1 -k4,4n result.gff > $params.outputDir/result.sorted.gff\n    bgzip $params.outputDir/result.sorted.gff\n    tabix -p gff $params.outputDir/result.sorted.gff.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 9,
+        "string_script": "\"\"\"\n    sort -k1,1 -k4,4n result.gff > $params.outputDir/result.sorted.gff\n    bgzip $params.outputDir/result.sorted.gff\n    tabix -p gff $params.outputDir/result.sorted.gff.gz\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "results"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "VEuPathDB__proteinToGenomeAlignment",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

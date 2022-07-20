@@ -1,0 +1,317 @@
+{
+    "diaUmpire": {
+        "name_process": "diaUmpire",
+        "string_process": "\nprocess diaUmpire {\n    scratch 'ram-disk'\n    stageInMode \"copy\"\n    tag \"$dia_file\"\n\n    cpus params.diau_threads\n        \n                                                 \n    input:\n    file dia_file from file(\"${params.dia_folder}/*.mzXML\")\n    file diau_se_params from file(params.diau_se_params)\n    val diaumpire_done from dda_filenames.collect()\n\n    when:\n    ! diaumpire_done.contains(dia_file.baseName)\n        \n    output:\n    file '*.mgf' into diaUmpireOut\n\n    script:\n    \"\"\"\n    sed -i 's,Thread = 0,Thread = $params.diau_threads,' \"$diau_se_params\"\n    java -jar -Xmx32G /home/biodocker/bin/DIA-Umpire/v2.1.2/DIA_Umpire_SE.jar \"$dia_file\" \"$diau_se_params\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    sed -i 's,Thread = 0,Thread = $params.diau_threads,' \"$diau_se_params\"\n    java -jar -Xmx32G /home/biodocker/bin/DIA-Umpire/v2.1.2/DIA_Umpire_SE.jar \"$dia_file\" \"$diau_se_params\"\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dda_filenames"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "diaUmpireOut"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "scratch 'ram-disk'",
+            "stageInMode \"copy\"",
+            "tag \"$dia_file\"",
+            "cpus params.diau_threads"
+        ],
+        "when": "! diaumpire_done.contains(dia_file.baseName)",
+        "stub": ""
+    },
+    "mgf2mzxml": {
+        "name_process": "mgf2mzxml",
+        "string_process": "\nprocess mgf2mzxml {\n                                                   \n    tag \"$mgf_file\"\n\n    publishDir params.dda_folder, mode: 'link'\n\n    input:\n                                                                    \n    file mgf_file from diaUmpireOut.flatten()\n\n    output:\n    file '*.mzXML' into mgf2mzxmlOut\n    \n    \"\"\"\n    msconvert \"$mgf_file\" --mzXML\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    msconvert \"$mgf_file\" --mzXML\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "msConvert"
+        ],
+        "tools_url": [
+            "https://bio.tools/msconvert"
+        ],
+        "tools_dico": [
+            {
+                "name": "msConvert",
+                "uri": "https://bio.tools/msconvert",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3695",
+                                    "term": "Filtering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0943",
+                                "term": "Mass spectrum"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0943",
+                                "term": "Mass spectrum"
+                            }
+                        ]
+                    }
+                ],
+                "description": "msConvert is a command-line utility for converting between various mass spectrometry data formats, including from raw data from several commercial companies (with vendor libraries, Windows-only). For Windows users, there is also a GUI, msConvertGUI.",
+                "homepage": "http://proteowizard.sourceforge.net/tools.shtml"
+            }
+        ],
+        "inputs": [
+            "diaUmpireOut"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mgf2mzxmlOut"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "tag \"$mgf_file\"",
+            "publishDir params.dda_folder, mode: 'link'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "msfraggerSearch": {
+        "name_process": "msfraggerSearch",
+        "string_process": "\nprocess msfraggerSearch {\n    tag \"$mzXML_fragger\"\n    \n    cpus params.fragger_threads\n\n    publishDir 'Results/MSFragger', mode: 'link'\n    \n    input:\n    file protein_db from file(params.protein_db)\n    file mzXML_fragger from Channel.fromPath(\"${params.dda_folder}/*.mzXML\")\n\t.concat(mgf2mzxmlOut1)\n\t.collect()\n    file fragger_params from file(params.fragger_params)\n\n    output:\n    file '*.pepXML' into msfraggerSearchOutPep\n    \n    \n    script:\n    \"\"\"\n    sed -i 's,num_threads = 0,num_threads = $params.fragger_threads,' \"$fragger_params\"\n    sed -i 's,db_path,$protein_db,' \"$fragger_params\"\n\n    java -XX:MaxRAMPercentage=80 -XX:+UseContainerSupport \\\n    -jar /usr/local/bin/MSFragger.jar $fragger_params $mzXML_fragger\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    sed -i 's,num_threads = 0,num_threads = $params.fragger_threads,' \"$fragger_params\"\n    sed -i 's,db_path,$protein_db,' \"$fragger_params\"\n\n    java -XX:MaxRAMPercentage=80 -XX:+UseContainerSupport \\\n    -jar /usr/local/bin/MSFragger.jar $fragger_params $mzXML_fragger\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mgf2mzxmlOut1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "msfraggerSearchOutPep"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "tag \"$mzXML_fragger\"",
+            "cpus params.fragger_threads",
+            "publishDir 'Results/MSFragger', mode: 'link'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "peptideProphet": {
+        "name_process": "peptideProphet",
+        "string_process": "\nprocess peptideProphet {\n    tag \"$pepxml\"\n    \n    input:\n    file pepxml from msfraggerSearchOutPep.flatten()\n                                                                                  \n    file mzxmls from Channel.fromPath(\"${params.dda_folder}/*.mzXML\").concat(mgf2mzxmlOut2).collect()\n\n    output:\n    file '*.pep.xml' into peptideProphetOut\n\n    script:\n    \"\"\"\n    InteractParser \"${pepxml.baseName}\".pep.xml \"${pepxml}\"\n    PeptideProphetParser \"${pepxml.baseName}\".pep.xml DECOY=$params.decoy ACCMASS PPM NONPARAM DECOYPROBS \n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    InteractParser \"${pepxml.baseName}\".pep.xml \"${pepxml}\"\n    PeptideProphetParser \"${pepxml.baseName}\".pep.xml DECOY=$params.decoy ACCMASS PPM NONPARAM DECOYPROBS \n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "msfraggerSearchOutPep",
+            "mgf2mzxmlOut2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "peptideProphetOut"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "tag \"$pepxml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "iProphet": {
+        "name_process": "iProphet",
+        "string_process": "\nprocess iProphet {\n    tag \"$pepxmls\"\n    \n    cpus params.iprophet_threads\n    \n    publishDir 'Results/iProphet', mode: 'link'\n\n    input:\n    file pepxmls from peptideProphetOut.collect()\n\n    output:\n    file 'iprophet.pep.xml' into iProphetOut\n\n    script:\n    \"\"\"\n    InterProphetParser THREADS=$params.iprophet_threads DECOY=$params.decoy \"${pepxmls}\" iprophet.pep.xml\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    InterProphetParser THREADS=$params.iprophet_threads DECOY=$params.decoy \"${pepxmls}\" iprophet.pep.xml\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "peptideProphetOut"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "iProphetOut"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "tag \"$pepxmls\"",
+            "cpus params.iprophet_threads",
+            "publishDir 'Results/iProphet', mode: 'link'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "easypqpConvert": {
+        "name_process": "easypqpConvert",
+        "string_process": "\nprocess easypqpConvert {\n    tag \"$pepxml\"\n    \n    memory = 50.GB\n    \n    input:\n    file pepxml from iProphetOut\n    file mzxml from Channel.fromPath(\"${params.dda_folder}/*.mzXML\").concat(mgf2mzxmlOut3)\n    file unimod from file(params.unimod)\n\n    output:\n    file '*_psms.tsv' into pepxmlConvertPsmsOut\n    file '*.peakpkl' into pepxmlConvertPklOut    \n    \n    script:\n    \"\"\"\n    easypqp convert --unimod \"$unimod\" --pepxml \"$pepxml\" --psms \"${mzxml.baseName}_psms.tsv\" --spectra $mzxml --peaks \"${mzxml.baseName}.peakpkl\"\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    easypqp convert --unimod \"$unimod\" --pepxml \"$pepxml\" --psms \"${mzxml.baseName}_psms.tsv\" --spectra $mzxml --peaks \"${mzxml.baseName}.peakpkl\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "iProphetOut",
+            "mgf2mzxmlOut3"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "pepxmlConvertPsmsOut",
+            "pepxmlConvertPklOut"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "tag \"$pepxml\"",
+            "memory = 50.GB"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "easypqp": {
+        "name_process": "easypqp",
+        "string_process": "\nprocess easypqp {\n                    \n                        \n    tag \"$psms\"\n    \n    publishDir 'Results/easypqpLib', mode: 'link'\n    \n    input:\n    file psms from pepxmlConvertPsmsOut.collect()\n    file peakpkl from pepxmlConvertPklOut.collect()\n\n    output:\n    file \"library.tsv\" into easypqpOut\n    file \"pyprophet_peptide_report.pdf\"\n    file \"pyprophet_protein_report.pdf\"\n    \n    script:\n    \"\"\"\n    easypqp library --out library.tsv \\\n    --psm_fdr_threshold=$params.easypqp_psm_fdr_threshold \\\n    --peptide_fdr_threshold=$params.easypqp_peptide_fdr_threshold \\\n    --protein_fdr_threshold=$params.easypqp_protein_fdr_threshold \\\n    --rt_lowess_fraction=$params.easypqp_lowess_fraction \\\n    --pi0_lambda=$params.easypqp_pi0_lambda \\\n    --peptide_plot=pyprophet_peptide_report.pdf \\\n    --protein_plot=pyprophet_protein_report.pdf \\\n    \"$psms\" \\\n    \"$peakpkl\"\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    easypqp library --out library.tsv \\\n    --psm_fdr_threshold=$params.easypqp_psm_fdr_threshold \\\n    --peptide_fdr_threshold=$params.easypqp_peptide_fdr_threshold \\\n    --protein_fdr_threshold=$params.easypqp_protein_fdr_threshold \\\n    --rt_lowess_fraction=$params.easypqp_lowess_fraction \\\n    --pi0_lambda=$params.easypqp_pi0_lambda \\\n    --peptide_plot=pyprophet_peptide_report.pdf \\\n    --protein_plot=pyprophet_protein_report.pdf \\\n    \"$psms\" \\\n    \"$peakpkl\"\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pepxmlConvertPsmsOut",
+            "pepxmlConvertPklOut"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "easypqpOut"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "tag \"$psms\"",
+            "publishDir 'Results/easypqpLib', mode: 'link'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "oswAssayGenerator": {
+        "name_process": "oswAssayGenerator",
+        "string_process": "\nprocess oswAssayGenerator {\n    tag \"$library\"\n\n    publishDir 'Results/easypqpLib', mode: 'link'\n    \n    input:\n    file library from easypqpOut\n    \n    output:\n    file \"library_targets.pqp\" into assayGeneratorOut\n    \n    script:\n    if( params.oswAssayGenerator_mode == 'OSW' )\n        \"\"\"\n        OpenSwathAssayGenerator -in \"$library\" \\\n        -out library_targets.pqp  \\\n        -precursor_upper_mz_limit $params.oswAssayGenerator_precursor_upper_mz_limit \\\n        -product_lower_mz_limit $params.oswAssayGenerator_product_lower_mz_limit \\\n        -min_transitions $params.oswAssayGenerator_min_transitions \\\n        -max_transitions $params.oswAssayGenerator_max_transitions\n        \"\"\"\n    else if( params.oswAssayGenerator_mode == 'IPF' )\n\t\"\"\"\n        OpenSwathAssayGenerator -in \"$library\"\n        -out library_targets.pqp\n        -enable_ipf \n        -unimod_file $params.unimod\n        -disable_identification_ms2_precursors \n        -disable_identification_specific_losses\n        \"\"\"\n    else\n\terror \"Invalid assay generation mode: ${params.mode}\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    if( params.oswAssayGenerator_mode == 'OSW' )\n        \"\"\"\n        OpenSwathAssayGenerator -in \"$library\" \\\n        -out library_targets.pqp  \\\n        -precursor_upper_mz_limit $params.oswAssayGenerator_precursor_upper_mz_limit \\\n        -product_lower_mz_limit $params.oswAssayGenerator_product_lower_mz_limit \\\n        -min_transitions $params.oswAssayGenerator_min_transitions \\\n        -max_transitions $params.oswAssayGenerator_max_transitions\n        \"\"\"\n    else if( params.oswAssayGenerator_mode == 'IPF' )\n\t\"\"\"\n        OpenSwathAssayGenerator -in \"$library\"\n        -out library_targets.pqp\n        -enable_ipf \n        -unimod_file $params.unimod\n        -disable_identification_ms2_precursors \n        -disable_identification_specific_losses\n        \"\"\"\n    else\n\terror \"Invalid assay generation mode: ${params.mode}\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "easypqpOut"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "assayGeneratorOut"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "tag \"$library\"",
+            "publishDir 'Results/easypqpLib', mode: 'link'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "oswDecoyGenerator": {
+        "name_process": "oswDecoyGenerator",
+        "string_process": "\nprocess oswDecoyGenerator {\n    scratch 'ram-disk'\n    stageInMode \"copy\"\n    tag \"$pqp\"\n    \n    publishDir 'Results/easypqpLib', mode: 'link'\n\n    input:\n    file pqp from assayGeneratorOut\n\n    output:\n    file 'library.pqp'\n    \n    script:\n    \"\"\"\n    OpenSwathDecoyGenerator -in \"$pqp\" -out library.pqp\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    OpenSwathDecoyGenerator -in \"$pqp\" -out library.pqp\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "assayGeneratorOut"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "digitalproteomes__NF-SpectraST",
+        "directive": [
+            "scratch 'ram-disk'",
+            "stageInMode \"copy\"",
+            "tag \"$pqp\"",
+            "publishDir 'Results/easypqpLib', mode: 'link'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

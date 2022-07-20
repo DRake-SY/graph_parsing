@@ -1,0 +1,204 @@
+{
+    "OPERATION_1": {
+        "string": "Channel.fromPath(\"$baseDir/assets/where_are_my_files.txt\")\n       .into{ch_where_trim_galore; ch_where_star; ch_where_hisat2; ch_where_hisat2_sort}",
+        "origin": [
+            [
+                "\"$baseDir/assets/where_are_my_files.txt\"",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_where_trim_galore",
+                "P"
+            ],
+            [
+                "ch_where_star",
+                "P"
+            ],
+            [
+                "ch_where_hisat2",
+                "P"
+            ],
+            [
+                "ch_where_hisat2_sort",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_2": {
+        "string": "ch_multiqc_config = Channel.fromPath(params.multiqc_config)",
+        "origin": [
+            [
+                "params.multiqc_config",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_multiqc_config",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "ch_output_docs = Channel.fromPath(\"$baseDir/docs/output.md\")",
+        "origin": [
+            [
+                "\"$baseDir/docs/output.md\"",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "ch_output_docs",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "Channel\n        .fromPath(params.gtf)\n        .ifEmpty { exit 1, \"GTF annotation file not found: ${params.gtf}\" }\n        .into { gtfFile }",
+        "origin": [
+            [
+                "params.gtf",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "gtfFile",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_5": {
+        "string": "Channel\n        .fromPath(params.gff)\n        .ifEmpty { exit 1, \"GFF annotation file not found: ${params.gff}\" }\n        .into { gffFile }",
+        "origin": [
+            [
+                "params.gff",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "gffFile",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_6": {
+        "string": "reads_ch = Channel.fromFilePairs(params.reads)",
+        "origin": [
+            [
+                "params.reads",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "reads_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_7": {
+        "string": "newSampleSheet\n  .splitCsv(header:true)\n  .map { row-> tuple(row.number, file(row.R1), file(row.R2)) }\n  .set { newSampleChannel }",
+        "origin": [
+            [
+                "newSampleSheet",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "newSampleChannel",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_8": {
+        "string": "newSampleSheetFastQC\n  .splitCsv(header:true)\n  .map { row-> tuple(row.number, file(row.R1), file(row.R2)) }\n  .set { newSampleChannelFastQC }",
+        "origin": [
+            [
+                "newSampleSheetFastQC",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "newSampleChannelFastQC",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_9": {
+        "string": "_fastqc.{zip,html}\" into fastqc_results",
+        "origin": [
+            [
+                "_fastqc",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_10": {
+        "string": "_fastqc.{zip,html}\") into trimgalore_results\n\n        val \"$number\" into sampleNumber_srst2\n        val \"$number\" into sampleNumber\n        set number, file(\"${R1.baseName}_trimmed.fq.gz\"), file(\"${R2.baseName}_trimmed.fq.gz\") into vf_read_pairs\n\n    script:\nif (clip_r1 > 0 ) { \n        c_r1  = \"--clip_r1 ${clip_r1}\"\n } else { \n        c_r1  = ''\n } \nif (clip_r2 > 0 ) { \n        c_r2  = \"--clip_r2 ${clip_r2}\"\n } else { \n        c_r2  = ''\n } \nif (three_prime_clip_r1 > 0 ) { \n        tpc_r1  = \"--three_prime_clip_r1 ${three_prime_clip_r1}\"\n } else { \n        tpc_r1  = ''\n } \nif (three_prime_clip_r2 > 0 ) { \n        tpc_r2  = \"--three_prime_clip_r2 ${three_prime_clip_r2}\"\n } else { \n        tpc_r2  = ''\n } \n        if (params.singleEnd) {\n            \"\"\"\n            trim_galore --fastqc --gzip $c_r1 $tpc_r1 $R1 $R2\n            \"\"\"\n        } else {\n            \"\"\"\n            trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $R1 $R2\n\n            #  MiSeq file naming convention (samplename_S1_L001_[R1]_001) <----------------------- Trying to standardise\n\n            rename 's/fastq.gz/fq.gz/' *.fastq.gz\n\n            rename 's/_val_1/_trimmed/' *.fq.gz\n            rename 's/_val_2/_trimmed/' *.fq.gz\n            \"\"\"\n        }\n}\n\n\n  \n                                                                                                         \n  \n                                                  \n  \n   \n\nprocess '2A_read_mapping' {\n  label 'high_memory'\n  input:\n    file forwardTrimmed\n    file reverseTrimmed\n    val sampleNumber\n    file genome from genome_file\n    file genome_bwa_amb\n    file genome_bwa_ann\n    file genome_bwa_bwt\n    file genome_bwa_pac\n    file genome_bwa_sa\n  output:\n    file \"sample_${sampleNumber}.sorted.bam\" into bamfiles\n    file \"sample_${sampleNumber}.sorted.bai\" into bamindexfiles\n    file \"sample_${sampleNumber}.sorted.bam\" into bam_rseqc\n    file \"sample_${sampleNumber}.sorted.bai\" into bamindexfiles_rseqc\n    file \"sample_${sampleNumber}.sorted.bam\" into bam_preseq\n    file \"sample_${sampleNumber}.sorted.bam\" into bam_forSubsamp\n    file \"sample_${sampleNumber}.sorted.bam\" into bam_skipSubsamp\n    file \"sample_${sampleNumber}.sorted.bam\" into bam_featurecounts\n  script:\n  if( aligner == 'bwa-mem' )\n    \"\"\"\n    bwa mem $genome $forwardTrimmed $reverseTrimmed | samtools sort -O BAM -o sample_${sampleNumber}.sorted.bam\n    samtools index sample_${sampleNumber}.sorted.bam sample_${sampleNumber}.sorted.bai\n    \"\"\"\n\n  else\n    error \"Invalid aligner: ${aligner}\"\n\n}\n\n\n\n  \n                                                \n   \n\nprocess '2B_rseqc' {\n    label 'high_memory'\n    tag \"${bam_rseqc.baseName - '.sorted'}\"\n    publishDir \"${params.outdir}/rseqc\" , mode: 'copy',\n        saveAs: {filename ->\n                 if (filename.indexOf(\"bam_stat.txt\") > 0)                      \"bam_stat/$filename\"\n            else if (filename.indexOf(\"infer_experiment.txt\") > 0)              \"infer_experiment/$filename\"\n            else if (filename.indexOf(\"read_distribution.txt\") > 0)             \"read_distribution/$filename\"\n            else if (filename.indexOf(\"read_duplication.DupRate_plot.pdf\") > 0) \"read_duplication/$filename\"\n            else if (filename.indexOf(\"read_duplication.DupRate_plot.r\") > 0)   \"read_duplication/rscripts/$filename\"\n            else if (filename.indexOf(\"read_duplication.pos.DupRate.xls\") > 0)  \"read_duplication/dup_pos/$filename\"\n            else if (filename.indexOf(\"read_duplication.seq.DupRate.xls\") > 0)  \"read_duplication/dup_seq/$filename\"\n            else if (filename.indexOf(\"RPKM_saturation.eRPKM.xls\") > 0)         \"RPKM_saturation/rpkm/$filename\"\n            else if (filename.indexOf(\"RPKM_saturation.rawCount.xls\") > 0)      \"RPKM_saturation/counts/$filename\"\n            else if (filename.indexOf(\"RPKM_saturation.saturation.pdf\") > 0)    \"RPKM_saturation/$filename\"\n            else if (filename.indexOf(\"RPKM_saturation.saturation.r\") > 0)      \"RPKM_saturation/rscripts/$filename\"\n            else if (filename.indexOf(\"inner_distance.txt\") > 0)                \"inner_distance/$filename\"\n            else if (filename.indexOf(\"inner_distance_freq.txt\") > 0)           \"inner_distance/data/$filename\"\n            else if (filename.indexOf(\"inner_distance_plot.r\") > 0)             \"inner_distance/rscripts/$filename\"\n            else if (filename.indexOf(\"inner_distance_plot.pdf\") > 0)           \"inner_distance/plots/$filename\"\n            else if (filename.indexOf(\"junction_plot.r\") > 0)                   \"junction_annotation/rscripts/$filename\"\n            else if (filename.indexOf(\"junction.xls\") > 0)                      \"junction_annotation/data/$filename\"\n            else if (filename.indexOf(\"splice_events.pdf\") > 0)                 \"junction_annotation/events/$filename\"\n            else if (filename.indexOf(\"splice_junction.pdf\") > 0)               \"junction_annotation/junctions/$filename\"\n            else if (filename.indexOf(\"junctionSaturation_plot.pdf\") > 0)       \"junction_saturation/$filename\"\n            else if (filename.indexOf(\"junctionSaturation_plot.r\") > 0)         \"junction_saturation/rscripts/$filename\"\n            else if (filename.indexOf(\"geneBodyCoverage.curves.pdf\") > 0)       \"geneBodyCoverage/$filename\"\n            else if (filename.indexOf(\"geneBodyCoverage.r\") > 0)                \"geneBodyCoverage/rscripts/$filename\"\n            else if (filename.indexOf(\"geneBodyCoverage.txt\") > 0)              \"geneBodyCoverage/data/$filename\"\n            else if (filename.indexOf(\"log.txt\") > -1) false\n            else filename\n        }\n\n    when:\n    !params.skip_qc && !params.skip_rseqc\n\n    input:\n    file bam_rseqc\n    file index from bamindexfiles_rseqc\n    file bed12 from bed_rseqc.collect()\n\n    output:\n    file \"*.{txt,pdf,r,xls}\" into rseqc_results\n\n    script:\n    \"\"\"\n    infer_experiment.py -i $bam_rseqc -r $bed12 > ${bam_rseqc.baseName}.infer_experiment.txt\n    bam_stat.py -i $bam_rseqc 2> ${bam_rseqc.baseName}.bam_stat.txt\n    inner_distance.py -i $bam_rseqc -o ${bam_rseqc.baseName}.rseqc -r $bed12\n    read_distribution.py -i $bam_rseqc -r $bed12 > ${bam_rseqc.baseName}.read_distribution.txt\n    read_duplication.py -i $bam_rseqc -o ${bam_rseqc.baseName}.read_duplication\n\n    geneBody_coverage.py -i $bam_rseqc -o ${bam_rseqc.baseName}.rseqc -r $bed12\n    mv log.txt ${bam_rseqc.baseName}.rseqc.log.txt\n\n    # Not applicable for bacteria\n    #junction_annotation.py -i $bam_rseqc -o ${bam_rseqc.baseName}.rseqc -r $bed12\n    #junction_saturation.py -i $bam_rseqc -o ${bam_rseqc.baseName}.rseqc -r $bed12 2> ${bam_rseqc.baseName}.junction_annotation_log.txt\n\n    \"\"\"\n}\n\n\n\n  \n                                                     \n  \n                                                                                                            \n   \n\n\n\n\n\n  \n                                                         \n   \n\nprocess '2F_mark_duplicates' {\n  label 'high_memory'\n  publishDir \"${params.outdir}/picard\", mode: \"copy\"\n\n  input:\n    file sample_bam from bamfiles\n  output:\n    set file(\"${sample_bam.baseName}.dedup.bam\"), file(\"${sample_bam.baseName}.dedup.bam.bai\") into dedup_bamfiles\n    set file(\"${sample_bam.baseName}.dedup.bam\"), file(\"${sample_bam.baseName}.dedup.bam.bai\") into dupradar_bamfiles\n    file \"${sample_bam.baseName}.txt\" into picard_results\n  script:\n    \"\"\"\n    picard -Xmx16g MarkDuplicates INPUT=$sample_bam OUTPUT=${sample_bam.baseName}.dedup.bam METRICS_FILE=${sample_bam.baseName}.txt ASSUME_SORTED=true REMOVE_DUPLICATES=false\n    samtools index ${sample_bam.baseName}.dedup.bam\n    \"\"\"\n}\n\n\n\n  \n                       \n   \n  \n                       \n                      \n                             \n                                                                         \n\n          \n                                                              \n                                          \n           \n                                              \n\n           \n\n                              \n                                          \n                              \n                                                \n                              \n     \n                                                        \n\n    \"\"\"\n    dupRadar.r $bamfile $gtf $dupradar_direction $paired ${task.cpus}\n    \"\" \n \n  \n\n\n  \n                                                                                                                       \n  \n                                     \n                                                            \n   \n\nprocess '3A_srst2' {\n    tag { \"srst2.${sampleNumber_srst2}\" }\n    publishDir \"${params.outdir}/srst2_mlst\", mode: \"copy\"\n    label 'high_memory'\n\n    input:\n    file forward_trimmed_reads_for_srst2\n    file reverse_trimmed_reads_for_srst2\n    val sampleNumber_srst2\n    val srst_min_gene_cov\n    val srst_max_gene_divergence\n    val mlst_species_srst2\n    val mlst_definitions_srst2\n    val mlst_seperator_srst2\n\n    output:\n    file(\"${sampleNumber_srst2}_srst2__mlst*\")\n\n    script:\nif (params.gene_db ) { \n    geneDB  = \"--gene_db $gene_db\"\n } else { \n    geneDB  = ''\n } \nif (params.mlst_db ) { \n    mlstDB  = \"--mlst_db $mlst_db\"\n } else { \n    mlstDB  = ''\n } \nif (params.mlst_db ) { \n    mlstdef  = \"--mlst_definitions $mlst_definitions\"\n } else { \n    mlstdef  = ''\n } \nif (params.mlst_db ) { \n    mlstdelim  = \"--mlst_delimiter $params.mlst_delimiter\"\n } else { \n    mlstdelim  = ''\n } \n    mlstfasta = mlst_species_srst2.replace(\" \", \"_\")\n\n    \"\"\"\n    # /samtools-0.1.18/\n    export SRST2_SAMTOOLS=\"/samtools-0.1.18/samtools\"\n    getmlst.py --species \"${mlst_species_srst2}\"\n    srst2 --output ${sampleNumber_srst2}_srst2 --input_pe $forward_trimmed_reads_for_srst2 $reverse_trimmed_reads_for_srst2 --mlst_db ${mlstfasta}.fasta --mlst_definitions profiles_csv --mlst_delimiter '_' --min_coverage $srst_min_gene_cov --max_divergence $srst_max_gene_divergence\n    #srst2 --input_pe $forward_trimmed_reads_for_srst2 $reverse_trimmed_reads_for_srst2 --output ${sampleNumber_srst2}_srst2 --mlst_delimiter '_' --min_coverage $srst_min_gene_cov --max_divergence $srst_max_gene_divergence\n    \"\"\"\n}\n\n  \n                             \n   \n\nif( params.amr_db ) {\n      \n                                                   \n       \n    process '3B_BuildAMRIndex' {\n        tag { \"${amr_db.baseName}\" }\n\n        input:\n            file amr_db\n\n            output:\n            file 'amr.index*' into amr_index\n\n            \"\"\"\n            bowtie2-build $amr_db amr.index --threads ${threads}\n            \"\"\"\n    }\n\n      \n                                                          \n           \n    process '3B_AMRAlignment' {\n            publishDir \"${params.outdir}/Alignment\", pattern: \"*.bam\"\n\n            tag { dataset_id }\n\n            input:\n            set dataset_id, file(forward), file(reverse) from amr_read_pairs\n            file index from amr_index.first()\n\n            output:\n            set dataset_id, file(\"${dataset_id}_amr_alignment.sam\") into amr_sam_files\n            set dataset_id, file(\"${dataset_id}_amr_alignment.bam\") into amr_bam_files\n\n            \"\"\"\n            bowtie2 -p ${threads} -x amr.index -1 $forward -2 $reverse -S ${dataset_id}_amr_alignment.sam\n            samtools view -bS ${dataset_id}_amr_alignment.sam | samtools sort -@ ${threads} -o ${dataset_id}_amr_alignment.bam\n            \"\"\"\n    }\n\n    process '3B_AMRResistome' {\n            publishDir \"${params.outdir}/Resistome\"\n\n            tag { dataset_id }\n\n            input:\n            file amr_db\n            set dataset_id, file(amr_sam) from amr_sam_files\n\n            output:\n            set dataset_id, file(\"${dataset_id}_amr_gene_resistome.tsv\") into amr_gene_level\n\n            \"\"\"\n            csa -ref_fp ${vf_db} -sam_fp ${vf_sam} -min 5 -max 100 -skip 5 -t 0 -samples 1 -out_fp \"${dataset_id}_amr_gene_resistome.tsv\"\n            \"\"\"\n    }\n}\n\n  \n                                        \n  \n                                                                                   \n                                                                        \n  \n   \n\nif( params.vf_db ) {\n      \n                                                  \n      \n    process '3C_BuildVFIndex' {\n        tag { \"Building index\" }\n\n        input:\n\n        output:\n        file 'vf.index*' into vf_index\n        file 'VFDB_setB_nt.fa' into vf_fa\n\n        \"\"\"\n        wget http://www.mgc.ac.cn/VFs/Down/VFDB_setB_nt.fas.gz\n        gunzip VFDB_setB_nt.fas.gz\n        mv VFDB_setB_nt.fas VFDB_setB_nt.fa\n        sed -i 's/(/_/g' VFDB_setB_nt.fa\n        sed -i 's/)/_/g' VFDB_setB_nt.fa\n        bowtie2-build VFDB_setB_nt.fa vf.index\n        \"\"\"\n    }\n      \n                                                                \n           \n    process '3C_VFAlignment' {\n            publishDir \"${params.outdir}/Alignment\", pattern: \"*.bam\"\n\n            tag { dataset_id }\n\n            input:\n            set dataset_id, file(forward), file(reverse) from vf_read_pairs\n            file index from vf_index.first()\n            file vf_fasta from vf_fa\n\n            output:\n            set dataset_id, file(\"${dataset_id}_vf_alignment.sam\") into vf_sam_files\n            set dataset_id, file(\"${dataset_id}_vf_alignment.bam\") into vf_bam_files\n\n            \"\"\"\n            bowtie2 -p ${threads} -x vf.index -1 $forward -2 $reverse -S ${dataset_id}_vf_alignment.sam\n            samtools view -bS ${dataset_id}_vf_alignment.sam | samtools sort -@ ${threads} -o ${dataset_id}_vf_alignment.bam\n            \"\"\"\n    }\n\n    process '3C_VFResistome' {\n            publishDir \"${params.outdir}/Resistome\"\n\n            label 'high_memory'\n            tag { dataset_id }\n\n            input:\n            file vf_db from vf_fa\n            set dataset_id, file(vf_bam) from vf_bam_files\n\n            output:\n            set dataset_id, file(\"${dataset_id}_raw_wgs_metrics.txt\") into vf_gene_level\n\n            \"\"\"\n            picard CollectWgsMetrics I=$vf_bam O=${dataset_id}_raw_wgs_metrics.txt R=${vf_db} INCLUDE_BQ_HISTOGRAM=true\n            \"\"\"\n    }\n}\n\n  \n                                         \n  \n                                                                           \n  \n   \n\nif( params.plasmid_db ) {\n      \n                                           \n           \n    process '3D_BuildPlasmidIndex' {\n        tag { \"${plasmid_db.baseName}\" }\n\n        input:\n            file plasmid_db\n\n            output:\n            file 'plasmid.index*' into plasmid_index\n\n            \"\"\"\n            bowtie2-build $plasmid_db plasmid.index --threads ${threads}\n            \"\"\"\n    }\n      \n                                                       \n           \n    process '3D_PlasmidAlignment' {\n            publishDir \"${params.outdir}/Alignment\", pattern: \"*.bam\"\n\n            tag { dataset_id }\n\n            input:\n            set dataset_id, file(forward), file(reverse) from plasmid_read_pairs\n            file index from plasmid_index.first()\n\n            output:\n            set dataset_id, file(\"${dataset_id}_plasmid_alignment.sam\") into plasmid_sam_files\n            set dataset_id, file(\"${dataset_id}_plasmid_alignment.bam\") into plasmid_bam_files\n\n            \"\"\"\n            bowtie2 -p ${threads} -x plasmid.index -1 $forward -2 $reverse -S ${dataset_id}_plasmid_alignment.sam\n            samtools view -bS ${dataset_id}_plasmid_alignment.sam | samtools sort -@ ${threads} -o ${dataset_id}_plasmid_alignment.bam\n            \"\"\"\n    }\n\n    process '3D_PlasmidResistome' {\n            publishDir \"${params.outdir}/Resistome\"\n\n            tag { dataset_id }\n\n            input:\n            file plasmid_db\n            set dataset_id, file(plasmid_sam) from plasmid_sam_files\n\n            output:\n            set dataset_id, file(\"${dataset_id}_plasmid_gene_resistome.tsv\") into plasmid_gene_level\n\n            \"\"\"\n            csa -ref_fp ${plasmid_db} -sam_fp ${plasmid_sam} -min 5 -max 100 -skip 5 -t 0 -samples 1 -out_fp \"${dataset_id}_plasmid_gene_resistome.tsv\"\n            \"\"\"\n    }\n}\n\n\n\n\n  \n                                                                                                             \n  \n                                \n  \n                                                                                  \n   \n\n\nprocess '4A_call_variants' {\n\n  publishDir \"${params.outdir}/variants\", mode: \"link\", overwrite: true\n\n  input:\n    file genome from genome_file\n    set file(dedup_bamfile), file(dedup_bamindex) from dedup_bamfiles\n  output:\n    set file(\"${dedup_bamfile.baseName}.vcf\"), file(\"$dedup_bamfile\") into vcf_bam_files\n\n  script:\n  if( variant_caller == 'freebayes' )\n    \"\"\"\n    freebayes -f $genome -p 1 $dedup_bamfile > need_rename.vcf\n    echo \"unknown ${dedup_bamfile.baseName}\\n\" > sample_names.txt\n    bcftools reheader need_rename.vcf --samples sample_names.txt -o ${dedup_bamfile.baseName}.vcf\n\n    \"\"\"\n  else if( variant_caller == 'samtools' )\n    \"\"\"\n    samtools -f $genome -p 1 dedup_bamfile > ${dedup_bamfile.baseName}.vcf\n    \"\"\"\n  else\n    error \"Invalid variant caller: ${variant_caller}\"\n}\n\n  \n                                                              \n  \n   \n\nprocess '4B_calc_coverage' {\n  input:\n     set file(vcf), file(bam) from vcf_bam_files\n  output:\n     set file(vcf), file(bam), stdout into vcf_bam_cov_files\n  script:\n  \"\"\"\n  baseCov=\\$(samtools depth $bam | awk '{sum+=\\$3} END { print sum/NR}')\n  maxCov=\\$(echo \"\\$baseCov * 5\" | bc)\n  echo \\$maxCov\n  \"\"\"\n}\n\n\n  \n                                \n  \n   \n\nprocess '4C_filter_variants' {\n  input:\n    set file(vcf), file(bam), coverage from vcf_bam_cov_files\n  output:\n    file \"${vcf.baseName}_filtered.recode.vcf\" into filtered_vcfs\n    file \"${vcf.baseName}_filtered.recode.vcf\" into filtered_vcfs_snpEff\n  script:\n  \"\"\"\n  vcftools --vcf $vcf --minQ $params.minQuality --recode --recode-INFO-all --out ${vcf.baseName}_filtered --maxDP $coverage\n  \"\"\"\n}\n\n\n  \n                              \n  \n  \n                                                                             \n                                  \n                                                                     \n   \n\nif (params.snpeffDb == 'build') {\n\n  process '4E_Snpeff_setup_new_DB' {\n\n   publishDir \"${params.outdir}/snpEffDB\", mode: \"link\", overwrite: false\n\n   input:\n     file genome from genome_file\n     file gff from snpeff_gff\n\n   output:\n     file \"snpEff.config\" into snpeff_config_file_dbBuild\n   script:\n\n   \"\"\"\n\n   # Make a new folder in snpEffDB\n   mkdir ${params.outdir}/snpEffDB/newBacGenome\n\n   # Copy genome file, rename to sequences.fa\n   mv $genome ${params.outdir}/snpEffDB/newBacGenome/sequences.fa\n\n   # Copy ann file, rename genes.gff\n   mv $gff ${params.outdir}/snpEffDB/newBacGenome/genes.gff\n\n   # Copy config from repo\n   cp ~/.nextflow/assets/uct-cbio/bacterial_variant_calling/assets/snpEff.config snpEff.config\n   sed -i 's+./data/+${params.outdir}/snpEffDB/+' snpEff.config\n\n   # Edit the snpEff.config, add: newBacGenome.genome: newBacGenome\n   echo \"newBacGenome.genome: newBacGenome\" >> snpEff.config\n   \"\"\"\n  }\n\n  process '4E_Snpeff_create_DB' {\n\n    input:\n      file config from snpeff_config_file_dbBuild\n\n    output:\n      file \"snpEff.config\" into run_config\n\n    script:\n    \"\"\"\n    snpEff -Xmx4g build -gff3 -c $config -v newBacGenome\n    \"\"\"\n  }\n\n} else {\n\n  process '4E_Snpeff_download_DB' {\n\n    output:\n      file \"snpEff.config\" into run_config\n    script:\n    \"\"\"\n    # Copy config from repo\n    cp ~/.nextflow/assets/uct-cbio/bacterial_variant_calling/assets/snpEff.config snpEff.config\n    sed -i 's+./data/+${params.outdir}snpEffDB/+' snpEff.config\n    snpEff -Xmx4g download ${params.snpeffDb} -c ./snpEff.config\n    \"\"\"\n  }\n\n}\n\n\n\nif (params.snpeffDb == 'build') {\n\n\n    process '4E_Snpeff_use_build' {\n      publishDir \"${params.outdir}/snpEff\", mode: \"link\", overwrite: true\n\n      input:\n        file filtered_vcf from filtered_vcfs_snpEff\n        file snpeff_config from run_config.collect()\n      output:\n        set file(\"${filtered_vcf.baseName}_snpEff.ann.vcf\"), file(\"${filtered_vcf.baseName}_snpEff.html\"), file(\"${filtered_vcf.baseName}_snpEff.txt\"), file(\"${filtered_vcf.baseName}_snpEff.csv\") into snpEffResults\n      script:\n      \"\"\"\n      snpEff -Xmx4g \\\n        newBacGenome \\\n        -dataDir ${params.outdir}/snpEffDB/ \\\n        -csvStats ${filtered_vcf.baseName}_snpEff.csv \\\n        -v \\\n        -c $snpeff_config \\\n        ${filtered_vcf} \\\n        > ${filtered_vcf.baseName}_snpEff.ann.vcf\n      mv snpEff_summary.html ${filtered_vcf.baseName}_snpEff.html\n      mv ${filtered_vcf.baseName}_snpEff.genes.txt ${filtered_vcf.baseName}_snpEff.txt\n      \"\"\"\n    }\n\n\n} else {\n\n    process '4E_Snpeff_use_existing' {\n      publishDir \"${params.outdir}/snpEff\", mode: \"link\", overwrite: true\n\n      input:\n        file filtered_vcf from filtered_vcfs_snpEff\n        file snpeff_config from run_config\n      output:\n        set file(\"${filtered_vcf.baseName}_snpEff.ann.vcf\"), file(\"${filtered_vcf.baseName}_snpEff.html\"), file(\"${filtered_vcf.baseName}_snpEff.txt\"), file(\"${filtered_vcf.baseName}_snpEff.csv\") into snpEffResults\n      script:\n      \"\"\"\n      snpEff -Xmx4g \\\n        ${params.snpeffDb} \\\n        -dataDir ${params.outdir}snpEffDB/ \\\n        -csvStats ${filtered_vcf.baseName}_snpEff.csv \\\n        -v \\\n        -c ./snpEff.config \\\n        ${filtered_vcf} \\\n        > ${filtered_vcf.baseName}_snpEff.ann.vcf\n      mv snpEff_summary.html ${filtered_vcf.baseName}_snpEff.html\n      mv ${filtered_vcf.baseName}_snpEff.genes.txt ${filtered_vcf.baseName}_snpEff.txt\n      \"\"\"\n    }\n\n}\n\n\n  \n                                             \n   \n\nprocess '4F_split_vcf_indel_snps' {\n  publishDir \"${params.outdir}/variants\", mode: \"link\"\n\n  input:\n    file f_vcf from filtered_vcfs\n  output:\n    file \"${f_vcf.baseName}_filtered_indels.recode.vcf\" into indel_vcfs\n    file \"${f_vcf.baseName}_filtered_snps.recode.vcf\" into snp_vcfs\n    file \"${f_vcf.baseName}_filtered_snps.recode.vcf\" into snp_vcfs_bgzip\n  script:\n  \"\"\"\n  vcftools --vcf $f_vcf --keep-only-indels --recode --recode-INFO-all --out ${f_vcf.baseName}_filtered_indels\n  vcftools --vcf $f_vcf --remove-indels --recode --recode-INFO-all --out ${f_vcf.baseName}_filtered_snps\n  \"\"\"\n\n}\n\n  \n                                                                 \n   \nprocess '4G_BuildConsensusSequence' {\n\n    publishDir \"${params.outdir}/Consensus\"\n\n    input:\n    file snp_vcf_file from snp_vcfs\n    file genome from genome_file\n\n    output:\n    file(\"${snp_vcf_file.baseName}_consensus.fa\") into consensus_files\n\n    \"\"\"\n    bgzip -c $snp_vcf_file > ${snp_vcf_file.baseName}.vcf.gz\n    tabix ${snp_vcf_file.baseName}.vcf.gz\n    cat $genome | bcftools consensus ${snp_vcf_file.baseName}.vcf.gz > ${snp_vcf_file.baseName}_consensus.fa\n    \"\"\"\n}\n\n\n\n  \n                 \n           \n\n\nif (params.makeTree) {\n\n                \n                            \n      \n                                            \n       \n\n    process '5A_mafft_alignment' {\n\n      label 'high_memory'\n\n      input:\n        file seq from consensus_files.collect()\n      output:\n        file \"*.phy\" into phylip_file\n      script:\n      \"\"\"\n      cat *.fa > combined.fasta\n      mafft --retree 2 --maxiterate 2 combined.fasta > aligned.fasta\n      convbioseq -i fasta phylip aligned.fasta\n      \"\"\"\n    }\n\n\n      \n                            \n       \n\n    process '5B_run_RAxML' {\n\n      publishDir \"${params.outdir}/RAxML\", mode: \"link\", overwrite: false\n\n      input:\n        file inphy from phylip_file\n        val threads from threads\n      output:\n        file \"*.outFile\" into RAxML_out\n\n      script:\n      \"\"\"\n      /standard-RAxML/raxmlHPC-PTHREADS-AVX -s $inphy -n outFile -m GTRCATX -T $threads -f a -x 10 -N autoMRE -p 10\n      \"\"\"\n    }\n\n}\n\n  \n                 \n           \n\n\n  \n                                                                                                     \n  \n  \n   \n\nprocess '6A_multiqc' {\n    publishDir \"${params.outdir}/MultiQC\", mode: 'copy'\n\n    when:\n    !params.skip_multiqc\n\n    input:\n    file multiqc_config from ch_multiqc_config\n    file (fastqc",
+        "origin": [
+            [
+                "_fastqc",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_11": {
+        "string": "fastqc_results.collect().ifEmpty([])",
+        "origin": [
+            [
+                "fastqc_results",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_12": {
+        "string": "trimgalore_results.collect().ifEmpty([])",
+        "origin": [
+            [
+                "trimgalore_results",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_13": {
+        "string": "rseqc_results.collect().ifEmpty([])",
+        "origin": [
+            [
+                "rseqc_results",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_14": {
+        "string": "snpEffResults.collect().ifEmpty([])",
+        "origin": [
+            [
+                "snpEffResults",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_15": {
+        "string": "picard_results.collect().ifEmpty([])",
+        "origin": [
+            [
+                "picard_results",
+                "P"
+            ]
+        ],
+        "gives": []
+    }
+}

@@ -1,0 +1,606 @@
+{
+    "parsesheet": {
+        "name_process": "parsesheet",
+        "string_process": "\nprocess parsesheet {\n\n\ttag \"$metaID\"\n\n\tinput:\n\tval sheet\n\tval index\n\n\toutput:\n\tval newsheet into demux_sheet\n\n\twhen:\n\tdemux == 'y'\n\n\t\"\"\"\npython $basedir/bin/ctg-parse-samplesheet.dragen-exome.py -s $sheet -o $newsheet -i $index\n\t\"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\npython $basedir/bin/ctg-parse-samplesheet.dragen-exome.py -s $sheet -o $newsheet -i $index\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sheet",
+            "index"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "demux_sheet"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"$metaID\""
+        ],
+        "when": "demux == 'y'",
+        "stub": ""
+    },
+    "demux": {
+        "name_process": "demux",
+        "string_process": "\nprocess demux {\n\n    tag \"$metaID\"\t\n    label 'dragen'\n\n    input:\n    val newsheet from demux_sheet\n\n    output:\n    val \"x\" into mv_fastq\n\n    when:\n    demux = \"y\"\n        \n    \"\"\"\n    export LC_ALL=C        \n\n    mkdir -p ${FQDIR}\n    /opt/edico/bin/dragen --force --bcl-conversion-only=true \\\\\n           --bcl-input-directory ${runfolder} \\\\\n\t   --output-directory ${FQDIR} \\\\\n\t   --sample-sheet ${newsheet} \\\\\n\t   --no-lane-splitting true \\\\\n\t   ${b2farg}\n\n     \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n    export LC_ALL=C        \n\n    mkdir -p ${FQDIR}\n    /opt/edico/bin/dragen --force --bcl-conversion-only=true \\\\\n           --bcl-input-directory ${runfolder} \\\\\n\t   --output-directory ${FQDIR} \\\\\n\t   --sample-sheet ${newsheet} \\\\\n\t   --no-lane-splitting true \\\\\n\t   ${b2farg}\n\n     \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "demux_sheet"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mv_fastq"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"$metaID\"",
+            "label 'dragen'"
+        ],
+        "when": "demux = \"y\"",
+        "stub": ""
+    },
+    "moveFastq": {
+        "name_process": "moveFastq",
+        "string_process": "\nprocess moveFastq {\n\n    tag \"${sid}_${projid}\"\n\n    input:\n    val x from mv_fastq\n    set sid, projid, ref, panel, annotate from move_fastq_csv\n\n    output:\n    val \"y\" into run_analysis\n    set sid, projid into fastqc_go\n\n    when:\n    demux = 'y'\n\n    \"\"\"\n    mkdir -p ${OUTDIR}/${projid}\n    mkdir -p ${OUTDIR}/${projid}/fastq\n\n    mkdir -p ${OUTDIR}/${projid}/fastq/$sid\n\n    # If there is a directory per project\n    if [ -d ${FQDIR}/${projid}/ ]; then\n        if [ -d ${FQDIR}/${projid}/$sid ]; then\n\t    mv ${FQDIR}/${projid}/$sid ${OUTDIR}/${projid}/fastq/\n\t# If there is a flat structure under project dir\n\telse\n\t    mv ${FQDIR}/${projid}/$sid* ${OUTDIR}/${projid}/fastq/$sid/\n\tfi\n    # If there is a flat structure with all samples for all projects in one - create a sid folder for each sample\n    else\n\tmv ${FQDIR}/$sid* ${OUTDIR}/${projid}/fastq/$sid/\n    fi\n    \"\"\"\n\n}",
+        "nb_lignes_process": 35,
+        "string_script": "\"\"\"\n    mkdir -p ${OUTDIR}/${projid}\n    mkdir -p ${OUTDIR}/${projid}/fastq\n\n    mkdir -p ${OUTDIR}/${projid}/fastq/$sid\n\n    # If there is a directory per project\n    if [ -d ${FQDIR}/${projid}/ ]; then\n        if [ -d ${FQDIR}/${projid}/$sid ]; then\n\t    mv ${FQDIR}/${projid}/$sid ${OUTDIR}/${projid}/fastq/\n\t# If there is a flat structure under project dir\n\telse\n\t    mv ${FQDIR}/${projid}/$sid* ${OUTDIR}/${projid}/fastq/$sid/\n\tfi\n    # If there is a flat structure with all samples for all projects in one - create a sid folder for each sample\n    else\n\tmv ${FQDIR}/$sid* ${OUTDIR}/${projid}/fastq/$sid/\n    fi\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mv_fastq",
+            "move_fastq_csv"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "run_analysis",
+            "fastqc_go"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"${sid}_${projid}\""
+        ],
+        "when": "demux = 'y'",
+        "stub": ""
+    },
+    "dragen_align_vc": {
+        "name_process": "dragen_align_vc",
+        "string_process": "\nprocess dragen_align_vc {\n\n    tag \"${sid}_${projid}\"\n    label 'dragen' \n\n    input:\n    val x from run_analysis\n    set sid, projid, ref, panel, annotate from analyze_csv\n\n    output:\n    val x into done_analyze\n    val projid into dragen_metrics\n    set sid, projid, ref, annotate, val(\"${OUTDIR}/${projid}/dragen/vcf/${sid}/${sid}.hard-filtered.vcf.gz\"), val(\"${OUTDIR}/${projid}/dragen/vcf/${sid}/${sid}.diploidSV.vcf.gz\") into annotate_vcf\n    \n    \"\"\"\n    export LC_ALL=C\n\n    R1=\\$(echo ${OUTDIR}/${projid}/fastq/${sid}/${sid}*_R1_*fastq.gz)\n    R2=\\$(echo ${OUTDIR}/${projid}/fastq/${sid}/${sid}*_R2_*fastq.gz)\n\n    # Get target panel file\n    if [ $panel == \"comprehensive\" ] || [ $panel == \"Comprehensive\" ]\n    then\n\tif [ $ref == 'hg38' ]; then\n\t    targetfile=${params.target_twist_comprehensive_hg38}\n\telif [ $ref == 'mm10' ]; then\n\t    targetfile=${params.target_twist_comprehensive_mm10}\n        fi\n    elif [ $panel == \"core\" ] || [ $panel == \"Core\" ]\n    then\n        if [ $ref == 'hg38' ]; then\n\t    targetfile=${params.target_twist_core_hg38}\n\telif [ $ref == 'mm10' ]; then\n\t    targetfile=${params.target_twist_core_mm10}\n        fi\n    elif [ $panel == \"custom\"  ] || [ $panel == \"Custom\" ] \n    then\n        targetfile=${params.custom_target}\n    else\n        echo '>PANEL NOT RECOGNIZED!'\n\techo 'in samplesheet - only 'comprehensive', 'core' and 'custom' can be specified in 'panel' section'\n        targetfile='ERR'\n    fi\n\n    # Get species based on ref\n    if [[ $ref == hg* ]]\n    then \n    \tspecies='human'\n    elif [[ $ref == mm* ]]\n    then\n\tspecies='mouse'\n    else\n        echo 'species cannot be extracted from reference: $ref'\n\texit 1;\n    fi\n\n    dragendir=${OUTDIR}/${projid}/dragen/\n    mkdir -p \\$dragendir\n    mkdir -p \\${dragendir}/metrics\n    mkdir -p \\${dragendir}/vcf/\n    mkdir -p \\${dragendir}/vcf/${sid}\n\n    outdir=\\${dragendir}/metrics/${sid}\n    mkdir -p \\$outdir\n\n    echo \"R1: '\\${R1}'\"\n    echo \"R2: '\\${R2}'\"\n    echo \"sid: '${sid}'\"\n    echo \"padding: '${params.padding}'\"\n    echo \"outdir: '\\${outdir}'\"\n    echo \"targetfile: '\\${targetfile}'\"\n    echo \"species: '\\${species}'\"   \n\n    /opt/edico/bin/dragen -f -r /staging/\\$species/reference/$ref \\\\\n        -1 \\${R1} \\\\\n        -2 \\${R2} \\\\\n        --RGID ${projid}_${sid} \\\\\n        --RGSM $sid \\\\\n        --intermediate-results-dir /staging/tmp/ \\\\\n        --enable-map-align true \\\\\n        --enable-map-align-output true \\\\\n        --vc-target-bed \\$targetfile \\\\\n        --vc-target-bed-padding ${params.padding} \\\\\n        --output-format bam \\\\\n        --output-directory \\$outdir \\\\\n        --enable-variant-caller true \\\\\n        --enable-sv true \\\\\n        --output-file-prefix $sid \\\\\n        --remove-duplicates true \\\\\n        --qc-coverage-region-1 \\$targetfile \\\\\n\t--qc-coverage-region-padding-1 ${params.padding} \\\\\n        --qc-coverage-ignore-overlaps true \\\\\n        --qc-coverage-filters-1 \"mapq<20,bq<20\"\n\t\n    # move vcfs to vcf dir     \n    # SNV\n    mv \\${outdir}/${sid}.hard-filtered.vcf.gz \\${dragendir}/vcf/${sid}/\n    # SV\n    mv \\${outdir}/sv/results/variants/diploidSV.vcf.gz \\${dragendir}/vcf/${sid}/${sid}.diploidSV.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 100,
+        "string_script": "\"\"\"\n    export LC_ALL=C\n\n    R1=\\$(echo ${OUTDIR}/${projid}/fastq/${sid}/${sid}*_R1_*fastq.gz)\n    R2=\\$(echo ${OUTDIR}/${projid}/fastq/${sid}/${sid}*_R2_*fastq.gz)\n\n    # Get target panel file\n    if [ $panel == \"comprehensive\" ] || [ $panel == \"Comprehensive\" ]\n    then\n\tif [ $ref == 'hg38' ]; then\n\t    targetfile=${params.target_twist_comprehensive_hg38}\n\telif [ $ref == 'mm10' ]; then\n\t    targetfile=${params.target_twist_comprehensive_mm10}\n        fi\n    elif [ $panel == \"core\" ] || [ $panel == \"Core\" ]\n    then\n        if [ $ref == 'hg38' ]; then\n\t    targetfile=${params.target_twist_core_hg38}\n\telif [ $ref == 'mm10' ]; then\n\t    targetfile=${params.target_twist_core_mm10}\n        fi\n    elif [ $panel == \"custom\"  ] || [ $panel == \"Custom\" ] \n    then\n        targetfile=${params.custom_target}\n    else\n        echo '>PANEL NOT RECOGNIZED!'\n\techo 'in samplesheet - only 'comprehensive', 'core' and 'custom' can be specified in 'panel' section'\n        targetfile='ERR'\n    fi\n\n    # Get species based on ref\n    if [[ $ref == hg* ]]\n    then \n    \tspecies='human'\n    elif [[ $ref == mm* ]]\n    then\n\tspecies='mouse'\n    else\n        echo 'species cannot be extracted from reference: $ref'\n\texit 1;\n    fi\n\n    dragendir=${OUTDIR}/${projid}/dragen/\n    mkdir -p \\$dragendir\n    mkdir -p \\${dragendir}/metrics\n    mkdir -p \\${dragendir}/vcf/\n    mkdir -p \\${dragendir}/vcf/${sid}\n\n    outdir=\\${dragendir}/metrics/${sid}\n    mkdir -p \\$outdir\n\n    echo \"R1: '\\${R1}'\"\n    echo \"R2: '\\${R2}'\"\n    echo \"sid: '${sid}'\"\n    echo \"padding: '${params.padding}'\"\n    echo \"outdir: '\\${outdir}'\"\n    echo \"targetfile: '\\${targetfile}'\"\n    echo \"species: '\\${species}'\"   \n\n    /opt/edico/bin/dragen -f -r /staging/\\$species/reference/$ref \\\\\n        -1 \\${R1} \\\\\n        -2 \\${R2} \\\\\n        --RGID ${projid}_${sid} \\\\\n        --RGSM $sid \\\\\n        --intermediate-results-dir /staging/tmp/ \\\\\n        --enable-map-align true \\\\\n        --enable-map-align-output true \\\\\n        --vc-target-bed \\$targetfile \\\\\n        --vc-target-bed-padding ${params.padding} \\\\\n        --output-format bam \\\\\n        --output-directory \\$outdir \\\\\n        --enable-variant-caller true \\\\\n        --enable-sv true \\\\\n        --output-file-prefix $sid \\\\\n        --remove-duplicates true \\\\\n        --qc-coverage-region-1 \\$targetfile \\\\\n\t--qc-coverage-region-padding-1 ${params.padding} \\\\\n        --qc-coverage-ignore-overlaps true \\\\\n        --qc-coverage-filters-1 \"mapq<20,bq<20\"\n\t\n    # move vcfs to vcf dir     \n    # SNV\n    mv \\${outdir}/${sid}.hard-filtered.vcf.gz \\${dragendir}/vcf/${sid}/\n    # SV\n    mv \\${outdir}/sv/results/variants/diploidSV.vcf.gz \\${dragendir}/vcf/${sid}/${sid}.diploidSV.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 85,
+        "language_script": "bash",
+        "tools": [
+            "PanelApp"
+        ],
+        "tools_url": [
+            "https://bio.tools/panelapp"
+        ],
+        "tools_dico": [
+            {
+                "name": "PanelApp",
+                "uri": "https://bio.tools/panelapp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3577",
+                            "term": "Personalised medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Targeted exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "WES"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Whole exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3577",
+                            "term": "Precision medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3577",
+                            "term": "https://en.wikipedia.org/wiki/Personalized_medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Experimental medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Clinical medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Biomedical research"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2990",
+                                    "term": "Classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Genomics England PanelApp is a publically-available knowledgebase that allows virtual gene panels related to human disorders to be created, stored and queried. It includes a crowdsourcing tool that allows genes to be added or reviewed by experts throughout the worldwide scientific community, providing an opportunity for the standardisation of gene panels, and a consensus on which genes have sufficient evidence for disease association.",
+                "homepage": "https://panelapp.genomicsengland.co.uk/"
+            }
+        ],
+        "inputs": [
+            "run_analysis",
+            "analyze_csv"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "done_analyze",
+            "dragen_metrics",
+            "annotate_vcf"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"${sid}_${projid}\"",
+            "label 'dragen'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotate": {
+        "name_process": "annotate",
+        "string_process": "\nprocess annotate {\n\n\ttag \"${sid}\"\n\tlabel 'dragen' \t\n\n\tinput:\n\tset sid, projid, ref, annotate, snv, sv from annotate_vcf\n\t\n\toutput:\n\tset sid, projid, ref, annotate into filter_vcf\n\n\twhen:\n\tannotate == 'y'\n\n\t\"\"\"\n\tnirvanaref=$nirvanadir/$ref/\n\n\tvcfdir='${OUTDIR}/${projid}/dragen/vcf/$sid'\n\n\toutSNV_BN=\\$(basename $snv .vcf.gz)\n\toutSV_BN=\\$(basename $sv .vcf.gz)\n\t\n\toutSNV=\\$vcfdir/\\${outSNV_BN}.annotated.nirvana.txt\n\toutSV=\\$vcfdir/\\${outSV_BN}.annotated.nirvana.txt\n\n\t# Convert hg37/38 to GRCh37/8 \n\tGref=\\$(echo $ref | sed 's/hg/GRCh/')\t\n\n\t# SNV annotate\n\t/opt/edico/share/nirvana/Nirvana -c \\$nirvanaref/Cache/\\$Gref/Both -r \\$nirvanaref/References/Homo_sapiens.\\$Gref.Nirvana.dat --sd \\$nirvanaref/SupplementaryAnnotation/\\$Gref -i $snv -o \\$outSNV\n\n\t# SNV annotate\t\t \n\t/opt/edico/share/nirvana/Nirvana -c \\$nirvanaref/Cache/\\$Gref/Both -r \\$nirvanaref/References/Homo_sapiens.\\$Gref.Nirvana.dat --sd \\$nirvanaref/SupplementaryAnnotation/\\$Gref -i $sv -o \\$outSV\n\n\t\"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "\"\"\"\n\tnirvanaref=$nirvanadir/$ref/\n\n\tvcfdir='${OUTDIR}/${projid}/dragen/vcf/$sid'\n\n\toutSNV_BN=\\$(basename $snv .vcf.gz)\n\toutSV_BN=\\$(basename $sv .vcf.gz)\n\t\n\toutSNV=\\$vcfdir/\\${outSNV_BN}.annotated.nirvana.txt\n\toutSV=\\$vcfdir/\\${outSV_BN}.annotated.nirvana.txt\n\n\t# Convert hg37/38 to GRCh37/8 \n\tGref=\\$(echo $ref | sed 's/hg/GRCh/')\t\n\n\t# SNV annotate\n\t/opt/edico/share/nirvana/Nirvana -c \\$nirvanaref/Cache/\\$Gref/Both -r \\$nirvanaref/References/Homo_sapiens.\\$Gref.Nirvana.dat --sd \\$nirvanaref/SupplementaryAnnotation/\\$Gref -i $snv -o \\$outSNV\n\n\t# SNV annotate\t\t \n\t/opt/edico/share/nirvana/Nirvana -c \\$nirvanaref/Cache/\\$Gref/Both -r \\$nirvanaref/References/Homo_sapiens.\\$Gref.Nirvana.dat --sd \\$nirvanaref/SupplementaryAnnotation/\\$Gref -i $sv -o \\$outSV\n\n\t\"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "annotate_vcf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "filter_vcf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"${sid}\"",
+            "label 'dragen'"
+        ],
+        "when": "annotate == 'y'",
+        "stub": ""
+    },
+    "fastqc": {
+        "name_process": "fastqc",
+        "string_process": "\nprocess fastqc {\n\n\ttag \"${sid}_${projid}\"\n\t\n\tinput:\n\tset sid, projid from fastqc_go\n\n        output:\n        val projid into multiqc_fastqc\n\n\t\n\t\"\"\"\n\n        qcdir=${OUTDIR}/${projid}/qc\n        fqcdir=${OUTDIR}/${projid}/qc/fastqc\n        mkdir -p \\$qcdir\n        mkdir -p \\$fqcdir \n\n\tread1=\\$(echo ${OUTDIR}/$projid/fastq/$sid/$sid*R1*fastq.gz)\n   \tread2=\\$(echo ${OUTDIR}/$projid/fastq/$sid/$sid*R2*fastq.gz)\n\n    \t# Check if fastq is not found with pattern above (due to sample fastq are not put in sample id folder\n    \tif [[ \\$read1 == *\"*R1*\"* ]]; then\n       \t   read1=\\$(echo ${FQDIR}/${projid}/${sid}/${sid}*R1*fastq.gz)\n       \t   read2=\\$(echo ${FQDIR}/${projid}/${sid}/${sid}*R2*fastq.gz)\n    \tfi\n\n\tfastqc -t $task.cpus --outdir \\$fqcdir \\$read1\n\tfastqc -t $task.cpus --outdir \\$fqcdir \\$read2\n \t\n\t\"\"\"\n    \n}",
+        "nb_lignes_process": 32,
+        "string_script": "\"\"\"\n\n        qcdir=${OUTDIR}/${projid}/qc\n        fqcdir=${OUTDIR}/${projid}/qc/fastqc\n        mkdir -p \\$qcdir\n        mkdir -p \\$fqcdir \n\n\tread1=\\$(echo ${OUTDIR}/$projid/fastq/$sid/$sid*R1*fastq.gz)\n   \tread2=\\$(echo ${OUTDIR}/$projid/fastq/$sid/$sid*R2*fastq.gz)\n\n    \t# Check if fastq is not found with pattern above (due to sample fastq are not put in sample id folder\n    \tif [[ \\$read1 == *\"*R1*\"* ]]; then\n       \t   read1=\\$(echo ${FQDIR}/${projid}/${sid}/${sid}*R1*fastq.gz)\n       \t   read2=\\$(echo ${FQDIR}/${projid}/${sid}/${sid}*R2*fastq.gz)\n    \tfi\n\n\tfastqc -t $task.cpus --outdir \\$fqcdir \\$read1\n\tfastqc -t $task.cpus --outdir \\$fqcdir \\$read2\n \t\n\t\"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [
+            "QCS",
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/qcs",
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "QCS",
+                "uri": "https://bio.tools/qcs",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0082",
+                            "term": "Structure prediction"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0474",
+                                    "term": "Protein structure prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0271",
+                                    "term": "Structure prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "New method to evaluate the quality of structure predictions, especially for template free structure prediction. It captures both global and local structural features, with emphasis on global topology.",
+                "homepage": "http://prodata.swmed.edu/QCS/"
+            },
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "fastqc_go"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "multiqc_fastqc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"${sid}_${projid}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dragen_stats": {
+        "name_process": "dragen_stats",
+        "string_process": "\nprocess dragen_stats {\n\n        tag \"${projid}\"\n\n\tinput: \n\tval \"y\" from dragen_metrics.collect()\n\tset projid, panel from dragen_summary.unique()\n\t\n\toutput:\n\tval projid into multiqc_dragen\n\tval \"x\" into completed\n\n\t\"\"\"\n\n    if [ $panel == \"comprehensive\" ] || [ $panel == \"Comprehensive\" ]\n    then\n        targetfile='TWIST-comprehensive'\n    elif [ $panel == \"core\" ] || [ $panel == \"Core\" ]\n    then\n        targetfile='TWIST-core'\n    else\n        targetfile='Custom panel'\n    fi\n\n\tmkdir -p ${OUTDIR}/$projid/qc/dragen\n\t${basedir}/bin/ctg-dragen-stats-panel -p $projid -i ${OUTDIR}/$projid/dragen/ -o ${OUTDIR}/$projid/qc/dragen/ -t \\$targetfile -a ${params.padding}\n\t\n\t\"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "\"\"\"\n\n    if [ $panel == \"comprehensive\" ] || [ $panel == \"Comprehensive\" ]\n    then\n        targetfile='TWIST-comprehensive'\n    elif [ $panel == \"core\" ] || [ $panel == \"Core\" ]\n    then\n        targetfile='TWIST-core'\n    else\n        targetfile='Custom panel'\n    fi\n\n\tmkdir -p ${OUTDIR}/$projid/qc/dragen\n\t${basedir}/bin/ctg-dragen-stats-panel -p $projid -i ${OUTDIR}/$projid/dragen/ -o ${OUTDIR}/$projid/qc/dragen/ -t \\$targetfile -a ${params.padding}\n\t\n\t\"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dragen_metrics",
+            "dragen_summary"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "multiqc_dragen",
+            "completed"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"${projid}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n\n    tag \"${projid}\"\n\n    input:\n    set projid, projid2 from multiqc_fastqc.unique().phase(multiqc_dragen.unique())\n\n\n    \"\"\"\n    \n    cd $OUTDIR\n    multiqc -f ${OUTDIR}/$projid/ --outdir ${OUTDIR}/$projid/qc/multiqc/ -n ${projid}_exome_dragen_report.html\n\n    mkdir -p ${CTGQC}\n    mkdir -p ${CTGQC}/$projid\n\n    cp -r ${OUTDIR}/$projid/qc ${CTGQC}/$projid/\n\n    \"\"\"\n\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n    \n    cd $OUTDIR\n    multiqc -f ${OUTDIR}/$projid/ --outdir ${OUTDIR}/$projid/qc/multiqc/ -n ${projid}_exome_dragen_report.html\n\n    mkdir -p ${CTGQC}\n    mkdir -p ${CTGQC}/$projid\n\n    cp -r ${OUTDIR}/$projid/qc ${CTGQC}/$projid/\n\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "multiqc_fastqc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"${projid}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc_run": {
+        "name_process": "multiqc_run",
+        "string_process": "\nprocess multiqc_run {\n\n\ttag \"$metaID\"\n\n\tinput:\n\tval x from completed.collect()\n\n\t\"\"\"\n\n\tcd $OUTDIR\n\tmkdir -p ${OUTDIR}/qc\n\tmultiqc -f ${OUTDIR} $params.runfolder/ctg-interop --outdir ${OUTDIR}/qc/ -n exome_dragen_run_${metaID}_multiqc_report.html\n\n\tmkdir -p ${CTGQC}\n\n\tcp -r ${OUTDIR}/qc ${CTGQC}\n\t\"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n\n\tcd $OUTDIR\n\tmkdir -p ${OUTDIR}/qc\n\tmultiqc -f ${OUTDIR} $params.runfolder/ctg-interop --outdir ${OUTDIR}/qc/ -n exome_dragen_run_${metaID}_multiqc_report.html\n\n\tmkdir -p ${CTGQC}\n\n\tcp -r ${OUTDIR}/qc ${CTGQC}\n\t\"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "completed"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "perllb__ctg-exome",
+        "directive": [
+            "tag \"$metaID\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

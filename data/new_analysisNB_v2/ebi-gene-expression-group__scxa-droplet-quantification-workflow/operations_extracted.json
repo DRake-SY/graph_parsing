@@ -1,0 +1,212 @@
+{
+    "OPERATION_1": {
+        "string": "Channel\n    .fromPath(sdrfFile, checkIfExists: true)\n    .splitCsv(header:true, sep:\"\\t\")\n    .filter{ row -> (! row.containsKey(params.fields.quality)) || ( row[\"${params.fields.quality}\"].toLowerCase() != 'not ok') }\n    .into {\n        SDRF_FOR_FASTQS\n        SDRF_FOR_STRAND\n        SDRF_FOR_TECHREP\n        SDRF_FOR_COUNT\n    }",
+        "origin": [
+            [
+                "sdrfFile, checkIfExists: true",
+                "A"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_2": {
+        "string": "TRANSCRIPT_TO_GENE = Channel.fromPath( transcriptToGene, checkIfExists: true ).first()",
+        "origin": [
+            [
+                "transcriptToGene, checkIfExists: true",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "TRANSCRIPT_TO_GENE",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "SDRF_FOR_FASTQS\n    .map{ row-> \n      controlled_access='no'\n      if (  params.fields.containsKey('controlled_access')){\n        controlled_access=row[\"${params.fields.controlled_access}\"]\n      }\n      tuple(row[\"${params.fields.run}\"], row[\"${params.fields.cdna_uri}\"], row[\"${params.fields.cell_barcode_uri}\"], file(row[\"${params.fields.cdna_uri}\"]).getName(), file(row[\"${params.fields.cell_barcode_uri}\"]).getName(), row[\"${params.fields.cell_barcode_size}\"], row[\"${params.fields.umi_barcode_size}\"], row[\"${params.fields.end}\"], row[\"${params.fields.cell_count}\"], controlled_access) \n    }    \n    .set { FASTQ_RUNS }",
+        "origin": [
+            [
+                "SDRF_FOR_FASTQS",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "FASTQ_RUNS",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "SDRF_FOR_TECHREP\n        .map{ row-> tuple(row[\"${params.fields.run}\"], row[\"${params.fields.techrep}\"]) }\n        .groupTuple()\n        .map{ row-> tuple( row[0], row[1][0]) }\n        .set{ TECHREPS }",
+        "origin": [
+            [
+                "SDRF_FOR_TECHREP",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "TECHREPS",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_5": {
+        "string": "SDRF_FOR_COUNT\n        .map{ row-> tuple(row[\"${params.fields.techrep}\"]) }\n        .unique()\n        .count()\n        .set { TARGET_RESULT_COUNT }",
+        "origin": [
+            [
+                "SDRF_FOR_COUNT",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "TARGET_RESULT_COUNT",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_6": {
+        "string": "TECHREPS.join( DOWNLOADED_FASTQS )\n        .groupTuple(by: 1)\n        .map{ row-> tuple( row[1], row[2].flatten(), row[3].flatten(), row[4][0], row[5][0], row[6][0], row[7][0]) }\n        .set{\n            FINAL_FASTQS\n        }",
+        "origin": [
+            [
+                "TECHREPS",
+                "P"
+            ],
+            [
+                "DOWNLOADED_FASTQS",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "FINAL_FASTQS",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_7": {
+        "string": "DOWNLOADED_FASTQS.set{ FINAL_FASTQS }",
+        "origin": [
+            [
+                "DOWNLOADED_FASTQS",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "FINAL_FASTQS",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_8": {
+        "string": "SDRF_FOR_COUNT\n      .map{ row-> tuple(row[\"${params.fields.run}\"]) }\n      .unique()\n      .count()\n      .set { TARGET_RESULT_COUNT }",
+        "origin": [
+            [
+                "SDRF_FOR_COUNT",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "TARGET_RESULT_COUNT",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_9": {
+        "string": "FINAL_FASTQS.into{\n    FINAL_FASTQS_FOR_CONFIG\n    FINAL_FASTQS_FOR_ALEVIN\n}",
+        "origin": [
+            [
+                "FINAL_FASTQS",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_10": {
+        "string": "ALEVIN_RESULTS\n    .into{\n        ALEVIN_RESULTS_FOR_QC\n        ALEVIN_RESULTS_FOR_PROCESSING\n        ALEVIN_RESULTS_FOR_OUTPUT\n    }",
+        "origin": [
+            [
+                "ALEVIN_RESULTS",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_11": {
+        "string": "ALEVIN_MTX\n    .into{\n        ALEVIN_MTX_FOR_QC\n        ALEVIN_MTX_FOR_EMPTYDROPS\n        ALEVIN_MTX_FOR_OUTPUT\n    }",
+        "origin": [
+            [
+                "ALEVIN_MTX",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_12": {
+        "string": "ALEVIN_RESULTS_FOR_QC\n    .join(ALEVIN_MTX_FOR_QC)\n    .set{\n        ALEVIN_QC_INPUTS\n    }",
+        "origin": [
+            [
+                "ALEVIN_RESULTS_FOR_QC",
+                "P"
+            ],
+            [
+                "ALEVIN_MTX_FOR_QC",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ALEVIN_QC_INPUTS",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_13": {
+        "string": "ALEVIN_RESULTS_FOR_OUTPUT\n    .join(ALEVIN_MTX_FOR_OUTPUT)\n    .join(NONEMPTY_MTX)\n    .join(ALEVIN_QC_PLOTS)\n    .set{ COMPILED_RESULTS }",
+        "origin": [
+            [
+                "ALEVIN_RESULTS_FOR_OUTPUT",
+                "P"
+            ],
+            [
+                "ALEVIN_MTX_FOR_OUTPUT",
+                "P"
+            ],
+            [
+                "NONEMPTY_MTX",
+                "P"
+            ],
+            [
+                "ALEVIN_QC_PLOTS",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "COMPILED_RESULTS",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_14": {
+        "string": "RESULTS_FOR_COUNTING\n    .count()\n    .set{ ALEVIN_RESULTS_COUNT }",
+        "origin": [
+            [
+                "RESULTS_FOR_COUNTING",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "ALEVIN_RESULTS_COUNT",
+                "P"
+            ]
+        ]
+    }
+}

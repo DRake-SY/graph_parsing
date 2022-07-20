@@ -1,0 +1,296 @@
+{
+    "Register_Anat": {
+        "name_process": "Register_Anat",
+        "string_process": "\nprocess Register_Anat {\n    cpus params.register_processes\n    input:\n    set sid, file(native_anat), file(atlas) from anats_for_registration\n\n    output:\n    set sid, \"${sid}__output1InverseWarp.nii.gz\", \"${sid}__output0GenericAffine.mat\" into deformation_for_warping\n    file \"${sid}__outputWarped.nii.gz\"\n    file \"${sid}__output1Warp.nii.gz\"\n    script:\n    \"\"\"\n    antsRegistrationSyNQuick.sh -d 3 -f ${native_anat} -m ${atlas} -n ${params.register_processes} -o ${sid}__output\n    \"\"\" \n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    antsRegistrationSyNQuick.sh -d 3 -f ${native_anat} -m ${atlas} -n ${params.register_processes} -o ${sid}__output\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "anats_for_registration"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "deformation_for_warping"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus params.register_processes"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Warp_Bundle": {
+        "name_process": "Warp_Bundle",
+        "string_process": "\nprocess Warp_Bundle {\n    cpus 2\n    input:\n    set sid, file(anat), file(warp), file(affine) from anat_deformation_for_warp\n    each file(bundle_name) from atlas_bundles\n\n    output:\n    set sid, val(bundle_name.baseName), \"${sid}__${bundle_name.baseName}_warp.trk\" into bundles_for_priors, models_for_recobundles\n    script:\n    \"\"\"\n    scil_apply_transform_to_tractogram.py ${bundle_name} ${anat} ${affine} ${sid}__${bundle_name.baseName}_warp.trk --inverse --cut_invalid --in_deformation ${warp}\n    \"\"\" \n}",
+        "nb_lignes_process": 12,
+        "string_script": "    \"\"\"\n    scil_apply_transform_to_tractogram.py ${bundle_name} ${anat} ${affine} ${sid}__${bundle_name.baseName}_warp.trk --inverse --cut_invalid --in_deformation ${warp}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "anat_deformation_for_warp",
+            "atlas_bundles"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "bundles_for_priors",
+            "models_for_recobundles"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Generate_Priors": {
+        "name_process": "Generate_Priors",
+        "string_process": "\nprocess Generate_Priors {\n    cpus 2\n    errorStrategy 'ignore'\n    publishDir = {\"./results_bst/$sid/$task.process/${bundle_name}\"}\n    input:\n    set sid, file(fod), file(mask), val(bundle_name), file(bundle) from fod_mask_bundles_for_priors\n\n    output:\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_efod.nii.gz\" into efod_for_tracking\n    set sid, val(bundle_name), \"${fod}\" into fod_for_tracking\n    set sid, \"${sid}__${bundle_name}_priors.nii.gz\"\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_todi_mask_dilate.nii.gz\", \\\n        \"${sid}__${bundle_name}_endpoints_mask_dilate.nii.gz\" into masks_for_seeding\n    set sid, val(bundle_name), \"${mask}\", \"${sid}__${bundle_name}_todi_mask_dilate.nii.gz\" into masks_for_tracking\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_todi_mask_dilate.nii.gz\" into masks_for_map_ex\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_endpoints_mask_dilate.nii.gz\" into masks_for_map_in\n    script:\n    \"\"\"\n    scil_image_math.py convert ${mask} mask.nii.gz --data_type uint8\n    scil_generate_priors_from_bundle.py ${bundle} ${fod} mask.nii.gz \\\n        --sh_basis $params.sh_basis --out_prefix ${sid}__${bundle_name}_\n    scil_image_math.py dilation ${sid}__${bundle_name}_todi_mask.nii.gz \\\n        $params.bs_tracking_mask_dilation dilate_todi.nii.gz --data_type uint8\n    scil_image_math.py multiplication ${mask} dilate_todi.nii.gz \\\n        ${sid}__${bundle_name}_todi_mask_dilate.nii.gz --data_type uint8\n\n    scil_image_math.py dilation ${sid}__${bundle_name}_endpoints_mask.nii.gz \\\n        $params.bs_endpoints_mask_dilation dilate_endpoints.nii.gz --data_type uint8\n    scil_image_math.py multiplication ${mask} dilate_endpoints.nii.gz \\\n        ${sid}__${bundle_name}_endpoints_mask_dilate.nii.gz --data_type uint8\n    \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "    \"\"\"\n    scil_image_math.py convert ${mask} mask.nii.gz --data_type uint8\n    scil_generate_priors_from_bundle.py ${bundle} ${fod} mask.nii.gz \\\n        --sh_basis $params.sh_basis --out_prefix ${sid}__${bundle_name}_\n    scil_image_math.py dilation ${sid}__${bundle_name}_todi_mask.nii.gz \\\n        $params.bs_tracking_mask_dilation dilate_todi.nii.gz --data_type uint8\n    scil_image_math.py multiplication ${mask} dilate_todi.nii.gz \\\n        ${sid}__${bundle_name}_todi_mask_dilate.nii.gz --data_type uint8\n\n    scil_image_math.py dilation ${sid}__${bundle_name}_endpoints_mask.nii.gz \\\n        $params.bs_endpoints_mask_dilation dilate_endpoints.nii.gz --data_type uint8\n    scil_image_math.py multiplication ${mask} dilate_endpoints.nii.gz \\\n        ${sid}__${bundle_name}_endpoints_mask_dilate.nii.gz --data_type uint8\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fod_mask_bundles_for_priors"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "efod_for_tracking",
+            "fod_for_tracking",
+            "sid",
+            "masks_for_seeding",
+            "masks_for_tracking",
+            "masks_for_map_ex",
+            "masks_for_map_in"
+        ],
+        "nb_outputs": 7,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2",
+            "errorStrategy 'ignore'",
+            "publishDir = {\"./results_bst/$sid/$task.process/${bundle_name}\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Seeding_Mask": {
+        "name_process": "Seeding_Mask",
+        "string_process": "\nprocess Seeding_Mask {\n    cpus 2\n    input:\n    set sid, val(bundle_name), file(tracking_mask), file(endpoints_mask) from masks_for_seeding\n\n    output:\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_seeding_mask.nii.gz\" into \\\n        seeding_mask_for_PFT_tracking, seeding_mask_for_local_tracking\n    script:\n    if (params.use_tracking_mask_as_seeding)\n        \"\"\"\n        mv ${tracking_mask} ${sid}__${bundle_name}_seeding_mask.nii.gz\n        \"\"\"\n    else\n        \"\"\"\n        scil_image_math.py multiplication ${tracking_mask} ${endpoints_mask} \\\n            ${sid}__${bundle_name}_seeding_mask.nii.gz --data_type uint8\n        \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    if (params.use_tracking_mask_as_seeding)\n        \"\"\"\n        mv ${tracking_mask} ${sid}__${bundle_name}_seeding_mask.nii.gz\n        \"\"\"\n    else\n        \"\"\"\n        scil_image_math.py multiplication ${tracking_mask} ${endpoints_mask} \\\n            ${sid}__${bundle_name}_seeding_mask.nii.gz --data_type uint8\n        \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "masks_for_seeding"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "seeding_mask_for_PFT_tracking",
+            "seeding_mask_for_local_tracking"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Tracking_Mask": {
+        "name_process": "Tracking_Mask",
+        "string_process": "\nprocess Tracking_Mask {\n    cpus 2\n    input:\n    set sid, val(bundle_name), file(tracking_mask), file(bs_mask) from masks_for_tracking\n\n    output:\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_tracking_mask.nii.gz\" \\\n        into tracking_mask_for_local_tracking\n    when: \n    params.local_tracking\n    script:\n    if (params.use_bs_tracking_mask)\n        \"\"\"\n        scil_image_math.py convert ${bs_mask} ${sid}__${bundle_name}_tracking_mask.nii.gz --data_type uint8\n        \"\"\"\n    else\n        \"\"\"\n        scil_image_math.py convert ${tracking_mask} ${sid}__${bundle_name}_tracking_mask.nii.gz --data_type uint8\n        \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    if (params.use_bs_tracking_mask)\n        \"\"\"\n        scil_image_math.py convert ${bs_mask} ${sid}__${bundle_name}_tracking_mask.nii.gz --data_type uint8\n        \"\"\"\n    else\n        \"\"\"\n        scil_image_math.py convert ${tracking_mask} ${sid}__${bundle_name}_tracking_mask.nii.gz --data_type uint8\n        \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "masks_for_tracking"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "tracking_mask_for_local_tracking"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2"
+        ],
+        "when": "params.local_tracking",
+        "stub": ""
+    },
+    "Local_Tracking": {
+        "name_process": "Local_Tracking",
+        "string_process": "\nprocess Local_Tracking {\n    cpus 2\n    input:\n    set sid, val(bundle_name), file(tracking_mask), file(efod), file(seeding_mask) \\\n        from mask_seeding_mask_fod_for_tracking\n    each algo from algo_list\n\n    output:\n    set sid, val(bundle_name), val(algo), val('local'), \\\n        \"${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk\" into \\\n            local_bundles_for_recobundles\n    when: \n    params.local_tracking\n    script:\n    \"\"\"\n    scil_compute_local_tracking.py ${efod} ${seeding_mask} ${tracking_mask} \\\n        tracking.trk --sh_basis $params.sh_basis --min_len $params.min_length --max_len $params.max_length \\\n        --$params.seeding $params.nbr_seeds --compress $params.compress_error_tolerance \\\n        --seed $params.tracking_seed --algo ${algo}\n    scil_remove_invalid_streamlines.py tracking.trk tracking_ic.trk\n    scil_filter_tractogram.py tracking_ic.trk ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk \\\n        --drawn_roi ${seeding_mask} either_end include\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    scil_compute_local_tracking.py ${efod} ${seeding_mask} ${tracking_mask} \\\n        tracking.trk --sh_basis $params.sh_basis --min_len $params.min_length --max_len $params.max_length \\\n        --$params.seeding $params.nbr_seeds --compress $params.compress_error_tolerance \\\n        --seed $params.tracking_seed --algo ${algo}\n    scil_remove_invalid_streamlines.py tracking.trk tracking_ic.trk\n    scil_filter_tractogram.py tracking_ic.trk ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk \\\n        --drawn_roi ${seeding_mask} either_end include\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mask_seeding_mask_fod_for_tracking",
+            "algo_list"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "local_bundles_for_recobundles"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2"
+        ],
+        "when": "params.local_tracking",
+        "stub": ""
+    },
+    "Generate_Map_Include": {
+        "name_process": "Generate_Map_Include",
+        "string_process": "\nprocess Generate_Map_Include {\n    cpus 2\n    input:\n    set sid, file(map_include), val(bundle_name), file(endpoints_mask) from masks_map_in_for_bs\n\n    output:\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_map_include.nii.gz\" into map_in_for_PFT_tracking\n    when: \n    params.pft_tracking\n    script:\n    if (params.use_bs_endpoints_include)\n        \"\"\"\n        scil_image_math.py dilation ${endpoints_mask} $params.bs_endpoints_mask_dilation \\\n            dilate_endpoints.nii.gz --data_type uint8\n        scil_image_math.py multiplication dilate_endpoints.nii.gz ${map_include} \\\n            ${sid}__${bundle_name}_map_include.nii.gz --data_type float32\n        \"\"\"\n    else\n        \"\"\"\n        mv $map_include ${sid}__${bundle_name}_map_include.nii.gz\n        \"\"\" \n}",
+        "nb_lignes_process": 21,
+        "string_script": "    if (params.use_bs_endpoints_include)\n        \"\"\"\n        scil_image_math.py dilation ${endpoints_mask} $params.bs_endpoints_mask_dilation \\\n            dilate_endpoints.nii.gz --data_type uint8\n        scil_image_math.py multiplication dilate_endpoints.nii.gz ${map_include} \\\n            ${sid}__${bundle_name}_map_include.nii.gz --data_type float32\n        \"\"\"\n    else\n        \"\"\"\n        mv $map_include ${sid}__${bundle_name}_map_include.nii.gz\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "masks_map_in_for_bs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "map_in_for_PFT_tracking"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2"
+        ],
+        "when": "params.pft_tracking",
+        "stub": ""
+    },
+    "Generate_Map_Exclude": {
+        "name_process": "Generate_Map_Exclude",
+        "string_process": "\nprocess Generate_Map_Exclude {\n    cpus 2\n    input:\n    set sid, file(map_exclude), val(bundle_name), file(tracking_mask) from masks_map_ex_for_bs\n\n    output:\n    set sid, val(bundle_name), \"${sid}__${bundle_name}_map_exclude.nii.gz\" into \\\n        map_ex_for_PFT_tracking\n    when: \n    params.pft_tracking\n    script:\n    if (params.use_bs_tracking_mask)\n        \"\"\"\n        scil_image_math.py invert ${tracking_mask} inverted_mask.nii.gz \\\n            --data_type uint8\n        \n        scil_image_math.py addition ${map_exclude} inverted_mask.nii.gz \\\n            ${sid}__${bundle_name}_map_exclude.nii.gz --data_type float32\n        \"\"\"\n    else\n        \"\"\"\n        mv ${map_exclude} ${sid}__${bundle_name}_map_exclude.nii.gz\n        \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    if (params.use_bs_tracking_mask)\n        \"\"\"\n        scil_image_math.py invert ${tracking_mask} inverted_mask.nii.gz \\\n            --data_type uint8\n        \n        scil_image_math.py addition ${map_exclude} inverted_mask.nii.gz \\\n            ${sid}__${bundle_name}_map_exclude.nii.gz --data_type float32\n        \"\"\"\n    else\n        \"\"\"\n        mv ${map_exclude} ${sid}__${bundle_name}_map_exclude.nii.gz\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "masks_map_ex_for_bs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "map_ex_for_PFT_tracking"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2"
+        ],
+        "when": "params.pft_tracking",
+        "stub": ""
+    },
+    "PFT_Tracking": {
+        "name_process": "PFT_Tracking",
+        "string_process": "\nprocess PFT_Tracking {\n    cpus 2\n    input:\n    set sid, val(bundle_name), file(map_exclude), file(map_include), file(efod), \\\n        file(seeding_mask) from maps_seeding_mask_fod_for_tracking\n    each algo from algo_list\n\n    output:\n    set sid, val(bundle_name), val(algo), val('pft'), \\\n        \"${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk\" into \\\n        pft_bundles_for_recobundles\n    when: \n    params.pft_tracking\n    script:\n    seeding = params.seeding == 'nts' ? 'nt' : params.seeding\n    \"\"\"\n    scil_compute_pft.py ${efod} ${seeding_mask} ${map_include} ${map_exclude} \\\n        ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk \\\n        --algo $algo --sh_basis $params.sh_basis --min_length $params.min_length \\\n        --max_length $params.max_length --$seeding $params.nbr_seeds \\\n        --compress $params.compress_error_tolerance --seed $params.tracking_seed\n    scil_remove_invalid_streamlines.py ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk  ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk -f\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    seeding = params.seeding == 'nts' ? 'nt' : params.seeding\n    \"\"\"\n    scil_compute_pft.py ${efod} ${seeding_mask} ${map_include} ${map_exclude} \\\n        ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk \\\n        --algo $algo --sh_basis $params.sh_basis --min_length $params.min_length \\\n        --max_length $params.max_length --$seeding $params.nbr_seeds \\\n        --compress $params.compress_error_tolerance --seed $params.tracking_seed\n    scil_remove_invalid_streamlines.py ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk  ${sid}__${bundle_name}_${algo}_${params.seeding}_${params.nbr_seeds}.trk -f\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bundle_name",
+            "map_exclude",
+            "map_include",
+            "efod",
+            "sid",
+            "maps_seeding_mask_fod_for_tracking",
+            "algo_list"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "pft_bundles_for_recobundles"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2"
+        ],
+        "when": "params.pft_tracking",
+        "stub": ""
+    },
+    "Recobundles_Segmentation": {
+        "name_process": "Recobundles_Segmentation",
+        "string_process": "\nprocess Recobundles_Segmentation {\n    cpus 2\n    publishDir = {\"./results_bst/$sid/$task.process/\"}\n    input:\n    set sid, val(bundle_name), val(algo), val(tracking_source), file(bundle), file(model) from \\\n        bundles_models_for_recobundles\n\n    output:\n    set sid, val(bundle_name), val(algo), val(tracking_source), \"${sid}__${bundle_name}_${algo}_${tracking_source}_segmented.trk\" into bundles_for_outliers\n    when: \n    params.recobundles\n    script:\n    \"\"\"\n    printf \"1 0 0 0\\n0 1 0 0\\n0 0 1 0\\n0 0 0 1\" >> identity.txt\n    scil_remove_invalid_streamlines.py ${bundle} tmp.trk --remove_single_point\n    scil_recognize_single_bundle.py tmp.trk ${model} identity.txt \\\n        ${sid}__${bundle_name}_${algo}_${tracking_source}_segmented.trk \\\n        --tractogram_clustering_thr $params.wb_clustering_thr \\\n        --model_clustering_thr $params.model_clustering_thr \\\n        --slr_threads 1 --pruning_thr $params.prunning_thr --seed 0\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    printf \"1 0 0 0\\n0 1 0 0\\n0 0 1 0\\n0 0 0 1\" >> identity.txt\n    scil_remove_invalid_streamlines.py ${bundle} tmp.trk --remove_single_point\n    scil_recognize_single_bundle.py tmp.trk ${model} identity.txt \\\n        ${sid}__${bundle_name}_${algo}_${tracking_source}_segmented.trk \\\n        --tractogram_clustering_thr $params.wb_clustering_thr \\\n        --model_clustering_thr $params.model_clustering_thr \\\n        --slr_threads 1 --pruning_thr $params.prunning_thr --seed 0\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bundles_models_for_recobundles"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bundles_for_outliers"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2",
+            "publishDir = {\"./results_bst/$sid/$task.process/\"}"
+        ],
+        "when": "params.recobundles",
+        "stub": ""
+    },
+    "Outliers_Removal": {
+        "name_process": "Outliers_Removal",
+        "string_process": "\nprocess Outliers_Removal {\n    cpus 2\n    publishDir = {\"./results_bst/$sid/$task.process/\"}\n    errorStrategy 'ignore'\n    input:\n    set sid, val(bundle_name), val(algo), val(tracking_source), file(bundle) from \\\n        bundles_for_outliers\n\n    output:\n    file \"${sid}__${bundle_name}_${algo}_${tracking_source}_cleaned.trk\"\n    when: \n    params.recobundles\n    script:\n    \"\"\"\n    scil_detect_streamlines_loops.py ${bundle} no_loops.trk -a 300\n    scil_outlier_rejection.py no_loops.trk  \\\n        ${sid}__${bundle_name}_${algo}_${tracking_source}_cleaned.trk \\\n        --alpha $params.outlier_alpha\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    scil_detect_streamlines_loops.py ${bundle} no_loops.trk -a 300\n    scil_outlier_rejection.py no_loops.trk  \\\n        ${sid}__${bundle_name}_${algo}_${tracking_source}_cleaned.trk \\\n        --alpha $params.outlier_alpha\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bundles_for_outliers"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__bst_flow",
+        "directive": [
+            "cpus 2",
+            "publishDir = {\"./results_bst/$sid/$task.process/\"}",
+            "errorStrategy 'ignore'"
+        ],
+        "when": "params.recobundles",
+        "stub": ""
+    }
+}

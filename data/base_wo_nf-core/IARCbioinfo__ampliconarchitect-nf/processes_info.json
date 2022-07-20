@@ -1,0 +1,119 @@
+{
+    "cnvkit": {
+        "name_process": "cnvkit",
+        "string_process": "\nprocess cnvkit {\n cpus params.cpu\n memory params.mem+'G'\n\n  publishDir params.output_folder+'/cnvkit/', mode: 'copy'\n  input:\n  set val(tumor_id), file(cram), file(cram_index) from cnvkit_input\n  file (aa_repo_dir_path)\n\n  output:\n  set val(tumor_id), file(\"${tumor_id}/\") into cnvkit_out\n  set val(tumor_id), file(\"${tumor_id}.cnvkit.bed\") into cnvkit_seeds\n\n  script:\n    if(params.debug == false)\n       \"\"\"\n      #we run the cnvkit program\n      cnvkit.py batch -m wgs -y -r ${aa_repo_dir_path}/GRCh38_cnvkit_filtered_ref.cnn -p 1 -d ${tumor_id} ${cram}\n      #step 2\n      cnvkit.py segment -p 1 -o ${tumor_id}/${cram.baseName}.segment.cns ${tumor_id}/${cram.baseName}.cnr\n      #step 3 creates ${tumor_id}/${cram.baseName}_CNV_GAIN.bed\n      python2 ${baseDir}/aux_scripts/select_seeds_cnvkit.py -o ${tumor_id} --sorted_bam ${cram}\n      #we copy the cnv selected seeds\n      cp ${tumor_id}/${cram.baseName}_CNV_GAIN.bed ${tumor_id}.cnvkit.bed\n      \"\"\"\n                \n    else\n      \"\"\"\n      echo cnvkit.py batch -m wgs -y -r ${aa_repo_dir_path}/GRCh38_cnvkit_filtered_ref.cnn -p 1 -d ${tumor_id} ${cram}\n      #step 2\n      echo cnvkit.py segment -p 1 -o ${tumor_id}/${cram.baseName}.segment.cns ${tumor_id}/${cram.baseName}.cnr\n      #step 3 creates ${tumor_id}/${cram.baseName}_CNV_GAIN.bed\n      echo python2 ${baseDir}/aux_scripts/select_seeds_cnvkit.py -o ${tumor_id} --sorted_bam ${cram}\n      #we copy the cnv selected seeds\n      echo cp ${tumor_id}/${cram.baseName}_CNV_GAIN.bed ${tumor_id}.cnvkit.bed\n\n      mkdir ${tumor_id}\n      touch ${tumor_id}.cnvkit.bed ${tumor_id}/${cram.baseName}_CNV_GAIN.bed\n      touch ${tumor_id}/${cram.baseName}.segment.cns ${tumor_id}/${cram.baseName}.cnr\n      \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    if(params.debug == false)\n       \"\"\"\n      #we run the cnvkit program\n      cnvkit.py batch -m wgs -y -r ${aa_repo_dir_path}/GRCh38_cnvkit_filtered_ref.cnn -p 1 -d ${tumor_id} ${cram}\n      #step 2\n      cnvkit.py segment -p 1 -o ${tumor_id}/${cram.baseName}.segment.cns ${tumor_id}/${cram.baseName}.cnr\n      #step 3 creates ${tumor_id}/${cram.baseName}_CNV_GAIN.bed\n      python2 ${baseDir}/aux_scripts/select_seeds_cnvkit.py -o ${tumor_id} --sorted_bam ${cram}\n      #we copy the cnv selected seeds\n      cp ${tumor_id}/${cram.baseName}_CNV_GAIN.bed ${tumor_id}.cnvkit.bed\n      \"\"\"\n                \n    else\n      \"\"\"\n      echo cnvkit.py batch -m wgs -y -r ${aa_repo_dir_path}/GRCh38_cnvkit_filtered_ref.cnn -p 1 -d ${tumor_id} ${cram}\n      #step 2\n      echo cnvkit.py segment -p 1 -o ${tumor_id}/${cram.baseName}.segment.cns ${tumor_id}/${cram.baseName}.cnr\n      #step 3 creates ${tumor_id}/${cram.baseName}_CNV_GAIN.bed\n      echo python2 ${baseDir}/aux_scripts/select_seeds_cnvkit.py -o ${tumor_id} --sorted_bam ${cram}\n      #we copy the cnv selected seeds\n      echo cp ${tumor_id}/${cram.baseName}_CNV_GAIN.bed ${tumor_id}.cnvkit.bed\n\n      mkdir ${tumor_id}\n      touch ${tumor_id}.cnvkit.bed ${tumor_id}/${cram.baseName}_CNV_GAIN.bed\n      touch ${tumor_id}/${cram.baseName}.segment.cns ${tumor_id}/${cram.baseName}.cnr\n      \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cnvkit_input",
+            "aa_repo_dir_path"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "cnvkit_out",
+            "cnvkit_seeds"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__ampliconarchitect-nf",
+        "directive": [
+            "cpus params.cpu",
+            "memory params.mem+'G'",
+            "publishDir params.output_folder+'/cnvkit/', mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "amplified_intervals": {
+        "name_process": "amplified_intervals",
+        "string_process": "\nprocess amplified_intervals {\n cpus params.cpu\n memory params.mem+'G'\n\n  publishDir params.output_folder+'/amplified_intervals/', mode: 'copy'\n  input:\n  set val(tumor_id), file(cnvkit_bed) from cnvkit_seeds\n  file (aa_repo_dir_path)\n  file (mosek_license)\n\n  output:\n  set val(tumor_id), file(\"${tumor_id}.cnvkit.aa.bed\") into ampinter_seeds\n\n  script:\n    if(params.debug == false)\n       \"\"\"\n      #we select the seeds with amplidied intervals using the ref genome\n        export MOSEKLM_LICENSE_FILE=${mosek_license}\n        export AA_DATA_REPO=\\$PWD\n      \tpython2 /home/programs/AmpliconArchitect-master/src/amplified_intervals.py \\\\\n                  --gain 4.5 --cnsize_min 50000 --ref GRCh38 \\\\\n                  --bed ${cnvkit_bed}  --out ${cnvkit_bed.baseName}.aa\n      \"\"\"\n                \n    else\n      \"\"\"\n      echo python2 /home/programs/AmpliconArchitect-master/src/amplified_intervals.py \\\\\n                --gain 4.5 --cnsize_min 50000 --ref GRCh38 \\\\\n                --bed ${cnvkit_bed}  --out ${cnvkit_bed.baseName}.aa.bed\n      export MOSEKLM_LICENSE_FILE=${mosek_license}\n      export AA_DATA_REPO=${aa_repo_dir_path}\n      echo \\$MOSEKLM_LICENSE_FILE > ${cnvkit_bed.baseName}.aa.bed\n      echo \\$AA_DATA_REPO >> ${cnvkit_bed.baseName}.aa.bed\n      \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    if(params.debug == false)\n       \"\"\"\n      #we select the seeds with amplidied intervals using the ref genome\n        export MOSEKLM_LICENSE_FILE=${mosek_license}\n        export AA_DATA_REPO=\\$PWD\n      \tpython2 /home/programs/AmpliconArchitect-master/src/amplified_intervals.py \\\\\n                  --gain 4.5 --cnsize_min 50000 --ref GRCh38 \\\\\n                  --bed ${cnvkit_bed}  --out ${cnvkit_bed.baseName}.aa\n      \"\"\"\n                \n    else\n      \"\"\"\n      echo python2 /home/programs/AmpliconArchitect-master/src/amplified_intervals.py \\\\\n                --gain 4.5 --cnsize_min 50000 --ref GRCh38 \\\\\n                --bed ${cnvkit_bed}  --out ${cnvkit_bed.baseName}.aa.bed\n      export MOSEKLM_LICENSE_FILE=${mosek_license}\n      export AA_DATA_REPO=${aa_repo_dir_path}\n      echo \\$MOSEKLM_LICENSE_FILE > ${cnvkit_bed.baseName}.aa.bed\n      echo \\$AA_DATA_REPO >> ${cnvkit_bed.baseName}.aa.bed\n      \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cnvkit_seeds",
+            "aa_repo_dir_path",
+            "mosek_license"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ampinter_seeds"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__ampliconarchitect-nf",
+        "directive": [
+            "cpus params.cpu",
+            "memory params.mem+'G'",
+            "publishDir params.output_folder+'/amplified_intervals/', mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "amplicon_architect": {
+        "name_process": "amplicon_architect",
+        "string_process": "\nprocess amplicon_architect{\n  cpus params.cpu\n  memory params.mem+'G'\n\n   publishDir params.output_folder+'/amplicon_predictions/', mode: 'copy'\n   input:\n   set val(tumor_id), file(cnvseeds),file(cram),file(cram_index) from seed_crams\n   file (aa_repo_dir_path)\n   file (mosek_license)\n\n   output:\n   file(\"${tumor_id}.aa\") into aa_results\n   set val(tumor_id), file(\"${tumor_id}_aa_summary.txt\") into aa_results_log\n\n   script:\n     if(params.debug == false)\n        \"\"\"\n         export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n         export AA_DATA_REPO=\\$PWD\n         touch coverage.stats\n       #we select the seeds with amplidied intervals using the ref genome\n         mkdir ${tumor_id}.aa\n         cd ${tumor_id}.aa\n         #ln  -s ${aa_repo_dir_path} .\n         n_s=`wc -l ../${cnvseeds}  | awk '{print \\$1}'`\n         if [[ \\$n_s -gt 0 && \\$n_s -lt 71 ]]\n          then\n            python2 /home/programs/AmpliconArchitect-master/src/AmpliconArchitect.py \\\\\n                            --bed ../${cnvseeds} --bam ../${cram} --out ${tumor_id} --ref GRCh38\n\t    cp ${tumor_id}_summary.txt ../${tumor_id}_aa_summary.txt\n          else\n            echo \"canceling amplicon architect run, ${tumor_id} with no (0) or many (>70) seeds (\\$n_s)\" > ../${tumor_id}_aa_summary.txt\n          fi\n         \"\"\"\n                 \n     else\n       \"\"\"\n       #we select the seeds with amplidied intervals using the ref genome\n         export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n         export AA_DATA_REPO=\\$PWD\n         touch coverage.stats\n         mkdir ${tumor_id}.aa\n         cd ${tumor_id}.aa\n         n_s=`wc -l ../${cnvseeds}  | awk '{print \\$1}'`\n         if [[ \\$n_s -gt 0 && \\$n_s -lt 71 ]]\n          then\n            echo python2 /home/programs/AmpliconArchitect-master/src/AmpliconArchitect.py \\\\\n                            --bed ../${cnvseeds} --bam ../${cram} --out ${tumor_id} --ref GRCh38\n            echo \"running amplicon architect, ${tumor_id} with the right number of seeds (\\$n_s)\" > ../${tumor_id}_aa_summary.txt\n          else\n            echo \"canceling amplicon architect run, ${tumor_id} with no (0) or many (>70) seeds (\\$n_s)\" > ../${tumor_id}_aa_summary.txt\n          fi\n        \"\"\"\n}",
+        "nb_lignes_process": 53,
+        "string_script": "     if(params.debug == false)\n        \"\"\"\n         export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n         export AA_DATA_REPO=\\$PWD\n         touch coverage.stats\n       #we select the seeds with amplidied intervals using the ref genome\n         mkdir ${tumor_id}.aa\n         cd ${tumor_id}.aa\n         #ln  -s ${aa_repo_dir_path} .\n         n_s=`wc -l ../${cnvseeds}  | awk '{print \\$1}'`\n         if [[ \\$n_s -gt 0 && \\$n_s -lt 71 ]]\n          then\n            python2 /home/programs/AmpliconArchitect-master/src/AmpliconArchitect.py \\\\\n                            --bed ../${cnvseeds} --bam ../${cram} --out ${tumor_id} --ref GRCh38\n\t    cp ${tumor_id}_summary.txt ../${tumor_id}_aa_summary.txt\n          else\n            echo \"canceling amplicon architect run, ${tumor_id} with no (0) or many (>70) seeds (\\$n_s)\" > ../${tumor_id}_aa_summary.txt\n          fi\n         \"\"\"\n                 \n     else\n       \"\"\"\n       #we select the seeds with amplidied intervals using the ref genome\n         export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n         export AA_DATA_REPO=\\$PWD\n         touch coverage.stats\n         mkdir ${tumor_id}.aa\n         cd ${tumor_id}.aa\n         n_s=`wc -l ../${cnvseeds}  | awk '{print \\$1}'`\n         if [[ \\$n_s -gt 0 && \\$n_s -lt 71 ]]\n          then\n            echo python2 /home/programs/AmpliconArchitect-master/src/AmpliconArchitect.py \\\\\n                            --bed ../${cnvseeds} --bam ../${cram} --out ${tumor_id} --ref GRCh38\n            echo \"running amplicon architect, ${tumor_id} with the right number of seeds (\\$n_s)\" > ../${tumor_id}_aa_summary.txt\n          else\n            echo \"canceling amplicon architect run, ${tumor_id} with no (0) or many (>70) seeds (\\$n_s)\" > ../${tumor_id}_aa_summary.txt\n          fi\n        \"\"\"",
+        "nb_lignes_script": 37,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seed_crams",
+            "aa_repo_dir_path",
+            "mosek_license"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "aa_results",
+            "aa_results_log"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__ampliconarchitect-nf",
+        "directive": [
+            "cpus params.cpu",
+            "memory params.mem+'G'",
+            "publishDir params.output_folder+'/amplicon_predictions/', mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "amplicon_classifier": {
+        "name_process": "amplicon_classifier",
+        "string_process": "\nprocess amplicon_classifier{\n  cpus params.cpu\n  memory params.mem+'G'\n\n   publishDir params.output_folder+'/amplicon_classes/', mode: 'copy'\n   input:\n   file(\"*.aa\") from aa_results.collect()\n   file (aa_repo_dir_path)\n   file (mosek_license)\n\n   output:\n   file(\"all_amplicons*\") into aa_clases\n\n   script:\n     if(params.debug == false)\n        \"\"\"\n         export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n         export AA_DATA_REPO=\\$PWD\n         #we find all the amplicon results\n         find -L \\$PWD -name \"*_cycles.txt\" | sed 's/_cycles.txt//' | \\\\\n         awk '{split(\\$0,a,\"/\"); print a[length(a)]\" \"\\$0\"_cycles.txt \"\\$0\"_graph.txt\"}' > all_amplicons.txt\n         #we run amplicon classifier\n         python2 /home/programs/AmpliconClassifier/amplicon_classifier.py --ref GRCh38 --input all_amplicons.txt\n       \"\"\"\n                 \n     else\n       \"\"\"\n       export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n       export AA_DATA_REPO=\\$PWD\n       #we find all the amplicon results\n       find \\$PWD -name \"*_cycles.txt\" | sed 's/_cycles.txt//' | \\\\\n       awk '{split(\\$0,a,\"/\"); print a[length(a)]\" \"\\$0\"_cycles.txt \"\\$0\"_graph.txt\"}' > all_amplicons.txt\n       #we run amplicon classifier\n       echo python2 /home/programs/AmpliconClassifier/amplicon_classifier.py --ref GRCh38 --input all_amplicons.txt\n       touch all_amplicons.txt all_amplicons_gene_list.tsv\n       mkdir all_amplicons_classification_bed_files\n       touch all_amplicons_amplicon_classification_profiles.tsv\n       \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "     if(params.debug == false)\n        \"\"\"\n         export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n         export AA_DATA_REPO=\\$PWD\n         #we find all the amplicon results\n         find -L \\$PWD -name \"*_cycles.txt\" | sed 's/_cycles.txt//' | \\\\\n         awk '{split(\\$0,a,\"/\"); print a[length(a)]\" \"\\$0\"_cycles.txt \"\\$0\"_graph.txt\"}' > all_amplicons.txt\n         #we run amplicon classifier\n         python2 /home/programs/AmpliconClassifier/amplicon_classifier.py --ref GRCh38 --input all_amplicons.txt\n       \"\"\"\n                 \n     else\n       \"\"\"\n       export MOSEKLM_LICENSE_FILE=\\$PWD/mosek.lic\n       export AA_DATA_REPO=\\$PWD\n       #we find all the amplicon results\n       find \\$PWD -name \"*_cycles.txt\" | sed 's/_cycles.txt//' | \\\\\n       awk '{split(\\$0,a,\"/\"); print a[length(a)]\" \"\\$0\"_cycles.txt \"\\$0\"_graph.txt\"}' > all_amplicons.txt\n       #we run amplicon classifier\n       echo python2 /home/programs/AmpliconClassifier/amplicon_classifier.py --ref GRCh38 --input all_amplicons.txt\n       touch all_amplicons.txt all_amplicons_gene_list.tsv\n       mkdir all_amplicons_classification_bed_files\n       touch all_amplicons_amplicon_classification_profiles.tsv\n       \"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "aa_results",
+            "aa_repo_dir_path",
+            "mosek_license"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "aa_clases"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__ampliconarchitect-nf",
+        "directive": [
+            "cpus params.cpu",
+            "memory params.mem+'G'",
+            "publishDir params.output_folder+'/amplicon_classes/', mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,741 @@
+{
+    "reformat_samplesheet": {
+        "name_process": "reformat_samplesheet",
+        "string_process": "\nprocess reformat_samplesheet {\n  tag \"${runName}\"\n  label 'process_small'\n  echo true \n  publishDir path: \"${params.outdir}/${runName}\", mode: 'copy',\n  saveAs: {filename ->\n                if (filename.endsWith(\"ReformattedSampleSheet.csv\")) \"$filename\"\n                else if (filename.endsWith(\"tenx.csv\")) \"$filename\"\n                else null\n            }\n\n  input:\n  file 'input_sheet.csv' from ss_sheet\n\n  output:\n  file \"*Sheet.csv\" into standard_samplesheet1, standard_samplesheet2, standard_samplesheet3, standard_samplesheet4\n  file \"*.bcl2fastq.txt\" into bcl2fastq_results1, bcl2fastq_results2, bcl2fastq_results3\n  file \"*.tenx.txt\" into tenx_results1, tenx_results2, tenx_results3, tenx_results4, tenx_results5\n  file \"*tenx.csv\" optional true into tenx_samplesheet1, tenx_samplesheet2\n\n  script:\n  \"\"\"\n  reformat_samplesheet.py --samplesheet input_sheet.csv\n  \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "  \"\"\"\n  reformat_samplesheet.py --samplesheet input_sheet.csv\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ss_sheet"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "standard_samplesheet1",
+            "standard_samplesheet2",
+            "standard_samplesheet3",
+            "standard_samplesheet4",
+            "bcl2fastq_results1",
+            "bcl2fastq_results2",
+            "bcl2fastq_results3",
+            "tenx_results1",
+            "tenx_results2",
+            "tenx_results3",
+            "tenx_results4",
+            "tenx_results5",
+            "tenx_samplesheet1",
+            "tenx_samplesheet2"
+        ],
+        "nb_outputs": 14,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${runName}\"",
+            "label 'process_small'",
+            "echo true",
+            "publishDir path: \"${params.outdir}/${runName}\", mode: 'copy' , saveAs: {filename -> if (filename.endsWith(\"ReformattedSampleSheet.csv\")) \"$filename\" else if (filename.endsWith(\"tenx.csv\")) \"$filename\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "check_samplesheet": {
+        "name_process": "check_samplesheet",
+        "string_process": "\nprocess check_samplesheet {\n  tag \"${sheet.name}\"\n  label 'process_small'\n\n  input:\n  file sheet from standard_samplesheet1\n\n  output:\n  file \"*.txt\" into resultChannel1, resultChannel2, resultChannel3, resultChannel4, resultChannel5\n\n  script:\n  \"\"\"\n  check_samplesheet.py --samplesheet \"${sheet}\"\n  \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "  \"\"\"\n  check_samplesheet.py --samplesheet \"${sheet}\"\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "standard_samplesheet1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "resultChannel1",
+            "resultChannel2",
+            "resultChannel3",
+            "resultChannel4",
+            "resultChannel5"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${sheet.name}\"",
+            "label 'process_small'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "make_fake_SS": {
+        "name_process": "make_fake_SS",
+        "string_process": "\nprocess make_fake_SS {\n  tag \"problem_samplesheet\"\n  label 'process_small'\n\n  input:\n  file sheet from standard_samplesheet2\n  file result from resultChannel1\n\n  when:\n  result.name =~ /^fail.*/\n\n  output:\n  file \"*.csv\" into fake_samplesheet\n  file \"*.txt\" into problem_samples_list1, problem_samples_list2\n\n  script:\n  \"\"\"\n  create_falseSS.py --samplesheet \"${sheet}\"\n  \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "  \"\"\"\n  create_falseSS.py --samplesheet \"${sheet}\"\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "standard_samplesheet2",
+            "resultChannel1"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "fake_samplesheet",
+            "problem_samples_list1",
+            "problem_samples_list2"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"problem_samplesheet\"",
+            "label 'process_small'"
+        ],
+        "when": "result.name =~ /^fail.*/",
+        "stub": ""
+    },
+    "bcl2fastq_problem_SS": {
+        "name_process": "bcl2fastq_problem_SS",
+        "string_process": "\nprocess bcl2fastq_problem_SS {\n  tag \"problem_samplesheet\"\n  label 'process_big'\n  publishDir path: \"${params.stats_json_dir}/${runName}\", pattern: '**/Stats.json', mode: 'copy'\n\n  input:\n  file sheet from fake_samplesheet\n  file result from resultChannel2\n\n  when:\n  result.name =~ /^fail.*/\n\n  output:\n  file \"Stats/Stats.json\" into stats_json_file\n  file \"Reports/html/index.html\" into index_failed_file\n\n  script:\n  \"\"\"\n  bcl2fastq \\\\\n      --runfolder-dir ${runName_dir} \\\\\n      --output-dir . \\\\\n      --sample-sheet ${sheet} \\\\\n      --ignore-missing-bcls \\\\\n      --ignore-missing-filter \\\\\n      --barcode-mismatches 0 \\\\\n      --loading-threads 8 \\\\\n      --processing-threads 24 \\\\\n      --writing-threads 6 \\\\\n  \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "  \"\"\"\n  bcl2fastq \\\\\n      --runfolder-dir ${runName_dir} \\\\\n      --output-dir . \\\\\n      --sample-sheet ${sheet} \\\\\n      --ignore-missing-bcls \\\\\n      --ignore-missing-filter \\\\\n      --barcode-mismatches 0 \\\\\n      --loading-threads 8 \\\\\n      --processing-threads 24 \\\\\n      --writing-threads 6 \\\\\n  \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fake_samplesheet",
+            "resultChannel2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "stats_json_file",
+            "index_failed_file"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"problem_samplesheet\"",
+            "label 'process_big'",
+            "publishDir path: \"${params.stats_json_dir}/${runName}\", pattern: '**/Stats.json', mode: 'copy'"
+        ],
+        "when": "result.name =~ /^fail.*/",
+        "stub": ""
+    },
+    "parse_jsonfile": {
+        "name_process": "parse_jsonfile",
+        "string_process": "\nprocess parse_jsonfile {\n  tag \"problem_samplesheet\"\n  label 'process_small'\n\n  input:\n  file json from stats_json_file\n  file sheet from standard_samplesheet3\n  file samp_probs from problem_samples_list1\n  file result from resultChannel3\n\n  when:\n  result.name =~ /^fail.*/\n\n  output:\n  file \"*.csv\" into updated_samplesheet1, updated_samplesheet2\n\n  script:\n  \"\"\"\n  parse_json.py --samplesheet \"${sheet}\" \\\\\n  --jsonfile \"${json}\" \\\\\n  --problemsamples \"${samp_probs}\"\n  \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "  \"\"\"\n  parse_json.py --samplesheet \"${sheet}\" \\\\\n  --jsonfile \"${json}\" \\\\\n  --problemsamples \"${samp_probs}\"\n  \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "stats_json_file",
+            "standard_samplesheet3",
+            "problem_samples_list1",
+            "resultChannel3"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "updated_samplesheet1",
+            "updated_samplesheet2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"problem_samplesheet\"",
+            "label 'process_small'"
+        ],
+        "when": "result.name =~ /^fail.*/",
+        "stub": ""
+    },
+    "recheck_samplesheet": {
+        "name_process": "recheck_samplesheet",
+        "string_process": "\nprocess recheck_samplesheet {\n  tag \"problem_samplesheet\"\n  label 'process_small'\n  publishDir path: \"${params.stats_json_dir}/${runName}\", pattern: './**dex.html', mode: 'copy'\n\n  input:\n  file sheet from ss_sheet\n  file indexes from index_failed_file\n  file ud_sheet from updated_samplesheet1\n  file prob_samps from problem_samples_list2\n  file result from resultChannel4\n\n  when:\n  result.name =~ /^fail.*/\n\n  output:\n  file \"*.txt\" into PROBLEM_SS_CHECK2\n\n  script:\n  \"\"\"\n  recheck_samplesheet.py --samplesheet \"${sheet}\" --newsamplesheet \"${ud_sheet}\" --problemsamples \"${prob_samps}\"\n  \"\"\"\n\n}",
+        "nb_lignes_process": 23,
+        "string_script": "  \"\"\"\n  recheck_samplesheet.py --samplesheet \"${sheet}\" --newsamplesheet \"${ud_sheet}\" --problemsamples \"${prob_samps}\"\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ss_sheet",
+            "index_failed_file",
+            "updated_samplesheet1",
+            "problem_samples_list2",
+            "resultChannel4"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "PROBLEM_SS_CHECK2"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"problem_samplesheet\"",
+            "label 'process_small'",
+            "publishDir path: \"${params.stats_json_dir}/${runName}\", pattern: './**dex.html', mode: 'copy'"
+        ],
+        "when": "result.name =~ /^fail.*/",
+        "stub": ""
+    },
+    "cellRangerMkFastQ": {
+        "name_process": "cellRangerMkFastQ",
+        "string_process": "\nprocess cellRangerMkFastQ {\n    tag \"${sheet.name}\"\n    label 'process_big'\n    publishDir path: \"${params.outdir}/${runName}\", mode: 'copy', \n    saveAs:{ filename -> filename.startsWith(\"Undetermined\") ? \"CR$filename\" : filename }\n    errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }\n\n    input:\n    file sheet from tenx_samplesheet1\n    file result from tenx_results1\n\n    when:\n    result.name =~ /^true.*/\n\n    output:\n    file \"*/outs/fastq_path/CR_Undetermined_*.fastq.gz\" into cr_undetermined_default_fq_ch, cr_undetermined_fastqs_screen_ch, cr_undetermined_move_fq_ch mode flatten\n    file \"*/outs/fastq_path/*/**.fastq.gz\" into cr_fastqs_count_ch, cr_fastqs_copyfs_ch mode flatten\n    file \"*/outs/fastq_path/*/**{R1,R2,R3}_001.fastq.gz\" into cr_fastqs_fqc_ch, cr_fastqs_screen_ch mode flatten\n    file \"*/outs/fastq_path/Reports\" into cr_b2fq_default_reports_ch\n    file \"*/outs/fastq_path/Stats\" into cr_b2fq_default_stats_ch\n\n    script:\n    if (sheet.name =~ /^*sheet.tenx.csv/){\n    \"\"\"\n    ml use /camp/apps/eb/dev/modules/all\n    ml --ignore-cache bcl2fastq2/2.20.0-foss-2018b\n    cellranger mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0 --force-single-index\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }\n    else if (sheet.name =~ /^*sheet.ATACtenx.csv/){\n    \"\"\"\n    ml use /camp/apps/eb/dev/modules/all\n    ml --ignore-cache bcl2fastq2/2.20.0-foss-2018b\n    cellranger-atac mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }\n    else if (sheet.name =~ /^*sheet.DNAtenx.csv/){\n    \"\"\"\n    cellranger-dna mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }\n    else if (sheet.name =~ /^*sheet.Arctenx.csv/){\n    \"\"\"\n    ml use /camp/apps/eb/dev/modules/all\n    ml --ignore-cache bcl2fastq2/2.20.0-foss-2018b\n    cellranger-arc mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }\n}",
+        "nb_lignes_process": 52,
+        "string_script": "    if (sheet.name =~ /^*sheet.tenx.csv/){\n    \"\"\"\n    ml use /camp/apps/eb/dev/modules/all\n    ml --ignore-cache bcl2fastq2/2.20.0-foss-2018b\n    cellranger mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0 --force-single-index\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }\n    else if (sheet.name =~ /^*sheet.ATACtenx.csv/){\n    \"\"\"\n    ml use /camp/apps/eb/dev/modules/all\n    ml --ignore-cache bcl2fastq2/2.20.0-foss-2018b\n    cellranger-atac mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }\n    else if (sheet.name =~ /^*sheet.DNAtenx.csv/){\n    \"\"\"\n    cellranger-dna mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }\n    else if (sheet.name =~ /^*sheet.Arctenx.csv/){\n    \"\"\"\n    ml use /camp/apps/eb/dev/modules/all\n    ml --ignore-cache bcl2fastq2/2.20.0-foss-2018b\n    cellranger-arc mkfastq --id mkfastq --run ${runName_dir} --samplesheet ${sheet} --barcode-mismatches=0\n    rename Undetermined CR_Undetermined mkfastq/outs/fastq_path/Undetermined*\n    \"\"\"\n    }",
+        "nb_lignes_script": 29,
+        "language_script": "bash",
+        "tools": [
+            "MLC"
+        ],
+        "tools_url": [
+            "https://bio.tools/MLC"
+        ],
+        "tools_dico": [
+            {
+                "name": "MLC",
+                "uri": "https://bio.tools/MLC",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarray experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarrays"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Enrichment analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3463",
+                                    "term": "Expression correlation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "Weighted correlation network analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Enrichment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Over-representation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3463",
+                                    "term": "Co-expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "WGCNA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "Weighted gene co-expression network analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Metric Learning on Expression Data for Gene Function Prediction.",
+                "homepage": "http://www.github.com/stamakro/MLC"
+            }
+        ],
+        "inputs": [
+            "tenx_samplesheet1",
+            "tenx_results1"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "cr_undetermined_default_fq_ch",
+            "cr_undetermined_fastqs_screen_ch",
+            "cr_undetermined_move_fq_ch mode flatten",
+            "cr_fastqs_count_ch",
+            "cr_fastqs_copyfs_ch mode flatten",
+            "cr_fastqs_fqc_ch",
+            "cr_fastqs_screen_ch mode flatten",
+            "cr_b2fq_default_reports_ch",
+            "cr_b2fq_default_stats_ch"
+        ],
+        "nb_outputs": 9,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${sheet.name}\"",
+            "label 'process_big'",
+            "publishDir path: \"${params.outdir}/${runName}\", mode: 'copy' , saveAs:{ filename -> filename.startsWith(\"Undetermined\") ? \"CR$filename\" : filename }",
+            "errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }"
+        ],
+        "when": "result.name =~ /^true.*/",
+        "stub": ""
+    },
+    "cellRangerMoveFqs": {
+        "name_process": "cellRangerMoveFqs",
+        "string_process": "\nprocess cellRangerMoveFqs {\n  tag \"${fastq}\"\n\n  input:\n  set projectName, sampleName, file(fastq) from cr_fastqs_copyfs_tuple_ch\n  file result from tenx_results2\n\n  when:\n  result.name =~ /^true.*/\n\n  script:\n  \"\"\"\n  while [[ ! -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${sampleName}/${fastq} && ! -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${fastq} ]]; do sleep 15s; done\n  if [ -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${sampleName}/${fastq} ]; then\n    mkdir -p \"${params.outdir}/${runName}/fastq/${projectName}\" && ln -s ${params.outdir}${runName}/mkfastq/outs/fastq_path/${projectName}/${sampleName}/${fastq} ${params.outdir}/${runName}/fastq/${projectName}/\n  elif [ -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${fastq} ]; then\n    mkdir -p \"${params.outdir}/${runName}/fastq/${projectName}\" && ln -s ${params.outdir}${runName}/mkfastq/outs/fastq_path/${projectName}/${fastq} ${params.outdir}/${runName}/fastq/${projectName}/\n  fi\n  \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "  \"\"\"\n  while [[ ! -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${sampleName}/${fastq} && ! -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${fastq} ]]; do sleep 15s; done\n  if [ -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${sampleName}/${fastq} ]; then\n    mkdir -p \"${params.outdir}/${runName}/fastq/${projectName}\" && ln -s ${params.outdir}${runName}/mkfastq/outs/fastq_path/${projectName}/${sampleName}/${fastq} ${params.outdir}/${runName}/fastq/${projectName}/\n  elif [ -f ${params.outdir}/${runName}/mkfastq/outs/fastq_path/${projectName}/${fastq} ]; then\n    mkdir -p \"${params.outdir}/${runName}/fastq/${projectName}\" && ln -s ${params.outdir}${runName}/mkfastq/outs/fastq_path/${projectName}/${fastq} ${params.outdir}/${runName}/fastq/${projectName}/\n  fi\n  \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cr_fastqs_copyfs_tuple_ch",
+            "tenx_results2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${fastq}\""
+        ],
+        "when": "result.name =~ /^true.*/",
+        "stub": ""
+    },
+    "cellRangerCount": {
+        "name_process": "cellRangerCount",
+        "string_process": "\nprocess cellRangerCount {\n  tag \"${projectName}/${sampleID}\"\n  publishDir \"${params.outdir}/${runName}\", mode: 'copy',\n  saveAs: { filename ->\n    if (dataType =~ /10X-3prime/) \"cellranger-count/${projectName}/$filename\"\n    else if (dataType =~ /10X-Multiomics-GEX/) \"cellranger-count/${projectName}/$filename\"\n    else if (dataType =~ /10X-CNV/) \"cellranger-cnv/${projectName}/$filename\"\n    else if (dataType =~ /10X-ATAC/) \"cellranger-atac/${projectName}/$filename\"\n    else if (dataType =~ /10X-Multiomics-ATAC/) \"cellranger-atac/${projectName}/$filename\"\n    else if (dataType =~ /10X-Arc/) \"cellranger-arc/${projectName}/$filename\"\n  }\n\n  label 'process_big'\n  errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }\n\n  input:\n  set sampleID, projectName, refGenome, dataType, fastqDir from cr_grouped_fastq_dir_sample_ch\n  file result from tenx_results3\n\n  when:\n  result.name =~ /^true.*/\n\n  output:\n  file \"${sampleID}/\" optional true into count_output \n\n\n  script:\n  genome_ref_conf_filepath = params.cellranger_genomes.get(refGenome, false)\n\n  if (dataType =~ /10X-3prime/){\n    \"\"\"\n    cellranger count --id=$sampleID --transcriptome=${genome_ref_conf_filepath.tenx_transcriptomes} --fastqs=$fastqDir --sample=$sampleID --localmem 200 --localcores 32 \n    \"\"\"\n  }\n  else if (dataType =~ /10X-Multiomics-GEX/){\n    \"\"\"\n    cellranger count --id=$sampleID --transcriptome=${genome_ref_conf_filepath.tenx_transcriptomes} --fastqs=$fastqDir --sample=$sampleID --include-introns --chemistry=ARC-v1 --localmem 200 --localcores 32 \n    \"\"\"\n  }\n  else if (dataType =~ /10X-CNV/){\n    \"\"\"\n    cellranger-dna cnv --id=$sampleID --reference=${genome_ref_conf_filepath.tenx_cnv} --fastqs=$fastqDir --sample=$sampleID --localmem 200 --localcores 32\n    \"\"\"\n  }\n  else if (dataType =~ /10X-ATAC/){\n    \"\"\"\n    cellranger-atac count --id=$sampleID --reference=${genome_ref_conf_filepath.tenx_atac} --fastqs=$fastqDir --sample=$sampleID --localmem 200 --localcores 32\n    \"\"\"\n  }\n  else if (dataType =~ /10X-Multiomics-ATAC/){\n    \"\"\"\n    cellranger-atac count --id=$sampleID --reference=${genome_ref_conf_filepath.tenx_atac} --fastqs=$fastqDir --sample=$sampleID --chemistry=ARC-v1 --localmem 200 --localcores 32\n    \"\"\"\n  }\n  else if (dataType =~ /10X-Arc/){\n    \"\"\"\n    \"\"\"\n  }\n  else if (dataType =~ /10X-FeatureBarcoding/){\n    \"\"\"\n    \"\"\"\n  }\n}",
+        "nb_lignes_process": 62,
+        "string_script": "  genome_ref_conf_filepath = params.cellranger_genomes.get(refGenome, false)\n\n  if (dataType =~ /10X-3prime/){\n    \"\"\"\n    cellranger count --id=$sampleID --transcriptome=${genome_ref_conf_filepath.tenx_transcriptomes} --fastqs=$fastqDir --sample=$sampleID --localmem 200 --localcores 32 \n    \"\"\"\n  }\n  else if (dataType =~ /10X-Multiomics-GEX/){\n    \"\"\"\n    cellranger count --id=$sampleID --transcriptome=${genome_ref_conf_filepath.tenx_transcriptomes} --fastqs=$fastqDir --sample=$sampleID --include-introns --chemistry=ARC-v1 --localmem 200 --localcores 32 \n    \"\"\"\n  }\n  else if (dataType =~ /10X-CNV/){\n    \"\"\"\n    cellranger-dna cnv --id=$sampleID --reference=${genome_ref_conf_filepath.tenx_cnv} --fastqs=$fastqDir --sample=$sampleID --localmem 200 --localcores 32\n    \"\"\"\n  }\n  else if (dataType =~ /10X-ATAC/){\n    \"\"\"\n    cellranger-atac count --id=$sampleID --reference=${genome_ref_conf_filepath.tenx_atac} --fastqs=$fastqDir --sample=$sampleID --localmem 200 --localcores 32\n    \"\"\"\n  }\n  else if (dataType =~ /10X-Multiomics-ATAC/){\n    \"\"\"\n    cellranger-atac count --id=$sampleID --reference=${genome_ref_conf_filepath.tenx_atac} --fastqs=$fastqDir --sample=$sampleID --chemistry=ARC-v1 --localmem 200 --localcores 32\n    \"\"\"\n  }\n  else if (dataType =~ /10X-Arc/){\n    \"\"\"\n    \"\"\"\n  }\n  else if (dataType =~ /10X-FeatureBarcoding/){\n    \"\"\"\n    \"\"\"\n  }",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cr_grouped_fastq_dir_sample_ch",
+            "tenx_results3"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "count_output"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${projectName}/${sampleID}\"",
+            "publishDir \"${params.outdir}/${runName}\", mode: 'copy' , saveAs: { filename -> if (dataType =~ /10X-3prime/) \"cellranger-count/${projectName}/$filename\" else if (dataType =~ /10X-Multiomics-GEX/) \"cellranger-count/${projectName}/$filename\" else if (dataType =~ /10X-CNV/) \"cellranger-cnv/${projectName}/$filename\" else if (dataType =~ /10X-ATAC/) \"cellranger-atac/${projectName}/$filename\" else if (dataType =~ /10X-Multiomics-ATAC/) \"cellranger-atac/${projectName}/$filename\" else if (dataType =~ /10X-Arc/) \"cellranger-arc/${projectName}/$filename\" }",
+            "label 'process_big'",
+            "errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }"
+        ],
+        "when": "result.name =~ /^true.*/",
+        "stub": ""
+    },
+    "bcl2fastq_default": {
+        "name_process": "bcl2fastq_default",
+        "string_process": "\nprocess bcl2fastq_default {\n    tag \"${std_samplesheet.name}\"\n    publishDir path: \"${params.outdir}/${runName}/fastq\", mode: 'copy'\n\n    label 'process_big'\n\n    input:\n    file result2 from PROBLEM_SS_CHECK2.ifEmpty { true }\n    file result from resultChannel5\n    file std_samplesheet from standard_samplesheet4\n    file sheet from updated_samplesheet2.ifEmpty { true }\n    file bcl_result from bcl2fastq_results1\n\n    when:\n    bcl_result.name =~ /^true.bcl2fastq.txt/\n\n    output:\n    file \"*/**{R1,R2,R3}_001.fastq.gz\" into fastqs_fqc_ch, fastqs_screen_ch mode flatten\n    file \"*/**{I1,I2}_001.fastq.gz\" optional true into fastqs_idx_ch\n    file \"*{R1,R2,R3}_001.fastq.gz\" optional true into undetermined_default_fq_ch, undetermined_default_fastqs_screen_ch mode flatten\n    file \"*{I1,I2}_001.fastq.gz\" optional true into undetermined_idx_fq_ch\n    file \"Reports\" into b2fq_default_reports_ch\n    file \"Stats\" into b2fq_default_stats_ch\n\n    script:\n    ignore_miss_bcls = params.ignore_missing_bcls ? \"--ignore-missing-bcls \" : \"\"\n    ignore_miss_filt = params.ignore_missing_filter ? \"--ignore-missing-filter \" : \"\"\n    ignore_miss_pos = params.ignore_missing_positions ? \"--ignore-missing-positions \" : \"\"\n    bases_mask = params.use_bases_mask ? \"--use-bases-mask ${params.use_bases_mask} \" : \"\"\n    tiles = params.tiles ? \"--tiles ${params.tiles} \" : \"\"\n    fq_index_rds = params.create_fastq_for_indexreads ? \"--create-fastq-for-index-reads \" : \"\"\n    failed_rds = params.with_failed_reads ? \"--with-failed-reads \" : \"\"\n    fq_rev_comp = params.write_fastq_reversecomplement ? \"--write-fastq-reverse-complement\" : \"\"\n    no_bgzf_comp = params.no_bgzf_compression ? \"--no-bgzf-compression \" : \"\"\n    no_lane_split = params.no_lane_splitting ? \"--no-lane-splitting \" : \"\"\n    slide_window_adapt =  params.find_adapters_withsliding_window ? \"--find-adapters-with-sliding-window \" : \"\"\n\n    if (result.name =~ /^pass.*/){\n      \"\"\"\n      bcl2fastq \\\\\n          --runfolder-dir ${runName_dir} \\\\\n          --output-dir . \\\\\n          --sample-sheet ${std_samplesheet} \\\\\n          --adapter-stringency ${params.adapter_stringency} \\\\\n          $tiles \\\\\n          $ignore_miss_bcls \\\\\n          $ignore_miss_filt \\\\\n          $ignore_miss_pos \\\\\n          --minimum-trimmed-read-length ${params.minimum_trimmed_readlength} \\\\\n          --mask-short-adapter-reads ${params.mask_short_adapter_reads} \\\\\n          --fastq-compression-level ${params.fastq_compression_level} \\\\\n          --barcode-mismatches ${params.barcode_mismatches} \\\\\n          $bases_mask $fq_index_rds $failed_rds  \\\\\n          $fq_rev_comp $no_bgzf_comp $no_lane_split $slide_window_adapt\n      \"\"\"\n    }\n\n    else if (result2.name =~ /^fail.*/){\n      exit 1, \"Remade sample sheet still contains problem samples\"\n    }\n\n    else if (result.name =~ /^fail.*/){\n      \"\"\"\n      bcl2fastq \\\\\n          --runfolder-dir ${runName_dir} \\\\\n          --output-dir . \\\\\n          --sample-sheet ${sheet} \\\\\n          --adapter-stringency ${params.adapter_stringency} \\\\\n          $tiles \\\\\n          $ignore_miss_bcls \\\\\n          $ignore_miss_filt \\\\\n          $ignore_miss_pos \\\\\n          --minimum-trimmed-read-length ${params.minimum_trimmed_readlength} \\\\\n          --mask-short-adapter-reads ${params.mask_short_adapter_reads} \\\\\n          --fastq-compression-level ${params.fastq_compression_level} \\\\\n          --barcode-mismatches ${params.barcode_mismatches}\n          $bases_mask $fq_index_rds $failed_rds  \\\\\n          $fq_rev_comp $no_bgzf_comp $no_lane_split $slide_window_adapt\n      \"\"\"\n    }\n}",
+        "nb_lignes_process": 80,
+        "string_script": "    ignore_miss_bcls = params.ignore_missing_bcls ? \"--ignore-missing-bcls \" : \"\"\n    ignore_miss_filt = params.ignore_missing_filter ? \"--ignore-missing-filter \" : \"\"\n    ignore_miss_pos = params.ignore_missing_positions ? \"--ignore-missing-positions \" : \"\"\n    bases_mask = params.use_bases_mask ? \"--use-bases-mask ${params.use_bases_mask} \" : \"\"\n    tiles = params.tiles ? \"--tiles ${params.tiles} \" : \"\"\n    fq_index_rds = params.create_fastq_for_indexreads ? \"--create-fastq-for-index-reads \" : \"\"\n    failed_rds = params.with_failed_reads ? \"--with-failed-reads \" : \"\"\n    fq_rev_comp = params.write_fastq_reversecomplement ? \"--write-fastq-reverse-complement\" : \"\"\n    no_bgzf_comp = params.no_bgzf_compression ? \"--no-bgzf-compression \" : \"\"\n    no_lane_split = params.no_lane_splitting ? \"--no-lane-splitting \" : \"\"\n    slide_window_adapt =  params.find_adapters_withsliding_window ? \"--find-adapters-with-sliding-window \" : \"\"\n\n    if (result.name =~ /^pass.*/){\n      \"\"\"\n      bcl2fastq \\\\\n          --runfolder-dir ${runName_dir} \\\\\n          --output-dir . \\\\\n          --sample-sheet ${std_samplesheet} \\\\\n          --adapter-stringency ${params.adapter_stringency} \\\\\n          $tiles \\\\\n          $ignore_miss_bcls \\\\\n          $ignore_miss_filt \\\\\n          $ignore_miss_pos \\\\\n          --minimum-trimmed-read-length ${params.minimum_trimmed_readlength} \\\\\n          --mask-short-adapter-reads ${params.mask_short_adapter_reads} \\\\\n          --fastq-compression-level ${params.fastq_compression_level} \\\\\n          --barcode-mismatches ${params.barcode_mismatches} \\\\\n          $bases_mask $fq_index_rds $failed_rds  \\\\\n          $fq_rev_comp $no_bgzf_comp $no_lane_split $slide_window_adapt\n      \"\"\"\n    }\n\n    else if (result2.name =~ /^fail.*/){\n      exit 1, \"Remade sample sheet still contains problem samples\"\n    }\n\n    else if (result.name =~ /^fail.*/){\n      \"\"\"\n      bcl2fastq \\\\\n          --runfolder-dir ${runName_dir} \\\\\n          --output-dir . \\\\\n          --sample-sheet ${sheet} \\\\\n          --adapter-stringency ${params.adapter_stringency} \\\\\n          $tiles \\\\\n          $ignore_miss_bcls \\\\\n          $ignore_miss_filt \\\\\n          $ignore_miss_pos \\\\\n          --minimum-trimmed-read-length ${params.minimum_trimmed_readlength} \\\\\n          --mask-short-adapter-reads ${params.mask_short_adapter_reads} \\\\\n          --fastq-compression-level ${params.fastq_compression_level} \\\\\n          --barcode-mismatches ${params.barcode_mismatches}\n          $bases_mask $fq_index_rds $failed_rds  \\\\\n          $fq_rev_comp $no_bgzf_comp $no_lane_split $slide_window_adapt\n      \"\"\"\n    }",
+        "nb_lignes_script": 54,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "PROBLEM_SS_CHECK2",
+            "resultChannel5",
+            "standard_samplesheet4",
+            "updated_samplesheet2",
+            "bcl2fastq_results1"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "fastqs_fqc_ch",
+            "fastqs_screen_ch mode flatten",
+            "fastqs_idx_ch",
+            "undetermined_default_fq_ch",
+            "undetermined_default_fastqs_screen_ch mode flatten",
+            "undetermined_idx_fq_ch",
+            "b2fq_default_reports_ch",
+            "b2fq_default_stats_ch"
+        ],
+        "nb_outputs": 8,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${std_samplesheet.name}\"",
+            "publishDir path: \"${params.outdir}/${runName}/fastq\", mode: 'copy'",
+            "label 'process_big'"
+        ],
+        "when": "bcl_result.name =~ /^true.bcl2fastq.txt/",
+        "stub": ""
+    },
+    "fastqc": {
+        "name_process": "fastqc",
+        "string_process": "\nprocess fastqc {\n    tag \"${projectName}\"\n    publishDir path: \"${params.outdir}/${runName}/fastqc/${projectName}\", mode: 'copy'\n    label 'process_qc'\n\n    input:\n    set val(projectName), file(fqFile) from fastqcAll_ch\n\n    output:\n    set val(projectName), file(\"*_fastqc\") into fqc_folder_ch, all_fcq_files_tuple\n    file \"*.html\" into fqc_html_ch\n\n    script:\n    \"\"\"\n    fastqc --extract ${fqFile}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    fastqc --extract ${fqFile}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "fastqcAll_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fqc_folder_ch",
+            "all_fcq_files_tuple",
+            "fqc_html_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${projectName}\"",
+            "publishDir path: \"${params.outdir}/${runName}/fastqc/${projectName}\", mode: 'copy'",
+            "label 'process_qc'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastq_screen": {
+        "name_process": "fastq_screen",
+        "string_process": "\nprocess fastq_screen {\n    tag \"${projectName}\"\n    publishDir \"${params.outdir}/${runName}/fastq_screen/${projectName}\", mode: 'copy'\n    label 'process_qc'\n\n    input:\n    set val(projectName), file(fqFile) from grouped_fqscreen_ch\n\n    output:\n    set val(projectName), file(\"*_screen.txt\") into fastq_screen_txt, all_fq_screen_txt_tuple\n    file \"*_screen.html\" into fastq_screen_html\n\n    shell:\n    \"\"\"\n    fastq_screen --force --subset 200000 --conf ${FSCREEN_CONF_FILEPATH} --aligner bowtie2 ${fqFile}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    fastq_screen --force --subset 200000 --conf ${FSCREEN_CONF_FILEPATH} --aligner bowtie2 ${fqFile}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "grouped_fqscreen_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastq_screen_txt",
+            "all_fq_screen_txt_tuple",
+            "fastq_screen_html"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${projectName}\"",
+            "publishDir \"${params.outdir}/${runName}/fastq_screen/${projectName}\", mode: 'copy'",
+            "label 'process_qc'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n    tag \"${projectName}\"\n    publishDir path: \"${params.outdir}/${runName}/multiqc/${projectName}\", mode: 'copy'\n    label 'process_qc'\n\n    input:\n    set val(projectName), file(fqFiles), file(fqScreen) from grouped_fastq_fqscreen_ch\n\n    output:\n    file \"*multiqc_report.html\" into multiqc_report\n    file \"*_data\"\n    val(projectName) into projectList\n\n    shell:\n    \"\"\"\n    multiqc . --config ${MULTIQC_CONF_FILEPATH} \n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    multiqc . --config ${MULTIQC_CONF_FILEPATH} \n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "grouped_fastq_fqscreen_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "multiqc_report",
+            "projectList"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${projectName}\"",
+            "publishDir path: \"${params.outdir}/${runName}/multiqc/${projectName}\", mode: 'copy'",
+            "label 'process_qc'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqcAll": {
+        "name_process": "multiqcAll",
+        "string_process": "\nprocess multiqcAll {\n    tag \"${runName}\"\n    publishDir path: \"${params.outdir}/${runName}/multiqc\", mode: 'copy'\n    label 'process_big'\n\n    input:\n    file fqFile from all_fcq_files\n    file fqScreen from all_fq_screen_files\n    file bcl_stats from b2fq_default_stats_all_ch.ifEmpty('')\n\n    output:\n    file \"*multiqc_report.html\" into multiqc_report_all\n    file \"*_data\"\n\n    shell:\n    \"\"\"\n    multiqc . --config ${MULTIQC_CONF_FILEPATH}\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    multiqc . --config ${MULTIQC_CONF_FILEPATH}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "all_fcq_files",
+            "all_fq_screen_files",
+            "b2fq_default_stats_all_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "multiqc_report_all"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "csawye01__nf-core-demultiplex-crick",
+        "directive": [
+            "tag \"${runName}\"",
+            "publishDir path: \"${params.outdir}/${runName}/multiqc\", mode: 'copy'",
+            "label 'process_big'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

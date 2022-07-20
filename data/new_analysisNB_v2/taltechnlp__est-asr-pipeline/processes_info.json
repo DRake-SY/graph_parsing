@@ -1,0 +1,736 @@
+{
+    "to_wav": {
+        "name_process": "to_wav",
+        "string_process": "\nprocess to_wav {\n    memory '500MB'\n    cpus 2\n\n    input:\n    path audio_file\n\n    output:\n    file 'audio.wav' into audio\n    \n    shell:\n        \"\"\"\n        time (ffmpeg -i !{audio_file} -f sox - | sox  -t sox - -c 1 -b 16 -t wav audio.wav rate -v 16k )\n        \"\"\"\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        time (ffmpeg -i !{audio_file} -f sox - | sox  -t sox - -c 1 -b 16 -t wav audio.wav rate -v 16k )\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "audio_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "audio"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '500MB'",
+            "cpus 2"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "diarization": {
+        "name_process": "diarization",
+        "string_process": "\nprocess diarization {\n    memory '5GB'\n    \n    input:\n    file audio\n\n    output: \n    file 'show.seg' into show_seg\n    file 'show.uem.seg' into show_uem_seg \n\n    script:        \n        \"\"\"\n        find_speech_segments.py $audio show.uem.seg\n        diarization.sh $audio show.uem.seg\n        \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        find_speech_segments.py $audio show.uem.seg\n        diarization.sh $audio show.uem.seg\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "audio"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "show_seg",
+            "show_uem_seg"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '5GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_initial_data_dir": {
+        "name_process": "prepare_initial_data_dir",
+        "string_process": "\nprocess prepare_initial_data_dir {\n    memory '1GB'\n\n    input:\n      file show_seg\n      file audio\n\n    output:\n      path 'init_datadir' into init_datadir optional true\n\n    shell:\n    '''\n    . !{projectDir}/bin/prepare_process.sh\n    \n    if [ -s !{show_seg} ]; then\n      mkdir init_datadir\n      echo audio audio A > init_datadir/reco2file_and_channel\n      cat !{show_seg} | cut -f \"3,4,8\" -d \" \" | \\\n      while read LINE ; do \\\n        start=`echo $LINE | cut -f 1,2 -d \" \" | perl -ne '@t=split(); $start=$t[0]/100.0; printf(\"%08.3f\", $start);'`; \\\n        end=`echo $LINE   | cut -f 1,2 -d \" \" | perl -ne '@t=split(); $start=$t[0]/100.0; $len=$t[1]/100.0; $end=$start+$len; printf(\"%08.3f\", $end);'`; \\\n        sp_id=`echo $LINE | cut -f 3 -d \" \"`; \\\n        if  [ ${end} != ${start} ]; then \\\n          echo audio-${sp_id}---${start}-${end} audio $start $end; \\\n        fi\n      done > init_datadir/segments\n      cat init_datadir/segments | perl -npe 's/\\\\s+.*//; s/((.*)---.*)/\\\\1 \\\\2/' > init_datadir/utt2spk\n      utils/utt2spk_to_spk2utt.pl init_datadir/utt2spk > init_datadir/spk2utt\n      echo \"audio !{audio}\" > init_datadir/wav.scp\n      \n    fi\n    '''\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    '''\n    . !{projectDir}/bin/prepare_process.sh\n    \n    if [ -s !{show_seg} ]; then\n      mkdir init_datadir\n      echo audio audio A > init_datadir/reco2file_and_channel\n      cat !{show_seg} | cut -f \"3,4,8\" -d \" \" | \\\n      while read LINE ; do \\\n        start=`echo $LINE | cut -f 1,2 -d \" \" | perl -ne '@t=split(); $start=$t[0]/100.0; printf(\"%08.3f\", $start);'`; \\\n        end=`echo $LINE   | cut -f 1,2 -d \" \" | perl -ne '@t=split(); $start=$t[0]/100.0; $len=$t[1]/100.0; $end=$start+$len; printf(\"%08.3f\", $end);'`; \\\n        sp_id=`echo $LINE | cut -f 3 -d \" \"`; \\\n        if  [ ${end} != ${start} ]; then \\\n          echo audio-${sp_id}---${start}-${end} audio $start $end; \\\n        fi\n      done > init_datadir/segments\n      cat init_datadir/segments | perl -npe 's/\\\\s+.*//; s/((.*)---.*)/\\\\1 \\\\2/' > init_datadir/utt2spk\n      utils/utt2spk_to_spk2utt.pl init_datadir/utt2spk > init_datadir/spk2utt\n      echo \"audio !{audio}\" > init_datadir/wav.scp\n      \n    fi\n    '''",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [
+            "segmentSeq"
+        ],
+        "tools_url": [
+            "https://bio.tools/segmentseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "segmentSeq",
+                "uri": "https://bio.tools/segmentseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip sequencing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2884",
+                                "term": "Plot"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This package allows the simultaneous segmentation of data from multiple samples, taking into account replicate data, in order to create a consensus segmentation. This has obvious applications in a number of classes of sequencing experiments, particularly in the discovery of small RNA loci and novel mRNA transcriptome discovery.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/segmentSeq.html"
+            }
+        ],
+        "inputs": [
+            "show_seg",
+            "audio"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "init_datadir"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '1GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "language_id": {
+        "name_process": "language_id",
+        "string_process": "\nprocess language_id {\n    memory '4GB'\n    \n    input:\n      path init_datadir\n      file audio    \n    \n    output:\n      path 'datadir' into datadir optional true\n    \n    shell:\n    if ( params.do_language_id )\n      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      extract_lid_features_kaldi.py !{init_datadir} .\n      cat !{init_datadir}/segments | awk '{print($1, \"0\")}' > trials\n      threshold=`cat !{params.rootdir}/models/lid_et/threshold`\n      ivector-subtract-global-mean !{params.rootdir}/models/lid_et/xvector.global.vec scp:xvector.scp ark:- | \\\n      ivector-normalize-length --scaleup=false ark:- ark:- | \\\n      logistic-regression-eval --apply-log=true --max-steps=20 --mix-up=0 \\\n        !{params.rootdir}/models/lid_et/lr.scale.model \\\n        ark:trials ark:- scores\n      cat scores  | \\\n        awk '{print($1, $3 > '$threshold' ? \"et\" : \"other\")}' > utt2lang\n      grep \"et$\" utt2lang | sort | awk '{print($1)}' > utts.filtered\n\n      if [ -s utts.filtered ]; then\n        mkdir datadir\n        \n        join <(sort !{init_datadir}/segments) utts.filtered | \\\n          awk '{print($1, $2, $3, $4)}' | LC_ALL=C sort > datadir/segments\n        \n        cp -r !{init_datadir}/{wav.scp,utt2spk,spk2utt} datadir\n        utils/fix_data_dir.sh datadir\n      fi\n      '''      \n    else\n      '''\n      mkdir datadir\n      cp -r !{init_datadir}/{wav.scp,segments,utt2spk,spk2utt} datadir\n      '''\n}",
+        "nb_lignes_process": 42,
+        "string_script": "    if ( params.do_language_id )\n      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      extract_lid_features_kaldi.py !{init_datadir} .\n      cat !{init_datadir}/segments | awk '{print($1, \"0\")}' > trials\n      threshold=`cat !{params.rootdir}/models/lid_et/threshold`\n      ivector-subtract-global-mean !{params.rootdir}/models/lid_et/xvector.global.vec scp:xvector.scp ark:- | \\\n      ivector-normalize-length --scaleup=false ark:- ark:- | \\\n      logistic-regression-eval --apply-log=true --max-steps=20 --mix-up=0 \\\n        !{params.rootdir}/models/lid_et/lr.scale.model \\\n        ark:trials ark:- scores\n      cat scores  | \\\n        awk '{print($1, $3 > '$threshold' ? \"et\" : \"other\")}' > utt2lang\n      grep \"et$\" utt2lang | sort | awk '{print($1)}' > utts.filtered\n\n      if [ -s utts.filtered ]; then\n        mkdir datadir\n        \n        join <(sort !{init_datadir}/segments) utts.filtered | \\\n          awk '{print($1, $2, $3, $4)}' | LC_ALL=C sort > datadir/segments\n        \n        cp -r !{init_datadir}/{wav.scp,utt2spk,spk2utt} datadir\n        utils/fix_data_dir.sh datadir\n      fi\n      '''      \n    else\n      '''\n      mkdir datadir\n      cp -r !{init_datadir}/{wav.scp,segments,utt2spk,spk2utt} datadir\n      '''",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [
+            "joineRML",
+            "segmentSeq"
+        ],
+        "tools_url": [
+            "https://bio.tools/joinerml",
+            "https://bio.tools/segmentseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "joineRML",
+                "uri": "https://bio.tools/joinerml",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3569",
+                            "term": "Applied mathematics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Joint Modelling of Multivariate Longitudinal Data and Time-to-Event Outcomes.",
+                "homepage": "https://cran.r-project.org/web/packages/joineRML/"
+            },
+            {
+                "name": "segmentSeq",
+                "uri": "https://bio.tools/segmentseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip sequencing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2884",
+                                "term": "Plot"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This package allows the simultaneous segmentation of data from multiple samples, taking into account replicate data, in order to create a consensus segmentation. This has obvious applications in a number of classes of sequencing experiments, particularly in the discovery of small RNA loci and novel mRNA transcriptome discovery.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/segmentSeq.html"
+            }
+        ],
+        "inputs": [
+            "init_datadir",
+            "audio"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "datadir"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '4GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mfcc": {
+        "name_process": "mfcc",
+        "string_process": "\nprocess mfcc {\n    memory '1GB'\n    \n    input:\n    path datadir\n    file audio    \n\n    output:\n    path 'datadir_hires' into datadir_hires\n    path 'ivectors' into ivectors\n\n    shell:\n    '''\n    . !{projectDir}/bin/prepare_process.sh\n\t\n    utils/copy_data_dir.sh !{datadir} datadir_hires\n    steps/make_mfcc.sh --nj 1 \\\n        --mfcc-config !{params.rootdir}/build/fst/!{params.acoustic_model}/conf/mfcc.conf \\\n        datadir_hires || exit 1\n    steps/compute_cmvn_stats.sh datadir_hires || exit 1\n    utils/fix_data_dir.sh datadir_hires\n\n    steps/online/nnet2/extract_ivectors_online.sh  --nj 1 \\\n      datadir_hires !{params.rootdir}/build/fst/!{params.acoustic_model}/ivector_extractor ivectors || exit 1;\n    '''\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    '''\n    . !{projectDir}/bin/prepare_process.sh\n\t\n    utils/copy_data_dir.sh !{datadir} datadir_hires\n    steps/make_mfcc.sh --nj 1 \\\n        --mfcc-config !{params.rootdir}/build/fst/!{params.acoustic_model}/conf/mfcc.conf \\\n        datadir_hires || exit 1\n    steps/compute_cmvn_stats.sh datadir_hires || exit 1\n    utils/fix_data_dir.sh datadir_hires\n\n    steps/online/nnet2/extract_ivectors_online.sh  --nj 1 \\\n      datadir_hires !{params.rootdir}/build/fst/!{params.acoustic_model}/ivector_extractor ivectors || exit 1;\n    '''",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "datadir",
+            "audio"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "datadir_hires",
+            "ivectors"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '1GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "speaker_id": {
+        "name_process": "speaker_id",
+        "string_process": "\nprocess speaker_id {\n    memory '5GB'\n    \n    cpus params.nthreads\n    \n    input:\n      path datadir\n      file audio    \n      path conf from \"$projectDir/conf\"\n\n    output:\n      file 'sid-result.json' into sid_result\n\n    shell:\n        if (params.do_speaker_id)\n          '''\n          . !{projectDir}/bin/prepare_process.sh\n          ln -v -s !{params.rootdir}/kaldi-data\n          ln -v -s !{params.rootdir}/build\n\n          utils/copy_data_dir.sh !{datadir} datadir_sid\n          \n          # MFCC for Speaker ID, since the features for MFCC are different from speech recognition\n          steps/make_mfcc.sh --nj 1 \\\n              --mfcc-config kaldi-data/sid/mfcc_sid.conf \\\n              datadir_sid || exit 1\n          steps/compute_cmvn_stats.sh datadir_sid || exit 1\n          sid/compute_vad_decision.sh --nj 1 datadir_sid || exit 1\n\n          # i-vectors for each speaker in our audio file\n          sid/extract_ivectors.sh  --nj 1 --num-threads !{params.nthreads} \\\n              kaldi-data/sid/extractor_2048 datadir_sid .\n\n          # cross-product between trained speakers and diarized speakers\n          join -j 2 \\\n              <(cut -d \" \" -f 1 kaldi-data/sid/name_ivector.scp | sort ) \\\n              <(cut -d \" \" -f 1 spk_ivector.scp | sort ) > trials\n\n          ivector-plda-scoring --normalize-length=true \\\n              \"ivector-copy-plda --smoothing=0.3 kaldi-data/sid/lda_plda - |\" \\\n              \"ark:ivector-subtract-global-mean scp:kaldi-data/sid//name_ivector.scp ark:- | transform-vec kaldi-data/sid/transform.mat ark:- ark:- | ivector-normalize-length ark:- ark:- |\" \\\n              \"ark:ivector-subtract-global-mean kaldi-data/sid/mean.vec scp:spk_ivector.scp ark:- | transform-vec kaldi-data/sid/transform.mat ark:- ark:- | ivector-normalize-length ark:- ark:- |\" \\\n              trials lda_plda_scores\n          \n\t        cat lda_plda_scores | sort -k2,2 -k3,3nr | awk \\'{print $3, $1, $2}\\' | uniq -f2 | awk \\'{if ($1 > !{params.sid_similarity_threshold}) {print $3, $2}}\\' | \\\n\t        perl -npe \\'s/^\\\\S+-(S\\\\d+)/\\\\1/; s/_/ /g;\\' | python -c \\'import json, sys; spks={s.split()[0]:{\"name\" : \" \".join(s.split()[1:])} for s in sys.stdin}; json.dump(spks, sys.stdout);\\' > sid-result.json\n          '''\n        else\n          '''\n          echo \"{}\" >  sid-result.json\n          '''\n}",
+        "nb_lignes_process": 51,
+        "string_script": "        if (params.do_speaker_id)\n          '''\n          . !{projectDir}/bin/prepare_process.sh\n          ln -v -s !{params.rootdir}/kaldi-data\n          ln -v -s !{params.rootdir}/build\n\n          utils/copy_data_dir.sh !{datadir} datadir_sid\n          \n          # MFCC for Speaker ID, since the features for MFCC are different from speech recognition\n          steps/make_mfcc.sh --nj 1 \\\n              --mfcc-config kaldi-data/sid/mfcc_sid.conf \\\n              datadir_sid || exit 1\n          steps/compute_cmvn_stats.sh datadir_sid || exit 1\n          sid/compute_vad_decision.sh --nj 1 datadir_sid || exit 1\n\n          # i-vectors for each speaker in our audio file\n          sid/extract_ivectors.sh  --nj 1 --num-threads !{params.nthreads} \\\n              kaldi-data/sid/extractor_2048 datadir_sid .\n\n          # cross-product between trained speakers and diarized speakers\n          join -j 2 \\\n              <(cut -d \" \" -f 1 kaldi-data/sid/name_ivector.scp | sort ) \\\n              <(cut -d \" \" -f 1 spk_ivector.scp | sort ) > trials\n\n          ivector-plda-scoring --normalize-length=true \\\n              \"ivector-copy-plda --smoothing=0.3 kaldi-data/sid/lda_plda - |\" \\\n              \"ark:ivector-subtract-global-mean scp:kaldi-data/sid//name_ivector.scp ark:- | transform-vec kaldi-data/sid/transform.mat ark:- ark:- | ivector-normalize-length ark:- ark:- |\" \\\n              \"ark:ivector-subtract-global-mean kaldi-data/sid/mean.vec scp:spk_ivector.scp ark:- | transform-vec kaldi-data/sid/transform.mat ark:- ark:- | ivector-normalize-length ark:- ark:- |\" \\\n              trials lda_plda_scores\n          \n\t        cat lda_plda_scores | sort -k2,2 -k3,3nr | awk \\'{print $3, $1, $2}\\' | uniq -f2 | awk \\'{if ($1 > !{params.sid_similarity_threshold}) {print $3, $2}}\\' | \\\n\t        perl -npe \\'s/^\\\\S+-(S\\\\d+)/\\\\1/; s/_/ /g;\\' | python -c \\'import json, sys; spks={s.split()[0]:{\"name\" : \" \".join(s.split()[1:])} for s in sys.stdin}; json.dump(spks, sys.stdout);\\' > sid-result.json\n          '''\n        else\n          '''\n          echo \"{}\" >  sid-result.json\n          '''",
+        "nb_lignes_script": 36,
+        "language_script": "bash",
+        "tools": [
+            "joineRML"
+        ],
+        "tools_url": [
+            "https://bio.tools/joinerml"
+        ],
+        "tools_dico": [
+            {
+                "name": "joineRML",
+                "uri": "https://bio.tools/joinerml",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3569",
+                            "term": "Applied mathematics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Joint Modelling of Multivariate Longitudinal Data and Time-to-Event Outcomes.",
+                "homepage": "https://cran.r-project.org/web/packages/joineRML/"
+            }
+        ],
+        "inputs": [
+            "datadir",
+            "audio",
+            "\"$projectDir/conf\""
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "sid_result"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '5GB'",
+            "cpus params.nthreads"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "one_pass_decoding": {
+        "name_process": "one_pass_decoding",
+        "string_process": "\nprocess one_pass_decoding {\n    memory '5GB'  \n    cpus params.nthreads * 2\n    \n                                                   \n    input:\n      path datadir_hires\n      path ivectors\n                                         \n      path conf from \"$projectDir/conf\"\n\t\n    output:\n      path \"${params.acoustic_model}_pruned_unk\" into pruned_unk\n   \n    \n    shell:\n      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      mkdir -p !{params.acoustic_model}_pruned_unk\n      for f in !{params.rootdir}/build/fst/!{params.acoustic_model}/?*; do ln -s $f !{params.acoustic_model}_pruned_unk/; done\n\n      steps/nnet3/decode.sh  --nj 1 --num-threads !{params.nthreads} --acwt 1.0  --post-decode-acwt 10.0 \\\n        --skip-scoring true \\\n        --online-ivector-dir ivectors \\\n        --skip-diagnostics true \\\n        !{params.rootdir}/build/fst/!{params.acoustic_model}/graph_prunedlm_unk datadir_hires !{params.acoustic_model}_pruned_unk/decode || exit 1;\n      ln -s !{params.rootdir}/build/fst/!{params.acoustic_model}/graph_prunedlm_unk !{params.acoustic_model}_pruned_unk/graph\n        \n      '''\n}",
+        "nb_lignes_process": 30,
+        "string_script": "      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      mkdir -p !{params.acoustic_model}_pruned_unk\n      for f in !{params.rootdir}/build/fst/!{params.acoustic_model}/?*; do ln -s $f !{params.acoustic_model}_pruned_unk/; done\n\n      steps/nnet3/decode.sh  --nj 1 --num-threads !{params.nthreads} --acwt 1.0  --post-decode-acwt 10.0 \\\n        --skip-scoring true \\\n        --online-ivector-dir ivectors \\\n        --skip-diagnostics true \\\n        !{params.rootdir}/build/fst/!{params.acoustic_model}/graph_prunedlm_unk datadir_hires !{params.acoustic_model}_pruned_unk/decode || exit 1;\n      ln -s !{params.rootdir}/build/fst/!{params.acoustic_model}/graph_prunedlm_unk !{params.acoustic_model}_pruned_unk/graph\n        \n      '''",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "datadir_hires",
+            "ivectors",
+            "\"$projectDir/conf\""
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "pruned_unk"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '5GB'",
+            "cpus params.nthreads * 2"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rnnlm_rescoring": {
+        "name_process": "rnnlm_rescoring",
+        "string_process": "\nprocess rnnlm_rescoring {\n    memory '5GB'\n    \n    input:\n    \n      path pruned_unk from pruned_unk\n      path datadir_hires\n\n    output:\n      path \"${params.acoustic_model}_pruned_rnnlm_unk\" into pruned_rnnlm_unk\n\n    shell:\n      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      mkdir -p !{params.acoustic_model}_pruned_rnnlm_unk\t\n      for f in !{params.rootdir}/build/fst/!{params.acoustic_model}/*; do ln -s $f !{params.acoustic_model}_pruned_rnnlm_unk/; done\n        rnnlm/lmrescore_pruned.sh \\\n        --skip-scoring true \\\n        --max-ngram-order 4 \\\n        !{params.rootdir}/build/fst/data/prunedlm_unk \\\n        !{params.rootdir}/build/fst/data/rnnlm_unk \\\n        datadir_hires \\\n      !{pruned_unk}/decode \\\n        !{params.acoustic_model}_pruned_rnnlm_unk/decode\n      cp -r --preserve=links !{params.acoustic_model}_pruned_unk/graph !{params.acoustic_model}_pruned_rnnlm_unk/\n      '''\n}",
+        "nb_lignes_process": 27,
+        "string_script": "      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      mkdir -p !{params.acoustic_model}_pruned_rnnlm_unk\t\n      for f in !{params.rootdir}/build/fst/!{params.acoustic_model}/*; do ln -s $f !{params.acoustic_model}_pruned_rnnlm_unk/; done\n        rnnlm/lmrescore_pruned.sh \\\n        --skip-scoring true \\\n        --max-ngram-order 4 \\\n        !{params.rootdir}/build/fst/data/prunedlm_unk \\\n        !{params.rootdir}/build/fst/data/rnnlm_unk \\\n        datadir_hires \\\n      !{pruned_unk}/decode \\\n        !{params.acoustic_model}_pruned_rnnlm_unk/decode\n      cp -r --preserve=links !{params.acoustic_model}_pruned_unk/graph !{params.acoustic_model}_pruned_rnnlm_unk/\n      '''",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "deCODE"
+        ],
+        "tools_url": [
+            "https://bio.tools/decode"
+        ],
+        "tools_dico": [
+            {
+                "name": "deCODE",
+                "uri": "https://bio.tools/decode",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0346",
+                                    "term": "Sequence similarity search"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Change the letters of your name to the closest DNA bases, search every one of 168,297 protein sequences from 8826 animals, plants and microorganisms and return to you, the protein that contains the closest match to the letters of your name.",
+                "homepage": "http://www.ebi.ac.uk/cgi-bin/decode/decode.cgi"
+            }
+        ],
+        "inputs": [
+            "pruned_unk",
+            "datadir_hires"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "pruned_rnnlm_unk"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '5GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "lattice2ctm": {
+        "name_process": "lattice2ctm",
+        "string_process": "\nprocess lattice2ctm {\n    memory '4GB'\n    cpus 2\n    \n    input:\n      path pruned_rnnlm_unk from pruned_rnnlm_unk\n      path datadir_hires\n\n    output:\n      file 'segmented.ctm' into segmented_ctm\n      file 'with-compounds.ctm' into with_compounds_ctm\n\n    shell:\n      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      frame_shift_opt=\"\"\n      if [ -f !{pruned_rnnlm_unk}/frame_subsampling_factor ]; then\n        factor=`cat !{pruned_rnnlm_unk}/frame_subsampling_factor`\n        frame_shift_opt=\"--frame-shift 0.0$factor\"; \n      fi; \n      \n      get_ctm_unk.sh --use_segments false $frame_shift_opt \\\n        --unk-p2g-cmd \"python3 !{projectDir}/bin/unk_p2g.py --p2g-cmd \\'python3 /opt/et-g2p-fst/g2p.py --inverse --fst /opt/et-g2p-fst/data/chars.fst --nbest 1\\'\" \\\n        --unk-word \"<unk>\" \\\n        --min-lmwt !{params.lm_scale} \\\n        --max-lmwt !{params.lm_scale} \\\n        datadir_hires !{pruned_rnnlm_unk}/graph !{pruned_rnnlm_unk}/decode\n\n      cat !{pruned_rnnlm_unk}/decode/score_!{params.lm_scale}/datadir_hires.ctm  | perl -npe \"s/(.*)-(S\\\\d+)---(\\\\S+)/\\\\1_\\\\3_\\\\2/\" > segmented.splitw2.ctm\n\n      python3 !{projectDir}/bin/compound-ctm.py \\\n        \"python3 !{projectDir}/bin/compounder.py !{params.rootdir}/build/fst/data/compounderlm/G.fst !{params.rootdir}/build/fst/data/compounderlm/words.txt\" \\\n        < segmented.splitw2.ctm > with-compounds.ctm\n      \n      cat with-compounds.ctm | grep -v \"++\" |  grep -v \"\\\\[sil\\\\]\" | grep -v -e \" \\$\" | perl -npe \"s/\\\\+//g\" | sort -k1,1 -k 3,3g > segmented.ctm    \n      '''\n}",
+        "nb_lignes_process": 37,
+        "string_script": "      '''\n      . !{projectDir}/bin/prepare_process.sh\n      \n      frame_shift_opt=\"\"\n      if [ -f !{pruned_rnnlm_unk}/frame_subsampling_factor ]; then\n        factor=`cat !{pruned_rnnlm_unk}/frame_subsampling_factor`\n        frame_shift_opt=\"--frame-shift 0.0$factor\"; \n      fi; \n      \n      get_ctm_unk.sh --use_segments false $frame_shift_opt \\\n        --unk-p2g-cmd \"python3 !{projectDir}/bin/unk_p2g.py --p2g-cmd \\'python3 /opt/et-g2p-fst/g2p.py --inverse --fst /opt/et-g2p-fst/data/chars.fst --nbest 1\\'\" \\\n        --unk-word \"<unk>\" \\\n        --min-lmwt !{params.lm_scale} \\\n        --max-lmwt !{params.lm_scale} \\\n        datadir_hires !{pruned_rnnlm_unk}/graph !{pruned_rnnlm_unk}/decode\n\n      cat !{pruned_rnnlm_unk}/decode/score_!{params.lm_scale}/datadir_hires.ctm  | perl -npe \"s/(.*)-(S\\\\d+)---(\\\\S+)/\\\\1_\\\\3_\\\\2/\" > segmented.splitw2.ctm\n\n      python3 !{projectDir}/bin/compound-ctm.py \\\n        \"python3 !{projectDir}/bin/compounder.py !{params.rootdir}/build/fst/data/compounderlm/G.fst !{params.rootdir}/build/fst/data/compounderlm/words.txt\" \\\n        < segmented.splitw2.ctm > with-compounds.ctm\n      \n      cat with-compounds.ctm | grep -v \"++\" |  grep -v \"\\\\[sil\\\\]\" | grep -v -e \" \\$\" | perl -npe \"s/\\\\+//g\" | sort -k1,1 -k 3,3g > segmented.ctm    \n      '''",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pruned_rnnlm_unk",
+            "datadir_hires"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "segmented_ctm",
+            "with_compounds_ctm"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '4GB'",
+            "cpus 2"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "to_json": {
+        "name_process": "to_json",
+        "string_process": "\nprocess to_json {    \n    memory '500MB'\n    \n    input:\n      file segmented_ctm\n      file with_compounds_ctm\n      file sid_result\n      file show_uem_seg\n\n    output:\n      file \"unpunctuated.json\" into unpunctuated_json\n\n    shell:\n      if (params.do_speaker_id)\n          \"\"\"\n          python3 !{projectDir}/bin/segmented_ctm2json.py --speaker-names !{sid_result} --pms-seg !{show_uem_seg} !{segmented_ctm} > unpunctuated.json\n          \"\"\"\n      else \n          \"\"\"\n          python3 !{projectDir}/bin/segmented_ctm2json.py --pms-seg !{show_uem_seg} !{segmented_ctm} > unpunctuated.json\n          \"\"\"\n\n}",
+        "nb_lignes_process": 22,
+        "string_script": "      if (params.do_speaker_id)\n          \"\"\"\n          python3 !{projectDir}/bin/segmented_ctm2json.py --speaker-names !{sid_result} --pms-seg !{show_uem_seg} !{segmented_ctm} > unpunctuated.json\n          \"\"\"\n      else \n          \"\"\"\n          python3 !{projectDir}/bin/segmented_ctm2json.py --pms-seg !{show_uem_seg} !{segmented_ctm} > unpunctuated.json\n          \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "segmented_ctm",
+            "with_compounds_ctm",
+            "sid_result",
+            "show_uem_seg"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "unpunctuated_json"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '500MB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "punctuation": {
+        "name_process": "punctuation",
+        "string_process": "\nprocess punctuation {\n    memory '4GB'\n    \n    input:\n      file unpunctuated_json\n\n    output:\n      file \"punctuated.json\" into punctuated_json\n\n    shell:\n      if (params.do_punctuation)\n        '''\n        WORK_DIR=$PWD\n        cd !{params.rootdir}/punctuator-data/est_punct2\n        TEMP_FILE1=$(mktemp); \n        TEMP_FILE2=$(mktemp);\n        cat $WORK_DIR/!{unpunctuated_json} > TEMP_FILE1 \n        python2 punctuator_pad_emb_json.py Model_stage2p_final_563750_h256_lr0.02.pcl TEMP_FILE1 TEMP_FILE2  \n        cat TEMP_FILE2 > $WORK_DIR/punctuated.json\n        rm TEMP_FILE1 TEMP_FILE2 \n        cd $WORK_DIR\n        '''\n      else\n        '''\n        cp !{unpunctuated_json} punctuated.json\n        '''\n}",
+        "nb_lignes_process": 26,
+        "string_script": "      if (params.do_punctuation)\n        '''\n        WORK_DIR=$PWD\n        cd !{params.rootdir}/punctuator-data/est_punct2\n        TEMP_FILE1=$(mktemp); \n        TEMP_FILE2=$(mktemp);\n        cat $WORK_DIR/!{unpunctuated_json} > TEMP_FILE1 \n        python2 punctuator_pad_emb_json.py Model_stage2p_final_563750_h256_lr0.02.pcl TEMP_FILE1 TEMP_FILE2  \n        cat TEMP_FILE2 > $WORK_DIR/punctuated.json\n        rm TEMP_FILE1 TEMP_FILE2 \n        cd $WORK_DIR\n        '''\n      else\n        '''\n        cp !{unpunctuated_json} punctuated.json\n        '''",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "unpunctuated_json"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "punctuated_json"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '4GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output": {
+        "name_process": "output",
+        "string_process": "\nprocess output {\n    memory '500MB'\n    \n    publishDir \"${out_dir}${audio_file.baseName}\", mode: 'copy', overwrite: true\n\n    input:\n      file with_compounds_ctm\n      file punctuated_json\n\n    output:\n      file \"result.json\" into result_json\n      file \"result.srt\" into result_srt\n      file \"result.trs\" into result_trs\n      file \"result.ctm\" into result_ctm\n      file \"result.with-compounds.ctm\" into result_with_compounds_ctm\n\n    script:\n      json = punctuated_json\n      \"\"\"\n      normalize_json.py words2numbers.py $json > result.json\n\n      cat $with_compounds_ctm | unsegment-ctm.py | LC_ALL=C sort -k 1,1 -k 3,3n -k 4,4n > with-compounds.synced.ctm\n      cat with-compounds.synced.ctm | grep -v \\\"<\\\" > result.ctm\n      cat result.ctm | ctm2with-sil-ctm.py > result.with-compounds.ctm\n      json2trs.py --fid trs $json > result.trs\n      json2srt.py result.json > result.srt\n      \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "      json = punctuated_json\n      \"\"\"\n      normalize_json.py words2numbers.py $json > result.json\n\n      cat $with_compounds_ctm | unsegment-ctm.py | LC_ALL=C sort -k 1,1 -k 3,3n -k 4,4n > with-compounds.synced.ctm\n      cat with-compounds.synced.ctm | grep -v \\\"<\\\" > result.ctm\n      cat result.ctm | ctm2with-sil-ctm.py > result.with-compounds.ctm\n      json2trs.py --fid trs $json > result.trs\n      json2srt.py result.json > result.srt\n      \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "with_compounds_ctm",
+            "punctuated_json"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "result_json",
+            "result_srt",
+            "result_trs",
+            "result_ctm",
+            "result_with_compounds_ctm"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "memory '500MB'",
+            "publishDir \"${out_dir}${audio_file.baseName}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "empty_output": {
+        "name_process": "empty_output",
+        "string_process": "\nprocess empty_output {\n\n    publishDir \"${out_dir}/${audio_file.baseName}\", mode: 'copy', overwrite: true\n\n    input:\n      val a from datadir.ifEmpty{ 'EMPTY' }\n      val b from init_datadir.ifEmpty{ 'EMPTY' }\n    when:\n      a == 'EMPTY' || b == 'EMPTY' \n\n    output:\n      file \"result.json\" into empty_result_json\n      file \"result.srt\" into empty_result_srt\n      file \"result.trs\" into empty_result_trs\n      file \"result.ctm\" into empty_result_ctm\n      file \"result.with-compounds.ctm\" into empty_result_with_compounds_ctm\n\n    script:\n      json = file(\"assets/empty.json\")\n      with_compounds_ctm = file(\"assets/empty.ctm\")\n      \"\"\"\n      cp $json result.json\n      json2trs.py $json > result.trs      \n      touch result.srt result.ctm result.with-compounds.ctm\n      \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "      json = file(\"assets/empty.json\")\n      with_compounds_ctm = file(\"assets/empty.ctm\")\n      \"\"\"\n      cp $json result.json\n      json2trs.py $json > result.trs      \n      touch result.srt result.ctm result.with-compounds.ctm\n      \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "datadir",
+            "init_datadir"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "empty_result_json",
+            "empty_result_srt",
+            "empty_result_trs",
+            "empty_result_ctm",
+            "empty_result_with_compounds_ctm"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "taltechnlp__est-asr-pipeline",
+        "directive": [
+            "publishDir \"${out_dir}/${audio_file.baseName}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "a == 'EMPTY' || b == 'EMPTY'",
+        "stub": ""
+    }
+}

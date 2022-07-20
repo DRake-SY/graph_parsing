@@ -1,0 +1,195 @@
+{
+    "collect_fasta": {
+        "name_process": "collect_fasta",
+        "string_process": "\nprocess collect_fasta {\n  publishDir \"${params.outdir}/logs/multi_fasta/\", mode: 'copy'\n\n\n  input:\n  file(assembly) from assemblies.collect()\n\n  output:\n  file(\"multi.fasta\") into annotate_multi_fasta,split_multi,nextclade_genomes,pangolin_genomes\n\n  script:\n  \"\"\"\n  cat *.fasta > multi.fasta;\n  \"\"\"\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "  \"\"\"\n  cat *.fasta > multi.fasta;\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "assemblies"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "annotate_multi_fasta",
+            "split_multi",
+            "nextclade_genomes",
+            "pangolin_genomes"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "stjacqrm__berrywood",
+        "directive": [
+            "publishDir \"${params.outdir}/logs/multi_fasta/\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotate": {
+        "name_process": "annotate",
+        "string_process": "\nprocess annotate {\n  publishDir \"${params.outdir}/results/vadr_results/annotations\", mode: 'copy', pattern:'*'\n\n  input:\n  file(assembly) from annotate_multi_fasta\n\n  output:\n  file(\"*vadr_out.vadr.sqa\") into convert_tsv\n\n  script:\n  \"\"\"\n  v-annotate.pl --split --cpu ${task.cpus} --glsearch -s -r -f --nomisc --mkey sarscov2 --alt_fail lowscore,insertnn,deletinn --mdir /opt/vadr/vadr-models ${assembly} vadr_out\n  cd vadr_out && cp * ..\n  \"\"\"\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "  \"\"\"\n  v-annotate.pl --split --cpu ${task.cpus} --glsearch -s -r -f --nomisc --mkey sarscov2 --alt_fail lowscore,insertnn,deletinn --mdir /opt/vadr/vadr-models ${assembly} vadr_out\n  cd vadr_out && cp * ..\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "annotate_multi_fasta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "convert_tsv"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stjacqrm__berrywood",
+        "directive": [
+            "publishDir \"${params.outdir}/results/vadr_results/annotations\", mode: 'copy', pattern:'*'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "convert_sqa": {
+        "name_process": "convert_sqa",
+        "string_process": "\nprocess convert_sqa {\n  publishDir \"${params.outdir}/results/vadr_results/csvs\", mode: 'copy' , pattern:\"*\"\n\n  input:\n  file(tsv) from convert_tsv\n\n  output:\n  file(\"*vadr_results.csv\") into vadr_results, compile_vadr,render_vadr\n\n  script:\n  \"\"\"\n  awk -v OFS='\\t' '{\\$1=\\$1; print}' vadr_out.vadr.sqa > pass_fail_1.tsv\n  sed -i 1d pass_fail_1.tsv\n  sed -i 2d pass_fail_1.tsv\n  awk -F'\\t' '{sub(\",\",\" \",\\$14)}1' OFS='\\t' pass_fail_1.tsv > pass_fail_2.tsv\n  awk -F'\\t' '{sub(\",\",\" \",\\$14)}1' OFS='\\t' pass_fail_2.tsv > pass_fail_3.tsv\n  sed 's/\\t/,/g' pass_fail_3.tsv > pass_fail_3.csv\n  cut -d, -f1 --complement pass_fail_3.csv > vadr_results.csv\n  sed -i '1s/.*/isolate,length,status,annotated,model,subgenera,species,num_features_annotated,features_not_ann,num_feat_5,num_feat_3,feat_alerts,seq_alerts/' vadr_results.csv\n  \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  awk -v OFS='\\t' '{\\$1=\\$1; print}' vadr_out.vadr.sqa > pass_fail_1.tsv\n  sed -i 1d pass_fail_1.tsv\n  sed -i 2d pass_fail_1.tsv\n  awk -F'\\t' '{sub(\",\",\" \",\\$14)}1' OFS='\\t' pass_fail_1.tsv > pass_fail_2.tsv\n  awk -F'\\t' '{sub(\",\",\" \",\\$14)}1' OFS='\\t' pass_fail_2.tsv > pass_fail_3.tsv\n  sed 's/\\t/,/g' pass_fail_3.tsv > pass_fail_3.csv\n  cut -d, -f1 --complement pass_fail_3.csv > vadr_results.csv\n  sed -i '1s/.*/isolate,length,status,annotated,model,subgenera,species,num_features_annotated,features_not_ann,num_feat_5,num_feat_3,feat_alerts,seq_alerts/' vadr_results.csv\n  \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "convert_tsv"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "vadr_results",
+            "compile_vadr",
+            "render_vadr"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "stjacqrm__berrywood",
+        "directive": [
+            "publishDir \"${params.outdir}/results/vadr_results/csvs\", mode: 'copy' , pattern:\"*\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "nextlclade_mutations": {
+        "name_process": "nextlclade_mutations",
+        "string_process": "\nprocess nextlclade_mutations {\n  publishDir \"${params.outdir}/results/nextclade_results\", mode: 'copy' , pattern:\"*_results.csv\"\n  publishDir \"${params.outdir}/results/nextclade_results\", mode: 'copy', pattern:\"*_complete_version.csv\"\n\n  input:\n  file(assembly) from nextclade_genomes\n\n  output:\n  file(\"*_results.csv\") into nextclade_results\n  file(\"*complete_version.csv\") into nextclade_version\n\n  script:\n  \"\"\"\n  nextclade --input-fasta \"${assembly}\" --output-csv \"nextclade_results.csv\"\n  nextclade --version > nextclade_version.csv\n  echo \"version\" >> nextclade_complete_version.csv\n  cat nextclade_version.csv >> nextclade_complete_version.csv\n  \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "  \"\"\"\n  nextclade --input-fasta \"${assembly}\" --output-csv \"nextclade_results.csv\"\n  nextclade --version > nextclade_version.csv\n  echo \"version\" >> nextclade_complete_version.csv\n  cat nextclade_version.csv >> nextclade_complete_version.csv\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "nextclade_genomes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "nextclade_results",
+            "nextclade_version"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stjacqrm__berrywood",
+        "directive": [
+            "publishDir \"${params.outdir}/results/nextclade_results\", mode: 'copy' , pattern:\"*_results.csv\"",
+            "publishDir \"${params.outdir}/results/nextclade_results\", mode: 'copy', pattern:\"*_complete_version.csv\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "lineage": {
+        "name_process": "lineage",
+        "string_process": "\nprocess lineage {\n  publishDir \"${params.outdir}/results/pangolin_results\", mode: 'copy' , pattern:\"*_report.csv\"\n\n  input:\n  file(assembly) from pangolin_genomes\n\n  output:\n  file(\"*report.csv\") into lineage_results\n  file(\"*complete_lineage_version.csv\") into pangolin_version\n\n  script:\n  \"\"\"\n  pangolin ${assembly} --outfile lineage_report.csv\n  pangolin --version > pango_version.csv\n  echo \"version\" >> complete_lineage_version.csv\n  cat pango_version.csv >> complete_lineage_version.csv\n  \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  \"\"\"\n  pangolin ${assembly} --outfile lineage_report.csv\n  pangolin --version > pango_version.csv\n  echo \"version\" >> complete_lineage_version.csv\n  cat pango_version.csv >> complete_lineage_version.csv\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pangolin_genomes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "lineage_results",
+            "pangolin_version"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stjacqrm__berrywood",
+        "directive": [
+            "publishDir \"${params.outdir}/results/pangolin_results\", mode: 'copy' , pattern:\"*_report.csv\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "build_report": {
+        "name_process": "build_report",
+        "string_process": "\nprocess build_report {\n  beforeScript 'ulimit -s unlimited'\n  tag \"$name\"\n  publishDir \"${params.outdir}\", mode: 'copy', pattern:\"*.csv\"\n\n  input:\n  file(nextclade_clades) from nextclade_results\n  file(pangolin_lineage) from lineage_results\n  file(nextclade_version) from nextclade_version\n  file(pangolin_version) from pangolin_version\n  file(vadr_results) from vadr_results\n\n  output:\n  file(\"*.csv\") into render_berrywood\n\n  script:\n\"\"\"\n#!/usr/bin/env python3\nimport pandas as pd\nimport numpy as np\nimport os, sys\nimport glob, csv\nimport xml.etree.ElementTree as ET\nfrom datetime import datetime\ntoday = datetime.today()\ntoday = today.strftime(\"%m%d%y\")\nnextclade_df = pd.read_csv('nextclade_results.csv',sep=';')\nnextclade_df = nextclade_df[['seqName','clade','insertions','deletions','substitutions','aaSubstitutions']]\nnextclade_df.columns = ['sample','clade','insertions','deletions','nucleotide_subs','amino_acid_subs']\nnextclade_df['sample'] = pd.Series(nextclade_df['sample'], dtype=\"string\")\npangolin_df = pd.read_csv('lineage_report.csv',sep=',')\npangolin_df = pangolin_df[['taxon','lineage']]\npangolin_df.columns = ['sample','pangolin_lineage']\npangolin_df['sample'] = pd.Series(pangolin_df['sample'], dtype=\"string\")\nvadr_df = pd.read_csv('vadr_results.csv',sep=',')\nvadr_df = vadr_df[['isolate','status']]\nvadr_df.columns = ['sample','vadr_status']\nvadr_df['sample'] = pd.Series(vadr_df['sample'], dtype=\"string\")\nnextclade_version_df = pd.read_csv('nextclade_complete_version.csv',sep=',')\nnextclade_version_df = nextclade_version_df[['version']]\nnextclade_version_df.columns = ['nextclade_version']\npangolin_version_df = pd.read_csv('complete_lineage_version.csv',sep=',')\npangolin_version_df = pangolin_version_df[['version']]\npangolin_version_df.columns = ['pangolin_version']\ndataframes = [nextclade_df,pangolin_df,vadr_df]\ntotal = pd.merge(nextclade_df,pangolin_df, on='sample')\ntotal = pd.merge(total,vadr_df,on='sample')\ntotal['pangolin_version'] = pangolin_version_df._get_value(0,'pangolin_version')\ntotal['nextclade_version'] = nextclade_version_df._get_value(0,'nextclade_version')\ntotal = total[['sample', 'vadr_status', 'pangolin_lineage','pangolin_version','clade','nextclade_version','insertions','deletions','nucleotide_subs','amino_acid_subs']]\ntitle = [\"berrywood_\", today,\".csv\"]\npd.DataFrame.to_csv(total, \"\".join(title), sep=';',index=False)\n\"\"\"\n}",
+        "nb_lignes_process": 53,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\nimport pandas as pd\nimport numpy as np\nimport os, sys\nimport glob, csv\nimport xml.etree.ElementTree as ET\nfrom datetime import datetime\ntoday = datetime.today()\ntoday = today.strftime(\"%m%d%y\")\nnextclade_df = pd.read_csv('nextclade_results.csv',sep=';')\nnextclade_df = nextclade_df[['seqName','clade','insertions','deletions','substitutions','aaSubstitutions']]\nnextclade_df.columns = ['sample','clade','insertions','deletions','nucleotide_subs','amino_acid_subs']\nnextclade_df['sample'] = pd.Series(nextclade_df['sample'], dtype=\"string\")\npangolin_df = pd.read_csv('lineage_report.csv',sep=',')\npangolin_df = pangolin_df[['taxon','lineage']]\npangolin_df.columns = ['sample','pangolin_lineage']\npangolin_df['sample'] = pd.Series(pangolin_df['sample'], dtype=\"string\")\nvadr_df = pd.read_csv('vadr_results.csv',sep=',')\nvadr_df = vadr_df[['isolate','status']]\nvadr_df.columns = ['sample','vadr_status']\nvadr_df['sample'] = pd.Series(vadr_df['sample'], dtype=\"string\")\nnextclade_version_df = pd.read_csv('nextclade_complete_version.csv',sep=',')\nnextclade_version_df = nextclade_version_df[['version']]\nnextclade_version_df.columns = ['nextclade_version']\npangolin_version_df = pd.read_csv('complete_lineage_version.csv',sep=',')\npangolin_version_df = pangolin_version_df[['version']]\npangolin_version_df.columns = ['pangolin_version']\ndataframes = [nextclade_df,pangolin_df,vadr_df]\ntotal = pd.merge(nextclade_df,pangolin_df, on='sample')\ntotal = pd.merge(total,vadr_df,on='sample')\ntotal['pangolin_version'] = pangolin_version_df._get_value(0,'pangolin_version')\ntotal['nextclade_version'] = nextclade_version_df._get_value(0,'nextclade_version')\ntotal = total[['sample', 'vadr_status', 'pangolin_lineage','pangolin_version','clade','nextclade_version','insertions','deletions','nucleotide_subs','amino_acid_subs']]\ntitle = [\"berrywood_\", today,\".csv\"]\npd.DataFrame.to_csv(total, \"\".join(title), sep=';',index=False)\n\"\"\"",
+        "nb_lignes_script": 36,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "nextclade_results",
+            "lineage_results",
+            "nextclade_version",
+            "pangolin_version",
+            "vadr_results"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "render_berrywood"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stjacqrm__berrywood",
+        "directive": [
+            "beforeScript 'ulimit -s unlimited'",
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}\", mode: 'copy', pattern:\"*.csv\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "render": {
+        "name_process": "render",
+        "string_process": "\nprocess render{\n  publishDir \"${params.outdir}/\", mode: 'copy', pattern:'Berrywood-report.pdf'\n  publishDir \"${params.outdir}/\", mode: 'copy', pattern:\"berrywood*\"\n  publishDir \"${params.outdir}/results/berrywood_results/csvs\", mode: 'copy' , pattern:\"*csv\"\n  beforeScript 'ulimit -s unlimited'\n\n  input:\n  file(berrywood) from render_berrywood\n  file(vadr) from render_vadr\n  file(rmd) from report\n  file(bash) from bash\n\n  output:\n  file('*.csv')\n  file \"Berrywood-report.pdf\"\n\n  shell:\n  \"\"\"\n  cp ${rmd} ./report_template.Rnw\n  cp ${bash} ./create_report.sh\n  chmod +x create_report.sh\n  bash create_report.sh -p \"Berrywood-report\" -t \"${params.title}\" -T report_template.Rnw -o . -a ${berrywood} -v ${vadr}\n  \"\"\"\n\n}",
+        "nb_lignes_process": 24,
+        "string_script": "  \"\"\"\n  cp ${rmd} ./report_template.Rnw\n  cp ${bash} ./create_report.sh\n  chmod +x create_report.sh\n  bash create_report.sh -p \"Berrywood-report\" -t \"${params.title}\" -T report_template.Rnw -o . -a ${berrywood} -v ${vadr}\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "render_berrywood",
+            "render_vadr",
+            "report",
+            "bash"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stjacqrm__berrywood",
+        "directive": [
+            "publishDir \"${params.outdir}/\", mode: 'copy', pattern:'Berrywood-report.pdf'",
+            "publishDir \"${params.outdir}/\", mode: 'copy', pattern:\"berrywood*\"",
+            "publishDir \"${params.outdir}/results/berrywood_results/csvs\", mode: 'copy' , pattern:\"*csv\"",
+            "beforeScript 'ulimit -s unlimited'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

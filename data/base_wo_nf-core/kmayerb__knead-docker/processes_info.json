@@ -1,0 +1,382 @@
+{
+    "knead": {
+        "name_process": "knead",
+        "string_process": "\nprocess knead {\n\t\n\t                                                                             \n\n\t         \n\t                               \n\n\t          \n\t                                                                 \n\n\ttag \"kneaddata [trimmomatic + bowtie2 human read decon]\"\n\n\tcontainer \"quay.io/kmayerb/docker-knead@sha256:392c79e403f06d0ee8b884ad63d6654484a8935726a8ff524fa29f03d991cfdb\"\n\t\n\tpublishDir params.output_folder\n\n\tinput:\n\tset sample_name, file(fastq1), file(fastq2) from kneaddata_channel\n\tfile refdb_targz from file(params.tar)\n\n\toutput:\n\tset sample_name,\\\n\tfile(\"results/${fastq1.getBaseName()}.kneaddata_paired.fq\"),\\\n\tfile(\"results/${fastq2.getBaseName()}.kneaddata_paired.fq\") into post_knead_channel\n\n\tset sample_name,\\\n\tfile(\"results/${fastq1.getBaseName()}.kneaddata_paired.fq\"),\\\n\tfile(\"results/${fastq2.getBaseName()}.kneaddata_paired.fq\") into post_knead_channel_copy\n\t\n\tfile(\"results/peak.txt\") into nowhere\n\t\n\tafterScript \"rm *\"\n\n\t                                                         \n\t                                           \n\t                                                                              \n\t                \n\t                                                                                                     \n\t                                                                            \n\t                                                                            \n\tscript:\n\t\"\"\"\n\tmkdir reference\n\tmkdir results\n\ttar -zxf ${refdb_targz} -C reference --strip-components 1\n\tkneaddata --input ${fastq1} --input ${fastq2} --reference-db reference/demo_db --output results\n\tls -la results | more > results/peak.txt\n\tmv results/${fastq1.getBaseName()}_kneaddata_paired_1.fastq results/${fastq1.getBaseName()}.kneaddata_paired.fq\n\tmv results/${fastq1.getBaseName()}_kneaddata_paired_2.fastq results/${fastq2.getBaseName()}.kneaddata_paired.fq\n\t\"\"\"       \n}",
+        "nb_lignes_process": 50,
+        "string_script": "\t\"\"\"\n\tmkdir reference\n\tmkdir results\n\ttar -zxf ${refdb_targz} -C reference --strip-components 1\n\tkneaddata --input ${fastq1} --input ${fastq2} --reference-db reference/demo_db --output results\n\tls -la results | more > results/peak.txt\n\tmv results/${fastq1.getBaseName()}_kneaddata_paired_1.fastq results/${fastq1.getBaseName()}.kneaddata_paired.fq\n\tmv results/${fastq1.getBaseName()}_kneaddata_paired_2.fastq results/${fastq2.getBaseName()}.kneaddata_paired.fq\n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "kneaddata_channel"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sample_name",
+            "post_knead_channel",
+            "sample_name",
+            "post_knead_channel_copy",
+            "nowhere"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "kmayerb__knead-docker",
+        "directive": [
+            "tag \"kneaddata [trimmomatic + bowtie2 human read decon]\"",
+            "container \"quay.io/kmayerb/docker-knead@sha256:392c79e403f06d0ee8b884ad63d6654484a8935726a8ff524fa29f03d991cfdb\"",
+            "publishDir params.output_folder"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "compress": {
+        "name_process": "compress",
+        "string_process": "\nprocess compress {\n\t                                \n\n\tcontainer \"ubuntu:20.04\"\n\n\tpublishDir params.output_folder\n\n\tinput:\n\tset sample_name, file(fastq1_kneaded), file(fastq2_kneaded) from post_knead_channel_copy\n\n\toutput:\n\tset sample_name, file(\"results/${fastq1_kneaded.getBaseName()}.tar.gz\"), file(\"results/${fastq2_kneaded.getBaseName()}.tar.gz\") into compressed_channel\n\n\tafterScript \"rm *\"\n\n\tscript:\n\t\"\"\"\n\tmkdir results\n\ttar -czvf results/${fastq1_kneaded.getBaseName()}.tar.gz ${fastq1_kneaded}\n\ttar -czvf results/${fastq2_kneaded.getBaseName()}.tar.gz ${fastq2_kneaded}\n\t\"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\t\"\"\"\n\tmkdir results\n\ttar -czvf results/${fastq1_kneaded.getBaseName()}.tar.gz ${fastq1_kneaded}\n\ttar -czvf results/${fastq2_kneaded.getBaseName()}.tar.gz ${fastq2_kneaded}\n\t\"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "post_knead_channel_copy"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "compressed_channel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "kmayerb__knead-docker",
+        "directive": [
+            "container \"ubuntu:20.04\"",
+            "publishDir params.output_folder"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc_on_raw_files": {
+        "name_process": "fastqc_on_raw_files",
+        "string_process": "\nprocess fastqc_on_raw_files {\n\ttag \"FASTQC ON RAW INPUT .fq FILES\"\n\n\tcontainer 'quay.io/kmayerb/mitochondria@sha256:d48892f367b217116874ca18e5f5fa602413d6a6030bccd02228f2a4153a3067'\n\n\tpublishDir params.output_folder\n\n\tinput:\n\tset sample_name, file(fastq1), file(fastq2) from raw_reads_to_fastqc_channel\n\n\toutput:\n    file(\"outputs/${fastq1.getBaseName()}_fastqc.{zip,html}\") into raw_fastqc_R1\n    file(\"outputs/${fastq2.getBaseName()}_fastqc.{zip,html}\") into raw_fastqc_R2\n\n\tscript:\n\t\"\"\"\n\tmkdir outputs\n\tfastqc -t $task.cpus -o outputs -f fastq -q ${fastq1}\n\tfastqc -t $task.cpus -o outputs -f fastq -q ${fastq2}\n\t\"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\t\"\"\"\n\tmkdir outputs\n\tfastqc -t $task.cpus -o outputs -f fastq -q ${fastq1}\n\tfastqc -t $task.cpus -o outputs -f fastq -q ${fastq2}\n\t\"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "raw_reads_to_fastqc_channel"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "raw_fastqc_R1",
+            "raw_fastqc_R2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "kmayerb__knead-docker",
+        "directive": [
+            "tag \"FASTQC ON RAW INPUT .fq FILES\"",
+            "container 'quay.io/kmayerb/mitochondria@sha256:d48892f367b217116874ca18e5f5fa602413d6a6030bccd02228f2a4153a3067'",
+            "publishDir params.output_folder"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc_on_trimmed_files": {
+        "name_process": "fastqc_on_trimmed_files",
+        "string_process": "\nprocess fastqc_on_trimmed_files {\n\n\ttag \"FASTQC ON POST KNEADDATA .fq FILES\"\n\n\tcontainer 'quay.io/kmayerb/mitochondria@sha256:d48892f367b217116874ca18e5f5fa602413d6a6030bccd02228f2a4153a3067'\n\n\tpublishDir params.output_folder\n\n\tinput:\n\tset sample_name, file(fastq1), file(fastq2) from post_knead_channel\n\n\toutput:\n    file(\"outputs2/${fastq1.getBaseName()}_fastqc.{zip,html}\") into postknead_fastqc_R1\n    file(\"outputs2/${fastq2.getBaseName()}_fastqc.{zip,html}\") into postknead_fastqc_R2\n\n\tscript:\n\t\"\"\"\n\tmkdir outputs2\n\tfastqc -t $task.cpus -o outputs2 -f fastq -q ${fastq1}\n\tfastqc -t $task.cpus -o outputs2 -f fastq -q ${fastq2}\n\t\"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\t\"\"\"\n\tmkdir outputs2\n\tfastqc -t $task.cpus -o outputs2 -f fastq -q ${fastq1}\n\tfastqc -t $task.cpus -o outputs2 -f fastq -q ${fastq2}\n\t\"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "post_knead_channel"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "postknead_fastqc_R1",
+            "postknead_fastqc_R2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "kmayerb__knead-docker",
+        "directive": [
+            "tag \"FASTQC ON POST KNEADDATA .fq FILES\"",
+            "container 'quay.io/kmayerb/mitochondria@sha256:d48892f367b217116874ca18e5f5fa602413d6a6030bccd02228f2a4153a3067'",
+            "publishDir params.output_folder"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n\n\tcontainer \"quay.io/kmayerb/nf-multiqc:v1.8nf\"\n\n\tpublishDir params.output_folder\n\n\ttag \"Pre-Trimming MULTIQC report generation\"\n\n\tinput:\n    file('fastqc/*') from raw_fastqc_R1.mix(raw_fastqc_R2).mix(postknead_fastqc_R1).mix(postknead_fastqc_R2).collect()\n\n    output:\n    file('pre_multiqc_report_raw.html')\n\n    script:\n    \"\"\"\n    multiqc . -o ./ -n pre_multiqc_report_raw.html -m fastqc\n    \"\"\"\n\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    multiqc . -o ./ -n pre_multiqc_report_raw.html -m fastqc\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "raw_fastqc_R1",
+            "raw_fastqc_R2",
+            "postknead_fastqc_R1",
+            "postknead_fastqc_R2"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "kmayerb__knead-docker",
+        "directive": [
+            "container \"quay.io/kmayerb/nf-multiqc:v1.8nf\"",
+            "publishDir params.output_folder",
+            "tag \"Pre-Trimming MULTIQC report generation\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

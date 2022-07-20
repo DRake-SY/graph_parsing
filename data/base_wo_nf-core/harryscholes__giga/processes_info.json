@@ -1,0 +1,517 @@
+{
+    "cath_domain_sequences": {
+        "name_process": "cath_domain_sequences",
+        "string_process": "\nprocess cath_domain_sequences {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"julia:1.2.0-buster\"\n\n    input:\n    file cath_domains_tsv\n\n    output:\n    file \"cath_v4_2_0_${params.superfamily}.dom.fa\" into cath_domain_sequences\n\n    \"\"\"\n    #!/usr/bin/env julia\n    using CATHBase\n\n    records = parse_sf_tsv(\"$cath_domains_tsv\")\n    outputfasta = \"cath_v4_2_0_${params.superfamily}.dom.fa\"\n    writefasta(outputfasta, records)\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n    #!/usr/bin/env julia\n    using CATHBase\n\n    records = parse_sf_tsv(\"$cath_domains_tsv\")\n    outputfasta = \"cath_v4_2_0_${params.superfamily}.dom.fa\"\n    writefasta(outputfasta, records)\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "julia",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cath_domains_tsv"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "cath_domain_sequences"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"julia:1.2.0-buster\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "concatenate_mgnify_and_cath_domains": {
+        "name_process": "concatenate_mgnify_and_cath_domains",
+        "string_process": "\nprocess concatenate_mgnify_and_cath_domains {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"julia:1.2.0-buster\"\n\n    input:\n    file cath_domain_sequences\n    file mgy_domain_sequences\n\n    output:\n    file \"cath_mgy_${params.superfamily}.dom.fa\" into cath_mgy_domain_sequences\n\n    \"\"\"\n    #!/usr/bin/env julia\n\n    using CATHBase\n\n    cath = readfasta(\"$cath_domain_sequences\")\n    mgy = filter!(readfasta(\"$mgy_domain_sequences\"), FullLengthSequence())\n    writefasta(\"cath_mgy_${params.superfamily}.dom.fa\", [cath; mgy])\n    \"\"\"\n\n       \"\"\"\n    // cat $cath_domain_sequences $mgy_domain_sequences > cath_mgy_${params.superfamily}.dom.fa\n    // \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "\"\"\"\n    #!/usr/bin/env julia\n\n    using CATHBase\n\n    cath = readfasta(\"$cath_domain_sequences\")\n    mgy = filter!(readfasta(\"$mgy_domain_sequences\"), FullLengthSequence())\n    writefasta(\"cath_mgy_${params.superfamily}.dom.fa\", [cath; mgy])\n    \"\"\"\n\n       \"\"\"\n    // cat $cath_domain_sequences $mgy_domain_sequences > cath_mgy_${params.superfamily}.dom.fa\n    // \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "julia",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cath_domain_sequences",
+            "mgy_domain_sequences"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "cath_mgy_domain_sequences"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"julia:1.2.0-buster\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "linclust": {
+        "name_process": "linclust",
+        "string_process": "\nprocess linclust {\n    publishDir \"${params.publish_dir}/domain_sequence_clusters\", mode: \"copy\"\n\n    container \"soedinglab/mmseqs2:version-10\"\n    cpus 8\n    memory \"8 GB\"\n\n    input:\n    file cath_mgy_domain_sequences\n    val seq_id_percentage\n\n    output:\n    file \"cath_mgy_${params.superfamily}.dom.${seq_id_percentage}.clust.tsv\"\n\n    script:\n    seq_id_decimal = seq_id_percentage / 100\n\n    \"\"\"\n    mmseqs createdb $cath_mgy_domain_sequences seq.db\n    mmseqs linclust \\\n        -c $seq_id_decimal --min-seq-id $seq_id_decimal \\\n        --cov-mode 1 \\\n        --kmer-per-seq 100 \\\n        --threads ${task.cpus} \\\n        seq.db clust.db tmp\n    mmseqs createtsv seq.db seq.db clust.db \\\n        cath_mgy_${params.superfamily}.dom.${seq_id_percentage}.clust.tsv\n    rm -rf tmp\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    seq_id_decimal = seq_id_percentage / 100\n\n    \"\"\"\n    mmseqs createdb $cath_mgy_domain_sequences seq.db\n    mmseqs linclust \\\n        -c $seq_id_decimal --min-seq-id $seq_id_decimal \\\n        --cov-mode 1 \\\n        --kmer-per-seq 100 \\\n        --threads ${task.cpus} \\\n        seq.db clust.db tmp\n    mmseqs createtsv seq.db seq.db clust.db \\\n        cath_mgy_${params.superfamily}.dom.${seq_id_percentage}.clust.tsv\n    rm -rf tmp\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "MMseqs"
+        ],
+        "tools_url": [
+            "https://bio.tools/mmseqs"
+        ],
+        "tools_dico": [
+            {
+                "name": "MMseqs",
+                "uri": "https://bio.tools/mmseqs",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Gene and protein families"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Genes, gene family or system"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software suite for very fast protein sequence searches and clustering of huge protein sequence data sets.",
+                "homepage": "https://github.com/soedinglab/MMseqs"
+            }
+        ],
+        "inputs": [
+            "cath_mgy_domain_sequences",
+            "seq_id_percentage"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir \"${params.publish_dir}/domain_sequence_clusters\", mode: \"copy\"",
+            "container \"soedinglab/mmseqs2:version-10\"",
+            "cpus 8",
+            "memory \"8 GB\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "db_size": {
+        "name_process": "db_size",
+        "string_process": "\nprocess db_size {\n    container \"debian:buster-slim\"\n\n    input:\n    file mgnify_sf_seq_fasta1\n\n    output:\n    file mgnify_sf_seq_db_size\n\n    \"\"\"\n    grep -c \">\" $mgnify_sf_seq_fasta1 | tr -d '\\n' > mgnify_sf_seq_db_size\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\n    grep -c \">\" $mgnify_sf_seq_fasta1 | tr -d '\\n' > mgnify_sf_seq_db_size\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mgnify_sf_seq_fasta1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mgnify_sf_seq_db_size"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "container \"debian:buster-slim\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hmmsearch": {
+        "name_process": "hmmsearch",
+        "string_process": "\nprocess hmmsearch {\n    cpus 4\n    container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\"\n\n    input:\n    file sequences\n    file hmms\n    file db_size\n\n    output:\n    file domtbl\n    file hmmsearch_out\n\n    \"\"\"\n    hmmsearch --cpu $task.cpus --cut_tc -Z \\$(cat $db_size) \\\n        -o hmmsearch_out --domtblout domtbl $hmms $sequences\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    hmmsearch --cpu $task.cpus --cut_tc -Z \\$(cat $db_size) \\\n        -o hmmsearch_out --domtblout domtbl $hmms $sequences\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sequences",
+            "hmms",
+            "db_size"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "domtbl",
+            "hmmsearch_out"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "cpus 4",
+            "container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cath_resolve_hits": {
+        "name_process": "cath_resolve_hits",
+        "string_process": "\nprocess cath_resolve_hits {\n    container \"harryscholes/cath-resolve-hits:0.16.2\"\n\n    input:\n    file hmmsearchf\n\n    output:\n    file \"resolvedhits\" into resolvedhits1, resolvedhits2\n\n    \"\"\"\n    cath-resolve-hits --min-dc-hmm-coverage=80 --worst-permissible-bitscore 25 \\\n        --output-hmmer-aln --input-format hmmsearch_out $hmmsearchf > resolvedhits\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    cath-resolve-hits --min-dc-hmm-coverage=80 --worst-permissible-bitscore 25 \\\n        --output-hmmer-aln --input-format hmmsearch_out $hmmsearchf > resolvedhits\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "hmmsearchf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "resolvedhits1",
+            "resolvedhits2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "container \"harryscholes/cath-resolve-hits:0.16.2\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_hmmsearch_output": {
+        "name_process": "merge_hmmsearch_output",
+        "string_process": "\nprocess merge_hmmsearch_output {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"debian:buster-slim\"\n\n    input:\n    file \"domtbl\" from domtbl.collect()\n\n    output:\n    file \"${params.superfamily}.funfam.domtbl.gz\" into merged_domtbl\n\n    \"\"\"\n    sed '/^#/d' $domtbl | gzip > ${params.superfamily}.funfam.domtbl.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    sed '/^#/d' $domtbl | gzip > ${params.superfamily}.funfam.domtbl.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "domtbl"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_domtbl"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"debian:buster-slim\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_cath_resolve_hits_output": {
+        "name_process": "merge_cath_resolve_hits_output",
+        "string_process": "\nprocess merge_cath_resolve_hits_output {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"debian:buster-slim\"\n\n    input:\n    file \"resolvedhits\" from resolvedhits1.collect()\n\n    output:\n    file \"${outfile}_all.crh.gz\" into merged_resolvedhits\n\n    \"\"\"\n    sed '/^#/d' $resolvedhits | gzip > ${outfile}_all.crh.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    sed '/^#/d' $resolvedhits | gzip > ${outfile}_all.crh.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "resolvedhits1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_resolvedhits"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"debian:buster-slim\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "superfamily_s95_models": {
+        "name_process": "superfamily_s95_models",
+        "string_process": "\nprocess superfamily_s95_models {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\"\n\n    input:\n    file model_to_family_map\n    file hmms1\n\n    output:\n    file \"${params.superfamily}.hmm\" into s95_models\n\n    \"\"\"\n    grep ${params.superfamily} $model_to_family_map \\\n        | cut -b 2-11 \\\n        | hmmfetch -f $hmms1 - > ${params.superfamily}.hmm\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    grep ${params.superfamily} $model_to_family_map \\\n        | cut -b 2-11 \\\n        | hmmfetch -f $hmms1 - > ${params.superfamily}.hmm\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "model_to_family_map",
+            "hmms1"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "s95_models"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hmmsearch_superfamily_s95_models": {
+        "name_process": "hmmsearch_superfamily_s95_models",
+        "string_process": "\nprocess hmmsearch_superfamily_s95_models {\n    cpus 4\n    container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\"\n\n    input:\n    file mgnify_fasta1\n    file s95_models\n\n    output:\n    file domtbl\n\n    \"\"\"\n    hmmsearch --cpu $task.cpus --domE 0.001 --incdomE 0.001 -Z $params.mgnify_db_size \\\n        -o /dev/null --domtblout domtbl $s95_models $mgnify_fasta1\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    hmmsearch --cpu $task.cpus --domE 0.001 --incdomE 0.001 -Z $params.mgnify_db_size \\\n        -o /dev/null --domtblout domtbl $s95_models $mgnify_fasta1\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mgnify_fasta1",
+            "s95_models"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "domtbl"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "cpus 4",
+            "container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_hmmsearch_superfamily_s95_models_output": {
+        "name_process": "merge_hmmsearch_superfamily_s95_models_output",
+        "string_process": "\nprocess merge_hmmsearch_superfamily_s95_models_output {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"debian:buster-slim\"\n\n    input:\n    file \"domtbl\" from domtbl.collect()\n\n    output:\n    file \"${outfile}.domtbl.gz\" into merged_domtbl\n\n    \"\"\"\n    sed '/^#/d' $domtbl | gzip > ${outfile}.domtbl.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    sed '/^#/d' $domtbl | gzip > ${outfile}.domtbl.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "domtbl"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_domtbl"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"debian:buster-slim\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extract_sequences_matching_superfamily_s95_models": {
+        "name_process": "extract_sequences_matching_superfamily_s95_models",
+        "string_process": "\nprocess extract_sequences_matching_superfamily_s95_models {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"julia:1.2.0-buster\"\n\n    input:\n    file merged_domtbl\n    file mgnify_fasta2\n\n    output:\n    file \"${outfile}.seq.fa\" into mgnify_sf_seq_fasta1, mgnify_sf_seq_fasta2, mgnify_sf_seq_fasta3\n\n    \"\"\"\n    #!/usr/bin/env julia\n\n    using CATHBase\n\n    function main()\n        inputfasta = \"$mgnify_fasta2\"\n        domainmatches = matches(DOMTBLFile(\"$merged_domtbl\"))\n        outputfasta = \"${outfile}.seq.fa\"\n        sequences(inputfasta, domainmatches, outputfasta)\n    end\n\n    main()\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n    #!/usr/bin/env julia\n\n    using CATHBase\n\n    function main()\n        inputfasta = \"$mgnify_fasta2\"\n        domainmatches = matches(DOMTBLFile(\"$merged_domtbl\"))\n        outputfasta = \"${outfile}.seq.fa\"\n        sequences(inputfasta, domainmatches, outputfasta)\n    end\n\n    main()\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "julia",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "merged_domtbl",
+            "mgnify_fasta2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "mgnify_sf_seq_fasta1",
+            "mgnify_sf_seq_fasta2",
+            "mgnify_sf_seq_fasta3"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"julia:1.2.0-buster\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hmmsearch_all_s95_models": {
+        "name_process": "hmmsearch_all_s95_models",
+        "string_process": "\nprocess hmmsearch_all_s95_models {\n    cpus 4\n    container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\"\n\n    input:\n    file mgnify_sf_seq_fasta2\n    file mgnify_sf_seq_db_size\n    file hmms2\n\n    output:\n    file domtbl2\n    file hmmsearchf\n\n    \"\"\"\n    hmmsearch --cpu $task.cpus --domE 0.001 --incdomE 0.001 -Z \\$(cat $mgnify_sf_seq_db_size) \\\n        -o hmmsearchf --domtblout domtbl2 $hmms2 $mgnify_sf_seq_fasta2\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    hmmsearch --cpu $task.cpus --domE 0.001 --incdomE 0.001 -Z \\$(cat $mgnify_sf_seq_db_size) \\\n        -o hmmsearchf --domtblout domtbl2 $hmms2 $mgnify_sf_seq_fasta2\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mgnify_sf_seq_fasta2",
+            "mgnify_sf_seq_db_size",
+            "hmms2"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "domtbl2",
+            "hmmsearchf"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "cpus 4",
+            "container \"biocontainers/hmmer:v3.2.1dfsg-1-deb_cv1\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assign_cath_superfamilies": {
+        "name_process": "assign_cath_superfamilies",
+        "string_process": "\nprocess assign_cath_superfamilies {\n    container \"python:2.7.15\"\n\n    input:\n    file resolvedhits2\n\n    output:\n    file assigned_superfamilies\n\n    \"\"\"\n    python $baseDir/../gene3d/assign_cath_superfamilies.py $resolvedhits2\n    cat ${resolvedhits2}.csv > assigned_superfamilies\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    python $baseDir/../gene3d/assign_cath_superfamilies.py $resolvedhits2\n    cat ${resolvedhits2}.csv > assigned_superfamilies\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "resolvedhits2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "assigned_superfamilies"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "container \"python:2.7.15\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_hmmsearch_all_s95_models_output": {
+        "name_process": "merge_hmmsearch_all_s95_models_output",
+        "string_process": "\nprocess merge_hmmsearch_all_s95_models_output {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"debian:buster-slim\"\n\n    input:\n    file \"domtbl2\" from domtbl2.collect()\n\n    output:\n    file \"${outfile}_all.domtbl.gz\" into merged_domtbl2\n\n    \"\"\"\n    sed '/^#/d' $domtbl2 | gzip > ${outfile}_all.domtbl.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    sed '/^#/d' $domtbl2 | gzip > ${outfile}_all.domtbl.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "domtbl2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_domtbl2"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"debian:buster-slim\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_assign_cath_superfamilies_output": {
+        "name_process": "merge_assign_cath_superfamilies_output",
+        "string_process": "\nprocess merge_assign_cath_superfamilies_output {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"debian:buster-slim\"\n\n    input:\n    file \"assigned_superfamilies\" from assigned_superfamilies.collect()\n\n    output:\n    file \"${outfile}_all.mda.gz\" into merged_assigned_superfamilies\n\n    \"\"\"\n    sed '/^#/d' $assigned_superfamilies | gzip > ${outfile}_all.mda.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    sed '/^#/d' $assigned_superfamilies | gzip > ${outfile}_all.mda.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "assigned_superfamilies"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_assigned_superfamilies"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"debian:buster-slim\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extract_domain_sequences": {
+        "name_process": "extract_domain_sequences",
+        "string_process": "\nprocess extract_domain_sequences {\n    publishDir params.publish_dir, mode: \"copy\"\n\n    container \"julia:1.2.0-buster\"\n\n    input:\n    file merged_assigned_superfamilies\n    file mgnify_sf_seq_fasta3\n\n    output:\n    file \"${outfile}.dom.fa\" into mgy_domain_sequences\n\n    \"\"\"\n    #!/usr/bin/env julia\n\n    using CATHBase\n\n    function main()\n        inputfasta = \"$mgnify_sf_seq_fasta3\"\n        domainmatches = matches(MDAFile(\"$merged_assigned_superfamilies\"))\n        filter!(x->model(x) == \"${params.superfamily}\", domainmatches)\n        outputfasta = \"${outfile}.dom.fa\"\n        domains(inputfasta, domainmatches, outputfasta)\n    end\n\n    main()\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "\"\"\"\n    #!/usr/bin/env julia\n\n    using CATHBase\n\n    function main()\n        inputfasta = \"$mgnify_sf_seq_fasta3\"\n        domainmatches = matches(MDAFile(\"$merged_assigned_superfamilies\"))\n        filter!(x->model(x) == \"${params.superfamily}\", domainmatches)\n        outputfasta = \"${outfile}.dom.fa\"\n        domains(inputfasta, domainmatches, outputfasta)\n    end\n\n    main()\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "julia",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "merged_assigned_superfamilies",
+            "mgnify_sf_seq_fasta3"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "mgy_domain_sequences"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "harryscholes__giga",
+        "directive": [
+            "publishDir params.publish_dir, mode: \"copy\"",
+            "container \"julia:1.2.0-buster\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

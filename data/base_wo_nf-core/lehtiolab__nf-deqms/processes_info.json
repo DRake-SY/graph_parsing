@@ -1,0 +1,251 @@
+{
+    "get_software_versions": {
+        "name_process": "get_software_versions",
+        "string_process": "\nprocess get_software_versions {\n\n    publishDir \"${params.outdir}\", mode: 'copy'\n\n    output:\n    file 'software_versions.yaml' into software_versions_qc\n\n    script:\n    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    Rscript <(echo \"packageVersion('DEqMS')\") > v_deqms.txt\n    scrape_software_versions.py > software_versions.yaml\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    Rscript <(echo \"packageVersion('DEqMS')\") > v_deqms.txt\n    scrape_software_versions.py > software_versions.yaml\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "software_versions_qc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lehtiolab__nf-deqms",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "DEqMS": {
+        "name_process": "DEqMS",
+        "string_process": "\nprocess DEqMS {\n\n  input:\n  set val(acctype), path('mergedtable'), path('sampletable') from deqms_input\n \n  output:\n  set val(acctype), file('proteintable'), path('sampletable') into ready_feats\n  \n  \"\"\"\n  # Remove any existing DEqMS fields and clean header\n  nodqfields=\\$(head mergedtable -n1| tr '\\\\t' '\\\\n' | grep -nvE '_logFC\\$|_count\\$|_sca.P.Value\\$|_sca.adj.pval\\$' | cut -f1 -d':' | tr '\\n' ',' | sed 's/\\\\,\\$//')\n  head -n1 mergedtable | cut -f\"\\$nodqfields\" | sed 's/\\\\#/Amount/g' > header\n  # R does not like strange characters, clean up sampletable also\n  sed \"s/[^A-Za-z0-9_\\\\t]/_/g\" sampletable > clean_sampletable\n  # Re-label the header fields with sample groups\n  while read line ; do read -a arr <<< \\$line ; sed -i \"s/\\\\t[^\\\\t]\\\\+_\\\\(\\${arr[1]}_[a-z0-9]*plex_\\${arr[0]}\\\\)/\\\\t\\${arr[3]}_\\${arr[2]}_\\\\1/\" header ; done < clean_sampletable\n  # Create input for DEqMS and run it\n  cat header <(tail -n+2 mergedtable | cut -f\"\\$nodqfields\") > feats\n  numfields=\\$(head -n1 feats | tr '\\t' '\\n' | wc -l)\n  deqms.R\n  paste <(head -n1 feats) <(head -n1 deqms_output | cut -f \\$(( numfields+1 ))-\\$(head -n1 deqms_output|wc -w)) > tmpheader\n  cat tmpheader <(tail -n+2 deqms_output) > proteintable\n  \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n  # Remove any existing DEqMS fields and clean header\n  nodqfields=\\$(head mergedtable -n1| tr '\\\\t' '\\\\n' | grep -nvE '_logFC\\$|_count\\$|_sca.P.Value\\$|_sca.adj.pval\\$' | cut -f1 -d':' | tr '\\n' ',' | sed 's/\\\\,\\$//')\n  head -n1 mergedtable | cut -f\"\\$nodqfields\" | sed 's/\\\\#/Amount/g' > header\n  # R does not like strange characters, clean up sampletable also\n  sed \"s/[^A-Za-z0-9_\\\\t]/_/g\" sampletable > clean_sampletable\n  # Re-label the header fields with sample groups\n  while read line ; do read -a arr <<< \\$line ; sed -i \"s/\\\\t[^\\\\t]\\\\+_\\\\(\\${arr[1]}_[a-z0-9]*plex_\\${arr[0]}\\\\)/\\\\t\\${arr[3]}_\\${arr[2]}_\\\\1/\" header ; done < clean_sampletable\n  # Create input for DEqMS and run it\n  cat header <(tail -n+2 mergedtable | cut -f\"\\$nodqfields\") > feats\n  numfields=\\$(head -n1 feats | tr '\\t' '\\n' | wc -l)\n  deqms.R\n  paste <(head -n1 feats) <(head -n1 deqms_output | cut -f \\$(( numfields+1 ))-\\$(head -n1 deqms_output|wc -w)) > tmpheader\n  cat tmpheader <(tail -n+2 deqms_output) > proteintable\n  \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "deqms_input"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ready_feats"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lehtiolab__nf-deqms",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "featQC": {
+        "name_process": "featQC",
+        "string_process": "\nprocess featQC {\n  publishDir \"${params.outdir}\", mode: 'copy', overwrite: true, saveAs: {it == \"feats\" ? \"${acctype}_table.txt\": null}\n\n  input:\n  set val(acctype), file('feats'), file(sampletable) from ready_feats\n\n  output:\n  file('feats') into featsout\n  set val(acctype), file(\"${acctype}.html\") into qccollect\n\n  script:\n  \"\"\"\n  # Create QC plots and put them base64 into HTML\n  qc.R --feattype ${acctype} --sampletable $sampletable \n  echo '<html><body><div class=\"chunk\" id=\"deqms\">' >> ${acctype}.html\n  for graph in deqms_volcano_*;\n    do\n    paste -d \\\\\\\\0  <(echo '<div><img src=\"data:image/png;base64,') <(base64 -w 0 \\$graph) <(echo '\"></div>') >> ${acctype}.html\n    done\n  ls deqms_volcano_* && echo '</div>' >> ${acctype}.html\n  [ -e pca ] && echo '<div class=\"chunk\" id=\"pca\">' >> ${acctype}.html && for graph in pca scree;\n    do \n    echo \"<div> \\$(sed \"s/id=\\\\\"/id=\\\\\"${acctype}-\\${graph}/g;s/\\\\#/\\\\#${acctype}-\\${graph}/g\" <\\$graph) </div>\" >> ${acctype}.html\n    done\n    [ -e pca ] && echo '</div>' >> ${acctype}.html\n  echo \"</body></html>\" >> ${acctype}.html\n  \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "  \"\"\"\n  # Create QC plots and put them base64 into HTML\n  qc.R --feattype ${acctype} --sampletable $sampletable \n  echo '<html><body><div class=\"chunk\" id=\"deqms\">' >> ${acctype}.html\n  for graph in deqms_volcano_*;\n    do\n    paste -d \\\\\\\\0  <(echo '<div><img src=\"data:image/png;base64,') <(base64 -w 0 \\$graph) <(echo '\"></div>') >> ${acctype}.html\n    done\n  ls deqms_volcano_* && echo '</div>' >> ${acctype}.html\n  [ -e pca ] && echo '<div class=\"chunk\" id=\"pca\">' >> ${acctype}.html && for graph in pca scree;\n    do \n    echo \"<div> \\$(sed \"s/id=\\\\\"/id=\\\\\"${acctype}-\\${graph}/g;s/\\\\#/\\\\#${acctype}-\\${graph}/g\" <\\$graph) </div>\" >> ${acctype}.html\n    done\n    [ -e pca ] && echo '</div>' >> ${acctype}.html\n  echo \"</body></html>\" >> ${acctype}.html\n  \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "MDIV",
+            "nohtml"
+        ],
+        "tools_url": [
+            "https://bio.tools/mdiv",
+            "https://bio.tools/nohtml"
+        ],
+        "tools_dico": [
+            {
+                "name": "MDIV",
+                "uri": "https://bio.tools/mdiv",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3299",
+                            "term": "Evolutionary biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3299",
+                            "term": "Evolution"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Nucleic acid sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Sequence analysis (nucleic acid)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "MDIV is a program that will simultaneously estimate divergence times and migration rates between two populations under the infinite sites model and under a finite sites model (HKY). The program can be used to test if there is evidence for migration between two populations or evidence for shared recent common ancestry. In addition, you get maximum likelihood estimates of the demographic parameters.",
+                "homepage": "http://people.binf.ku.dk/rasmus/webpage/mdiv.html"
+            },
+            {
+                "name": "nohtml",
+                "uri": "https://bio.tools/nohtml",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Remove mark-up (e.g. HTML tags) from an ASCII text file.",
+                "homepage": "http://emboss.open-bio.org/rel/rel6/apps/nohtml.html"
+            }
+        ],
+        "inputs": [
+            "ready_feats"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "featsout",
+            "qccollect"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lehtiolab__nf-deqms",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy', overwrite: true, saveAs: {it == \"feats\" ? \"${acctype}_table.txt\": null}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "collectQC": {
+        "name_process": "collectQC",
+        "string_process": "\nprocess collectQC {\n\n  publishDir \"${params.outdir}\", mode: 'copy', overwrite: true\n\n  input:\n  set val(acctypes), file(featqc) from collected_feats_qc\n  file('sw_ver') from software_versions_qc\n\n  output:\n  set file('qc.html')\n\n  script:\n  \"\"\"\n  # remove Yaml from software_versions to get HTML\n  grep -A \\$(wc -l sw_ver | cut -f 1 -d ' ') \"data\\\\:\" sw_ver | tail -n+2 > sw_ver_cut\n  # collect and generate HTML report\n  qc_collect.py $baseDir/assets/qc_full.html $params.name\n  \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "  \"\"\"\n  # remove Yaml from software_versions to get HTML\n  grep -A \\$(wc -l sw_ver | cut -f 1 -d ' ') \"data\\\\:\" sw_ver | tail -n+2 > sw_ver_cut\n  # collect and generate HTML report\n  qc_collect.py $baseDir/assets/qc_full.html $params.name\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "collected_feats_qc",
+            "software_versions_qc"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "lehtiolab__nf-deqms",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output_documentation": {
+        "name_process": "output_documentation",
+        "string_process": "\nprocess output_documentation {\n    tag \"$prefix\"\n\n    publishDir \"${params.outdir}/Documentation\", mode: 'copy'\n\n    input:\n    file output_docs\n\n    output:\n    file \"results_description.html\"\n\n    script:\n    \"\"\"\n    markdown_to_html.r $output_docs results_description.html\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    markdown_to_html.r $output_docs results_description.html\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "output_docs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "lehtiolab__nf-deqms",
+        "directive": [
+            "tag \"$prefix\"",
+            "publishDir \"${params.outdir}/Documentation\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,516 @@
+{
+    "get_software_versions": {
+        "name_process": "get_software_versions",
+        "string_process": "\nprocess get_software_versions {\n    publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode,\n        saveAs: { filename ->\n                      if (filename.indexOf(\".csv\") > 0) filename\n                      else null\n                }\n\n    output:\n    file 'software_versions_mqc.yaml' into ch_software_versions_yaml\n    file \"software_versions.csv\"\n\n    script:\n                                                                     \n    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    echo $workflow.manifest.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ch_software_versions_yaml"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode , saveAs: { filename -> if (filename.indexOf(\".csv\") > 0) filename else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "create_db_tables": {
+        "name_process": "create_db_tables",
+        "string_process": "\nprocess create_db_tables {\n    publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode,\n        saveAs: {filename -> \"$filename\" }\n    input:\n    file input_file from Channel.value(file(params.input))\n\n    output:\n    file \"microbiomes.tsv\" into ch_microbiomes                                                                                    \n    file \"conditions.tsv\" into ch_conditions                                                                    \n    file \"alleles.tsv\"  into ch_alleles                                                    \n    file \"conditions_alleles.tsv\" into ch_conditions_alleles                                \n\n    script:\n    \"\"\"\n    create_db_tables.py -i ${input_file} \\\n                        -m microbiomes.tsv \\\n                        -c conditions.tsv \\\n                        -a alleles.tsv \\\n                        -ca conditions_alleles.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    create_db_tables.py -i ${input_file} \\\n                        -m microbiomes.tsv \\\n                        -c conditions.tsv \\\n                        -a alleles.tsv \\\n                        -ca conditions_alleles.tsv\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ch_microbiomes",
+            "ch_conditions",
+            "ch_alleles",
+            "ch_conditions_alleles"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode , saveAs: {filename -> \"$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "unpack_bin_archives": {
+        "name_process": "unpack_bin_archives",
+        "string_process": "\nprocess unpack_bin_archives {\n    input:\n    val microbiome_id from ch_microbiomes_bins_archives_packed.ids\n    path microbiome_path from ch_microbiomes_bins_archives_packed.files\n\n    output:\n    tuple val(microbiome_id), file('unpacked/*') into ch_microbiomes_bins_archives_unpacked\n\n    script:\n    \"\"\"\n    mkdir -v unpacked\n    tar -C unpacked -vxf \"$microbiome_path\"\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    mkdir -v unpacked\n    tar -C unpacked -vxf \"$microbiome_path\"\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_microbiomes_bins_archives_packed",
+            "ch_microbiomes_bins_archives_packed"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_microbiomes_bins_archives_unpacked"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "download_proteins": {
+        "name_process": "download_proteins",
+        "string_process": "\nprocess download_proteins {\n    publishDir \"${params.outdir}\", mode: params.publish_dir_mode,\n        saveAs: {filename ->\n                    if (filename.indexOf(\".fasta.gz\") == -1) \"entrez_data/$filename\"\n                    else null\n        }\n\n    input:\n    val    microbiome_ids     from   ch_taxa_input.ids.collect()\n    file   microbiome_files   from   ch_taxa_input.files.collect()\n\n    output:\n    file   \"proteins.entrez.tsv.gz\"            into   ch_entrez_proteins\n    file   \"taxa_assemblies.tsv\"               into   ch_entrez_assemblies\n    file   \"entities_proteins.entrez.tsv\"      into   ch_entrez_entities_proteins                                                              \n    file   \"microbiomes_entities.entrez.tsv\"   into   ch_entrez_microbiomes_entities                                              \n\n    script:\n    def key = params.ncbi_key\n    def email = params.ncbi_email\n    def microbiome_ids = microbiome_ids.join(' ')\n    \"\"\"\n    # provide new home dir to avoid permission errors with Docker and other artefacts\n    export HOME=\"\\${PWD}/HOME\"\n    download_proteins_entrez.py --email $email \\\n                                --key $key \\\n                                -t $microbiome_files \\\n                                -m $microbiome_ids \\\n                                -p proteins.entrez.tsv.gz \\\n                                -ta taxa_assemblies.tsv \\\n                                -ep entities_proteins.entrez.tsv \\\n                                -me microbiomes_entities.entrez.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    def key = params.ncbi_key\n    def email = params.ncbi_email\n    def microbiome_ids = microbiome_ids.join(' ')\n    \"\"\"\n    # provide new home dir to avoid permission errors with Docker and other artefacts\n    export HOME=\"\\${PWD}/HOME\"\n    download_proteins_entrez.py --email $email \\\n                                --key $key \\\n                                -t $microbiome_files \\\n                                -m $microbiome_ids \\\n                                -p proteins.entrez.tsv.gz \\\n                                -ta taxa_assemblies.tsv \\\n                                -ep entities_proteins.entrez.tsv \\\n                                -me microbiomes_entities.entrez.tsv\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_taxa_input",
+            "ch_taxa_input"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_entrez_proteins",
+            "ch_entrez_assemblies",
+            "ch_entrez_entities_proteins",
+            "ch_entrez_microbiomes_entities"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: params.publish_dir_mode , saveAs: {filename -> if (filename.indexOf(\".fasta.gz\") == -1) \"entrez_data/$filename\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "predict_proteins": {
+        "name_process": "predict_proteins",
+        "string_process": "\nprocess predict_proteins {\n    publishDir \"${params.outdir}/prodigal\", mode: params.publish_dir_mode,\n        saveAs: {filename ->\n                    if (filename.indexOf(\".fasta\") == -1) \"$filename\"\n                    else null\n        }\n\n    input:\n    val microbiome_id from ch_nucl_input_ids\n    val bin_basename from ch_nucl_input_bin_basenames\n    file microbiome_file from ch_nucl_input_files\n\n    output:\n    val microbiome_id into ch_pred_proteins_microbiome_ids                                       \n    val bin_basename into ch_pred_proteins_bin_basename\n    file(\"proteins.pred_${microbiome_id}*.tsv.gz\") into ch_pred_proteins                        \n    file \"coords.pred_${microbiome_id}*.gff\"\n\n    script:\n    def mode   = params.prodigal_mode\n    def name   = bin_basename ? \"${microbiome_id}.${bin_basename}\" : \"${microbiome_id}\"\n    def reader = microbiome_file.name =~ ~/(?i)[.]gz$/ ? \"gunzip -c\" : \"cat\"\n    \"\"\"\n    $reader $microbiome_file | prodigal \\\n                -f gff \\\n                -o coords.pred_${name}.gff \\\n                -a proteins.pred_${name}.fasta \\\n                -p $mode\n\n    echo -e \"protein_tmp_id\\tprotein_sequence\" > proteins.pred_${name}.tsv\n    fasta_to_tsv.py --remove-asterisk --input proteins.pred_${name}.fasta >> proteins.pred_${name}.tsv\n    gzip proteins.pred_${name}.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    def mode   = params.prodigal_mode\n    def name   = bin_basename ? \"${microbiome_id}.${bin_basename}\" : \"${microbiome_id}\"\n    def reader = microbiome_file.name =~ ~/(?i)[.]gz$/ ? \"gunzip -c\" : \"cat\"\n    \"\"\"\n    $reader $microbiome_file | prodigal \\\n                -f gff \\\n                -o coords.pred_${name}.gff \\\n                -a proteins.pred_${name}.fasta \\\n                -p $mode\n\n    echo -e \"protein_tmp_id\\tprotein_sequence\" > proteins.pred_${name}.tsv\n    fasta_to_tsv.py --remove-asterisk --input proteins.pred_${name}.fasta >> proteins.pred_${name}.tsv\n    gzip proteins.pred_${name}.tsv\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_nucl_input_ids",
+            "ch_nucl_input_bin_basenames",
+            "ch_nucl_input_files"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_pred_proteins_microbiome_ids",
+            "ch_pred_proteins_bin_basename",
+            "ch_pred_proteins"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/prodigal\", mode: params.publish_dir_mode , saveAs: {filename -> if (filename.indexOf(\".fasta\") == -1) \"$filename\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assign_nucl_entity_weights": {
+        "name_process": "assign_nucl_entity_weights",
+        "string_process": "\nprocess assign_nucl_entity_weights {\n    publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode,\n        saveAs: {filename -> \"$filename\" }\n\n    input:\n    val  microbiome_ids     from  ch_weights.microbiome_ids.collect().ifEmpty([])\n    path weights_files      from  ch_weights.weights_paths.collect().ifEmpty([])\n\n    output:\n    path   \"microbiomes_entities.nucl.tsv\"    into   ch_nucl_microbiomes_entities                                              \n\n    script:\n    microbiome_ids = microbiome_ids.join(' ')\n    \"\"\"\n    assign_entity_weights.py \\\n        --microbiome-ids $microbiome_ids \\\n        --weights-files $weights_files \\\n        --out microbiomes_entities.nucl.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    microbiome_ids = microbiome_ids.join(' ')\n    \"\"\"\n    assign_entity_weights.py \\\n        --microbiome-ids $microbiome_ids \\\n        --weights-files $weights_files \\\n        --out microbiomes_entities.nucl.tsv\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_weights",
+            "ch_weights"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_nucl_microbiomes_entities"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode , saveAs: {filename -> \"$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_protein_and_entity_ids": {
+        "name_process": "generate_protein_and_entity_ids",
+        "string_process": "\nprocess generate_protein_and_entity_ids {\n    publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode,\n        saveAs: {filename -> \"$filename\" }\n\n    input:\n                         \n    path   predicted_proteins                  from       ch_pred_proteins.collect().ifEmpty([])\n    val    predicted_proteins_microbiome_ids   from       ch_pred_proteins_microbiome_ids.collect().ifEmpty([])\n    val    predicted_proteins_bin_basenames    from       ch_pred_proteins_bin_basename.collect().ifEmpty([])\n                      \n    path   entrez_proteins                     from       ch_entrez_proteins.ifEmpty([])\n    path   entrez_entities_proteins            from       ch_entrez_entities_proteins.ifEmpty([])                                                                     \n    path   entrez_microbiomes_entities         from       ch_entrez_microbiomes_entities.ifEmpty([])                                                  \n                    \n    path   bare_proteins                       from       ch_proteins_input.files.collect().ifEmpty([])\n    path   bare_proteins_microbiome_ids        from       ch_proteins_input.ids.collect().ifEmpty([])\n\n    output:\n    path   \"proteins.tsv.gz\"                        into   ch_proteins\n    path   \"entities_proteins.tsv\"                  into   ch_entities_proteins\n    path   \"entities.tsv\"                           into   ch_entities\n    path   \"microbiomes_entities.no_weights.tsv\"    into   ch_microbiomes_entities_noweights                                                 \n\n    script:\n    predicted_proteins_microbiome_ids = predicted_proteins_microbiome_ids.join(' ')\n    predicted_proteins_bin_basenames  = predicted_proteins_bin_basenames.collect{ it ? it : \"__ISASSEMBLY__\" }.join(' ')\n    \"\"\"\n    generate_protein_and_entity_ids.py \\\n        --predicted-proteins                  $predicted_proteins                  \\\n        --predicted-proteins-microbiome-ids   $predicted_proteins_microbiome_ids   \\\n        --predicted-proteins-bin-basenames    $predicted_proteins_bin_basenames    \\\n        --entrez-proteins                     \"$entrez_proteins\"                   \\\n        --entrez-entities-proteins            \"$entrez_entities_proteins\"          \\\n        --entrez-microbiomes-entities         \"$entrez_microbiomes_entities\"       \\\n        --bare-proteins                       $bare_proteins                       \\\n        --bare-proteins-microbiome-ids        $bare_proteins_microbiome_ids        \\\n        --out-proteins                        proteins.tsv.gz                      \\\n        --out-entities-proteins               entities_proteins.tsv                \\\n        --out-entities                        entities.tsv                         \\\n        --out-microbiomes-entities            microbiomes_entities.no_weights.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    predicted_proteins_microbiome_ids = predicted_proteins_microbiome_ids.join(' ')\n    predicted_proteins_bin_basenames  = predicted_proteins_bin_basenames.collect{ it ? it : \"__ISASSEMBLY__\" }.join(' ')\n    \"\"\"\n    generate_protein_and_entity_ids.py \\\n        --predicted-proteins                  $predicted_proteins                  \\\n        --predicted-proteins-microbiome-ids   $predicted_proteins_microbiome_ids   \\\n        --predicted-proteins-bin-basenames    $predicted_proteins_bin_basenames    \\\n        --entrez-proteins                     \"$entrez_proteins\"                   \\\n        --entrez-entities-proteins            \"$entrez_entities_proteins\"          \\\n        --entrez-microbiomes-entities         \"$entrez_microbiomes_entities\"       \\\n        --bare-proteins                       $bare_proteins                       \\\n        --bare-proteins-microbiome-ids        $bare_proteins_microbiome_ids        \\\n        --out-proteins                        proteins.tsv.gz                      \\\n        --out-entities-proteins               entities_proteins.tsv                \\\n        --out-entities                        entities.tsv                         \\\n        --out-microbiomes-entities            microbiomes_entities.no_weights.tsv\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_pred_proteins",
+            "ch_pred_proteins_microbiome_ids",
+            "ch_pred_proteins_bin_basename",
+            "ch_entrez_proteins",
+            "ch_entrez_entities_proteins",
+            "ch_entrez_microbiomes_entities",
+            "ch_proteins_input",
+            "ch_proteins_input"
+        ],
+        "nb_inputs": 8,
+        "outputs": [
+            "ch_proteins",
+            "ch_entities_proteins",
+            "ch_entities",
+            "ch_microbiomes_entities_noweights"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode , saveAs: {filename -> \"$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "finalize_microbiome_entities": {
+        "name_process": "finalize_microbiome_entities",
+        "string_process": "\nprocess finalize_microbiome_entities {\n    publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode,\n        saveAs: {filename -> \"$filename\" }\n\n    input:\n    path   entrez_microbiomes_entities        from       ch_entrez_microbiomes_entities.ifEmpty([])\n    path   nucl_microbiomes_entities          from       ch_nucl_microbiomes_entities.ifEmpty([])\n    path   microbiomes_entities_noweights     from       ch_microbiomes_entities_noweights\n    path   entities                           from       ch_entities\n\n    output:\n    path   \"microbiomes_entities.tsv\"    into   ch_microbiomes_entities                                            \n\n    script:\n\n    \"\"\"\n    finalize_microbiome_entities.py \\\n        -eme $entrez_microbiomes_entities \\\n        -nme $nucl_microbiomes_entities \\\n        -menw $microbiomes_entities_noweights \\\n        -ent \"$entities\" \\\n        -o microbiomes_entities.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    finalize_microbiome_entities.py \\\n        -eme $entrez_microbiomes_entities \\\n        -nme $nucl_microbiomes_entities \\\n        -menw $microbiomes_entities_noweights \\\n        -ent \"$entities\" \\\n        -o microbiomes_entities.tsv\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_entrez_microbiomes_entities",
+            "ch_nucl_microbiomes_entities",
+            "ch_microbiomes_entities_noweights",
+            "ch_entities"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "ch_microbiomes_entities"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/db_tables\", mode: params.publish_dir_mode , saveAs: {filename -> \"$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_peptides": {
+        "name_process": "generate_peptides",
+        "string_process": "\nprocess generate_peptides {\n    publishDir \"${params.outdir}\", mode: params.publish_dir_mode,\n        saveAs: {filename -> \"db_tables/$filename\" }\n\n    input:\n    file proteins from ch_proteins\n\n    output:\n    file \"peptides.tsv.gz\" into ch_peptides                                               \n    file \"proteins_peptides.tsv\" into ch_proteins_peptides                                 \n                                 \n\n    script:\n    def min_pep_len = params.min_pep_len\n    def max_pep_len = params.max_pep_len\n    \"\"\"\n    generate_peptides.py -i $proteins \\\n                         -min $min_pep_len \\\n                         -max $max_pep_len \\\n                         -p \"peptides.tsv.gz\" \\\n                         -pp \"proteins_peptides.tsv\" \\\n                         -l \"proteins_lengths.tsv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    def min_pep_len = params.min_pep_len\n    def max_pep_len = params.max_pep_len\n    \"\"\"\n    generate_peptides.py -i $proteins \\\n                         -min $min_pep_len \\\n                         -max $max_pep_len \\\n                         -p \"peptides.tsv.gz\" \\\n                         -pp \"proteins_peptides.tsv\" \\\n                         -l \"proteins_lengths.tsv\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_proteins"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_peptides",
+            "ch_proteins_peptides"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: params.publish_dir_mode , saveAs: {filename -> \"db_tables/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "collect_stats": {
+        "name_process": "collect_stats",
+        "string_process": "\nprocess collect_stats {\n    publishDir \"${params.outdir}\", mode: params.publish_dir_mode,\n        saveAs: {filename -> \"db_tables/$filename\" }\n\n    input:\n    path  peptides              from  ch_peptides\n    path  proteins_peptides     from  ch_proteins_peptides\n    path  entities_proteins     from  ch_entities_proteins\n    path  microbiomes_entities  from  ch_microbiomes_entities\n    path  conditions            from  ch_conditions\n\n    output:\n    file \"stats.txt\" into ch_stats\n\n    script:\n    \"\"\"\n    collect_stats.py --peptides \"$peptides\" \\\n                     --protein-peptide-occ \"$proteins_peptides\" \\\n                     --entities-proteins-occ \"$entities_proteins\" \\\n                     --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                     --conditions \"$conditions\" \\\n                     --outfile stats.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    collect_stats.py --peptides \"$peptides\" \\\n                     --protein-peptide-occ \"$proteins_peptides\" \\\n                     --entities-proteins-occ \"$entities_proteins\" \\\n                     --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                     --conditions \"$conditions\" \\\n                     --outfile stats.txt\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_peptides",
+            "ch_proteins_peptides",
+            "ch_entities_proteins",
+            "ch_microbiomes_entities",
+            "ch_conditions"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "ch_stats"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: params.publish_dir_mode , saveAs: {filename -> \"db_tables/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "split_pred_tasks": {
+        "name_process": "split_pred_tasks",
+        "string_process": "\nprocess split_pred_tasks {\n    input:\n    path  peptides              from  ch_peptides\n    path  proteins_peptides     from  ch_proteins_peptides\n    path  entities_proteins     from  ch_entities_proteins\n    path  microbiomes_entities  from  ch_microbiomes_entities\n    path  conditions            from  ch_conditions\n    path  conditions_alleles    from  ch_conditions_alleles\n    path  alleles               from  ch_alleles\n                                                                                           \n                                                                                        \n\n    output:\n    path \"peptides_*.txt\" into ch_epitope_prediction_chunks\n\n    script:\n    def pred_chunk_size       = params.pred_chunk_size\n    def subsampling = params.sample_n ? \"--sample_n ${params.sample_n}\" : \"\"\n    \"\"\"\n    gen_prediction_chunks.py --peptides \"$peptides\" \\\n                             --protein-peptide-occ \"$proteins_peptides\" \\\n                             --entities-proteins-occ \"$entities_proteins\" \\\n                             --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                             --conditions \"$conditions\" \\\n                             --condition-allele-map \"$conditions_alleles\" \\\n                             --max-chunk-size $pred_chunk_size \\\n                             $subsampling \\\n                             --alleles \"$alleles\" \\\n                             --outdir .\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    def pred_chunk_size       = params.pred_chunk_size\n    def subsampling = params.sample_n ? \"--sample_n ${params.sample_n}\" : \"\"\n    \"\"\"\n    gen_prediction_chunks.py --peptides \"$peptides\" \\\n                             --protein-peptide-occ \"$proteins_peptides\" \\\n                             --entities-proteins-occ \"$entities_proteins\" \\\n                             --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                             --conditions \"$conditions\" \\\n                             --condition-allele-map \"$conditions_alleles\" \\\n                             --max-chunk-size $pred_chunk_size \\\n                             $subsampling \\\n                             --alleles \"$alleles\" \\\n                             --outdir .\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_peptides",
+            "ch_proteins_peptides",
+            "ch_entities_proteins",
+            "ch_microbiomes_entities",
+            "ch_conditions",
+            "ch_conditions_alleles",
+            "ch_alleles"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "ch_epitope_prediction_chunks"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "predict_epitopes": {
+        "name_process": "predict_epitopes",
+        "string_process": "\nprocess predict_epitopes {\n    input:\n    path peptides from ch_epitope_prediction_chunks.flatten()\n\n    output:\n    path \"*predictions.tsv\" into ch_epitope_predictions\n    path \"*prediction_warnings.log\" into ch_epitope_prediction_warnings\n\n    script:\n    def pred_method           = params.pred_method\n    \"\"\"\n\n    # Extract allele name from file header\n    allele_name=\"\\$(head -n1 \"$peptides\" | fgrep '#' | cut -f2 -d'#')\"\n    allele_id=\"\\$(head -n1 \"$peptides\" | fgrep '#' | cut -f3 -d'#')\"\n\n    out_basename=\"\\$(basename \"$peptides\" .txt)\"\n    out_predictions=\"\\$out_basename\"_predictions.tsv\n    out_warnings=\"\\$out_basename\"_prediction_warnings.log\n\n    # Create output header\n    echo \"peptide_id\tprediction_score\tallele_id\" >\"\\$out_predictions\"\n\n    # Process file\n    # The --syfpeithi-norm flag enables score normalization when syfpeithi is\n    # used and is ignored otherwise\n    if ! epytope_predict.py --peptides \"$peptides\" \\\n                       --method \"$pred_method\" \\\n                       --method_version \"$pred_method_version\" \\\n\t\t       --syfpeithi-norm \\\n                       \"\\$allele_name\" \\\n                       2>stderr.log \\\n                       | tail -n +2 \\\n                       | cut -f 1,3 \\\n                       | sed -e \"s/\\$/\t\\$allele_id/\" \\\n                       >>\"\\$out_basename\"_predictions.tsv; then\n        cat stderr.log >&2\n        exit 1\n    fi\n\n    # Filter stderr for warnings and pass them on in the warnings channel\n    fgrep WARNING stderr.log  | sort -u >\"\\$out_warnings\" || :\n    \"\"\"\n}",
+        "nb_lignes_process": 43,
+        "string_script": "    def pred_method           = params.pred_method\n    \"\"\"\n\n    # Extract allele name from file header\n    allele_name=\"\\$(head -n1 \"$peptides\" | fgrep '#' | cut -f2 -d'#')\"\n    allele_id=\"\\$(head -n1 \"$peptides\" | fgrep '#' | cut -f3 -d'#')\"\n\n    out_basename=\"\\$(basename \"$peptides\" .txt)\"\n    out_predictions=\"\\$out_basename\"_predictions.tsv\n    out_warnings=\"\\$out_basename\"_prediction_warnings.log\n\n    # Create output header\n    echo \"peptide_id\tprediction_score\tallele_id\" >\"\\$out_predictions\"\n\n    # Process file\n    # The --syfpeithi-norm flag enables score normalization when syfpeithi is\n    # used and is ignored otherwise\n    if ! epytope_predict.py --peptides \"$peptides\" \\\n                       --method \"$pred_method\" \\\n                       --method_version \"$pred_method_version\" \\\n\t\t       --syfpeithi-norm \\\n                       \"\\$allele_name\" \\\n                       2>stderr.log \\\n                       | tail -n +2 \\\n                       | cut -f 1,3 \\\n                       | sed -e \"s/\\$/\t\\$allele_id/\" \\\n                       >>\"\\$out_basename\"_predictions.tsv; then\n        cat stderr.log >&2\n        exit 1\n    fi\n\n    # Filter stderr for warnings and pass them on in the warnings channel\n    fgrep WARNING stderr.log  | sort -u >\"\\$out_warnings\" || :\n    \"\"\"",
+        "nb_lignes_script": 33,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_epitope_prediction_chunks"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_epitope_predictions",
+            "ch_epitope_prediction_warnings"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "merge_predictions_buffer": {
+        "name_process": "merge_predictions_buffer",
+        "string_process": "\nprocess merge_predictions_buffer {\n\n    input:\n    path predictions from ch_epitope_predictions_buffered\n    path prediction_warnings from ch_epitope_prediction_warnings_buffered\n\n    output:\n    path \"predictions.buffer_*.tsv\" into ch_predictions_merged_buffer\n    path \"prediction_warnings.buffer_*.log\" into ch_prediction_warnings_merged_buffer\n\n    script:\n    def single = predictions instanceof Path ? 1 : predictions.size()\n    def merge = (single == 1) ? 'cat' : 'csvtk concat -t'\n    \"\"\"\n    [[ ${predictions[0]} =~  peptides_(.*)_predictions.tsv ]];\n    uname=\"\\${BASH_REMATCH[1]}\"\n    echo \\$uname\n\n    $merge $predictions > predictions.buffer_\\$uname.tsv\n    sort -u $prediction_warnings > prediction_warnings.buffer_\\$uname.log\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    def single = predictions instanceof Path ? 1 : predictions.size()\n    def merge = (single == 1) ? 'cat' : 'csvtk concat -t'\n    \"\"\"\n    [[ ${predictions[0]} =~  peptides_(.*)_predictions.tsv ]];\n    uname=\"\\${BASH_REMATCH[1]}\"\n    echo \\$uname\n\n    $merge $predictions > predictions.buffer_\\$uname.tsv\n    sort -u $prediction_warnings > prediction_warnings.buffer_\\$uname.log\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_epitope_predictions_buffered",
+            "ch_epitope_prediction_warnings_buffered"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_predictions_merged_buffer",
+            "ch_prediction_warnings_merged_buffer"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "merge_predictions": {
+        "name_process": "merge_predictions",
+        "string_process": "\nprocess merge_predictions {\n    publishDir \"${params.outdir}\", mode: params.publish_dir_mode,\n        saveAs: {filename -> filename.endsWith(\".log\") ? \"logs/$filename\" : \"db_tables/$filename\"}\n\n    input:\n    path predictions from ch_predictions_merged_buffer.collect()\n    path prediction_warnings from ch_prediction_warnings_merged_buffer.collect()\n\n    output:\n    path \"predictions.tsv.gz\" into ch_predictions\n    path \"prediction_warnings.log\"\n\n    script:\n    def single = predictions instanceof Path ? 1 : predictions.size()\n    def merge = (single == 1) ? 'cat' : 'csvtk concat -t'\n    \"\"\"\n    $merge $predictions | gzip > predictions.tsv.gz\n    sort -u $prediction_warnings > prediction_warnings.log\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    def single = predictions instanceof Path ? 1 : predictions.size()\n    def merge = (single == 1) ? 'cat' : 'csvtk concat -t'\n    \"\"\"\n    $merge $predictions | gzip > predictions.tsv.gz\n    sort -u $prediction_warnings > prediction_warnings.log\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_predictions_merged_buffer",
+            "ch_prediction_warnings_merged_buffer"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_predictions"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}\", mode: params.publish_dir_mode , saveAs: {filename -> filename.endsWith(\".log\") ? \"logs/$filename\" : \"db_tables/$filename\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_score_distribution": {
+        "name_process": "prepare_score_distribution",
+        "string_process": "\nprocess prepare_score_distribution {\n    publishDir \"${params.outdir}/figures/prediction_scores\", mode: params.publish_dir_mode\n\n    input:\n    file predictions from ch_predictions\n    file proteins_peptides from ch_proteins_peptides\n    file entities_proteins from ch_entities_proteins\n    file microbiomes_entities from ch_microbiomes_entities\n    file conditions from  ch_conditions\n    file conditions_alleles from  ch_conditions_alleles\n    file alleles from ch_alleles\n\n    output:\n    file \"prediction_scores.allele_*.tsv\" into ch_prep_prediction_scores\n\n    script:\n    \"\"\"\n    prepare_score_distribution.py --predictions \"$predictions\" \\\n                            --protein-peptide-occ \"$proteins_peptides\" \\\n                            --entities-proteins-occ \"$entities_proteins\" \\\n                            --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                            --conditions \"$conditions\" \\\n                            --condition-allele-map \"$conditions_alleles\" \\\n                            --alleles \"$alleles\" \\\n                            --outdir .\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    prepare_score_distribution.py --predictions \"$predictions\" \\\n                            --protein-peptide-occ \"$proteins_peptides\" \\\n                            --entities-proteins-occ \"$entities_proteins\" \\\n                            --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                            --conditions \"$conditions\" \\\n                            --condition-allele-map \"$conditions_alleles\" \\\n                            --alleles \"$alleles\" \\\n                            --outdir .\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_predictions",
+            "ch_proteins_peptides",
+            "ch_entities_proteins",
+            "ch_microbiomes_entities",
+            "ch_conditions",
+            "ch_conditions_alleles",
+            "ch_alleles"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "ch_prep_prediction_scores"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/figures/prediction_scores\", mode: params.publish_dir_mode"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "plot_score_distribution": {
+        "name_process": "plot_score_distribution",
+        "string_process": "\nprocess plot_score_distribution {\n    publishDir \"${params.outdir}/figures\", mode: params.publish_dir_mode\n\n    input:\n    file prep_scores from ch_prep_prediction_scores.flatten()\n    file alleles from ch_alleles\n    file conditions from ch_conditions\n\n    output:\n    file \"prediction_score_distribution.*.pdf\"\n\n    script:\n    \"\"\"\n    [[ ${prep_scores} =~ prediction_scores.allele_(.*).tsv ]];\n    allele_id=\"\\${BASH_REMATCH[1]}\"\n    echo \\$allele_id\n\n    plot_score_distribution.R --scores $prep_scores \\\n                                   --alleles $alleles \\\n                                   --conditions $conditions \\\n                                   --allele_id \\$allele_id \\\n                                   --method ${params.pred_method}\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    [[ ${prep_scores} =~ prediction_scores.allele_(.*).tsv ]];\n    allele_id=\"\\${BASH_REMATCH[1]}\"\n    echo \\$allele_id\n\n    plot_score_distribution.R --scores $prep_scores \\\n                                   --alleles $alleles \\\n                                   --conditions $conditions \\\n                                   --allele_id \\$allele_id \\\n                                   --method ${params.pred_method}\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_prep_prediction_scores",
+            "ch_alleles",
+            "ch_conditions"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/figures\", mode: params.publish_dir_mode"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_entity_binding_ratios": {
+        "name_process": "prepare_entity_binding_ratios",
+        "string_process": "\nprocess prepare_entity_binding_ratios {\n    publishDir \"${params.outdir}/figures/entity_binding_ratios\", mode: params.publish_dir_mode\n\n    input:\n    file predictions from ch_predictions\n    file proteins_peptides from ch_proteins_peptides\n    file entities_proteins from ch_entities_proteins\n    file microbiomes_entities from ch_microbiomes_entities\n    file conditions from  ch_conditions\n    file conditions_alleles from  ch_conditions_alleles\n    file alleles from ch_alleles\n\n    output:\n    file \"entity_binding_ratios.allele_*.tsv\" into ch_prep_entity_binding_ratios\n\n    script:\n    \"\"\"\n    prepare_entity_binding_ratios.py --predictions \"$predictions\" \\\n                            --protein-peptide-occ \"$proteins_peptides\" \\\n                            --entities-proteins-occ \"$entities_proteins\" \\\n                            --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                            --conditions \"$conditions\" \\\n                            --condition-allele-map \"$conditions_alleles\" \\\n                            --alleles \"$alleles\" \\\n                            --method ${params.pred_method} \\\n                            --outdir .\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    prepare_entity_binding_ratios.py --predictions \"$predictions\" \\\n                            --protein-peptide-occ \"$proteins_peptides\" \\\n                            --entities-proteins-occ \"$entities_proteins\" \\\n                            --microbiomes-entities-occ \"$microbiomes_entities\" \\\n                            --conditions \"$conditions\" \\\n                            --condition-allele-map \"$conditions_alleles\" \\\n                            --alleles \"$alleles\" \\\n                            --method ${params.pred_method} \\\n                            --outdir .\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_predictions",
+            "ch_proteins_peptides",
+            "ch_entities_proteins",
+            "ch_microbiomes_entities",
+            "ch_conditions",
+            "ch_conditions_alleles",
+            "ch_alleles"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "ch_prep_entity_binding_ratios"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/figures/entity_binding_ratios\", mode: params.publish_dir_mode"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "plot_entity_binding_ratios": {
+        "name_process": "plot_entity_binding_ratios",
+        "string_process": "\nprocess plot_entity_binding_ratios {\n    publishDir \"${params.outdir}/figures\", mode: params.publish_dir_mode\n\n    input:\n    file prep_entity_binding_ratios from ch_prep_entity_binding_ratios.flatten()\n    file alleles from ch_alleles\n\n    output:\n    file \"entity_binding_ratios.*.pdf\"\n\n    script:\n    \"\"\"\n    [[ ${prep_entity_binding_ratios} =~ entity_binding_ratios.allele_(.*).tsv ]];\n    allele_id=\"\\${BASH_REMATCH[1]}\"\n    echo \\$allele_id\n\n    plot_entity_binding_ratios.R --binding-rates $prep_entity_binding_ratios \\\n                                   --alleles $alleles \\\n                                   --allele_id \\$allele_id\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    [[ ${prep_entity_binding_ratios} =~ entity_binding_ratios.allele_(.*).tsv ]];\n    allele_id=\"\\${BASH_REMATCH[1]}\"\n    echo \\$allele_id\n\n    plot_entity_binding_ratios.R --binding-rates $prep_entity_binding_ratios \\\n                                   --alleles $alleles \\\n                                   --allele_id \\$allele_id\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_prep_entity_binding_ratios",
+            "ch_alleles"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/figures\", mode: params.publish_dir_mode"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output_documentation": {
+        "name_process": "output_documentation",
+        "string_process": "\nprocess output_documentation {\n    publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode\n\n    input:\n    file output_docs from ch_output_docs\n    file images from ch_output_docs_images\n\n    output:\n    file \"results_description.html\"\n\n    script:\n    \"\"\"\n    markdown_to_html.py $output_docs -o results_description.html\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    markdown_to_html.py $output_docs -o results_description.html\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_output_docs",
+            "ch_output_docs_images"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "qbic-pipelines__metapep",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: params.publish_dir_mode"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

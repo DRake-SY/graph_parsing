@@ -1,0 +1,472 @@
+{
+    "fetch_query_data": {
+        "name_process": "fetch_query_data",
+        "string_process": "\nprocess fetch_query_data{\n\tpublishDir \"${params.data_dir}${dataset_id}\", mode: 'copy'\n\tconda \"${baseDir}/envs/load_data.yaml\"\n\terrorStrategy { task.exitStatus == 130 || task.exitStatus == 137  ? 'retry' : 'finish' }   \n\tmaxRetries 5\n\tmemory { 16.GB * task.attempt }\n\tinput:\n\ttuple val(dataset_id), val(seq_method), val(num_clust), val(barcode_col), val(cell_type_col), val(matrix_type) from IMPORT_PARAMS\n\t\n\toutput:\n\ttuple file(dataset_id), val(dataset_id), val(barcode_col), val(cell_type_col), val(matrix_type), val(num_clust) into FETCH_DATA\n\t\"\"\"\n\tif [ ${seq_method} ==  \"droplet\" ]; then\n        MATRIX_TYPE_UPD=\"CPM\"\n    \telse\n        MATRIX_TYPE_UPD=${matrix_type}\n    \tfi\n    \tget_experiment_data.R\\\n                --accesssion-code ${dataset_id}\\\n                --config-file ${params.download_data.scxa_import_config_file}\\\n             \t--matrix-type ${matrix_type}\\\n                --output-dir-name ${dataset_id}\\\n                --get-sdrf ${params.download_data.get_sdrf}\\\n                --get-condensed-sdrf ${params.download_data.get_cond_sdrf}\\\n                --get-idf ${params.download_data.get_idf}\\\n                --get-marker-genes ${params.download_data.get_marker_genes}\\\n                --number-of-clusters ${num_clust}\n\t\"\"\"\n    }",
+        "nb_lignes_process": 28,
+        "string_script": "\"\"\"\n\tif [ ${seq_method} ==  \"droplet\" ]; then\n        MATRIX_TYPE_UPD=\"CPM\"\n    \telse\n        MATRIX_TYPE_UPD=${matrix_type}\n    \tfi\n    \tget_experiment_data.R\\\n                --accesssion-code ${dataset_id}\\\n                --config-file ${params.download_data.scxa_import_config_file}\\\n             \t--matrix-type ${matrix_type}\\\n                --output-dir-name ${dataset_id}\\\n                --get-sdrf ${params.download_data.get_sdrf}\\\n                --get-condensed-sdrf ${params.download_data.get_cond_sdrf}\\\n                --get-idf ${params.download_data.get_idf}\\\n                --get-marker-genes ${params.download_data.get_marker_genes}\\\n                --number-of-clusters ${num_clust}\n\t\"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "IMPORT_PARAMS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "FETCH_DATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [
+            "publishDir \"${params.data_dir}${dataset_id}\", mode: 'copy'",
+            "conda \"${baseDir}/envs/load_data.yaml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 5",
+            "memory { 16.GB * task.attempt }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "unmelt_sdrf_query": {
+        "name_process": "unmelt_sdrf_query",
+        "string_process": "\nprocess unmelt_sdrf_query {\n\tconda \"${baseDir}/envs/exp_metadata.yaml\"\n\t\n\tinput:\n\ttuple file(data), val(dataset_id), val(barcode_col), val(cell_type_col), val(matrix_type), val(num_clust) from FETCH_DATA\n\toutput:\n        tuple file(\"${data}.${matrix_type}\"), val(dataset_id), val(barcode_col), val(cell_type_col), val(matrix_type), val(num_clust) into FETCH_DATA_UNMELT\n\tfile(\"${data}.${matrix_type}/10x_data/barcodes.tsv\") into BARCODES\n\tval(dataset_id) into DATA_ID\n\t\"\"\"\n\tunmelt_condensed.R\\\n\t\t-i ${data}/condensed-sdrf.tsv\\\n\t\t-o ${data}/unmelted_sdrf.tsv\\\n\t\t--retain-types ${params.unmelt_sdrf.retain_types}\\\n\t\t--has-ontology                 \n\t# rename data dir name to avoid downstream file name collision\n\tmv ${data} ${data}.${matrix_type} \n\t\"\"\"\n\t}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n\tunmelt_condensed.R\\\n\t\t-i ${data}/condensed-sdrf.tsv\\\n\t\t-o ${data}/unmelted_sdrf.tsv\\\n\t\t--retain-types ${params.unmelt_sdrf.retain_types}\\\n\t\t--has-ontology                 \n\t# rename data dir name to avoid downstream file name collision\n\tmv ${data} ${data}.${matrix_type} \n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FETCH_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "FETCH_DATA_UNMELT",
+            "BARCODES",
+            "DATA_ID"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [
+            "conda \"${baseDir}/envs/exp_metadata.yaml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_folds": {
+        "name_process": "generate_folds",
+        "string_process": "\nprocess generate_folds{\n\tpublishDir \"${params.output_dir}/${dataset_id}\", mode: 'copy'\n\tconda \"${baseDir}/envs/r-caret.yaml\"\n\terrorStrategy { task.exitStatus == 130 || task.exitStatus == 137  ? 'retry' : 'finish' }\n\tmaxRetries 5\n\tmemory { 16.GB * task.attempt }\n\t\n\tinput:\n\tval(dataset_id) from DATASET_ID\n        file(barcodes) from BARCODES_FOLDS\n\n\toutput:\n\tfile(\"folds_indices/*\") into K_FOLD_CELL_INDEXES \n\t\"\"\"\n\tcaret-create-folds.R\\\n\t        --input-barcodes ${barcodes}\\\n\t        --k-folds-number ${params.generate_folds.folds_k}\\\n\t        --dataset-id ${dataset_id}\\\n\t\t--output-dir folds_indices\n\t\"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n\tcaret-create-folds.R\\\n\t        --input-barcodes ${barcodes}\\\n\t        --k-folds-number ${params.generate_folds.folds_k}\\\n\t        --dataset-id ${dataset_id}\\\n\t\t--output-dir folds_indices\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "DATASET_ID",
+            "BARCODES_FOLDS"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "K_FOLD_CELL_INDEXES"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [
+            "publishDir \"${params.output_dir}/${dataset_id}\", mode: 'copy'",
+            "conda \"${baseDir}/envs/r-caret.yaml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 5",
+            "memory { 16.GB * task.attempt }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "split_train_test": {
+        "name_process": "split_train_test",
+        "string_process": "\nprocess split_train_test{\n\tpublishDir \"${params.output_dir}/${dataset_id}/split_data\", mode: 'copy'\n\tconda \"${baseDir}/envs/r-caret.yaml\"\n\terrorStrategy { task.exitStatus == 130 || task.exitStatus == 137  ? 'retry' : 'finish' }\n\tmaxRetries 5\n\tmemory { 16.GB * task.attempt }\n\t\n\tinput:\n\ttuple val(fold), file(indx), file(data), val(dataset_id), val(barcode_col), val(cell_type_col), val(matrix_type), val(num_clust) from FOLD_DATA\n\t\n\toutput:\n\tset val(fold), val(dataset_id),  file(\"${dataset_id}.test.${matrix_type}.${fold}.zip\"), file(\"${dataset_id}.train.${matrix_type}.${fold}.zip\") into SPLIT_DATA\n\tset val(fold), val(dataset_id) into FOLD_N_SPLIT_DATA\n\t\"\"\"\n\tsplit-train-test-data.R\\\n\t\t--input-matrix \"${data}/10x_data/matrix.mtx\"\\\n\t\t--input-matrix-type ${matrix_type}\\\n\t\t--dataset-id ${dataset_id}\\\n\t\t--input-barcodes \"${data}/10x_data/barcodes.tsv\"\\\n\t\t--input-cell-indexes ${indx}\\\n\t\t--input-unmelt-sdrf \"${data}/unmelted_sdrf.tsv\"\\\n\t\t--fold-n ${fold}\n\t# mv genes and markers files\n\tparallel cp -v \"${data}/10x_data/genes.tsv\" ::: ${dataset_id}.test.${matrix_type}.${fold}/10x_data ${dataset_id}.train.${matrix_type}.${fold}/10x_data\n\tparallel cp -v \"${data}/marker_genes_${num_clust}.tsv\" ::: ${dataset_id}.test.${matrix_type}.${fold}/ ${dataset_id}.train.${matrix_type}.${fold}\n\t# zip files by test or train\n\tzip -r ${dataset_id}.test.${matrix_type}.${fold}.zip ${dataset_id}.test.${matrix_type}.${fold} \n\tzip -r ${dataset_id}.train.${matrix_type}.${fold}.zip ${dataset_id}.train.${matrix_type}.${fold} \n\t\"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "\"\"\"\n\tsplit-train-test-data.R\\\n\t\t--input-matrix \"${data}/10x_data/matrix.mtx\"\\\n\t\t--input-matrix-type ${matrix_type}\\\n\t\t--dataset-id ${dataset_id}\\\n\t\t--input-barcodes \"${data}/10x_data/barcodes.tsv\"\\\n\t\t--input-cell-indexes ${indx}\\\n\t\t--input-unmelt-sdrf \"${data}/unmelted_sdrf.tsv\"\\\n\t\t--fold-n ${fold}\n\t# mv genes and markers files\n\tparallel cp -v \"${data}/10x_data/genes.tsv\" ::: ${dataset_id}.test.${matrix_type}.${fold}/10x_data ${dataset_id}.train.${matrix_type}.${fold}/10x_data\n\tparallel cp -v \"${data}/marker_genes_${num_clust}.tsv\" ::: ${dataset_id}.test.${matrix_type}.${fold}/ ${dataset_id}.train.${matrix_type}.${fold}\n\t# zip files by test or train\n\tzip -r ${dataset_id}.test.${matrix_type}.${fold}.zip ${dataset_id}.test.${matrix_type}.${fold} \n\tzip -r ${dataset_id}.train.${matrix_type}.${fold}.zip ${dataset_id}.train.${matrix_type}.${fold} \n\t\"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "parallelGWAS"
+        ],
+        "tools_url": [
+            "https://bio.tools/parallelgwas"
+        ],
+        "tools_dico": [
+            {
+                "name": "parallelGWAS",
+                "uri": "https://bio.tools/parallelgwas",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype reconstruction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype map generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype inference"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Developing parallel computing tools for genome-wide association studies.",
+                "homepage": "https://en.osdn.jp/projects/parallelgwas/"
+            }
+        ],
+        "inputs": [
+            "FOLD_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SPLIT_DATA",
+            "FOLD_N_SPLIT_DATA"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [
+            "publishDir \"${params.output_dir}/${dataset_id}/split_data\", mode: 'copy'",
+            "conda \"${baseDir}/envs/r-caret.yaml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 5",
+            "memory { 16.GB * task.attempt }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "group_fold_data": {
+        "name_process": "group_fold_data",
+        "string_process": "\nprocess group_fold_data {\n\tinput:\n\ttuple val(fold), val(dataset_id), file(x), file(x) from GROUPED_DATA\n\toutput: \n\ttuple val(fold), val(dataset_id), file('fold_dir') into RUN_PREDICTORS \n\t\"\"\"\n\tmkdir -p fold_dir/\n      \tfor file in '*.zip' \n      \tdo\n              mv \\${file} fold_dir\n      \tdone\n\t\"\"\"\t\n\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n\tmkdir -p fold_dir/\n      \tfor file in '*.zip' \n      \tdo\n              mv \\${file} fold_dir\n      \tdone\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "GROUPED_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "RUN_PREDICTORS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "run_predictors": {
+        "name_process": "run_predictors",
+        "string_process": "\nprocess run_predictors{\n\tpublishDir \"${params.output_dir}/${dataset_id}/label_analysis\", mode: 'copy'\n\tconda \"${baseDir}/envs/nextflow.yaml\"\n\terrorStrategy { task.exitStatus == 130 || task.exitStatus == 137  || task.attempt < 3  ? 'retry' : 'finish' }   \n\tmaxRetries 3\n\tmaxForks 1 \n\tmemory { 16.GB * task.attempt }\n\t\n\tinput:\n\ttuple val(fold), val(dataset_id), file(fold_dir) from RUN_PREDICTORS \n\t\n\toutput:\n\ttuple file(\"${dataset_id}.${fold}.${params.run_predictors.tool_perf_table}\"), file(\"${dataset_id}.${fold}.${params.run_predictors.tool_perf_pvals}\") into LABEL_ANALYSIS\n\tval(dataset_id) into DATASET_ID_A\n\t\"\"\"\n\tRESULTS_DIR=\"\\$PWD\"\n\t# launch feature branch from control workflow\t\n\tpushd $CONTROL_WORKFLOW > /dev/null\n\tgit checkout feature/diff_matrix_download > /dev/null\n\tpopd > /dev/null\n\n\tnextflow run $CONTROL_WORKFLOW/main.nf\\\n\t\t-profile ${params.profile}\\\n\t\t-c \"${baseDir}/nextflow.config\"\\\n\t\t--label_analysis_outdir \\$RESULTS_DIR\\\n\t\t--input_data \"${fold_dir}\"\n\t# rename prediction outputs to include dataset ID and fold value\n\tmv ${params.run_predictors.tool_perf_table} ${dataset_id}.${fold}.${params.run_predictors.tool_perf_table}\n\tmv ${params.run_predictors.tool_perf_pvals} ${dataset_id}.${fold}.${params.run_predictors.tool_perf_pvals}\n\t\"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"\n\tRESULTS_DIR=\"\\$PWD\"\n\t# launch feature branch from control workflow\t\n\tpushd $CONTROL_WORKFLOW > /dev/null\n\tgit checkout feature/diff_matrix_download > /dev/null\n\tpopd > /dev/null\n\n\tnextflow run $CONTROL_WORKFLOW/main.nf\\\n\t\t-profile ${params.profile}\\\n\t\t-c \"${baseDir}/nextflow.config\"\\\n\t\t--label_analysis_outdir \\$RESULTS_DIR\\\n\t\t--input_data \"${fold_dir}\"\n\t# rename prediction outputs to include dataset ID and fold value\n\tmv ${params.run_predictors.tool_perf_table} ${dataset_id}.${fold}.${params.run_predictors.tool_perf_table}\n\tmv ${params.run_predictors.tool_perf_pvals} ${dataset_id}.${fold}.${params.run_predictors.tool_perf_pvals}\n\t\"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "NullSeq",
+            "PopDel",
+            "Nextflow"
+        ],
+        "tools_url": [
+            "https://bio.tools/nullseq",
+            "https://bio.tools/PopDel",
+            "https://bio.tools/nextflow"
+        ],
+        "tools_dico": [
+            {
+                "name": "NullSeq",
+                "uri": "https://bio.tools/nullseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0364",
+                                    "term": "Random sequence generation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Creates Random Coding Sequences with specified GC content and Amino Acid usage.",
+                "homepage": "https://github.com/amarallab/NullSeq"
+            },
+            {
+                "name": "PopDel",
+                "uri": "https://bio.tools/PopDel",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Genomic structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "DNA structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for population level deletion calling from short paired-end sequence reads.",
+                "homepage": "https://github.com/kehrlab/PopDel"
+            },
+            {
+                "name": "Nextflow",
+                "uri": "https://bio.tools/nextflow",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Nextflow enables scalable and reproducible scientific workflows using software containers. It allows the adaptation of pipelines written in the most common scripting languages.",
+                "homepage": "https://www.nextflow.io/"
+            }
+        ],
+        "inputs": [
+            "RUN_PREDICTORS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "LABEL_ANALYSIS",
+            "DATASET_ID_A"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [
+            "publishDir \"${params.output_dir}/${dataset_id}/label_analysis\", mode: 'copy'",
+            "conda \"${baseDir}/envs/nextflow.yaml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 || task.attempt < 3 ? 'retry' : 'finish' }",
+            "maxRetries 3",
+            "maxForks 1",
+            "memory { 16.GB * task.attempt }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_results": {
+        "name_process": "combine_results",
+        "string_process": "\nprocess combine_results{\n\tinput:\n\tfile(folds_label) from LABEL_ANALYSIS.collect()\n\t\n\toutput:\n\tfile('results_dir') into COMBINED_RESULTS\n\t\n\t\"\"\"\n\tmkdir -p results_dir/\n\tfor file in ${folds_label}\n\tdo\n\t\tmv \\${file} results_dir\n\tdone\n\t\"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n\tmkdir -p results_dir/\n\tfor file in ${folds_label}\n\tdo\n\t\tmv \\${file} results_dir\n\tdone\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "LABEL_ANALYSIS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "COMBINED_RESULTS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "avg_folds": {
+        "name_process": "avg_folds",
+        "string_process": "\nprocess avg_folds {\n\tpublishDir \"${params.output_dir}/${dataset_id}/final_output\", mode: 'copy'\n\tconda \"${baseDir}/envs/r-caret.yaml\"\n\terrorStrategy { task.exitStatus == 130 || task.exitStatus == 137  ? 'retry' : 'finish' }   \n\tmaxRetries 5\n\tmemory { 16.GB * task.attempt }\n\t\n\tinput:\n\tfile ('results_dir') from COMBINED_RESULTS\n\tval(dataset_id) from DATASET_ID_A \n\toutput:\n\t    file(\"${dataset_id}.avg.tool_perf_table.tsv\") into AVG_TOOL_PERF_TABLE \n\t    file(\"${dataset_id}.avg.tool_perf_pvals.tsv\") into AVG_TOOL_PERF_PVALS\n\t\"\"\"\n\tavg-tables-cell-label-analysis.R\\\n\t\t--input-dir ${results_dir}\\\n\t        --dataset-id ${dataset_id}\\\n\t\t--tool-perf-table ${params.run_predictors.tool_perf_table}\\\n\t\t--tool-perf-pvals ${params.run_predictors.tool_perf_pvals}\n\t\"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n\tavg-tables-cell-label-analysis.R\\\n\t\t--input-dir ${results_dir}\\\n\t        --dataset-id ${dataset_id}\\\n\t\t--tool-perf-table ${params.run_predictors.tool_perf_table}\\\n\t\t--tool-perf-pvals ${params.run_predictors.tool_perf_pvals}\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "COMBINED_RESULTS",
+            "DATASET_ID_A"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "AVG_TOOL_PERF_TABLE",
+            "AVG_TOOL_PERF_PVALS"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__cell-types-eval-control-workflow-cross-validation",
+        "directive": [
+            "publishDir \"${params.output_dir}/${dataset_id}/final_output\", mode: 'copy'",
+            "conda \"${baseDir}/envs/r-caret.yaml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 5",
+            "memory { 16.GB * task.attempt }"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

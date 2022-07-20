@@ -1,0 +1,5 @@
+OPERATION_1 string : INDEX_JOB_FILES.flatMap().set {INDEX_JOB_FILE_LIST}
+OPERATION_1 origin : [['INDEX_JOB_FILES', 'P']]
+OPERATION_1 gives  : [['INDEX_JOB_FILE_LIST', 'P']]
+
+

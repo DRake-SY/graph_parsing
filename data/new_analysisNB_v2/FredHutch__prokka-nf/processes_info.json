@@ -1,0 +1,128 @@
+{
+    "preprocessFASTA": {
+        "name_process": "preprocessFASTA",
+        "string_process": "\nprocess preprocessFASTA {\n\n    container \"quay.io/fhcrc-microbiome/integrate-metagenomic-assemblies:v0.5\"\n    label \"io_limited\"\n    \n    input:\n    tuple sample_name, file(fasta) from sample_sheet_ch\n\n    output:\n    tuple val(sample_name), file(\"${sample_name}.fasta\") into preprocessed_sample_sheet_ch\n\n    \"\"\"\n#!/usr/bin/env python3\n\n# Following criteria from https://github.com/ncbi/pgap/wiki/Input-Files\n\nfrom Bio.SeqIO.FastaIO import SimpleFastaParser\nimport gzip\nimport re\n\n# Sanitize and write out\ndef preprocess_fasta(genome, handle):\n\n    seen_headers = set([])\n    \n    for header, seq in genome.items():\n        \n        # Make sure the sequence is >= 199 nucleotides\n        if len(seq) < 199:\n            continue\n\n        # Trim the header to 37 characters\n        if len(header) > 37:\n            header = header[:37]\n\n        # Only include letters, digits, hyphens (-), underscores (_), periods (.), colons (:), asterisks (*), and number signs (#)\n        header = re.sub('[^0-9a-zA-Z-.*#\\$_:]', '_', header)\n\n        # All headers are unique\n        assert header not in seen_headers, \"Duplicate header: %s (note truncation to first 37 characters)\" % header\n        seen_headers.add(header)\n\n        # Make sure there are no N's at the beginning or end\n        assert seq[0] != \"#\"\n        assert seq[-1] != \"#\"\n\n        handle.write(\">%s\\\\n%s\\\\n\" % (header, seq))\n\n# Read in all of the genome\nif \"${fasta}\".endswith(\".gz\"):\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(gzip.open(\"${fasta}\", \"rt\"))\n    ])\nelse:\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(open(\"${fasta}\", \"r\"))\n    ])\n\nwith open(\n    \"${sample_name}.fasta\", \n    \"w\"\n) as handle:\n    preprocess_fasta(genome, handle)\n\n\n\n    \"\"\"\n\n}",
+        "nb_lignes_process": 70,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n\n# Following criteria from https://github.com/ncbi/pgap/wiki/Input-Files\n\nfrom Bio.SeqIO.FastaIO import SimpleFastaParser\nimport gzip\nimport re\n\n# Sanitize and write out\ndef preprocess_fasta(genome, handle):\n\n    seen_headers = set([])\n    \n    for header, seq in genome.items():\n        \n        # Make sure the sequence is >= 199 nucleotides\n        if len(seq) < 199:\n            continue\n\n        # Trim the header to 37 characters\n        if len(header) > 37:\n            header = header[:37]\n\n        # Only include letters, digits, hyphens (-), underscores (_), periods (.), colons (:), asterisks (*), and number signs (#)\n        header = re.sub('[^0-9a-zA-Z-.*#\\$_:]', '_', header)\n\n        # All headers are unique\n        assert header not in seen_headers, \"Duplicate header: %s (note truncation to first 37 characters)\" % header\n        seen_headers.add(header)\n\n        # Make sure there are no N's at the beginning or end\n        assert seq[0] != \"#\"\n        assert seq[-1] != \"#\"\n\n        handle.write(\">%s\\\\n%s\\\\n\" % (header, seq))\n\n# Read in all of the genome\nif \"${fasta}\".endswith(\".gz\"):\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(gzip.open(\"${fasta}\", \"rt\"))\n    ])\nelse:\n    genome = dict([\n        (header, seq)\n        for header, seq in SimpleFastaParser(open(\"${fasta}\", \"r\"))\n    ])\n\nwith open(\n    \"${sample_name}.fasta\", \n    \"w\"\n) as handle:\n    preprocess_fasta(genome, handle)\n\n\n\n    \"\"\"",
+        "nb_lignes_script": 57,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_sheet_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "preprocessed_sample_sheet_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__prokka-nf",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/integrate-metagenomic-assemblies:v0.5\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_prokka": {
+        "name_process": "run_prokka",
+        "string_process": "\nprocess run_prokka {\n\n    container \"quay.io/biocontainers/prokka:1.14.6--pl526_0\"\n    label \"io_limited\"\n    publishDir \"${params.output_folder}/${sample_name}/\"\n    errorStrategy 'retry'\n    maxRetries 2\n\n    input:\n    tuple val(sample_name), file(fasta) from preprocessed_sample_sheet_ch\n\n    output:\n    path \"${sample_name}/\"\n\n\"\"\"\n#!/bin/bash\n\nset -euxo pipefail\n\necho Running Prokka\n\nprokka \\\n    --outdir \"${sample_name}\" \\\n    --prefix \"${sample_name}\" \\\n    --cpus ${task.cpus} \\\n    \"${fasta}\"\n\necho Compressing outputs\n\ngzip \"${sample_name}\"/*\n\necho Done\n\n\"\"\"\n\n}",
+        "nb_lignes_process": 35,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -euxo pipefail\n\necho Running Prokka\n\nprokka \\\n    --outdir \"${sample_name}\" \\\n    --prefix \"${sample_name}\" \\\n    --cpus ${task.cpus} \\\n    \"${fasta}\"\n\necho Compressing outputs\n\ngzip \"${sample_name}\"/*\n\necho Done\n\n\"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [
+            "Prokka"
+        ],
+        "tools_url": [
+            "https://bio.tools/prokka"
+        ],
+        "tools_dico": [
+            {
+                "name": "Prokka",
+                "uri": "https://bio.tools/prokka",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0781",
+                            "term": "Virology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0362",
+                                    "term": "Genome annotation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software tool to annotate bacterial, archaeal and viral genomes quickly and produce standards-compliant output files.",
+                "homepage": "https://github.com/tseemann/prokka"
+            }
+        ],
+        "inputs": [
+            "preprocessed_sample_sheet_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__prokka-nf",
+        "directive": [
+            "container \"quay.io/biocontainers/prokka:1.14.6--pl526_0\"",
+            "label \"io_limited\"",
+            "publishDir \"${params.output_folder}/${sample_name}/\"",
+            "errorStrategy 'retry'",
+            "maxRetries 2"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

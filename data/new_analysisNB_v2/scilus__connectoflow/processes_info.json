@@ -1,0 +1,467 @@
+{
+    "Transform_T1_Labels": {
+        "name_process": "Transform_T1_Labels",
+        "string_process": "\nprocess Transform_T1_Labels {\n    cpus 1\n    memory '2 GB'\n\n    input:\n    set sid, file(anat), file(labels), file(mat), file(warp) from anat_for_transformation\n\n    output:\n    set sid, \"${sid}__labels_warped_int16.nii.gz\" into transformed_labels\n    set sid, \"${sid}__t1_warped.nii.gz\" into transformed_anat\n\n    script:\n    \"\"\"\n    antsApplyTransforms -d 3 -i $anat -r $warp -o \"${sid}__t1_warped.nii.gz\" -t $warp $mat -n Linear\n    antsApplyTransforms -d 3 -i $labels -r $warp -o labels_warped.nii.gz -t $warp $mat -n NearestNeighbor\n    scil_image_math.py convert labels_warped.nii.gz \"${sid}__labels_warped_int16.nii.gz\" --data_type int16\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    antsApplyTransforms -d 3 -i $anat -r $warp -o \"${sid}__t1_warped.nii.gz\" -t $warp $mat -n Linear\n    antsApplyTransforms -d 3 -i $labels -r $warp -o labels_warped.nii.gz -t $warp $mat -n NearestNeighbor\n    scil_image_math.py convert labels_warped.nii.gz \"${sid}__labels_warped_int16.nii.gz\" --data_type int16\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "anat_for_transformation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformed_labels",
+            "transformed_anat"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus 1",
+            "memory '2 GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Decompose_Connectivity": {
+        "name_process": "Decompose_Connectivity",
+        "string_process": "\nprocess Decompose_Connectivity {\n    cpus 1\n    memory { 7.B * trackings.size() }\n\n    input:\n    set sid, file(trackings), file(labels) from tracking_labels_for_decompose\n\n    output:\n    set sid, \"${sid}__decompose.h5\" into h5_for_commit, h5_for_skip_commit\n\n    script:\n    no_pruning_arg = \"\"\n    if (params.no_pruning) {\n        no_pruning_arg = \"--no_pruning\"\n    }\n    no_remove_loops_arg = \"\"\n    if (params.no_remove_loops) {\n        no_remove_loops_arg = \"--no_remove_loops\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_pruning) {\n        no_remove_outliers_arg = \"--no_pruning\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_remove_outliers) {\n        no_remove_outliers_arg = \"--no_remove_outliers\"\n    }\n    \"\"\"\n    if [ `echo $trackings | wc -w` -gt 1 ]; then\n        scil_streamlines_math.py lazy_concatenate $trackings tracking_concat.trk\n    else\n        mv $trackings tracking_concat.trk\n    fi\n\n    scil_decompose_connectivity.py tracking_concat.trk $labels \"${sid}__decompose.h5\" --no_remove_curv_dev \\\n        $no_pruning_arg $no_remove_loops_arg $no_remove_outliers_arg --min_length $params.min_length \\\n        --max_length $params.max_length --loop_max_angle $params.loop_max_angle \\\n        --outlier_threshold $params.outlier_threshold\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    no_pruning_arg = \"\"\n    if (params.no_pruning) {\n        no_pruning_arg = \"--no_pruning\"\n    }\n    no_remove_loops_arg = \"\"\n    if (params.no_remove_loops) {\n        no_remove_loops_arg = \"--no_remove_loops\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_pruning) {\n        no_remove_outliers_arg = \"--no_pruning\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_remove_outliers) {\n        no_remove_outliers_arg = \"--no_remove_outliers\"\n    }\n    \"\"\"\n    if [ `echo $trackings | wc -w` -gt 1 ]; then\n        scil_streamlines_math.py lazy_concatenate $trackings tracking_concat.trk\n    else\n        mv $trackings tracking_concat.trk\n    fi\n\n    scil_decompose_connectivity.py tracking_concat.trk $labels \"${sid}__decompose.h5\" --no_remove_curv_dev \\\n        $no_pruning_arg $no_remove_loops_arg $no_remove_outliers_arg --min_length $params.min_length \\\n        --max_length $params.max_length --loop_max_angle $params.loop_max_angle \\\n        --outlier_threshold $params.outlier_threshold\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tracking_labels_for_decompose"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "h5_for_commit",
+            "h5_for_skip_commit"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus 1",
+            "memory { 7.B * trackings.size() }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Run_COMMIT": {
+        "name_process": "Run_COMMIT",
+        "string_process": "\nprocess Run_COMMIT {\n    cpus params.processes_commit\n    memory params.commit_memory_limit\n\n    input:\n    set sid, file(bval), file(bvec), file(dwi), file(peaks), file(h5) from data_tracking_for_commit\n\n    output:\n    set sid, \"${sid}__results_bzs/\"\n    set sid, \"${sid}__decompose_commit.h5\" into h5_for_afd_rd, h5_for_skip_afd_rd\n\n    when:\n    run_commit\n\n    script:\n    ball_stick_arg=\"\"\n    perp_diff_arg=\"\"\n    if (params.ball_stick) {\n        ball_stick_arg=\"--ball_stick\"\n    }\n    else {\n        perp_diff_arg=\"--perp_diff $params.perp_diff\"\n    }\n    if (params.use_commit2) {\n    \"\"\"\n    scil_run_commit.py $h5 $dwi $bval $bvec \"${sid}__results_bzs/\" --ball_stick --commit2 --in_peaks $peaks \\\n        --processes $params.processes_commit --b_thr $params.b_thr --nbr_dir $params.nbr_dir \\\n        --para_diff $params.para_diff $perp_diff_arg --iso_diff $params.iso_diff\n    mv \"${sid}__results_bzs/commit_2/decompose_commit.h5\" ./\"${sid}__decompose_commit.h5\"\n    \"\"\"\n    }\n    else {\n    \"\"\"\n    scil_run_commit.py $h5 $dwi $bval $bvec \"${sid}__results_bzs/\" --in_peaks $peaks \\\n        --processes $params.processes_commit --b_thr $params.b_thr --nbr_dir $params.nbr_dir $ball_stick_arg \\\n        --para_diff $params.para_diff $perp_diff_arg --iso_diff $params.iso_diff\n    mv \"${sid}__results_bzs/commit_1/decompose_commit.h5\" ./\"${sid}__decompose_commit.h5\"\n    \"\"\"\n    }\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    ball_stick_arg=\"\"\n    perp_diff_arg=\"\"\n    if (params.ball_stick) {\n        ball_stick_arg=\"--ball_stick\"\n    }\n    else {\n        perp_diff_arg=\"--perp_diff $params.perp_diff\"\n    }\n    if (params.use_commit2) {\n    \"\"\"\n    scil_run_commit.py $h5 $dwi $bval $bvec \"${sid}__results_bzs/\" --ball_stick --commit2 --in_peaks $peaks \\\n        --processes $params.processes_commit --b_thr $params.b_thr --nbr_dir $params.nbr_dir \\\n        --para_diff $params.para_diff $perp_diff_arg --iso_diff $params.iso_diff\n    mv \"${sid}__results_bzs/commit_2/decompose_commit.h5\" ./\"${sid}__decompose_commit.h5\"\n    \"\"\"\n    }\n    else {\n    \"\"\"\n    scil_run_commit.py $h5 $dwi $bval $bvec \"${sid}__results_bzs/\" --in_peaks $peaks \\\n        --processes $params.processes_commit --b_thr $params.b_thr --nbr_dir $params.nbr_dir $ball_stick_arg \\\n        --para_diff $params.para_diff $perp_diff_arg --iso_diff $params.iso_diff\n    mv \"${sid}__results_bzs/commit_1/decompose_commit.h5\" ./\"${sid}__decompose_commit.h5\"\n    \"\"\"\n    }",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "data_tracking_for_commit"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sid",
+            "h5_for_afd_rd",
+            "h5_for_skip_afd_rd"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus params.processes_commit",
+            "memory params.commit_memory_limit"
+        ],
+        "when": "run_commit",
+        "stub": ""
+    },
+    "Compute_AFD_RD": {
+        "name_process": "Compute_AFD_RD",
+        "string_process": "\nprocess Compute_AFD_RD {\n    cpus params.processes_afd_rd\n    memory '2 GB'\n\n    input:\n    set sid, file(h5), file(fodf) from h5_fodf_for_afd_rd\n\n    output:\n    set sid, \"${sid}__decompose_afd_rd.h5\" into h5_for_transformation\n\n    when:\n    run_afd_rd\n\n    script:\n    length_weighting_arg = \"\"\n    if (params.length_weighting) {\n        length_weighting_arg = \"--length_weighting\"\n    }\n    \"\"\"\n    scil_compute_mean_fixel_afd_from_hdf5.py $h5 $fodf \"${sid}__decompose_afd_rd.h5\" $length_weighting_arg \\\n        --sh_basis $params.sh_basis --processes $params.processes_afd_rd\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    length_weighting_arg = \"\"\n    if (params.length_weighting) {\n        length_weighting_arg = \"--length_weighting\"\n    }\n    \"\"\"\n    scil_compute_mean_fixel_afd_from_hdf5.py $h5 $fodf \"${sid}__decompose_afd_rd.h5\" $length_weighting_arg \\\n        --sh_basis $params.sh_basis --processes $params.processes_afd_rd\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "h5_fodf_for_afd_rd"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "h5_for_transformation"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus params.processes_afd_rd",
+            "memory '2 GB'"
+        ],
+        "when": "run_afd_rd",
+        "stub": ""
+    },
+    "Register_Anat": {
+        "name_process": "Register_Anat",
+        "string_process": "\nprocess Register_Anat {\n    cpus params.processes_register\n    memory '2 GB'\n\n    input:\n    set sid, file(native_anat), file(template) from anats_for_registration\n\n    output:\n    set sid, \"${sid}__output0GenericAffine.mat\", \"${sid}__output1Warp.nii.gz\", \"${sid}__output1InverseWarp.nii.gz\"  into transformation_for_data, transformation_for_metrics, transformation_for_lesions\n    file \"${sid}__outputWarped.nii.gz\"\n    script:\n    \"\"\"\n    antsRegistrationSyNQuick.sh -d 3 -m ${native_anat} -f ${template} -n ${params.processes_register} -o \"${sid}__output\" -t s\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    antsRegistrationSyNQuick.sh -d 3 -m ${native_anat} -f ${template} -n ${params.processes_register} -o \"${sid}__output\" -t s\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "anats_for_registration"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformation_for_data",
+            "transformation_for_metrics",
+            "transformation_for_lesions"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus params.processes_register",
+            "memory '2 GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Transform_Metrics": {
+        "name_process": "Transform_Metrics",
+        "string_process": "\nprocess Transform_Metrics {\n    cpus 1\n    memory '2 GB'\n\n    input:\n    set sid, file(metric), file(transfo), file(warp), file(inverse_warp), file(template) from metrics_transformation_for_metrics\n\n    output:\n    set sid, \"*_mni.nii.gz\" into metrics_for_compute\n\n    script:\n    \"\"\"\n    antsApplyTransforms -d 3 -i $metric -r $template -t $warp $transfo -o ${metric.getSimpleName()}_mni.nii.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    antsApplyTransforms -d 3 -i $metric -r $template -t $warp $transfo -o ${metric.getSimpleName()}_mni.nii.gz\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metrics_transformation_for_metrics"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "metrics_for_compute"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus 1",
+            "memory '2 GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Transform_Lesions": {
+        "name_process": "Transform_Lesions",
+        "string_process": "\nprocess Transform_Lesions {\n    cpus 1\n\n    input:\n    set sid, file(lesion), file(transfo), file(warp), file(inverse_warp), file(template) from lesions_transformation_for_data\n\n    output:\n    set sid, \"lesion_mask_mni.nii.gz\" into lesions_for_compute\n\n    script:\n    \"\"\"\n    antsApplyTransforms -d 3 -i $lesion -r $template -t $warp $transfo -o ${lesion.getSimpleName()}_mni.nii.gz -n NearestNeighbor\n    scil_image_math.py convert lesion_mask_mni.nii.gz lesion_mask_mni.nii.gz --data_type uint8 -f\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    antsApplyTransforms -d 3 -i $lesion -r $template -t $warp $transfo -o ${lesion.getSimpleName()}_mni.nii.gz -n NearestNeighbor\n    scil_image_math.py convert lesion_mask_mni.nii.gz lesion_mask_mni.nii.gz --data_type uint8 -f\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "lesions_transformation_for_data"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "lesions_for_compute"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Transform_Data": {
+        "name_process": "Transform_Data",
+        "string_process": "\nprocess Transform_Data {\n    cpus 1\n    memory '2 GB'\n\n    input:\n    set sid, file(h5), file(labels), file(transfo), file(warp), file(inverse_warp), file(template) from labels_tracking_transformation_for_data\n\n    output:\n    set sid, \"${sid}__decompose_warped_mni.h5\", \"${sid}__labels_warped_mni_int16.nii.gz\" into h5_labels_for_compute\n    file \"${sid}__decompose_warped_mni.h5\" into h5_for_similarity\n\n    script:\n    \"\"\"\n    scil_apply_transform_to_hdf5.py $h5 $template ${transfo} \"${sid}__decompose_warped_mni.h5\" --inverse --in_deformation $inverse_warp\n    antsApplyTransforms -d 3 -i $labels -r $template -t $warp $transfo -n NearestNeighbor -o labels_mni.nii.gz\n    scil_image_math.py convert labels_mni.nii.gz \"${sid}__labels_warped_mni_int16.nii.gz\" --data_type int16\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    scil_apply_transform_to_hdf5.py $h5 $template ${transfo} \"${sid}__decompose_warped_mni.h5\" --inverse --in_deformation $inverse_warp\n    antsApplyTransforms -d 3 -i $labels -r $template -t $warp $transfo -n NearestNeighbor -o labels_mni.nii.gz\n    scil_image_math.py convert labels_mni.nii.gz \"${sid}__labels_warped_mni_int16.nii.gz\" --data_type int16\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "labels_tracking_transformation_for_data"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "h5_labels_for_compute",
+            "h5_for_similarity"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus 1",
+            "memory '2 GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Average_Connections": {
+        "name_process": "Average_Connections",
+        "string_process": "\nprocess Average_Connections {\n    cpus params.processes_avg_similarity\n    memory '2 GB'\n    publishDir = \"$params.avg_conn_output_dir\"\n\n    input:\n    file(all_h5) from all_h5_for_similarity\n\n    output:\n    file \"avg_per_edges/\" into edges_for_similarity\n\n    when:\n    params.use_similarity_metric\n\n    script:\n    \"\"\"\n    scil_compute_hdf5_average_density_map.py $all_h5 avg_per_edges/ --binary --processes $params.processes_avg_similarity\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    scil_compute_hdf5_average_density_map.py $all_h5 avg_per_edges/ --binary --processes $params.processes_avg_similarity\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_h5_for_similarity"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "edges_for_similarity"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus params.processes_avg_similarity",
+            "memory '2 GB'",
+            "publishDir = \"$params.avg_conn_output_dir\""
+        ],
+        "when": "params.use_similarity_metric",
+        "stub": ""
+    },
+    "Compute_Connectivity_with_similiarity": {
+        "name_process": "Compute_Connectivity_with_similiarity",
+        "string_process": "\nprocess Compute_Connectivity_with_similiarity {\n    cpus params.processes_connectivity\n    memory '2 GB'\n    publishDir = {\"${params.output_dir}/$sid/Compute_Connectivity\"}\n\n    input:\n    set sid, file(h5), file(labels), file(metrics), file(avg_edges), file(labels_list) from h5_labels_similarity_list_for_compute\n\n    output:\n    set sid, \"*.npy\" into matrices_for_visualize_with_similarity, matrices_w_similarity_for_merge\n\n    script:\n    String metrics_list = metrics.join(\", \").replace(',', '')\n    \"\"\"\n    metrics_args=\"\"\n    lesion_args=\"\"\n    for metric in $metrics_list; do\n        base_name=\\$(basename \\${metric/_mni/})\n        base_name=\\${base_name/_warped/}\n        base_name=\\${base_name/\"${sid}__\"/}\n        if [[ \\$metric == lesion_mask_mni.nii.gz ]]; then\n            lesion_args=\"--lesion_load \\$metric ./\"\n        else\n            metrics_args=\"\\${metrics_args} --metrics \\${metric} \\$(basename \\$base_name .nii.gz).npy\"\n        fi\n    done\n\n    scil_compute_connectivity.py $h5 $labels --force_labels_list $labels_list \\\n        --volume vol.npy --streamline_count sc.npy \\\n        --length len.npy --similarity $avg_edges sim.npy \\$metrics_args \\\n        --density_weighting --no_self_connection \\\n        --include_dps ./ \\$lesion_args --min_lesion_vol $params.min_lesion_vol \\\n        --processes $params.processes_connectivity\n\n    rm rd_fixel.npy -f\n    scil_normalize_connectivity.py sc.npy sc_edge_normalized.npy \\\n        --parcel_volume $labels $labels_list\n    scil_normalize_connectivity.py vol.npy sc_vol_normalized.npy \\\n        --parcel_volume $labels $labels_list\n    \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    String metrics_list = metrics.join(\", \").replace(',', '')\n    \"\"\"\n    metrics_args=\"\"\n    lesion_args=\"\"\n    for metric in $metrics_list; do\n        base_name=\\$(basename \\${metric/_mni/})\n        base_name=\\${base_name/_warped/}\n        base_name=\\${base_name/\"${sid}__\"/}\n        if [[ \\$metric == lesion_mask_mni.nii.gz ]]; then\n            lesion_args=\"--lesion_load \\$metric ./\"\n        else\n            metrics_args=\"\\${metrics_args} --metrics \\${metric} \\$(basename \\$base_name .nii.gz).npy\"\n        fi\n    done\n\n    scil_compute_connectivity.py $h5 $labels --force_labels_list $labels_list \\\n        --volume vol.npy --streamline_count sc.npy \\\n        --length len.npy --similarity $avg_edges sim.npy \\$metrics_args \\\n        --density_weighting --no_self_connection \\\n        --include_dps ./ \\$lesion_args --min_lesion_vol $params.min_lesion_vol \\\n        --processes $params.processes_connectivity\n\n    rm rd_fixel.npy -f\n    scil_normalize_connectivity.py sc.npy sc_edge_normalized.npy \\\n        --parcel_volume $labels $labels_list\n    scil_normalize_connectivity.py vol.npy sc_vol_normalized.npy \\\n        --parcel_volume $labels $labels_list\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [
+            "STRING"
+        ],
+        "tools_url": [
+            "https://bio.tools/string"
+        ],
+        "tools_dico": [
+            {
+                "name": "STRING",
+                "uri": "https://bio.tools/string",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0276",
+                                    "term": "Protein interaction network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A database of known and predicted protein-protein interactions. The database contains information from numerous sources, including experimental repositories, computational prediction methods and public text collections. STRING is regularly updated and gives a comprehensive view on protein-protein interactions currently available.",
+                "homepage": "http://string-db.org/"
+            }
+        ],
+        "inputs": [
+            "h5_labels_similarity_list_for_compute"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "matrices_for_visualize_with_similarity",
+            "matrices_w_similarity_for_merge"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus params.processes_connectivity",
+            "memory '2 GB'",
+            "publishDir = {\"${params.output_dir}/$sid/Compute_Connectivity\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Compute_Connectivity_without_similiarity": {
+        "name_process": "Compute_Connectivity_without_similiarity",
+        "string_process": "\nprocess Compute_Connectivity_without_similiarity {\n    cpus params.processes_connectivity\n    memory '2 GB'\n    publishDir = {\"${params.output_dir}/$sid/Compute_Connectivity\"}\n\n    input:\n    set sid, file(h5), file(labels), file(metrics), file(labels_list) from h5_labels_list_for_compute\n\n    output:\n    set sid, \"*.npy\" into matrices_for_visualize_without_similarity, matrices_wo_similarity_for_merge\n\n    script:\n    String metrics_list = metrics.join(\", \").replace(',', '')\n    \"\"\"\n    metrics_args=\"\"\n    lesion_args=\"\"\n    for metric in $metrics_list; do\n        base_name=\\$(basename \\${metric/_mni/})\n        base_name=\\${base_name/_warped/}\n        base_name=\\${base_name/\"${sid}__\"/}\n        if [[ \\$metric == lesion_mask_mni.nii.gz ]]; then\n            lesion_args=\"--lesion_load \\$metric ./\"\n        else\n            metrics_args=\"\\${metrics_args} --metrics \\${metric} \\$(basename \\$base_name .nii.gz).npy\"\n        fi\n    done\n\n    scil_compute_connectivity.py $h5 $labels --force_labels_list $labels_list \\\n        --volume vol.npy --streamline_count sc.npy \\\n        --length len.npy \\$metrics_args --density_weighting \\\n        --no_self_connection --include_dps ./ \\$lesion_args \\\n        --processes $params.processes_connectivity\n\n    rm rd_fixel.npy -f\n    scil_normalize_connectivity.py sc.npy sc_parcel_vol_normalized.npy \\\n        --parcel_volume $labels $labels_list\n    scil_normalize_connectivity.py sc.npy sc_bundle_vol_normalized.npy \\\n        --bundle_volume vol.npy\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    String metrics_list = metrics.join(\", \").replace(',', '')\n    \"\"\"\n    metrics_args=\"\"\n    lesion_args=\"\"\n    for metric in $metrics_list; do\n        base_name=\\$(basename \\${metric/_mni/})\n        base_name=\\${base_name/_warped/}\n        base_name=\\${base_name/\"${sid}__\"/}\n        if [[ \\$metric == lesion_mask_mni.nii.gz ]]; then\n            lesion_args=\"--lesion_load \\$metric ./\"\n        else\n            metrics_args=\"\\${metrics_args} --metrics \\${metric} \\$(basename \\$base_name .nii.gz).npy\"\n        fi\n    done\n\n    scil_compute_connectivity.py $h5 $labels --force_labels_list $labels_list \\\n        --volume vol.npy --streamline_count sc.npy \\\n        --length len.npy \\$metrics_args --density_weighting \\\n        --no_self_connection --include_dps ./ \\$lesion_args \\\n        --processes $params.processes_connectivity\n\n    rm rd_fixel.npy -f\n    scil_normalize_connectivity.py sc.npy sc_parcel_vol_normalized.npy \\\n        --parcel_volume $labels $labels_list\n    scil_normalize_connectivity.py sc.npy sc_bundle_vol_normalized.npy \\\n        --bundle_volume vol.npy\n    \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [
+            "STRING"
+        ],
+        "tools_url": [
+            "https://bio.tools/string"
+        ],
+        "tools_dico": [
+            {
+                "name": "STRING",
+                "uri": "https://bio.tools/string",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0276",
+                                    "term": "Protein interaction network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A database of known and predicted protein-protein interactions. The database contains information from numerous sources, including experimental repositories, computational prediction methods and public text collections. STRING is regularly updated and gives a comprehensive view on protein-protein interactions currently available.",
+                "homepage": "http://string-db.org/"
+            }
+        ],
+        "inputs": [
+            "h5_labels_list_for_compute"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "matrices_for_visualize_without_similarity",
+            "matrices_wo_similarity_for_merge"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus params.processes_connectivity",
+            "memory '2 GB'",
+            "publishDir = {\"${params.output_dir}/$sid/Compute_Connectivity\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Connectivity_in_csv": {
+        "name_process": "Connectivity_in_csv",
+        "string_process": "\nprocess Connectivity_in_csv {\n    cpus 1\n    memory '2 GB'\n    publishDir = {\"${params.output_dir}/$sid/Compute_Connectivity\"}\n\n    input:\n    set sid, file(matrices) from matrices_for_connectivity_in_csv\n\n    output:\n    file \"*csv\"\n\n    script:\n    String matrices_list = matrices.join(\"\\\",\\\"\")\n    \"\"\"\n    #!/usr/bin/env python3\n    import numpy as np\n    import os, sys\n\n    for data in [\"$matrices_list\"]:\n      fmt='%1.8f'\n      if data == 'sc.npy':\n        fmt='%i'\n\n      curr_data = np.load(data)\n      np.savetxt(data.replace(\".npy\", \".csv\"), curr_data, delimiter=\",\", fmt=fmt)\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    String matrices_list = matrices.join(\"\\\",\\\"\")\n    \"\"\"\n    #!/usr/bin/env python3\n    import numpy as np\n    import os, sys\n\n    for data in [\"$matrices_list\"]:\n      fmt='%1.8f'\n      if data == 'sc.npy':\n        fmt='%i'\n\n      curr_data = np.load(data)\n      np.savetxt(data.replace(\".npy\", \".csv\"), curr_data, delimiter=\",\", fmt=fmt)\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "matrices_for_connectivity_in_csv"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus 1",
+            "memory '2 GB'",
+            "publishDir = {\"${params.output_dir}/$sid/Compute_Connectivity\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Visualize_Connectivity": {
+        "name_process": "Visualize_Connectivity",
+        "string_process": "\nprocess Visualize_Connectivity {\n    cpus 1\n    memory '2 GB'\n\n    input:\n    set sid, file(matrices), file(labels_list) from matrices_labels_list_for_visualize\n\n    output:\n    set sid, \"*.png\"\n\n    script:\n    String matrices_list = matrices.join(\", \").replace(',', '')\n    \"\"\"\n    for matrix in $matrices_list; do\n        scil_visualize_connectivity.py \\$matrix \\${matrix/.npy/_matrix.png} --labels_list $labels_list --name_axis \\\n            --display_legend --histogram \\${matrix/.npy/_hist.png} --nb_bins 50 --exclude_zeros --axis_text_size 5 5\n    done\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    String matrices_list = matrices.join(\", \").replace(',', '')\n    \"\"\"\n    for matrix in $matrices_list; do\n        scil_visualize_connectivity.py \\$matrix \\${matrix/.npy/_matrix.png} --labels_list $labels_list --name_axis \\\n            --display_legend --histogram \\${matrix/.npy/_hist.png} --nb_bins 50 --exclude_zeros --axis_text_size 5 5\n    done\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "STRING"
+        ],
+        "tools_url": [
+            "https://bio.tools/string"
+        ],
+        "tools_dico": [
+            {
+                "name": "STRING",
+                "uri": "https://bio.tools/string",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0276",
+                                    "term": "Protein interaction network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A database of known and predicted protein-protein interactions. The database contains information from numerous sources, including experimental repositories, computational prediction methods and public text collections. STRING is regularly updated and gives a comprehensive view on protein-protein interactions currently available.",
+                "homepage": "http://string-db.org/"
+            }
+        ],
+        "inputs": [
+            "matrices_labels_list_for_visualize"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sid"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__connectoflow",
+        "directive": [
+            "cpus 1",
+            "memory '2 GB'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

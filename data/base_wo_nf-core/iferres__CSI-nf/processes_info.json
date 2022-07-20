@@ -1,0 +1,330 @@
+{
+    "CRISPRCASFINDER": {
+        "name_process": "CRISPRCASFINDER",
+        "string_process": "\nprocess CRISPRCASFINDER {\n    label 'crisprcasfinder'\n\n    input:\n    tuple val(genome_id), path(\"${genome_id}.fasta\")\n\n    output:\n    tuple val(genome_id), path(\"Result*/GFF/*.gff\")\n\n    script:\n    \"\"\"\n    crispr-entrypoint.sh ${genome_id}.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    crispr-entrypoint.sh ${genome_id}.fasta\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genome_id"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "genome_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [
+            "label 'crisprcasfinder'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "EXTRACT_SPACERS": {
+        "name_process": "EXTRACT_SPACERS",
+        "string_process": "\nprocess EXTRACT_SPACERS {\n    publishDir \"$params.outdir/SPACERS\", mode: 'copy'\n\n    input:\n    tuple val(genome_id), \n        val(contig_id), \n        path(\"${genome_id}_${contig_id}.gff\")\n\n    output:\n    tuple val(genome_id), \n        val(contig_id), \n        path(\"${genome_id}_${contig_id}_sp.gff\"), \n        emit: gff,\n        optional: true\n    tuple val(genome_id),\n        val(contig_id),\n        path(\"fasta_spacers/*.fasta\"), \n        emit: fasta,\n        optional: true\n\n    script:\n    \"\"\"\n    #!/usr/bin/env Rscript\n\n    gff <- try(read.table(\"${genome_id}_${contig_id}.gff\", stringsAsFactors=FALSE))\n\n    if (class(gff)!=\"try-error\"){\n        spacers <- gff[gff\\$V3==\"CRISPRspacer\",,drop=FALSE]\n    \n        spl <- strsplit(spacers\\$V9, \";\")\n    \n        spacers\\$V10 <- sapply(spl, function(x){\n            gp <- grep(\"sequence=\", x, value = TRUE)\n            sq <- sub(\"sequence=\", \"\", gp, fixed = TRUE)\n            sq\n        })\n    \n        spacers\\$V11 <- sapply(spl, function(x) {\n            gp <- grep(\"ID=\", x, value=TRUE)\n            id <- sub(\"ID=\", \"\", gp, fixed = TRUE)\n            id\n        })\n \n        spacers\\$V12 <- paste(\"${genome_id}\", \"${contig_id}\", spacers\\$V11, sep = \"_\")\n\n        write.table(spacers, \n            file = \"${genome_id}_${contig_id}_sp.gff\", \n            quote = FALSE, \n            sep = \"\\\\t\", \n            row.names = FALSE, \n            col.names = FALSE)\n\n        fastas <- paste(paste0(\">\", spacers\\$V12), spacers\\$V10, sep = \"\\\\n\")\n        \n        dir.create(\"fasta_spacers\")\n        for (i in 1:length(fastas)){\n            fi <- paste0(\"fasta_spacers/\", spacers\\$V11[i], \".fasta\")\n            cat(fastas[i], file = fi)\n        }\n        \n    }\n    \"\"\"\n}",
+        "nb_lignes_process": 62,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env Rscript\n\n    gff <- try(read.table(\"${genome_id}_${contig_id}.gff\", stringsAsFactors=FALSE))\n\n    if (class(gff)!=\"try-error\"){\n        spacers <- gff[gff\\$V3==\"CRISPRspacer\",,drop=FALSE]\n    \n        spl <- strsplit(spacers\\$V9, \";\")\n    \n        spacers\\$V10 <- sapply(spl, function(x){\n            gp <- grep(\"sequence=\", x, value = TRUE)\n            sq <- sub(\"sequence=\", \"\", gp, fixed = TRUE)\n            sq\n        })\n    \n        spacers\\$V11 <- sapply(spl, function(x) {\n            gp <- grep(\"ID=\", x, value=TRUE)\n            id <- sub(\"ID=\", \"\", gp, fixed = TRUE)\n            id\n        })\n \n        spacers\\$V12 <- paste(\"${genome_id}\", \"${contig_id}\", spacers\\$V11, sep = \"_\")\n\n        write.table(spacers, \n            file = \"${genome_id}_${contig_id}_sp.gff\", \n            quote = FALSE, \n            sep = \"\\\\t\", \n            row.names = FALSE, \n            col.names = FALSE)\n\n        fastas <- paste(paste0(\">\", spacers\\$V12), spacers\\$V10, sep = \"\\\\n\")\n        \n        dir.create(\"fasta_spacers\")\n        for (i in 1:length(fastas)){\n            fi <- paste0(\"fasta_spacers/\", spacers\\$V11[i], \".fasta\")\n            cat(fastas[i], file = fi)\n        }\n        \n    }\n    \"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genome_id",
+            "contig_id"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [
+            "publishDir \"$params.outdir/SPACERS\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "BLASTN": {
+        "name_process": "BLASTN",
+        "string_process": "\nprocess BLASTN {\n    label 'blastn'\n\n    input:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        path(\"${genome_id}_${contig_id}_${spacer_id}.fasta\")\n\n    output:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        path(\"${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}.tab\")\n\n    script:\n    \"\"\"\n    blastn -task \"megablast\" \\\n        -evalue 1e-5 \\\n        -num_threads 1 \\\n        -db ${db_path}/${db_name} \\\n        -query ${genome_id}_${contig_id}_${spacer_id}.fasta \\\n        -out ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}.tab \\\n        -outfmt 6\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    blastn -task \"megablast\" \\\n        -evalue 1e-5 \\\n        -num_threads 1 \\\n        -db ${db_path}/${db_name} \\\n        -query ${genome_id}_${contig_id}_${spacer_id}.fasta \\\n        -out ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}.tab \\\n        -outfmt 6\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "G-BLASTN"
+        ],
+        "tools_url": [
+            "https://bio.tools/g-blastn"
+        ],
+        "tools_dico": [
+            {
+                "name": "G-BLASTN",
+                "uri": "https://bio.tools/g-blastn",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acids"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0346",
+                                    "term": "Sequence similarity search"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2976",
+                                "term": "Protein sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0857",
+                                "term": "Sequence search results"
+                            }
+                        ]
+                    }
+                ],
+                "description": "GPU-accelerated nucleotide alignment tool based on the widely used NCBI-BLAST.",
+                "homepage": "http://www.comp.hkbu.edu.hk/~chxw/software/G-BLASTN.html"
+            }
+        ],
+        "inputs": [
+            "genome_id",
+            "contig_id",
+            "spacer_id"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "spacer_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [
+            "label 'blastn'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PARSE_BLASTN": {
+        "name_process": "PARSE_BLASTN",
+        "string_process": "\nprocess PARSE_BLASTN {\n\n    input:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        path(\"${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}.tab\")\n\n    output:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        path(\"${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_GIDS.txt\")\n\n    script:\n    \"\"\"\n    awk '{print \\$2} ' ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}.tab > \\\n        ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_GIDS.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    awk '{print \\$2} ' ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}.tab > \\\n        ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_GIDS.txt\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genome_id",
+            "contig_id",
+            "spacer_id"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "spacer_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "GET_TAXID": {
+        "name_process": "GET_TAXID",
+        "string_process": "\nprocess GET_TAXID {\n    input:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        path(\"${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_GIDS.txt\")\n    \n    output:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        stdout, optional: true\n                                                                                 \n\n    script:\n    \"\"\"\n    blastdbcmd \\\n        -db ${db_path}/${db_name} \\\n        -outfmt \"%T\" \\\n        -entry_batch ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_GIDS.txt # > \\\n        # ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_TAXIDS.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    blastdbcmd \\\n        -db ${db_path}/${db_name} \\\n        -outfmt \"%T\" \\\n        -entry_batch ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_GIDS.txt # > \\\n        # ${genome_id}_${contig_id}_${spacer_id}_vs_${db_name}_TAXIDS.txt\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genome_id",
+            "contig_id",
+            "spacer_id"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "spacer_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "LCA": {
+        "name_process": "LCA",
+        "string_process": "\nprocess LCA {\n    label 'taxonkit'\n\n    input:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        val(stdin)\n                                                                                 \n\n    output:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        stdout\n                                                                                   \n\n    when:\n    stdin != \"\"\n    \n    script:\n    \"\"\"\n    echo \"${stdin}\" | tr '\\\\n' '\\\\t' | \\\n        taxonkit --data-dir ${db_path} lca | \\\n        awk '{print \\$NF}' | \\\n        taxonkit --data-dir ${db_path} lineage | \\\n        taxonkit --data-dir ${db_path} reformat | \\\n        cut -f 3\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    echo \"${stdin}\" | tr '\\\\n' '\\\\t' | \\\n        taxonkit --data-dir ${db_path} lca | \\\n        awk '{print \\$NF}' | \\\n        taxonkit --data-dir ${db_path} lineage | \\\n        taxonkit --data-dir ${db_path} reformat | \\\n        cut -f 3\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genome_id",
+            "contig_id",
+            "spacer_id"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "spacer_id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [
+            "label 'taxonkit'"
+        ],
+        "when": "stdin != \"\"",
+        "stub": ""
+    },
+    "WRITE_TSV": {
+        "name_process": "WRITE_TSV",
+        "string_process": "\nprocess WRITE_TSV {\n    input:\n    tuple val(genome_id),\n        val(contig_id),\n        val(spacer_id),\n        val(lca_ranks)\n\n    output:\n    path(\"${genome_id}_${contig_id}_${spacer_id}.tsv\")\n\n    script:\n    \"\"\"\n    echo -ne \"${genome_id}\\\\t${contig_id}\\\\t${spacer_id}\\\\t${lca_ranks}\"  \\\n        > ${genome_id}_${contig_id}_${spacer_id}.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    echo -ne \"${genome_id}\\\\t${contig_id}\\\\t${spacer_id}\\\\t${lca_ranks}\"  \\\n        > ${genome_id}_${contig_id}_${spacer_id}.tsv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genome_id",
+            "contig_id",
+            "spacer_id",
+            "lca_ranks"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "COLLECT_RESULTS": {
+        "name_process": "COLLECT_RESULTS",
+        "string_process": "\nprocess COLLECT_RESULTS {\n    publishDir \"$params.outdir/LCA_RANKS\", mode: 'copy'\n\n    input:\n    path(\"*.tsv\")\n    \n    output:\n    path(\"ranks.tsv\")\n\n    script:\n    \"\"\"\n    echo -ne \"genome\\\\tcontig\\\\tspacer\\\\trank\\\\n\" > ranks\n    cat *.tsv >> ranks\n    mv ranks ranks.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    echo -ne \"genome\\\\tcontig\\\\tspacer\\\\trank\\\\n\" > ranks\n    cat *.tsv >> ranks\n    mv ranks ranks.tsv\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "RANKS"
+        ],
+        "tools_url": [
+            "https://bio.tools/RANKS"
+        ],
+        "tools_dico": [
+            {
+                "name": "RANKS",
+                "uri": "https://bio.tools/RANKS",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Pathology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3293",
+                            "term": "Phylogenetics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "https://en.wikipedia.org/wiki/Pathology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tool for node label ranking and classification in biological networks.",
+                "homepage": "https://cran.r-project.org/package=RANKS"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "iferres__CSI-nf",
+        "directive": [
+            "publishDir \"$params.outdir/LCA_RANKS\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

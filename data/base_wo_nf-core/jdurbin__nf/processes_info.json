@@ -1,0 +1,2374 @@
+{
+    "makeHiC": {
+        "name_process": "makeHiC",
+        "string_process": "\nprocess makeHiC{\n    cpus = 8\n    memory = '20G'    // I'm requesting total memory for all 8 processes... or should this be per vcpu?\n                                                                                                       \n    container 'kjdurbin/pairtools'                                 \n    \n    input:\n    tuple val(rootPath),val(pairsFile),val(pairsID) from pairs_ch\n    cpus = 8\n    \n    output:\n    stdout out_ch\n    \"\"\"\n    cut -f 1,2 /mnt/ebs/genome/hg38/hg38.fa.fai > hg38.genome\n    chrlength=hg38.genome\n\n    pairtools select '(pair_type==\"UU\") or (pair_type==\"UR\") or (pair_type==\"RU\") or (pair_type==\"uu\") or (pair_type==\"Uu\")  or (pair_type==\"uU\")' ${pairsFile} -o ${rootPath}/${pairsID}/${pairsID}.filtered.pairs.gz\n\n    zcat ${rootPath}/${pairsID}/${pairsID}.filtered.pairs.gz | grep -v \"#\" | awk '{print \"1\\t\"\\$2\"\\t\"\\$3\"\\t1\\t0\\t\"\\$4\"\\t\"\\$5\"\\t0\"}' | awk '{if (\\$2 > \\$6) {print \\$1\"\\t\"\\$6\"\\t\"\\$7\"\\t\"\\$8\"\\t\"\\$5\"\\t\"\\$2\"\\t\"\\$3\"\\t\"\\$4} else {print}}' | sort -k2,2d -k6,6d  -T ./ --parallel=8 > ${rootPath}/${pairsID}/${pairsID}_juicer_alignments.txt\n    \n    java -jar -Xmx30g ~/ebs/james/src/dovetail_tools/juicer_tools_1.22.01.jar pre ${rootPath}/${pairsID}/${pairsID}_juicer_alignments.txt ${rootPath}/${pairsID}/${prefix}.hic ${chrlength}\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"\n    cut -f 1,2 /mnt/ebs/genome/hg38/hg38.fa.fai > hg38.genome\n    chrlength=hg38.genome\n\n    pairtools select '(pair_type==\"UU\") or (pair_type==\"UR\") or (pair_type==\"RU\") or (pair_type==\"uu\") or (pair_type==\"Uu\")  or (pair_type==\"uU\")' ${pairsFile} -o ${rootPath}/${pairsID}/${pairsID}.filtered.pairs.gz\n\n    zcat ${rootPath}/${pairsID}/${pairsID}.filtered.pairs.gz | grep -v \"#\" | awk '{print \"1\\t\"\\$2\"\\t\"\\$3\"\\t1\\t0\\t\"\\$4\"\\t\"\\$5\"\\t0\"}' | awk '{if (\\$2 > \\$6) {print \\$1\"\\t\"\\$6\"\\t\"\\$7\"\\t\"\\$8\"\\t\"\\$5\"\\t\"\\$2\"\\t\"\\$3\"\\t\"\\$4} else {print}}' | sort -k2,2d -k6,6d  -T ./ --parallel=8 > ${rootPath}/${pairsID}/${pairsID}_juicer_alignments.txt\n    \n    java -jar -Xmx30g ~/ebs/james/src/dovetail_tools/juicer_tools_1.22.01.jar pre ${rootPath}/${pairsID}/${pairsID}_juicer_alignments.txt ${rootPath}/${pairsID}/${prefix}.hic ${chrlength}\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairs_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus = 8",
+            "memory = '20G' // I'm requesting total memory for all 8 processes... or should this be per vcpu?",
+            "container 'kjdurbin/pairtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "foo": {
+        "name_process": "foo",
+        "string_process": "\nprocess foo{\n    input:\n    tuple sampleId,path(pairs),path(mcool),path(background) from samples_ch                                            \n    \n    output:\n    stdout out_ch\n\n    script:\n    \n    println(\"pairs: ${pairs} mcool: ${mcool}\")   \n\n    \"\"\"\n    echo runsomecommand $pairs $mcool $background\n    ls $background\n    cat ${background}/ref/head.vcf\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    println(\"pairs: ${pairs} mcool: ${mcool}\")   \n\n    \"\"\"\n    echo runsomecommand $pairs $mcool $background\n    ls $background\n    cat ${background}/ref/head.vcf\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "hint": {
+        "name_process": "hint",
+        "string_process": "\nprocess hint {\n    cpus 1\n    memory '48 GB'\n    container \"kjdurbin/hint\"\n    \n    publishDir \"${params.outDir}\",\n\tmode: 'copy'\n    \n    input:\n    tuple sampleId,path(pairsfile),path(mcool),path(supportfiles) from hint_ch\n    \n    output: \n    path \"hintout_*\" into hintout_ch\n    \n    script:\n    \n    \"\"\" \n    hint tl -m \\\n    ${mcool}::/resolutions/1000000,${mcool}::/resolutions/100000 \\\n    -f cooler \\\n    --chimeric $pairsfile \\\n    --refdir ${supportfiles}/ref/hg38 \\\n    --backdir ${supportfiles}/matrix/hg38 \\\n    -g hg38 \\\n    -n ${sampleId} \\\n    -c 0.05 \\\n    --ppath /pairix/bin/pairix -p 12 \\\n    -e DpnII \\\n    -o hintout_${id}\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\" \n    hint tl -m \\\n    ${mcool}::/resolutions/1000000,${mcool}::/resolutions/100000 \\\n    -f cooler \\\n    --chimeric $pairsfile \\\n    --refdir ${supportfiles}/ref/hg38 \\\n    --backdir ${supportfiles}/matrix/hg38 \\\n    -g hg38 \\\n    -n ${sampleId} \\\n    -c 0.05 \\\n    --ppath /pairix/bin/pairix -p 12 \\\n    -e DpnII \\\n    -o hintout_${id}\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "HINT"
+        ],
+        "tools_url": [
+            "https://bio.tools/hint"
+        ],
+        "tools_dico": [
+            {
+                "name": "HINT",
+                "uri": "https://bio.tools/hint",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0204",
+                            "term": "Gene regulation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3173",
+                            "term": "Epigenomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0415",
+                                    "term": "Nucleic acid feature detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3222",
+                                    "term": "Peak calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0415",
+                                    "term": "Sequence feature detection (nucleic acid)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3222",
+                                    "term": "Protein binding peak detection"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "HMM-based Identification of TF Footprints",
+                "homepage": "http://hint.yulab.org/"
+            }
+        ],
+        "inputs": [
+            "hint_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "hintout_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 1",
+            "memory '48 GB'",
+            "container \"kjdurbin/hint\"",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bwa_mem": {
+        "name_process": "bwa_mem",
+        "string_process": "\nprocess bwa_mem {\n    tag \"_${id}\"\n    cpus 12\n    memory '24 GB'\n    container 'mblanche/bwa-samtools'\n    \n    input:\n    tuple id, file(R1s), file(R2s) from fastqs_ch\n\t.map{bs,file ->\n\t    pref = file.name.toString().take(file.name.toString().indexOf('_R'))\n\t    return(tuple(pref,file))\n\t}\n\t.groupTuple()\n\t.flatten()\n\t.collate(3)\n        .mix(fastqDir_ch)\n\t.mix(genewiz_ch)\n\n    tuple index, path(index_files) from bwa_index.first()                                                            \n    \n    output:\n    tuple id, path(\"*.bam\"), path(\"*.tsv\") into  pairtools_parse_ch\n    \n    script:\n    \"\"\"\n    bwa mem -5SP -t ${task.cpus} \\\n    \t${index} \\\n    \t<(zcat ${R1s}) \\\n    \t<(zcat ${R2s}) \\\n\t|samtools view -@ ${task.cpus} -Shb -o ${id}.bam - \\\n\t&& samtools view -H ${id}.bam | \\\n\tawk -v OFS='\\t' '/^@SQ/ && !(\\$2 ~ /:(chr|\"\")M/) {split(\\$2,chr,\":\");split(\\$3,ln,\":\");print chr[2],ln[2]}' | \\\n\tsort -V -k1,1 \\\n\t> chr_size.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    bwa mem -5SP -t ${task.cpus} \\\n    \t${index} \\\n    \t<(zcat ${R1s}) \\\n    \t<(zcat ${R2s}) \\\n\t|samtools view -@ ${task.cpus} -Shb -o ${id}.bam - \\\n\t&& samtools view -H ${id}.bam | \\\n\tawk -v OFS='\\t' '/^@SQ/ && !(\\$2 ~ /:(chr|\"\")M/) {split(\\$2,chr,\":\");split(\\$3,ln,\":\");print chr[2],ln[2]}' | \\\n\tsort -V -k1,1 \\\n\t> chr_size.tsv\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "BWA",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "fastqs_ch",
+            "fastqDir_ch",
+            "genewiz_ch",
+            "bwa_index"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "pairtools_parse_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 12",
+            "memory '24 GB'",
+            "container 'mblanche/bwa-samtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pairtools_parse": {
+        "name_process": "pairtools_parse",
+        "string_process": "\nprocess pairtools_parse {\n    tag \"_${id}\"\n    cpus 14\n    memory '50 GB'\n    container 'mblanche/pairtools'\n\n    input:\n    tuple id, path(sam), path(chr_sizes) from pairtools_parse_ch\n\n    output:\n    tuple id, path(\"*.pairsam.gz\") into pairsam_part_ch\n\n    script:\n    \"\"\"\n    pairtools parse \\\n\t--min-mapq ${params.mapQ} \\\n\t--walks-policy 5unique \\\n\t--max-inter-align-gap 30 \\\n\t--nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--chroms-path ${chr_sizes} \\\n\t--output ${id}.pairsam.gz \\\n\t${sam} \n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    pairtools parse \\\n\t--min-mapq ${params.mapQ} \\\n\t--walks-policy 5unique \\\n\t--max-inter-align-gap 30 \\\n\t--nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--chroms-path ${chr_sizes} \\\n\t--output ${id}.pairsam.gz \\\n\t${sam} \n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairtools_parse_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "pairsam_part_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 14",
+            "memory '50 GB'",
+            "container 'mblanche/pairtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pairtools_merge_lane": {
+        "name_process": "pairtools_merge_lane",
+        "string_process": "\nprocess pairtools_merge_lane {\n    tag \"_${id}\"\n    cpus 14\n    memory '50 GB'\n    container 'mblanche/pairtools'\n    \n    input:\n    tuple id, path(sam) from pairsam_part_ch\n\t.map {id, file ->\n            def key = id.tokenize('_').get(0)\n            return tuple(key, file)\n\t}\n\t.groupTuple()\n\n    output:\n    tuple id, path(\"*.pairsam.gz\") into pairsam_ch\n\n    script:\n    if (sam.sort().size() >1) {\n\t\"\"\"\n\tpairtools merge -o ${id}.pairsam.gz --nproc ${task.cpus} ${sam}\n\t\"\"\"\n    } else {\n\t\"\"\"\n\tln -sf ${sam} ${id}_ML.pairsam.gz\n\t\"\"\"\n    }\n    \n}",
+        "nb_lignes_process": 28,
+        "string_script": "    if (sam.sort().size() >1) {\n\t\"\"\"\n\tpairtools merge -o ${id}.pairsam.gz --nproc ${task.cpus} ${sam}\n\t\"\"\"\n    } else {\n\t\"\"\"\n\tln -sf ${sam} ${id}_ML.pairsam.gz\n\t\"\"\"\n    }",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairsam_part_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "pairsam_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 14",
+            "memory '50 GB'",
+            "container 'mblanche/pairtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pairtools_sort": {
+        "name_process": "pairtools_sort",
+        "string_process": "\nprocess pairtools_sort {\n    tag \"_${id}\"\n    cpus 14\n    memory '100 GB'\n    container 'mblanche/pairtools'\n\n    input:\n    tuple id, path(sam) from pairsam_ch\n\n    output:\n    tuple id, path(\"*_sorted.pairsam.gz\") into sorted_ps_ch\n    \n    script:\n    \"\"\"\n    mkdir -p tmp \n    pairtools sort --tmpdir ./tmp  \\\n\t--nproc ${task.cpus} \\\n\t--output ${id}_sorted.pairsam.gz \\\n\t$sam \n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    mkdir -p tmp \n    pairtools sort --tmpdir ./tmp  \\\n\t--nproc ${task.cpus} \\\n\t--output ${id}_sorted.pairsam.gz \\\n\t$sam \n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairsam_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sorted_ps_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 14",
+            "memory '100 GB'",
+            "container 'mblanche/pairtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pairtools_dedup": {
+        "name_process": "pairtools_dedup",
+        "string_process": "\nprocess pairtools_dedup {\n    tag \"_${id}\"\n    cpus 14\n    memory '40 GB'\n    container 'mblanche/pairtools'\n    \n    publishDir \"${params.outDir}/pairtools_stat\",\n    \tmode: 'copy',\n    \tsaveAs: {filename -> filename.endsWith('.stats') ? filename : null}\n    \n    input:\n    tuple id, path(sam) from sorted_ps_ch\n\n    output:\n    tuple id, path(\"*_dedup.pairsam.gz\") into dedup_ps_ch\n    tuple id, path(\"*_unmapped.pairsam.gz\") into unmapped_ps_ch\n    tuple id, path(\"*_pairtools.stats\") into ps_stats_ch\n\n    script:\n    \"\"\"\n    pairtools dedup --nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--mark-dups \\\n\t--output-stats ${id}_pairtools.stats  \\\n\t--output ${id}_dedup.pairsam.gz \\\n\t--output-unmapped ${id}_unmapped.pairsam.gz \\\n\t${sam}\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    pairtools dedup --nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--mark-dups \\\n\t--output-stats ${id}_pairtools.stats  \\\n\t--output ${id}_dedup.pairsam.gz \\\n\t--output-unmapped ${id}_unmapped.pairsam.gz \\\n\t${sam}\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sorted_ps_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "dedup_ps_ch",
+            "unmapped_ps_ch",
+            "ps_stats_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 14",
+            "memory '40 GB'",
+            "container 'mblanche/pairtools'",
+            "publishDir \"${params.outDir}/pairtools_stat\" , mode: 'copy' , saveAs: {filename -> filename.endsWith('.stats') ? filename : null}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pairtools_stats_merge": {
+        "name_process": "pairtools_stats_merge",
+        "string_process": "\nprocess pairtools_stats_merge {\n    tag \"_${id}\"\n    cpus 1\n    memory '4 GB'\n    container 'mblanche/pt-stats'\n\n    publishDir \"${params.outDir}\",\n\tmode: 'copy'\n    \n    input:\n    path(stats) from ps_stats_ch\n\t.map{it[1]}\n\t.collect()\n    \n    output:\n    path('pairtoolsStats.csv') into merged_stats_ch\n    \n    script:\n    \"\"\"\n    pairtoolsStat.sh ${stats} > pairtoolsStats.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    pairtoolsStat.sh ${stats} > pairtoolsStats.csv\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ps_stats_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_stats_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 1",
+            "memory '4 GB'",
+            "container 'mblanche/pt-stats'",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pairtools_split_dedup": {
+        "name_process": "pairtools_split_dedup",
+        "string_process": "\nprocess pairtools_split_dedup {\n    tag \"_${id}\"\n    cpus 14\n    memory '40 GB'\n    container 'mblanche/pairtools'\n\n    input:\n    tuple id, path(sam) from dedup_ps_ch\n    \n    output:\n    tuple id, path(\"*.bam\") into bam_parts_ch\n    tuple id, path(\"*.valid.pairs.gz\") into pairs_parts_ch, pairs_parts_ch_test\n\n    script:\n    \"\"\"\n    pairtools split --nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--output-sam ${id}_PT.bam  \\\n\t--output-pairs ${id}_PT.valid.pairs.gz  \\\n\t${sam}\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    pairtools split --nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--output-sam ${id}_PT.bam  \\\n\t--output-pairs ${id}_PT.valid.pairs.gz  \\\n\t${sam}\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dedup_ps_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bam_parts_ch",
+            "pairs_parts_ch",
+            "pairs_parts_ch_test"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 14",
+            "memory '40 GB'",
+            "container 'mblanche/pairtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_bam": {
+        "name_process": "merge_bam",
+        "string_process": "\nprocess merge_bam {\n    tag \"_${id}\"\n    cpus 48\n    memory '100 GB'\n    container 'mblanche/bwa-samtools'\n    \n    input:\n    tuple id, path(bam_part) from bam_parts_ch\n\t.map {id, file ->\n\t    if ( id.contains(\"-rep\") ){\n\t\tdef key = id.replaceFirst(/(.*)-rep.*/,'$1')\n\t\treturn tuple(key, file)\n\t    } else {\n\t\treturn( tuple(id,file) )\n\t    }\n\t}\n\t.groupTuple()\n\n    output:\n    tuple id, path(\"*.bam\") into merged_bam_sort_ch\n\n    script:\n    bam_files = bam_part.sort()\n    if (bam_files.size() >1) {\n\t\"\"\"\n\tsamtools merge -@ ${task.cpus} ${id}_MB.bam ${bam_part}\n\t\"\"\"\n    } else {\n\t\"\"\"\n\tln -s ${bam_part} ${id}_MB.bam\n\t\"\"\"\n    }\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    bam_files = bam_part.sort()\n    if (bam_files.size() >1) {\n\t\"\"\"\n\tsamtools merge -@ ${task.cpus} ${id}_MB.bam ${bam_part}\n\t\"\"\"\n    } else {\n\t\"\"\"\n\tln -s ${bam_part} ${id}_MB.bam\n\t\"\"\"\n    }",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "bam_parts_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "merged_bam_sort_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 48",
+            "memory '100 GB'",
+            "container 'mblanche/bwa-samtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bam_sort": {
+        "name_process": "bam_sort",
+        "string_process": "\nprocess bam_sort {\n    tag \"bam_sort_${id}\"\n    cpus 48\n    memory '150 GB'\n    container 'mblanche/bwa-samtools'\n    \n    publishDir \"${params.outDir}/bam\",\n\tmode: 'copy',\n\tpattern: \"${id}.bam\"\n        \n    input:\n    tuple id, path(bam) from merged_bam_sort_ch\n    \n    output:\n    tuple id, path(\"${id}.bam\"),path(\"${id}.bam.bai\") into bam_bigwig_ch\n\n    script:\n    \"\"\"\n    samtools sort -m 2G \\\n\t-@ ${task.cpus} \\\n\t-o ${id}.bam \\\n\t${bam} \n\n    samtools index -@${task.cpus} ${id}.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    samtools sort -m 2G \\\n\t-@ ${task.cpus} \\\n\t-o ${id}.bam \\\n\t${bam} \n\n    samtools index -@${task.cpus} ${id}.bam\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "merged_bam_sort_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bam_bigwig_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"bam_sort_${id}\"",
+            "cpus 48",
+            "memory '150 GB'",
+            "container 'mblanche/bwa-samtools'",
+            "publishDir \"${params.outDir}/bam\" , mode: 'copy' , pattern: \"${id}.bam\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pairtools_split_unmapped": {
+        "name_process": "pairtools_split_unmapped",
+        "string_process": "\nprocess pairtools_split_unmapped {\n    tag \"_${id}\"\n    cpus 14\n    memory '40 GB'\n    container 'mblanche/pairtools'\n    \n    publishDir \"${params.outDir}/unmapped\",\n    \tmode: 'copy'\n\n    input:\n    tuple id, path(sam) from unmapped_ps_ch\n    \n    output:\n    path \"*_unmapped.bam\" into unmapped_bam_ch\n    path \"*_unmapped.valid.pairs.gz\" into unmapped_pairs_ch\n\n    script:\n    \"\"\"\n    pairtools split --nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--output-sam ${id}_unmapped.bam  \\\n\t--output-pairs ${id}_unmapped.valid.pairs.gz  \\\n\t${sam}\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    pairtools split --nproc-in ${task.cpus} --nproc-out ${task.cpus} \\\n\t--output-sam ${id}_unmapped.bam  \\\n\t--output-pairs ${id}_unmapped.valid.pairs.gz  \\\n\t${sam}\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "unmapped_ps_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "unmapped_bam_ch",
+            "unmapped_pairs_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 14",
+            "memory '40 GB'",
+            "container 'mblanche/pairtools'",
+            "publishDir \"${params.outDir}/unmapped\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_pairs": {
+        "name_process": "merge_pairs",
+        "string_process": "\nprocess merge_pairs {\n    tag \"_${id}\"\n    cpus 14\n    memory '40 GB'\n    container 'mblanche/pairtools'\n    \n    publishDir \"${params.outDir}/validPairs\",\n    \tmode: 'copy'\n    \n    input:\n    tuple val(id), path(pairs) from pairs_parts_ch\n\t.map {id, file ->\n\t    if ( id.contains(\"-rep\") ){\n\t\tdef key = id.replaceFirst(/(.*)-rep.*/,'$1')\n\t\treturn tuple(key, file)\n\t    } else {\n\t\treturn( tuple(id,file) )\n\t    }\n\t}\n\t.groupTuple()\n    \n    output:\n    tuple id, path(\"*.valid.pairs.gz\"), path(\"*.px2\") into pairs_chrSize_ch\n\n    script:\n    pair_files = pairs.sort()\n    if (pair_files.size() >1) {\n\t\"\"\"\n\tpairtools merge -o ${id}.valid.pairs.gz --nproc ${task.cpus}  ${pairs}\n\tpairix ${id}.valid.pairs.gz\n\t\"\"\"\n    } else {\n\t\"\"\"\n\tln -s ${pairs} ${id}.valid.pairs.gz\n\tpairix ${id}.valid.pairs.gz\n\t\"\"\"\n    }\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    pair_files = pairs.sort()\n    if (pair_files.size() >1) {\n\t\"\"\"\n\tpairtools merge -o ${id}.valid.pairs.gz --nproc ${task.cpus}  ${pairs}\n\tpairix ${id}.valid.pairs.gz\n\t\"\"\"\n    } else {\n\t\"\"\"\n\tln -s ${pairs} ${id}.valid.pairs.gz\n\tpairix ${id}.valid.pairs.gz\n\t\"\"\"\n    }",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairs_parts_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "pairs_chrSize_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 14",
+            "memory '40 GB'",
+            "container 'mblanche/pairtools'",
+            "publishDir \"${params.outDir}/validPairs\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chr_size": {
+        "name_process": "chr_size",
+        "string_process": "\nprocess chr_size {\n    tag \"_${id}\"\n    cpus 4\n    memory '24 GB'\n    container 'mblanche/pairtools'\n    \n    input:\n    tuple id, path(pairs), path(idx) from pairs_chrSize_ch\n    \n    output:\n    tuple id, path(pairs), path(idx), path(\"*.tsv\") into pairs_ch_cooler, pairs_ch_juicer\n    \n    script:\n    \"\"\"\n    pairix -H -f ${pairs} \\\n\t| awk -v OFS='\\t' '/^#chromsize/  {print \\$2,\\$3}' \\\n\t| sort -V -k1,1 \\\n\t> chr_size.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    pairix -H -f ${pairs} \\\n\t| awk -v OFS='\\t' '/^#chromsize/  {print \\$2,\\$3}' \\\n\t| sort -V -k1,1 \\\n\t> chr_size.tsv\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairs_chrSize_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "pairs_ch_cooler",
+            "pairs_ch_juicer"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 4",
+            "memory '24 GB'",
+            "container 'mblanche/pairtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bam2bw": {
+        "name_process": "bam2bw",
+        "string_process": "\nprocess bam2bw {\n    tag \"_${id}\"\n    cpus 20\n    memory '175 GB'\n    \n    container 'mblanche/r-cov'\n    \n    publishDir \"${params.outDir}/bigwigs\",\n    \tmode: 'copy'\n    \n    input:\n    tuple id, path(bam),path(idx) from bam_bigwig_ch\n        \n    output:\n    tuple id, path (\"*.bw\") into bigwig_out_ch\n\n    script:\n    \"\"\"\n    bam2bw ${bam} ${id}.bw ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    bam2bw ${bam} ${id}.bw ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bam_bigwig_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bigwig_out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 20",
+            "memory '175 GB'",
+            "container 'mblanche/r-cov'",
+            "publishDir \"${params.outDir}/bigwigs\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hla_la_single": {
+        "name_process": "hla_la_single",
+        "string_process": "\nprocess hla_la_single {\n    echo true\n    input: \n    val x from cheers\n    \n    script:\n    \"\"\"\n    echo '${x}!  Tachyon beam fired!'\n    \"\"\"\n}",
+        "nb_lignes_process": 9,
+        "string_script": "    \"\"\"\n    echo '${x}!  Tachyon beam fired!'\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cheers"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "echo true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dv_simple": {
+        "name_process": "dv_simple",
+        "string_process": "\nprocess dv_simple {\n    cpus 48\n    memory '48 GB'\n    container \"google/deepvariant\"\n    \n    publishDir \"${params.outDir}\",\n\tmode: 'copy'\n    \n    input:\n    tuple sampleID,path(bamfile),path(referencedir) from dv_ch\n    \n    output: \n    path \"*vcf.gz\" into dvout_ch\n    \n    script:\n    \n    \"\"\" \n\t/opt/deepvariant/bin/run_deepvariant \\\n\t--model_type=WGS \\\n\t--ref=$referencedir/hg38.fa \\\n\t--reads=$bamfile \\\n\t--output_vcf=${sampleID}.vcf.gz \\\n\t--output_gvcf=${sampleID}.g.vcf.gz\\\n\t--intermediate_results_dir /intermediate_results_dir \\\n\t--num_shards=48    \n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\" \n\t/opt/deepvariant/bin/run_deepvariant \\\n\t--model_type=WGS \\\n\t--ref=$referencedir/hg38.fa \\\n\t--reads=$bamfile \\\n\t--output_vcf=${sampleID}.vcf.gz \\\n\t--output_gvcf=${sampleID}.g.vcf.gz\\\n\t--intermediate_results_dir /intermediate_results_dir \\\n\t--num_shards=48    \n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dv_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "dvout_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 48",
+            "memory '48 GB'",
+            "container \"google/deepvariant\"",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "runSelva": {
+        "name_process": "runSelva",
+        "string_process": "\nprocess runSelva {\n    cpus = 25\n    memory = '100G'   \n    executor = 'awsbatch'\n    queue = 'nfq-VIP'\n    container '916851041342.dkr.ecr.us-west-2.amazonaws.com/pyselva'                                 \n\n    input:\n    tuple id,bamin,outdir,coolin,genome from work_list\n\n    output:\n    stdout out_ch\n    \"\"\"\n    python3 /selva_tad/bin/cooler_selva_pipe.py find-sv ${id} ${bamin} ${outdir} ${coolin} ${genome} --threads=25\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    python3 /selva_tad/bin/cooler_selva_pipe.py find-sv ${id} ${bamin} ${outdir} ${coolin} ${genome} --threads=25\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "work_list"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus = 25",
+            "memory = '100G'",
+            "executor = 'awsbatch'",
+            "queue = 'nfq-VIP'",
+            "container '916851041342.dkr.ecr.us-west-2.amazonaws.com/pyselva'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hic_breakfinder": {
+        "name_process": "hic_breakfinder",
+        "string_process": "\nprocess hic_breakfinder {\n    cpus 8\n    memory '48 GB'\n    container \"kjdurbin/hic_breakfinder\"\n    \n    publishDir \"${params.outDir}\",\n\tmode: 'copy'\n    \n    input:\n    tuple val(id),path(bam),path(inter),path(intra) from hicbreakfinder_ch\n    \n    output:\n    tuple id,path(\"*.txt\") into hicbreakfinder_out_ch\n    \n    script:\n    id = bam.name.toString().take(bam.name.toString().lastIndexOf('.'))\n    \"\"\"\n    aws s3 cp ${interExpect} . \n    aws s3 cp ${intraExpect} . \n    \n    /usr/local/bin/hic_breakfinder --bam-file ${bam} \\\n    --exp-file-inter inter_expect_1Mb.hg38.txt \\\n    --exp-file-intra intra_expect_100kb.hg38.txt --name ${id}\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    id = bam.name.toString().take(bam.name.toString().lastIndexOf('.'))\n    \"\"\"\n    aws s3 cp ${interExpect} . \n    aws s3 cp ${intraExpect} . \n    \n    /usr/local/bin/hic_breakfinder --bam-file ${bam} \\\n    --exp-file-inter inter_expect_1Mb.hg38.txt \\\n    --exp-file-intra intra_expect_100kb.hg38.txt --name ${id}\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "MID",
+            "JABAWS"
+        ],
+        "tools_url": [
+            "https://bio.tools/mid",
+            "https://bio.tools/jabaws"
+        ],
+        "tools_dico": [
+            {
+                "name": "MID",
+                "uri": "https://bio.tools/mid",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "MID (Micro-Inversion Detector) is a tool to detect microinversions (MIs) by mapping initially unmapped short reads back onto reference genome sequence (i.e. human genome assebly hg19).",
+                "homepage": "http://cqb.pku.edu.cn/ZhuLab/MID/index.html"
+            },
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            }
+        ],
+        "inputs": [
+            "hicbreakfinder_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "hicbreakfinder_out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 8",
+            "memory '48 GB'",
+            "container \"kjdurbin/hic_breakfinder\"",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "deepvariant": {
+        "name_process": "deepvariant",
+        "string_process": "\nprocess deepvariant{\n    cpus 48\n    memory '48 GB'\n    container \"google/deepvariant\"\n\n    publishDir \"${params.outDir}\",\n\tmode: 'copy'\n\n    input:\n    tuple sampleID,path(bamfiles),path(referencedir) from dv_ch\n\n    output: \n    path \"*vcf.gz\" into dvout_ch\n\n    script:\n    bam = bamfiles[0]\n    bai = bamfiles[1]\n\n    \"\"\" \n\t/opt/deepvariant/bin/run_deepvariant \\\n\t--model_type=WGS \\\n\t--ref=$referencedir/${params.refName}.fa \\\n\t--reads=$bam \\\n\t--output_vcf=${sampleID}.vcf.gz \\\n\t--output_gvcf=${sampleID}.g.vcf.gz\\\n\t--intermediate_results_dir /intermediate_results_dir \\\n\t--num_shards=48    \n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    bam = bamfiles[0]\n    bai = bamfiles[1]\n\n    \"\"\" \n\t/opt/deepvariant/bin/run_deepvariant \\\n\t--model_type=WGS \\\n\t--ref=$referencedir/${params.refName}.fa \\\n\t--reads=$bam \\\n\t--output_vcf=${sampleID}.vcf.gz \\\n\t--output_gvcf=${sampleID}.g.vcf.gz\\\n\t--intermediate_results_dir /intermediate_results_dir \\\n\t--num_shards=48    \n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "BaMM",
+            "BAIT"
+        ],
+        "tools_url": [
+            "https://bio.tools/bamm",
+            "https://bio.tools/bait"
+        ],
+        "tools_dico": [
+            {
+                "name": "BaMM",
+                "uri": "https://bio.tools/bamm",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip sequencing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Sequence motif recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Enrichment analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Sequence motif discovery"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Motif scanning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Sequence signature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Sequence signature detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Enrichment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Over-representation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Motif discovery"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "de-novo motif discovery and regulatory sequence analysis.\nDiscovery of regulatory motifs with higher-order Bayesian Markov Models (BaMMs)",
+                "homepage": "https://bammmotif.mpibpc.mpg.de"
+            },
+            {
+                "name": "BAIT",
+                "uri": "https://bio.tools/bait",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2945",
+                                    "term": "Analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BAIT (Bioinformatic Analysis of Inherited Templates) is a software to create strand inheritance plots in data derived from the Strand-Seq sequencing protocol. The software is designed to be flexible with a range of species, and basic template folders can called to read in species-specific data.",
+                "homepage": "http://sourceforge.net/projects/bait/"
+            }
+        ],
+        "inputs": [
+            "dv_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "dvout_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 48",
+            "memory '48 GB'",
+            "container \"google/deepvariant\"",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "phase_variants": {
+        "name_process": "phase_variants",
+        "string_process": "\nprocess phase_variants{\n\n}",
+        "nb_lignes_process": 2,
+        "string_script": "",
+        "nb_lignes_script": 0,
+        "language_script": "",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "jdurbin__nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "altref": {
+        "name_process": "altref",
+        "string_process": "\nprocess altref{\n\n\n}",
+        "nb_lignes_process": 3,
+        "string_script": "",
+        "nb_lignes_script": 0,
+        "language_script": "",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "jdurbin__nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calltype": {
+        "name_process": "calltype",
+        "string_process": "\nprocess calltype{\n\n}",
+        "nb_lignes_process": 2,
+        "string_script": "",
+        "nb_lignes_script": 0,
+        "language_script": "",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "jdurbin__nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "sortAndIndexBAM": {
+        "name_process": "sortAndIndexBAM",
+        "string_process": "\nprocess sortAndIndexBAM{\n    cpus = 8\n    memory = '20G'    // I'm requesting total memory for all 8 processes... or should this be per vcpu?\n    executor = 'awsbatch'\n    queue = 'nfq-VIP'\n    container '916851041342.dkr.ecr.us-west-2.amazonaws.com/pyselva'                                 \n    \n    input:\n    tuple val(bampath),val(bamID) from bam_ch\n    \n    output:\n    stdout out_ch\n    \"\"\"\n    samtools sort -m 2G -@ 8 ${bampath}/${bamID}.bam -T /mnt/ebs/tmpjd/${bamID} -o ${bampath}/${bamID}_sorted.bam\n    samtools index ${bampath}/${bamID}_sorted.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    samtools sort -m 2G -@ 8 ${bampath}/${bamID}.bam -T /mnt/ebs/tmpjd/${bamID} -o ${bampath}/${bamID}_sorted.bam\n    samtools index ${bampath}/${bamID}_sorted.bam\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "bam_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus = 8",
+            "memory = '20G' // I'm requesting total memory for all 8 processes... or should this be per vcpu?",
+            "executor = 'awsbatch'",
+            "queue = 'nfq-VIP'",
+            "container '916851041342.dkr.ecr.us-west-2.amazonaws.com/pyselva'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dv_simple_dir": {
+        "name_process": "dv_simple_dir",
+        "string_process": "\nprocess dv_simple_dir {\n    cpus 48\n    memory '48 GB'\n    container \"google/deepvariant\"\n    \n    publishDir \"${params.outDir}\",\n\tmode: 'copy'\n    \n    input:\n    tuple sampleID,path(bamfiles),path(referencedir) from dv_ch\n    \n    output: \n    path \"*vcf.gz\" into dvout_ch\n    \n    script:\n    bam = bamfiles[0]\n    bai = bamfiles[1]\n    \n    \"\"\" \n\t/opt/deepvariant/bin/run_deepvariant \\\n\t--model_type=WGS \\\n\t--ref=$referencedir/${params.refName}.fa \\\n\t--reads=$bam \\\n\t--output_vcf=${sampleID}.vcf.gz \\\n\t--output_gvcf=${sampleID}.g.vcf.gz\\\n\t--intermediate_results_dir /intermediate_results_dir \\\n\t--num_shards=48    \n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    bam = bamfiles[0]\n    bai = bamfiles[1]\n    \n    \"\"\" \n\t/opt/deepvariant/bin/run_deepvariant \\\n\t--model_type=WGS \\\n\t--ref=$referencedir/${params.refName}.fa \\\n\t--reads=$bam \\\n\t--output_vcf=${sampleID}.vcf.gz \\\n\t--output_gvcf=${sampleID}.g.vcf.gz\\\n\t--intermediate_results_dir /intermediate_results_dir \\\n\t--num_shards=48    \n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "BaMM",
+            "BAIT"
+        ],
+        "tools_url": [
+            "https://bio.tools/bamm",
+            "https://bio.tools/bait"
+        ],
+        "tools_dico": [
+            {
+                "name": "BaMM",
+                "uri": "https://bio.tools/bamm",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip sequencing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Sequence motif recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Enrichment analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Sequence motif discovery"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Motif scanning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Sequence signature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0239",
+                                    "term": "Sequence signature detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Enrichment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3501",
+                                    "term": "Over-representation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Motif discovery"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "de-novo motif discovery and regulatory sequence analysis.\nDiscovery of regulatory motifs with higher-order Bayesian Markov Models (BaMMs)",
+                "homepage": "https://bammmotif.mpibpc.mpg.de"
+            },
+            {
+                "name": "BAIT",
+                "uri": "https://bio.tools/bait",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2945",
+                                    "term": "Analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BAIT (Bioinformatic Analysis of Inherited Templates) is a software to create strand inheritance plots in data derived from the Strand-Seq sequencing protocol. The software is designed to be flexible with a range of species, and basic template folders can called to read in species-specific data.",
+                "homepage": "http://sourceforge.net/projects/bait/"
+            }
+        ],
+        "inputs": [
+            "dv_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "dvout_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 48",
+            "memory '48 GB'",
+            "container \"google/deepvariant\"",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "copy_mapping": {
+        "name_process": "copy_mapping",
+        "string_process": " process copy_mapping {\n\tcpus 1\n\tmemory \"2 GB\"\n\tcontainer 'mblanche/basespace-cli'\n\t\n\tpublishDir \"${params.outDir}\",\n\t    mode: 'copy'\n\t\n\tinput:\n\tval mapping from keyMapping_ch\n\t    .map { l = [it[0],it[1].toString(),it[2].toString()]\n\t\t  l.join(\",\")\n\t    }\n\t    .flatten()\n\t    .collect()\n\n\toutput:\n\tpath (\"*.csv\")  into outMapping\n\n\tscript:\n\t\"\"\"\n\techo \"id,R1_fastq,R2_fastq\" > keyMapping.csv\n\tfor l in ${mapping}; do\n\techo \\${l::-1} >> keyMapping.csv\n\tdone\n\t\"\"\"\n    }",
+        "nb_lignes_process": 25,
+        "string_script": "\t\"\"\"\n\techo \"id,R1_fastq,R2_fastq\" > keyMapping.csv\n\tfor l in ${mapping}; do\n\techo \\${l::-1} >> keyMapping.csv\n\tdone\n\t\"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "keyMapping_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "outMapping"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 1",
+            "memory \"2 GB\"",
+            "container 'mblanche/basespace-cli'",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "copy_manifest": {
+        "name_process": "copy_manifest",
+        "string_process": " process copy_manifest {\n\tcpus 1\n\tmemory \"2 GB\"\n\tcontainer 'mblanche/basespace-cli'\n\t\n\tpublishDir \"${params.outDir}\",\n\t    mode: 'copy'\n\t\n\tinput:\n\tpath manifest from Channel.fromPath(params.genewizMap)\n\t\n\toutput:\n\tpath manifest into outManifest\n\t\n\tscript:\n\t\"\"\"\n\tcat ${manifest}\n\t\"\"\"\n    }",
+        "nb_lignes_process": 17,
+        "string_script": "\t\"\"\"\n\tcat ${manifest}\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "outManifest"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 1",
+            "memory \"2 GB\"",
+            "container 'mblanche/basespace-cli'",
+            "publishDir \"${params.outDir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_bs_files": {
+        "name_process": "get_bs_files",
+        "string_process": " process get_bs_files {\n\tcpus 1\n\tmemory '1G'\n\tcontainer 'mblanche/basespace-cli'\n\t\n\tinput:\n\tval bs from biosample_ch\n\t\n\toutput:\n\tstdout into bs_id_ch\n\t\n\tscript:\n\t\"\"\"\n\tbs biosample content -n ${bs} -F Id -F FilePath -f csv | \\\n\t    awk 'BEGIN{OFS =\",\"} \\\n\t    NR == 1 {print \"biosample\", \\$0} \\\n\t    NR > 1  {print \"${bs}\", \\$0}'\n\t\"\"\"\n    }",
+        "nb_lignes_process": 17,
+        "string_script": "\t\"\"\"\n\tbs biosample content -n ${bs} -F Id -F FilePath -f csv | \\\n\t    awk 'BEGIN{OFS =\",\"} \\\n\t    NR == 1 {print \"biosample\", \\$0} \\\n\t    NR > 1  {print \"${bs}\", \\$0}'\n\t\"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "GBS"
+        ],
+        "tools_url": [
+            "https://bio.tools/GBS"
+        ],
+        "tools_dico": [
+            {
+                "name": "GBS",
+                "uri": "https://bio.tools/GBS",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarray experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarrays"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Read binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0452",
+                                    "term": "Indel detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning shotgun reads"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0452",
+                                    "term": "Indel discovery"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0452",
+                                    "term": "Sequence alignment analysis (indel detection)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Screening populations for copy number variation using genotyping-by-sequencing | Detection of deletions and duplications from GBS data | delgbs is an R package which provides tools for detecting copy number variation from genotyping-by-sequencing (GBS) data. delgbs bases its CNV calls on the number of reads per sample in discrete bins (e.g. 1-kb bins) located along a reference genome",
+                "homepage": "http://github.com/malemay/delgbs"
+            }
+        ],
+        "inputs": [
+            "biosample_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bs_id_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "cpus 1",
+            "memory '1G'",
+            "container 'mblanche/basespace-cli'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "download_bs": {
+        "name_process": "download_bs",
+        "string_process": " process download_bs {\n\tlabel \"movers\"\n\tcpus 4\n\tmemory '4G'\n\tcontainer 'mblanche/basespace-cli'\n\tqueue 'moversQ'\n\t\n\tpublishDir \"${params.outDir}/fastqs\",\n\t    mode: 'copy'\n\t\n\tinput:\n\ttuple bs, val(oriFname), val(newFname), val(id) from bs_id_ch\n\t    .splitCsv(header: true)\n\t    .map { row -> tuple(row.FilePath,row.biosample, row.Id )}\n\t    .groupTuple()\n\t    .map{if (it[2].size() >1){\n\t\t    x = []\n\t\t    fname = it[0]\n\t\t    id = fname.take(fname.indexOf('_'))\n\t\t    suff = fname.substring(fname.indexOf('_')+1)\n\t\t    bs = it[1][0]\n\t\t    \n\t\t    for (i in (1..it[2].size())) {\n\t\t\tx.add([bs,fname,\"${id}_FC${i}_${suff}\",it[2][i-1]])\n\t\t    }\n\t\t    return(x)\n\t\t} else {\n\t\t    fname = it[0]\n\t\t    bs = it[1][0]\n\t\t    id = it[2]\n\t\t    return([bs,fname,fname,id])\n\t\t}\n\t    }\n\t    .flatten()\n\t    .collate(4)\n\t\n\toutput:\n\ttuple bs, file(\"*.fastq.gz\") into fastqs_ch\n\t\n\tscript:\n\t\"\"\"\n\tbs file download -i ${id} -o . \n\n\tif [ \"${oriFname}\" != \"${newFname}\" ];then \n\t    mv ${oriFname} ${newFname}\n\tfi\n\t\"\"\"\n    }",
+        "nb_lignes_process": 46,
+        "string_script": "\t\"\"\"\n\tbs file download -i ${id} -o . \n\n\tif [ \"${oriFname}\" != \"${newFname}\" ];then \n\t    mv ${oriFname} ${newFname}\n\tfi\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "GBS"
+        ],
+        "tools_url": [
+            "https://bio.tools/GBS"
+        ],
+        "tools_dico": [
+            {
+                "name": "GBS",
+                "uri": "https://bio.tools/GBS",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarray experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarrays"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Read binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0452",
+                                    "term": "Indel detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning shotgun reads"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3798",
+                                    "term": "Binning"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0452",
+                                    "term": "Indel discovery"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0452",
+                                    "term": "Sequence alignment analysis (indel detection)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Screening populations for copy number variation using genotyping-by-sequencing | Detection of deletions and duplications from GBS data | delgbs is an R package which provides tools for detecting copy number variation from genotyping-by-sequencing (GBS) data. delgbs bases its CNV calls on the number of reads per sample in discrete bins (e.g. 1-kb bins) located along a reference genome",
+                "homepage": "http://github.com/malemay/delgbs"
+            }
+        ],
+        "inputs": [
+            "bs_id_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastqs_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "label \"movers\"",
+            "cpus 4",
+            "memory '4G'",
+            "container 'mblanche/basespace-cli'",
+            "queue 'moversQ'",
+            "publishDir \"${params.outDir}/fastqs\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cooler_cload": {
+        "name_process": "cooler_cload",
+        "string_process": "\nprocess cooler_cload {\n    tag \"_${id}\"\n    cpus 48\n    memory '100 GB'\n    container 'mblanche/cooler'\n\n    input:\n    tuple id, path(pairs), path(idx), path(chr_sizes) from pairs_ch_cooler\n    \n    output:\n    tuple id, path(\"*.cool\") into balance_cooler_ch\n        \n    script:\n    \"\"\"\n    cooler cload pairix \\\n\t-p ${task.cpus} \\\n\t${chr_sizes}:1000 \\\n\t${pairs} \\\n\t${id}.cool\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    cooler cload pairix \\\n\t-p ${task.cpus} \\\n\t${chr_sizes}:1000 \\\n\t${pairs} \\\n\t${id}.cool\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairs_ch_cooler"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "balance_cooler_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 48",
+            "memory '100 GB'",
+            "container 'mblanche/cooler'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "balance_cooler": {
+        "name_process": "balance_cooler",
+        "string_process": "\nprocess balance_cooler {\n    tag \"_${id}\"\n    cpus 48\n    memory '100 GB'\n    container 'mblanche/cooler'\n    \n    publishDir \"${params.outDir}/coolerFiles\",\n    \tmode: 'copy'\n    \n    input:\n    tuple id, path(cooler) from balance_cooler_ch\n\n    output:\n    tuple id, path(cooler) into zoomify_cooler_ch \n    \n    script:\n    \"\"\"\n    cooler balance --force -p ${task.cpus} ${cooler}\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    cooler balance --force -p ${task.cpus} ${cooler}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "balance_cooler_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "zoomify_cooler_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 48",
+            "memory '100 GB'",
+            "container 'mblanche/cooler'",
+            "publishDir \"${params.outDir}/coolerFiles\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cooler_zoomify": {
+        "name_process": "cooler_zoomify",
+        "string_process": "\nprocess cooler_zoomify {\n    tag \"_${id}\"\n    cpus 48\n    memory '100 GB'\n    container 'mblanche/cooler'\n    \n    publishDir \"${params.outDir}/coolerFiles\",\n    \tmode: 'copy'\n    \n    input:\n    tuple id, path(cooler) from zoomify_cooler_ch\n\n    output:\n    tuple id, path(\"*.mcool\") into mustache_mcool_ch, abcomp_mcool_ch\n    \n    script:\n    \"\"\"\n    cooler zoomify --balance -p ${task.cpus} ${cooler}\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    cooler zoomify --balance -p ${task.cpus} ${cooler}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "zoomify_cooler_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mustache_mcool_ch",
+            "abcomp_mcool_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 48",
+            "memory '100 GB'",
+            "container 'mblanche/cooler'",
+            "publishDir \"${params.outDir}/coolerFiles\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "juicer": {
+        "name_process": "juicer",
+        "string_process": "\nprocess juicer {\n    tag \"_${id}\"\n    cpus 24\n    memory '150 GB'\n    container 'mblanche/juicer'\n    \n    publishDir \"${params.outDir}/hicFiles\",\n    mode: 'copy'\n    \n    input:\n    tuple id, path(pairs), path(idx), path(chr_sizes) from pairs_ch_juicer\n    \n    output:\n    tuple id, path(\"*.hic\") into arrowhead_ch, hiccups_ch\n\n    script:\n    \"\"\"\n    java -Xmx96000m -Djava.awt.headless=true \\\n\t-jar /juicer_tools.jar pre \\\n\t--threads ${task.cpus} \\\n\t-j ${task.cpus} \\\n\t-k VC,VC_SQRT,KR,SCALE \\\n\t${pairs} \\\n\t${id}.hic \\\n\t${chr_sizes}\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    java -Xmx96000m -Djava.awt.headless=true \\\n\t-jar /juicer_tools.jar pre \\\n\t--threads ${task.cpus} \\\n\t-j ${task.cpus} \\\n\t-k VC,VC_SQRT,KR,SCALE \\\n\t${pairs} \\\n\t${id}.hic \\\n\t${chr_sizes}\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pairs_ch_juicer"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "arrowhead_ch",
+            "hiccups_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 24",
+            "memory '150 GB'",
+            "container 'mblanche/juicer'",
+            "publishDir \"${params.outDir}/hicFiles\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "arrowhead": {
+        "name_process": "arrowhead",
+        "string_process": " process arrowhead {\n\ttag \"_${id}\"\n\tcpus 12\n\tmemory '40 GB'\n\tcontainer \"mblanche/juicer\"\n\t\n\tpublishDir \"${params.outDir}/arrowHead\",\n\t    mode: 'copy'\n\t\n\tinput:\n\ttuple id, path(hic), val(res) from arrowhead_ch\n\t    .combine(Channel.from(resolutionsList))\n\t\n\toutput:\n\ttuple id, path(\"${id}_${res}kb\") into arrowhead_out_ch\n\t\n\tscript:\n\tbpRes = res.toInteger() * 1000\n\t\"\"\"\n\tmkdir -p ${id}_${res}kb && touch ${id}_${res}kb/${bpRes}_blocks.bedpe\n\tjava -Xmx24000m \\\n\t    -jar /juicer_tools.jar \\\n\t    arrowhead \\\n\t    --threads ${task.cpus} \\\n\t    --ignore-sparsity \\\n\t    -r ${bpRes} \\\n\t    -k KR \\\n\t    ${hic} \\\n\t    ${id}_${res}kb\n\t\"\"\"\n    }",
+        "nb_lignes_process": 29,
+        "string_script": "\tbpRes = res.toInteger() * 1000\n\t\"\"\"\n\tmkdir -p ${id}_${res}kb && touch ${id}_${res}kb/${bpRes}_blocks.bedpe\n\tjava -Xmx24000m \\\n\t    -jar /juicer_tools.jar \\\n\t    arrowhead \\\n\t    --threads ${task.cpus} \\\n\t    --ignore-sparsity \\\n\t    -r ${bpRes} \\\n\t    -k KR \\\n\t    ${hic} \\\n\t    ${id}_${res}kb\n\t\"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "arrowhead_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "arrowhead_out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 12",
+            "memory '40 GB'",
+            "container \"mblanche/juicer\"",
+            "publishDir \"${params.outDir}/arrowHead\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hiccups": {
+        "name_process": "hiccups",
+        "string_process": " process hiccups {\n\ttag \"_${id}\"\n\tlabel 'gpu'\n\taccelerator 1\n\tcpus 6\n\tmemory '30 GB'\n\tcontainer \"mblanche/hiccups-gpu\"\n\t\n\tpublishDir \"${params.outDir}/hiccups/\",\n\t    mode: 'copy'\n\t\n\tinput:\n\ttuple id, path(hic), val(res)  from hiccups_ch\n            .combine(Channel.from(resolutionsList.collect{it*1000}.join(',')))\n\t\n\toutput:\n\ttuple id, path(\"${id}_loops\") into hiccups_out_ch\n\t\n\tscript:\n\t\"\"\"\n\tjava -Xmx24000m \\\n\t    -jar /juicer_tools.jar \\\n\t    hiccups \\\n\t    --threads ${task.cpus} \\\n\t    --ignore-sparsity \\\n\t    -m 500 \\\n\t    -r ${res} \\\n\t    -k KR \\\n\t    ${hic} \\\n\t    ${id}_loops\n\t\"\"\"\n    }",
+        "nb_lignes_process": 30,
+        "string_script": "\t\"\"\"\n\tjava -Xmx24000m \\\n\t    -jar /juicer_tools.jar \\\n\t    hiccups \\\n\t    --threads ${task.cpus} \\\n\t    --ignore-sparsity \\\n\t    -m 500 \\\n\t    -r ${res} \\\n\t    -k KR \\\n\t    ${hic} \\\n\t    ${id}_loops\n\t\"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "hiccups_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "hiccups_out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "label 'gpu'",
+            "accelerator 1",
+            "cpus 6",
+            "memory '30 GB'",
+            "container \"mblanche/hiccups-gpu\"",
+            "publishDir \"${params.outDir}/hiccups/\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mustache": {
+        "name_process": "mustache",
+        "string_process": " process mustache {\n\ttag \"_${id}\"\n\tcpus 24\n\tmemory '48 GB'\n\tcontainer \"mblanche/mustache\"\n\t\n\tpublishDir \"${params.outDir}/mustache\",\n\t    mode: 'copy'\n\t\n\tinput:\n\ttuple id, path(mcool), val(res)  from mustache_mcool_ch\n\t    .combine(Channel.from(1000,4000,16000))\n\t\n\toutput:\n\ttuple id, path(\"*.tsv\") into mustache_2_merge_ch\n\t\n\tscript:\n\t\"\"\"\n\ttouch ${id}_${res}kb_loops.tsv \n\tmustache -p ${task.cpus} \\\n\t    -f ${mcool} \\\n\t    -r ${res} \\\n\t    -o ${id}_${res}kb_loops.tsv\n\t\"\"\"\n    }",
+        "nb_lignes_process": 23,
+        "string_script": "\t\"\"\"\n\ttouch ${id}_${res}kb_loops.tsv \n\tmustache -p ${task.cpus} \\\n\t    -f ${mcool} \\\n\t    -r ${res} \\\n\t    -o ${id}_${res}kb_loops.tsv\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mustache_mcool_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mustache_2_merge_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 24",
+            "memory '48 GB'",
+            "container \"mblanche/mustache\"",
+            "publishDir \"${params.outDir}/mustache\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ABcomp": {
+        "name_process": "ABcomp",
+        "string_process": " process ABcomp {\n\ttag \"_${id}\"\n\tcpus 1\n\tmemory '12 GB'\n\tcontainer \"mblanche/fan-c\"\n\t\n\tpublishDir \"${params.outDir}/AB_comp\",\n\t    mode: 'copy'\n\t\n\tinput:\n\ttuple id, path(cool), val(resKB) from abcomp_mcool_ch\n    \t    .combine(Channel.from(ABresolutions))\n\t\n\tpath(genome) from abcomp_genome_ch.first()\n\t\n\toutput:\n\ttuple id, path(\"*.bed\"), path(\"*.ab\") into fanc_out_ch\n\t\n\tscript:\n\tres = resKB.toInteger() * 1000\n\t\"\"\"\n\tfanc compartments \\\n\t    -f \\\n\t    -v ${id}_eigenV_${resKB}kb.bed \\\n\t    -d ${id}_AB_${resKB}kb.bed \\\n\t    -g ${genome} \\\n\t    ${cool}@${res} \\\n\t    ${id}_${resKB}kb.ab\n\t\"\"\"\n\t\n    }",
+        "nb_lignes_process": 29,
+        "string_script": "\tres = resKB.toInteger() * 1000\n\t\"\"\"\n\tfanc compartments \\\n\t    -f \\\n\t    -v ${id}_eigenV_${resKB}kb.bed \\\n\t    -d ${id}_AB_${resKB}kb.bed \\\n\t    -g ${genome} \\\n\t    ${cool}@${res} \\\n\t    ${id}_${resKB}kb.ab\n\t\"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "TRES"
+        ],
+        "tools_url": [
+            "https://bio.tools/tres"
+        ],
+        "tools_dico": [
+            {
+                "name": "TRES",
+                "uri": "https://bio.tools/tres",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Toolbox for Ranking and Evaluation of SNPs (Population Genomic Data).",
+                "homepage": "http://mlkd.csd.auth.gr/bio/tres/"
+            }
+        ],
+        "inputs": [
+            "abcomp_mcool_ch",
+            "abcomp_genome_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "fanc_out_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "jdurbin__nf",
+        "directive": [
+            "tag \"_${id}\"",
+            "cpus 1",
+            "memory '12 GB'",
+            "container \"mblanche/fan-c\"",
+            "publishDir \"${params.outDir}/AB_comp\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

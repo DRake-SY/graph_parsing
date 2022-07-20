@@ -1,0 +1,586 @@
+{
+    "get_bioprojects": {
+        "name_process": "get_bioprojects",
+        "string_process": "\nprocess get_bioprojects {\n    input:\n        file samples\n\n    output:\n        stdout bioprojects\n\n    script:\n        \"\"\"\n        cut -d ',' -f 1 $samples | tail -n +2 | sort | uniq\n        \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "        \"\"\"\n        cut -d ',' -f 1 $samples | tail -n +2 | sort | uniq\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bioprojects"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "get_accessions": {
+        "name_process": "get_accessions",
+        "string_process": "\nprocess get_accessions {\n    container 'hadrieng/dada2'\n\n    input:\n        val bioproject from bioprojects.splitText() { it.trim() }\n        file samples\n\n    output:\n        set val(bioproject), file(\"${bioproject}.csv\") into metadatas\n\n    script:\n        \"\"\"\n        #!/usr/bin/env Rscript\n\n        library(readr)\n        library(dplyr)\n\n        metadata <- read_csv('$samples')\n        sample_names <- metadata %>%\n            filter(project == '$bioproject') %>%\n            write_csv('${bioproject}.csv')\n        \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env Rscript\n\n        library(readr)\n        library(dplyr)\n\n        metadata <- read_csv('$samples')\n        sample_names <- metadata %>%\n            filter(project == '$bioproject') %>%\n            write_csv('${bioproject}.csv')\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bioprojects",
+            "samples"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "metadatas"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [
+            "container 'hadrieng/dada2'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dada2": {
+        "name_process": "dada2",
+        "string_process": "\nprocess dada2 {\n    container 'hadrieng/dada2'\n    publishDir params.output, mode: 'copy'\n\n    input:\n        set val(bioproject), file(metadata) from metadatas\n        file input_dir\n        file database_dir\n\n    output:\n        file(\"*_${bioproject}.Rds\") into dadas\n\n    script:\n        \"\"\"\n        #!/usr/bin/env Rscript\n\n        library(readr)\n        library(dplyr)\n        library(dada2)\n\n        path <- '$input_dir'\n        metadata <- read_csv('$metadata')\n\n        if ( metadata\\$technology == '454' ) {\n            reads <- as_tibble(sort(list.files(path,\n                               pattern = \".fastq.gz\",\n                               full.names = TRUE)))\n            colnames(reads) <- c('path')\n\n            reads\\$run <- sapply(strsplit(basename(reads\\$path),\n                                          \".\",\n                                          fixed = TRUE), `[`, 1)\n            samples <- reads %>% inner_join(metadata, by = 'run')\n\n            errors <- learnErrors(samples\\$path, multithread = TRUE)\n            dereps <- derepFastq(samples\\$path)\n            names(dereps) <- samples\\$run\n\n            dada <- dada(dereps, err = errors, HOMOPOLYMER_GAP_PENALTY = -1,\n                         BAND_SIZE = 32, multithread = TRUE)\n        } else {\n            forward <- as_tibble(sort(list.files(path,\n                                 pattern = \"_R1.fastq.gz\",\n                                 full.names = TRUE)))\n            reverse <- as_tibble(sort(list.files(path,\n                                 pattern = \"_R2.fastq.gz\",\n                                 full.names = TRUE)))\n            colnames(forward) <- c('r1')\n            colnames(reverse) <- c('r2')\n            forward\\$run <- sapply(strsplit(basename(forward\\$r1),\n                                          \"_\",\n                                          fixed = TRUE), `[`, 1)\n            reverse\\$run <- sapply(strsplit(basename(reverse\\$r2),\n                                        \"_\",\n                                        fixed = TRUE), `[`, 1)\n            samples <- forward %>%\n                inner_join(reverse, by = 'run') %>%\n                inner_join(metadata, by = 'run')\n\n            if ( nrow(samples) != nrow(metadata) ) {\n                # deal with unpaired miseq data\n                reads <- as_tibble(sort(list.files(path,\n                                   pattern = \".fastq.gz\",\n                                   full.names = TRUE)))\n                colnames(reads) <- c('path')\n\n                reads\\$run <- sapply(strsplit(basename(reads\\$path),\n                                              \".\",\n                                              fixed = TRUE), `[`, 1)\n                samples <- reads %>% inner_join(metadata, by = 'run')\n\n                errors <- learnErrors(samples\\$path, multithread = TRUE)\n                dereps <- derepFastq(samples\\$path)\n                names(dereps) <- samples\\$run\n\n                dada <- dada(dereps, err = errors, multithread = TRUE)\n            } else {\n                errors_f <- learnErrors(samples\\$r1, multithread = TRUE)\n                errors_r <- learnErrors(samples\\$r2, multithread = TRUE)\n\n                dereps_f <- derepFastq(samples\\$r1)\n                dereps_r <- derepFastq(samples\\$r2)\n                names(dereps_f) <- samples\\$run\n                names(dereps_r) <- samples\\$run\n\n                dada_f <- dada(dereps_f, err = errors_f, multithread = TRUE)\n                dada_r <- dada(dereps_r, err = errors_r, multithread = TRUE)\n\n                dada <- mergePairs(dada_f, dereps_f, dada_r, dereps_r)\n            }\n        }\n\n        seqtab <- makeSequenceTable(dada)\n        seqtab_$bioproject <- removeBimeraDenovo(seqtab, method = \"consensus\",\n                                            multithread = TRUE, verbose = TRUE)\n\n        taxa_$bioproject <- assignTaxonomy(seqtab_$bioproject,\n                                           \"$database_dir/silva_nr_v132_train_set.fa.gz\",\n                                           multithread = TRUE,\n                                           tryRC=TRUE)\n        taxa_$bioproject <- addSpecies(taxa_$bioproject,\n                                       \"$database_dir/silva_species_assignment_v132.fa.gz\")\n\n       saveRDS(seqtab_$bioproject, file = \"seqtab_${bioproject}.Rds\")\n       saveRDS(taxa_$bioproject, file = \"taxa_${bioproject}.Rds\")\n       \"\"\"\n}",
+        "nb_lignes_process": 106,
+        "string_script": "        \"\"\"\n        #!/usr/bin/env Rscript\n\n        library(readr)\n        library(dplyr)\n        library(dada2)\n\n        path <- '$input_dir'\n        metadata <- read_csv('$metadata')\n\n        if ( metadata\\$technology == '454' ) {\n            reads <- as_tibble(sort(list.files(path,\n                               pattern = \".fastq.gz\",\n                               full.names = TRUE)))\n            colnames(reads) <- c('path')\n\n            reads\\$run <- sapply(strsplit(basename(reads\\$path),\n                                          \".\",\n                                          fixed = TRUE), `[`, 1)\n            samples <- reads %>% inner_join(metadata, by = 'run')\n\n            errors <- learnErrors(samples\\$path, multithread = TRUE)\n            dereps <- derepFastq(samples\\$path)\n            names(dereps) <- samples\\$run\n\n            dada <- dada(dereps, err = errors, HOMOPOLYMER_GAP_PENALTY = -1,\n                         BAND_SIZE = 32, multithread = TRUE)\n        } else {\n            forward <- as_tibble(sort(list.files(path,\n                                 pattern = \"_R1.fastq.gz\",\n                                 full.names = TRUE)))\n            reverse <- as_tibble(sort(list.files(path,\n                                 pattern = \"_R2.fastq.gz\",\n                                 full.names = TRUE)))\n            colnames(forward) <- c('r1')\n            colnames(reverse) <- c('r2')\n            forward\\$run <- sapply(strsplit(basename(forward\\$r1),\n                                          \"_\",\n                                          fixed = TRUE), `[`, 1)\n            reverse\\$run <- sapply(strsplit(basename(reverse\\$r2),\n                                        \"_\",\n                                        fixed = TRUE), `[`, 1)\n            samples <- forward %>%\n                inner_join(reverse, by = 'run') %>%\n                inner_join(metadata, by = 'run')\n\n            if ( nrow(samples) != nrow(metadata) ) {\n                # deal with unpaired miseq data\n                reads <- as_tibble(sort(list.files(path,\n                                   pattern = \".fastq.gz\",\n                                   full.names = TRUE)))\n                colnames(reads) <- c('path')\n\n                reads\\$run <- sapply(strsplit(basename(reads\\$path),\n                                              \".\",\n                                              fixed = TRUE), `[`, 1)\n                samples <- reads %>% inner_join(metadata, by = 'run')\n\n                errors <- learnErrors(samples\\$path, multithread = TRUE)\n                dereps <- derepFastq(samples\\$path)\n                names(dereps) <- samples\\$run\n\n                dada <- dada(dereps, err = errors, multithread = TRUE)\n            } else {\n                errors_f <- learnErrors(samples\\$r1, multithread = TRUE)\n                errors_r <- learnErrors(samples\\$r2, multithread = TRUE)\n\n                dereps_f <- derepFastq(samples\\$r1)\n                dereps_r <- derepFastq(samples\\$r2)\n                names(dereps_f) <- samples\\$run\n                names(dereps_r) <- samples\\$run\n\n                dada_f <- dada(dereps_f, err = errors_f, multithread = TRUE)\n                dada_r <- dada(dereps_r, err = errors_r, multithread = TRUE)\n\n                dada <- mergePairs(dada_f, dereps_f, dada_r, dereps_r)\n            }\n        }\n\n        seqtab <- makeSequenceTable(dada)\n        seqtab_$bioproject <- removeBimeraDenovo(seqtab, method = \"consensus\",\n                                            multithread = TRUE, verbose = TRUE)\n\n        taxa_$bioproject <- assignTaxonomy(seqtab_$bioproject,\n                                           \"$database_dir/silva_nr_v132_train_set.fa.gz\",\n                                           multithread = TRUE,\n                                           tryRC=TRUE)\n        taxa_$bioproject <- addSpecies(taxa_$bioproject,\n                                       \"$database_dir/silva_species_assignment_v132.fa.gz\")\n\n       saveRDS(seqtab_$bioproject, file = \"seqtab_${bioproject}.Rds\")\n       saveRDS(taxa_$bioproject, file = \"taxa_${bioproject}.Rds\")\n       \"\"\"",
+        "nb_lignes_script": 92,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "metadatas",
+            "input_dir",
+            "database_dir"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "dadas"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [
+            "container 'hadrieng/dada2'",
+            "publishDir params.output, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trimming_se": {
+        "name_process": "trimming_se",
+        "string_process": "\nprocess trimming_se {\n    container 'jdidion/atropos'\n    publishDir params.output, mode: 'copy'\n\n    input:\n        set val(id), file(reads) from reads_atropos_se\n\n    when:\n        reads instanceof Path\n\n    output:\n        set val(id), file(\"${id}.fastq\") into trimmed_reads_se\n\n    script:\n        \"\"\"\n        atropos -T 4 -m 50 -M 750 --max-n 0 -q 20,20 \\\n            -se $reads -o ${id}.fastq\n        \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "        \"\"\"\n        atropos -T 4 -m 50 -M 750 --max-n 0 -q 20,20 \\\n            -se $reads -o ${id}.fastq\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Atropos"
+        ],
+        "tools_url": [
+            "https://bio.tools/Atropos"
+        ],
+        "tools_dico": [
+            {
+                "name": "Atropos",
+                "uri": "https://bio.tools/Atropos",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3219",
+                                    "term": "Read pre-processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3472",
+                                    "term": "k-mer counting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3219",
+                                    "term": "Sequence read pre-processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "specific, sensitive, and speedy trimming of sequencing reads.\n\nAn NGS read trimming tool that is specific, sensitive, and speedy. (production).\n\nAtropos is tool for specific, sensitive, and speedy trimming of NGS reads. It is a fork of the venerable Cutadapt read trimmer (https://github.com/marcelm/cutadapt, DOI:10.14806/ej.17.1.200), with the primary improvements being:",
+                "homepage": "https://github.com/jdidion/atropos"
+            }
+        ],
+        "inputs": [
+            "reads_atropos_se"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trimmed_reads_se"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [
+            "container 'jdidion/atropos'",
+            "publishDir params.output, mode: 'copy'"
+        ],
+        "when": "reads instanceof Path",
+        "stub": ""
+    },
+    "trimming_pe": {
+        "name_process": "trimming_pe",
+        "string_process": "\nprocess trimming_pe {\n    container 'jdidion/atropos'\n    publishDir params.output, mode: 'copy'\n\n    input:\n        set val(id), file(read1), file(read2) from reads_atropos_pe\n        file adapters\n\n    output:\n        set val(id), file(\"${id}_R1.fastq\"), file(\"${id}_R2.fastq\") into trimmed_reads_pe\n\n    script:\n        \"\"\"\n        mkdir trimmed\n        atropos -a TGGAATTCTCGGGTGCCAAGG -B AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT \\\n            -T 4 -m 50 --max-n 0 -q 20,20 -pe1 $read1 -pe2 $read2 \\\n            -o ${id}_R1.fastq -p ${id}_R2.fastq\n        \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "        \"\"\"\n        mkdir trimmed\n        atropos -a TGGAATTCTCGGGTGCCAAGG -B AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT \\\n            -T 4 -m 50 --max-n 0 -q 20,20 -pe1 $read1 -pe2 $read2 \\\n            -o ${id}_R1.fastq -p ${id}_R2.fastq\n        \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Atropos"
+        ],
+        "tools_url": [
+            "https://bio.tools/Atropos"
+        ],
+        "tools_dico": [
+            {
+                "name": "Atropos",
+                "uri": "https://bio.tools/Atropos",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3219",
+                                    "term": "Read pre-processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3472",
+                                    "term": "k-mer counting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3219",
+                                    "term": "Sequence read pre-processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "specific, sensitive, and speedy trimming of sequencing reads.\n\nAn NGS read trimming tool that is specific, sensitive, and speedy. (production).\n\nAtropos is tool for specific, sensitive, and speedy trimming of NGS reads. It is a fork of the venerable Cutadapt read trimmer (https://github.com/marcelm/cutadapt, DOI:10.14806/ej.17.1.200), with the primary improvements being:",
+                "homepage": "https://github.com/jdidion/atropos"
+            }
+        ],
+        "inputs": [
+            "reads_atropos_pe",
+            "adapters"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "trimmed_reads_pe"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [
+            "container 'jdidion/atropos'",
+            "publishDir params.output, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc": {
+        "name_process": "fastqc",
+        "string_process": "\nprocess fastqc {\n    container 'hadrieng/fastqc'\n\n    input:\n        file reads from trimmed_reads_se.concat(trimmed_reads_pe).collect()\n\n    output:\n        file \"*_fastqc.{zip,html}\" into fastqc_results\n\n    script:\n        \"\"\"\n        fastqc -t 4 $reads\n        \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "        \"\"\"\n        fastqc -t 4 $reads\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "trimmed_reads_se",
+            "trimmed_reads_pe"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "fastqc_results"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [
+            "container 'hadrieng/fastqc'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n    container 'ewels/multiqc'\n    publishDir 'results', mode: 'copy'\n\n    input:\n        file 'fastqc/*' from fastqc_results.collect()\n\n    output:\n        file 'multiqc_report.html'\n\n    script:\n        \"\"\"\n        multiqc .\n        \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "        \"\"\"\n        multiqc .\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "fastqc_results"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [
+            "container 'ewels/multiqc'",
+            "publishDir 'results', mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "parse": {
+        "name_process": "parse",
+        "string_process": "\nprocess parse {\n    input:\n        file samples\n\n    output:\n        stdout accessions\n\n    script:\n        \"\"\"\n        cut -d ',' -f 2 $samples | tail -n +2\n        \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "        \"\"\"\n        cut -d ',' -f 2 $samples | tail -n +2\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "accessions"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "dump": {
+        "name_process": "dump",
+        "string_process": "\nprocess dump {\n    tag {acc.trim()}\n    container 'hadrieng/sratoolkit'\n    publishDir params.output, mode: 'copy'\n\n    input:\n        val acc from accessions\n\n    output:\n        file '*.fastq.gz' into fastq\n\n    script:\n        \"\"\"\n        fastq-dump --gzip --skip-technical --split-files -I $acc\n        \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        fastq-dump --gzip --skip-technical --split-files -I $acc\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "accessions"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastq"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "HadrienG__2018_coral_16S",
+        "directive": [
+            "tag {acc.trim()}",
+            "container 'hadrieng/sratoolkit'",
+            "publishDir params.output, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

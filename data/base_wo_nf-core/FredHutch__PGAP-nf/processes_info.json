@@ -1,0 +1,58 @@
+{
+    "preprocessFASTA": {
+        "name_process": "preprocessFASTA",
+        "string_process": "\nprocess preprocessFASTA {\n\n    container \"quay.io/fhcrc-microbiome/integrate-metagenomic-assemblies:v0.5\"\n    cpus 1\n    memory \"2 GB\"\n    \n    input:\n    tuple file(fasta), file(yaml) from sample_sheet_ch\n\n    output:\n    tuple file(\"${fasta}\"), file(\"${yaml}\") into preprocessed_sample_sheet_ch\n\n    \"\"\"\n#!/usr/bin/env python3\n\n# Following criteria from https://github.com/ncbi/pgap/wiki/Input-Files\n\nfrom Bio.SeqIO.FastaIO import SimpleFastaParser\nimport re\n\n# Read in all of the genome\ngenome = dict([\n    (header, seq)\n    for header, seq in SimpleFastaParser(open(\"${fasta}\"))\n])\n\n# Sanitize and write out\nseen_headers = set([])\nwith open(\"${fasta}\", \"w\") as handle:\n    for header, seq in genome.items():\n\n        \n        # Make sure the sequence is >= 199 nucleotides\n        if len(seq) < 199:\n            continue\n\n        # Trim the header to 50 characters\n        if len(header) > 50:\n            header = header[:50]\n\n        # Only include letters, digits, hyphens (-), underscores (_), periods (.), colons (:), asterisks (*), and number signs (#)\n        header = re.sub('[^0-9a-zA-Z-.*#\\$_:]', '_', header)\n\n        # All headers are unique\n        assert header not in seen_headers\n        seen_headers.add(header)\n\n        # Make sure there are no N's at the beginning or end\n        assert seq[0] != \"#\"\n        assert seq[-1] != \"#\"\n\n        handle.write(\">%s\\\\n%s\\\\n\" % (header, seq))\n\n    \"\"\"\n\n}",
+        "nb_lignes_process": 55,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n\n# Following criteria from https://github.com/ncbi/pgap/wiki/Input-Files\n\nfrom Bio.SeqIO.FastaIO import SimpleFastaParser\nimport re\n\n# Read in all of the genome\ngenome = dict([\n    (header, seq)\n    for header, seq in SimpleFastaParser(open(\"${fasta}\"))\n])\n\n# Sanitize and write out\nseen_headers = set([])\nwith open(\"${fasta}\", \"w\") as handle:\n    for header, seq in genome.items():\n\n        \n        # Make sure the sequence is >= 199 nucleotides\n        if len(seq) < 199:\n            continue\n\n        # Trim the header to 50 characters\n        if len(header) > 50:\n            header = header[:50]\n\n        # Only include letters, digits, hyphens (-), underscores (_), periods (.), colons (:), asterisks (*), and number signs (#)\n        header = re.sub('[^0-9a-zA-Z-.*#\\$_:]', '_', header)\n\n        # All headers are unique\n        assert header not in seen_headers\n        seen_headers.add(header)\n\n        # Make sure there are no N's at the beginning or end\n        assert seq[0] != \"#\"\n        assert seq[-1] != \"#\"\n\n        handle.write(\">%s\\\\n%s\\\\n\" % (header, seq))\n\n    \"\"\"",
+        "nb_lignes_script": 41,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_sheet_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "preprocessed_sample_sheet_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__PGAP-nf",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/integrate-metagenomic-assemblies:v0.5\"",
+            "cpus 1",
+            "memory \"2 GB\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_PGAP": {
+        "name_process": "run_PGAP",
+        "string_process": "\nprocess run_PGAP {\n\n    container \"ncbi/pgap:${params.pgap_version}\"\n    cpus 16\n    memory \"30 GB\"\n    publishDir \"${params.output_folder}/\"\n    errorStrategy 'retry'\n    maxRetries 2\n\n    input:\n    tuple file(fasta), file(yaml) from preprocessed_sample_sheet_ch\n    file reference_tarball\n\n    output:\n    file \"${fasta}.fna.gz\"\n    file \"${fasta}.faa.gz\"\n    file \"${fasta}.gbk.gz\"\n    file \"${fasta}.gff.gz\"\n    file \"${fasta}.sqn.gz\"\n\n    \"\"\"\n#!/bin/bash\n\nset -euxo pipefail\n\n# Decompress the supplemental_data\ntar xzvf ${reference_tarball}\n\n# Make sure that the expected folder exists\n[[ -s input-${params.pgap_version} ]]\n\n# usage: pgap.cwl [-h] [--blast_hits_cache_data BLAST_HITS_CACHE_DATA]\n#                 [--blast_rules_db BLAST_RULES_DB] --fasta FASTA\n#                 [--gc_assm_name GC_ASSM_NAME] [--ignore_all_errors]\n#                 [--no_internet] --report_usage --submol SUBMOL\n#                 [--supplemental_data SUPPLEMENTAL_DATA]\n#                 [job_order]\n\n# positional arguments:\n#   job_order             Job input json file\n\n# optional arguments:\n#   -h, --help            show this help message and exit\n#   --blast_hits_cache_data BLAST_HITS_CACHE_DATA\n#   --blast_rules_db BLAST_RULES_DB\n#   --fasta FASTA\n#   --gc_assm_name GC_ASSM_NAME\n#   --ignore_all_errors\n#   --no_internet\n#   --report_usage\n#   --submol SUBMOL\n#   --supplemental_data SUPPLEMENTAL_DATA\n\ncwl-runner \\\n    /pgap/pgap.cwl \\\n    --fasta ${fasta} \\\n    --submol ${yaml} \\\n    --supplemental_data input-${params.pgap_version} \\\n    --report_usage 2>&1 | tail -n 120\n# I have to throw away all but the tail of the standard error for this process,\n# because it can easily take up gigabytes of logfile\n\n# Rename the input files\nfor suffix in fna faa gbk gff sqn; do\n\n    echo \"Checking to make sure that annot.\\$suffix exists\"\n    [[ -s annot.\\$suffix ]]\n\n    echo \"Renaming to ${fasta}.\\$suffix\"\n    mv annot.\\$suffix ${fasta}.\\$suffix\n    echo \"Compressing ${fasta}.\\$suffix\"\n    gzip ${fasta}.\\$suffix\n\ndone\n\n    \"\"\"\n\n}",
+        "nb_lignes_process": 77,
+        "string_script": "\"\"\"\n#!/bin/bash\n\nset -euxo pipefail\n\n# Decompress the supplemental_data\ntar xzvf ${reference_tarball}\n\n# Make sure that the expected folder exists\n[[ -s input-${params.pgap_version} ]]\n\n# usage: pgap.cwl [-h] [--blast_hits_cache_data BLAST_HITS_CACHE_DATA]\n#                 [--blast_rules_db BLAST_RULES_DB] --fasta FASTA\n#                 [--gc_assm_name GC_ASSM_NAME] [--ignore_all_errors]\n#                 [--no_internet] --report_usage --submol SUBMOL\n#                 [--supplemental_data SUPPLEMENTAL_DATA]\n#                 [job_order]\n\n# positional arguments:\n#   job_order             Job input json file\n\n# optional arguments:\n#   -h, --help            show this help message and exit\n#   --blast_hits_cache_data BLAST_HITS_CACHE_DATA\n#   --blast_rules_db BLAST_RULES_DB\n#   --fasta FASTA\n#   --gc_assm_name GC_ASSM_NAME\n#   --ignore_all_errors\n#   --no_internet\n#   --report_usage\n#   --submol SUBMOL\n#   --supplemental_data SUPPLEMENTAL_DATA\n\ncwl-runner \\\n    /pgap/pgap.cwl \\\n    --fasta ${fasta} \\\n    --submol ${yaml} \\\n    --supplemental_data input-${params.pgap_version} \\\n    --report_usage 2>&1 | tail -n 120\n# I have to throw away all but the tail of the standard error for this process,\n# because it can easily take up gigabytes of logfile\n\n# Rename the input files\nfor suffix in fna faa gbk gff sqn; do\n\n    echo \"Checking to make sure that annot.\\$suffix exists\"\n    [[ -s annot.\\$suffix ]]\n\n    echo \"Renaming to ${fasta}.\\$suffix\"\n    mv annot.\\$suffix ${fasta}.\\$suffix\n    echo \"Compressing ${fasta}.\\$suffix\"\n    gzip ${fasta}.\\$suffix\n\ndone\n\n    \"\"\"",
+        "nb_lignes_script": 55,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "preprocessed_sample_sheet_ch",
+            "reference_tarball"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__PGAP-nf",
+        "directive": [
+            "container \"ncbi/pgap:${params.pgap_version}\"",
+            "cpus 16",
+            "memory \"30 GB\"",
+            "publishDir \"${params.output_folder}/\"",
+            "errorStrategy 'retry'",
+            "maxRetries 2"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

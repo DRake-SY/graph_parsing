@@ -1,0 +1,1088 @@
+{
+    "fastqc": {
+        "name_process": "fastqc",
+        "string_process": " process fastqc {\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        tag \"$name\"\n        publishDir \"${params.outdir}/fastqc\", mode: 'copy', overwrite: true,\n            saveAs: { filename ->\n                        filename.indexOf(\".zip\") > 0 ? \"zips/$filename\" : \"$filename\"\n                    }\n\n        input:\n        set val(name), file(reads) from ch_read_files_for_fastqc\n\n        output:\n        file '*_fastqc.{zip,html}' into ch_fastqc_results_for_multiqc\n\n        script:\n        \"\"\"\n        fastqc --quiet --threads $task.cpus $reads\n        \"\"\"\n    }",
+        "nb_lignes_process": 18,
+        "string_script": "        \"\"\"\n        fastqc --quiet --threads $task.cpus $reads\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "ch_read_files_for_fastqc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_fastqc_results_for_multiqc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/fastqc\", mode: 'copy', overwrite: true , saveAs: { filename -> filename.indexOf(\".zip\") > 0 ? \"zips/$filename\" : \"$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trim_galore": {
+        "name_process": "trim_galore",
+        "string_process": " process trim_galore {\n        if (params.custom_container) container \"${params.custom_container}\"\n        \n        tag \"$name\"\n        publishDir \"${params.outdir}/trim_galore\", mode: 'copy', overwrite: true,\n            saveAs: {filename ->\n                if( filename.indexOf(\"_fastqc\") > 0 ) \"FastQC/$filename\"\n                else if( filename.indexOf(\"trimming_report.txt\" ) > 0) \"reports/$filename\"\n                else if( filename.indexOf(\"fq.gz\") > 0 ) \"trimmed_reads/$filename\"\n                else null\n            }\n\n        input:\n        set val(name), file(reads) from ch_read_files_for_trim_galore\n\n        output:\n        set val(name), file('*fq.gz') into ch_trimmed_reads_for_alignment\n        file \"*trimming_report.txt\" into ch_trim_galore_results_for_multiqc\n        file \"*_fastqc.{zip,html}\"\n\n        script:\n        def c_r1 = clip_r1 > 0 ? \"--clip_r1 $clip_r1\" : ''\n        def c_r2 = clip_r2 > 0 ? \"--clip_r2 $clip_r2\" : ''\n        def tpc_r1 = three_prime_clip_r1 > 0 ? \"--three_prime_clip_r1 $three_prime_clip_r1\" : ''\n        def tpc_r2 = three_prime_clip_r2 > 0 ? \"--three_prime_clip_r2 $three_prime_clip_r2\" : ''\n        def rrbs = params.rrbs && !params.nugen ? \"--rrbs\" : ''\n        def nugen = params.nugen ? \"-a AGATCGGAAGAGC -a2 AAATCAAAAAAAC\" : ''\n        def adapter1 = params.adapter1 ? \"-a $params.adapter1\" : ''\n        def adapter2 = params.adapter2 ? \"-a2 $params.adapter2\" : ''\n        def min_length = params.min_insert ? \"--length $params.min_insert\" : ''\n        def cores = 1\n        if(task.cpus){\n            cores = (task.cpus as int) - 4\n            if (cores < 1) cores = 1\n            if (cores > 1) cores = 4\n        }\n        \"\"\"\n        trim_galore \\\n        --fastqc \\\n        --gzip \\\n        --paired $reads \\\n        $adapter1 \\\n        $adapter2 \\\n        $min_length \\\n        $rrbs \\\n        $nugen \\\n        $c_r1 \\\n        $c_r2 \\\n        $tpc_r1 \\\n        $tpc_r2 \\\n        --cores $cores\n        \"\"\"\n\n    }",
+        "nb_lignes_process": 52,
+        "string_script": "        def c_r1 = clip_r1 > 0 ? \"--clip_r1 $clip_r1\" : ''\n        def c_r2 = clip_r2 > 0 ? \"--clip_r2 $clip_r2\" : ''\n        def tpc_r1 = three_prime_clip_r1 > 0 ? \"--three_prime_clip_r1 $three_prime_clip_r1\" : ''\n        def tpc_r2 = three_prime_clip_r2 > 0 ? \"--three_prime_clip_r2 $three_prime_clip_r2\" : ''\n        def rrbs = params.rrbs && !params.nugen ? \"--rrbs\" : ''\n        def nugen = params.nugen ? \"-a AGATCGGAAGAGC -a2 AAATCAAAAAAAC\" : ''\n        def adapter1 = params.adapter1 ? \"-a $params.adapter1\" : ''\n        def adapter2 = params.adapter2 ? \"-a2 $params.adapter2\" : ''\n        def min_length = params.min_insert ? \"--length $params.min_insert\" : ''\n        def cores = 1\n        if(task.cpus){\n            cores = (task.cpus as int) - 4\n            if (cores < 1) cores = 1\n            if (cores > 1) cores = 4\n        }\n        \"\"\"\n        trim_galore \\\n        --fastqc \\\n        --gzip \\\n        --paired $reads \\\n        $adapter1 \\\n        $adapter2 \\\n        $min_length \\\n        $rrbs \\\n        $nugen \\\n        $c_r1 \\\n        $c_r2 \\\n        $tpc_r1 \\\n        $tpc_r2 \\\n        --cores $cores\n        \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [
+            "CoreSlicer"
+        ],
+        "tools_url": [
+            "https://bio.tools/CoreSlicer"
+        ],
+        "tools_dico": [
+            {
+                "name": "CoreSlicer",
+                "uri": "https://bio.tools/CoreSlicer",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3384",
+                            "term": "Medical imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "Tomography"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "MRI"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "CT"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "Computed tomography"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3452",
+                            "term": "TDM"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "Nuclear magnetic resonance imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "Magnetic resonance imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "MRT"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "Magnetic resonance tomography"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3444",
+                            "term": "NMRI"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Enables extraction of morphomic markers from CT images by non-technically skilled clinicians.",
+                "homepage": "https://coreslicer.com/"
+            }
+        ],
+        "inputs": [
+            "ch_read_files_for_trim_galore"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_trimmed_reads_for_alignment",
+            "ch_trim_galore_results_for_multiqc"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/trim_galore\", mode: 'copy', overwrite: true , saveAs: {filename -> if( filename.indexOf(\"_fastqc\") > 0 ) \"FastQC/$filename\" else if( filename.indexOf(\"trimming_report.txt\" ) > 0) \"reports/$filename\" else if( filename.indexOf(\"fq.gz\") > 0 ) \"trimmed_reads/$filename\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "nugen_trim": {
+        "name_process": "nugen_trim",
+        "string_process": " process nugen_trim{\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        tag \"$name\"\n        publishDir \"${params.outdir}/nugen_trim\", mode: 'copy', overwrite: true\n\n        input:\n        set val(name), file(reads) from ch_trimmed_reads_for_alignment\n\n        output:\n        set val(name), file('*_trimmed.fq.gz') into ch_nugen_trimmed_reads_for_alignment\n\n        script:\n        reads_chunk = \"-1 ${reads[0]} -2 ${reads[1]}\"\n\n        \"\"\"\n        python2 /trimRRBSdiversityAdaptCustomers.py $reads_chunk\n        \"\"\"\n    }",
+        "nb_lignes_process": 17,
+        "string_script": "        reads_chunk = \"-1 ${reads[0]} -2 ${reads[1]}\"\n\n        \"\"\"\n        python2 /trimRRBSdiversityAdaptCustomers.py $reads_chunk\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_trimmed_reads_for_alignment"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_nugen_trimmed_reads_for_alignment"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/nugen_trim\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bismark_align": {
+        "name_process": "bismark_align",
+        "string_process": " process bismark_align { \n    if (params.custom_container) container \"${params.custom_container}\"\n\n    if ( params.nugen ) {\n        ch_final_trimmed_reads_for_alignment = Channel.empty().mix(ch_nugen_trimmed_reads_for_alignment)\n        } else { \n            ch_final_trimmed_reads_for_alignment = Channel.empty().mix(ch_trimmed_reads_for_alignment) \n        }\n\n    tag \"$name\"\n    publishDir \"${params.outdir}/bismark_alignments\", mode: 'copy', overwrite: true,\n        saveAs: {filename ->\n            if( filename.indexOf(\".fq.gz\") > 0 ) \"unmapped/$filename\"\n            else if( filename.indexOf(\"report.txt\") > 0 ) \"reports/$filename\"\n            else if( filename.indexOf(\".bam\") > 0 ) \"$filename\"\n            else null\n        }\n\n    input:\n    set val(name), file(reads) from ch_final_trimmed_reads_for_alignment.mix(ch_trimmed_reads_for_alignment_preproc)\n    file(index) from ch_bismark_index_for_bismark_align.collect()\n\n    output:\n    set val(name), file(\"*.bam\") into ch_bam_for_bismark_deduplicate, ch_bam_for_bismark_summary, ch_bam_for_preseq\n    set val(name), file(\"*report.txt\") into ch_bismark_align_log_for_bismark_report, ch_bismark_align_log_for_bismark_summary, ch_bismark_align_log_for_multiqc\n    file \"*.fq.gz\" optional true\n\n    script:\n    reads_chunk = \"-1 ${reads[0]} -2 ${reads[1]}\"\n\n                                  \n    non_directional = params.non_directional ? \"--non_directional\" : ''\n    unmapped = params.unmapped ? \"--unmapped\" : ''\n    mismatches = params.num_mismatches ? \"--score_min L,0,-${params.num_mismatches}\" : ''\n    soft_clipping = params.local_alignment ? \"--local\" : ''\n\n                                                             \n    multicore = ''\n    if( task.cpus ){\n                                                                              \n        if( params.single_cell || params.non_directional ){\n            cpu_per_multicore = 5\n            mem_per_multicore = (21.GB).toBytes()\n        } else {\n            cpu_per_multicore = 3\n            mem_per_multicore = (15.GB).toBytes()\n        }\n                                                                   \n        if(params.bismark_align_cpu_per_multicore) {\n            cpu_per_multicore = (params.bismark_align_cpu_per_multicore as int)\n        }\n        if(params.bismark_align_mem_per_multicore) {\n            mem_per_multicore = (params.bismark_align_mem_per_multicore as nextflow.util.MemoryUnit).toBytes()\n        }\n                                                                         \n        ccore = ((task.cpus as int) / cpu_per_multicore ) as int\n                                                                              \n        try {\n            tmem = (task.memory as nextflow.util.MemoryUnit).toBytes()\n            mcore = (tmem / mem_per_multicore) as int\n            ccore = Math.min(ccore, mcore)\n        } catch (all) {\n            log.debug \"Warning: Not able to set bismark align multicore based on available resources\"\n        }\n        if( ccore > 1 ){\n            multicore = \"--multicore $ccore\"\n        }\n    }\n\n                   \n    \"\"\"\n    bismark $reads_chunk \\\n        --genome $index \\\n        $multicore \\\n        $non_directional \\\n        $unmapped \\\n        $mismatches \\\n        $soft_clipping\n    \"\"\"\n    }",
+        "nb_lignes_process": 78,
+        "string_script": "    reads_chunk = \"-1 ${reads[0]} -2 ${reads[1]}\"\n\n                                  \n    non_directional = params.non_directional ? \"--non_directional\" : ''\n    unmapped = params.unmapped ? \"--unmapped\" : ''\n    mismatches = params.num_mismatches ? \"--score_min L,0,-${params.num_mismatches}\" : ''\n    soft_clipping = params.local_alignment ? \"--local\" : ''\n\n                                                             \n    multicore = ''\n    if( task.cpus ){\n                                                                              \n        if( params.single_cell || params.non_directional ){\n            cpu_per_multicore = 5\n            mem_per_multicore = (21.GB).toBytes()\n        } else {\n            cpu_per_multicore = 3\n            mem_per_multicore = (15.GB).toBytes()\n        }\n                                                                   \n        if(params.bismark_align_cpu_per_multicore) {\n            cpu_per_multicore = (params.bismark_align_cpu_per_multicore as int)\n        }\n        if(params.bismark_align_mem_per_multicore) {\n            mem_per_multicore = (params.bismark_align_mem_per_multicore as nextflow.util.MemoryUnit).toBytes()\n        }\n                                                                         \n        ccore = ((task.cpus as int) / cpu_per_multicore ) as int\n                                                                              \n        try {\n            tmem = (task.memory as nextflow.util.MemoryUnit).toBytes()\n            mcore = (tmem / mem_per_multicore) as int\n            ccore = Math.min(ccore, mcore)\n        } catch (all) {\n            log.debug \"Warning: Not able to set bismark align multicore based on available resources\"\n        }\n        if( ccore > 1 ){\n            multicore = \"--multicore $ccore\"\n        }\n    }\n\n                   \n    \"\"\"\n    bismark $reads_chunk \\\n        --genome $index \\\n        $multicore \\\n        $non_directional \\\n        $unmapped \\\n        $mismatches \\\n        $soft_clipping\n    \"\"\"",
+        "nb_lignes_script": 50,
+        "language_script": "bash",
+        "tools": [
+            "PhosTryp",
+            "SplitMEM",
+            "Bismark"
+        ],
+        "tools_url": [
+            "https://bio.tools/phostryp",
+            "https://bio.tools/splitmem",
+            "https://bio.tools/bismark"
+        ],
+        "tools_dico": [
+            {
+                "name": "PhosTryp",
+                "uri": "https://bio.tools/phostryp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3092",
+                                    "term": "Protein feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3092",
+                                    "term": "Protein feature prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3092",
+                                    "term": "Protein feature recognition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A phosphorylation site predictor specific for parasitic protozoa of the family trypanosomatidae.",
+                "homepage": "http://phostryp.bio.uniroma2.it"
+            },
+            {
+                "name": "SplitMEM",
+                "uri": "https://bio.tools/splitmem",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De-novo assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De Bruijn graph"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "Sequence assembly (de-novo assembly)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "An algorithm that directly constructs the compressed de Bruijn graph in time and space linear to the total number of genomes for a given maximum genome size.",
+                "homepage": "http://sourceforge.net/projects/splitmem/"
+            },
+            {
+                "name": "Bismark",
+                "uri": "https://bio.tools/bismark",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3295",
+                            "term": "Epigenetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3173",
+                            "term": "Epigenomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3186",
+                                    "term": "Bisulfite mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3204",
+                                    "term": "Methylation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3186",
+                                    "term": "Bisulfite sequence mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3186",
+                                    "term": "Bisulfite sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3186",
+                                    "term": "Bisulfite read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3204",
+                                    "term": "Methylation profile analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Bismark is a tool to map bisulfite treated sequencing reads and perform methylation calling in a quick and easy-to-use fashion.",
+                "homepage": "https://github.com/FelixKrueger/Bismark"
+            }
+        ],
+        "inputs": [
+            "ch_final_trimmed_reads_for_alignment",
+            "ch_trimmed_reads_for_alignment_preproc",
+            "ch_bismark_index_for_bismark_align"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_bam_for_bismark_deduplicate",
+            "ch_bam_for_bismark_summary",
+            "ch_bam_for_preseq",
+            "ch_bismark_align_log_for_bismark_report",
+            "ch_bismark_align_log_for_bismark_summary",
+            "ch_bismark_align_log_for_multiqc"
+        ],
+        "nb_outputs": 6,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/bismark_alignments\", mode: 'copy', overwrite: true , saveAs: {filename -> if( filename.indexOf(\".fq.gz\") > 0 ) \"unmapped/$filename\" else if( filename.indexOf(\"report.txt\") > 0 ) \"reports/$filename\" else if( filename.indexOf(\".bam\") > 0 ) \"$filename\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bismark_deduplicate": {
+        "name_process": "bismark_deduplicate",
+        "string_process": " process bismark_deduplicate {\n        if (params.custom_container) container \"${params.custom_container}\"\n        \n        tag \"$name\"\n        publishDir \"${params.outdir}/bismark_deduplicated\", mode: 'copy', overwrite: true,\n            saveAs: {filename -> filename.indexOf(\"_report.txt\") > 0 ? \"reports/$filename\" : \"$filename\"}\n\n        input:\n        set val(name), file(bam) from ch_bam_for_bismark_deduplicate.mix(ch_bam_for_bismark_deduplicate_preproc)\n\n        output:\n        set val(name), file(\"*.deduplicated.bam\") into ch_bam_dedup_for_bismark_methXtract, ch_bam_dedup_for_qualimap\n        set val(name), file(\"*.deduplication_report.txt\") into ch_bismark_dedup_log_for_bismark_report, ch_bismark_dedup_log_for_bismark_summary, ch_bismark_dedup_log_for_multiqc\n\n        script:\n        fq_type = '-p' // change to '-s' for single end; will add feature later\n        \"\"\"\n        deduplicate_bismark $fq_type --bam $bam\n        \"\"\"\n    }",
+        "nb_lignes_process": 18,
+        "string_script": "        fq_type = '-p' // change to '-s' for single end; will add feature later\n        \"\"\"\n        deduplicate_bismark $fq_type --bam $bam\n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bam_for_bismark_deduplicate",
+            "ch_bam_for_bismark_deduplicate_preproc"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_bam_dedup_for_bismark_methXtract",
+            "ch_bam_dedup_for_qualimap",
+            "ch_bismark_dedup_log_for_bismark_report",
+            "ch_bismark_dedup_log_for_bismark_summary",
+            "ch_bismark_dedup_log_for_multiqc"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/bismark_deduplicated\", mode: 'copy', overwrite: true , saveAs: {filename -> filename.indexOf(\"_report.txt\") > 0 ? \"reports/$filename\" : \"$filename\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bismark_methXtract": {
+        "name_process": "bismark_methXtract",
+        "string_process": " process bismark_methXtract {\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        tag \"$name\"\n        publishDir \"${params.outdir}/bismark_methylation_calls\", mode: 'copy', overwrite: true,\n            saveAs: {filename ->\n                if( filename.indexOf(\"splitting_report.txt\" ) > 0 ) \"reports/$filename\"\n                else if( filename.indexOf(\"M-bias\" ) > 0) \"m-bias/$filename\"\n                else if( filename.indexOf(\".cov\" ) > 0 ) \"methylation_coverage/$filename\"\n                else if( filename.indexOf(\"bedGraph\" ) > 0 ) \"bedGraph/$filename\"\n                else if( filename.indexOf(\"CpG_report\" ) > 0 ) \"stranded_CpG_report/$filename\"\n                else \"methylation_calls/$filename\"\n            }\n\n        input:\n        set val(name), file(bam) from ch_bam_dedup_for_bismark_methXtract\n        file index from ch_bismark_index_for_bismark_methXtract.collect()\n\n        output:\n        set val(name), file(\"*splitting_report.txt\") into ch_bismark_splitting_report_for_bismark_report, ch_bismark_splitting_report_for_bismark_summary, ch_bismark_splitting_report_for_multiqc\n        set val(name), file(\"*.M-bias.txt\") into ch_bismark_mbias_for_bismark_report, ch_bismark_mbias_for_bismark_summary, ch_bismark_mbias_for_multiqc\n        file '*.{png,gz}'\n\n        script:\n        comprehensive = params.comprehensive ? '--comprehensive --merge_non_CpG' : ''\n        cytosine_report = params.cytosine_report ? \"--cytosine_report --genome_folder ${index} \" : ''\n        \n                               \n        multicore = ''\n        if( task.cpus ){\n                                            \n            ccore = ((task.cpus as int) / 3) as int\n            if( ccore > 1 ){\n                multicore = \"--multicore $ccore\"\n            }\n        }\n        buffer = ''\n        if( task.memory ){\n            mbuffer = (task.memory as nextflow.util.MemoryUnit) - 2.GB\n                                                  \n            if( mbuffer.compareTo(4.GB) == 1 ){\n                buffer = \"--buffer_size ${mbuffer.toGiga()}G\"\n            }\n        }\n\n        \"\"\"\n        bismark_methylation_extractor \\\n            $comprehensive \\\n            $cytosine_report \\\n            $multicore \\\n            $buffer \\\n            --ignore_r2 2 \\\n            --ignore_3prime_r2 2 \\\n            --bedGraph \\\n            --counts \\\n            --gzip \\\n            -p \\\n            --no_overlap \\\n            --report \\\n            $bam\n        \"\"\"\n    }",
+        "nb_lignes_process": 60,
+        "string_script": "        comprehensive = params.comprehensive ? '--comprehensive --merge_non_CpG' : ''\n        cytosine_report = params.cytosine_report ? \"--cytosine_report --genome_folder ${index} \" : ''\n        \n                               \n        multicore = ''\n        if( task.cpus ){\n                                            \n            ccore = ((task.cpus as int) / 3) as int\n            if( ccore > 1 ){\n                multicore = \"--multicore $ccore\"\n            }\n        }\n        buffer = ''\n        if( task.memory ){\n            mbuffer = (task.memory as nextflow.util.MemoryUnit) - 2.GB\n                                                  \n            if( mbuffer.compareTo(4.GB) == 1 ){\n                buffer = \"--buffer_size ${mbuffer.toGiga()}G\"\n            }\n        }\n\n        \"\"\"\n        bismark_methylation_extractor \\\n            $comprehensive \\\n            $cytosine_report \\\n            $multicore \\\n            $buffer \\\n            --ignore_r2 2 \\\n            --ignore_3prime_r2 2 \\\n            --bedGraph \\\n            --counts \\\n            --gzip \\\n            -p \\\n            --no_overlap \\\n            --report \\\n            $bam\n        \"\"\"",
+        "nb_lignes_script": 36,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bam_dedup_for_bismark_methXtract",
+            "ch_bismark_index_for_bismark_methXtract"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_bismark_splitting_report_for_bismark_report",
+            "ch_bismark_splitting_report_for_bismark_summary",
+            "ch_bismark_splitting_report_for_multiqc",
+            "ch_bismark_mbias_for_bismark_report",
+            "ch_bismark_mbias_for_bismark_summary",
+            "ch_bismark_mbias_for_multiqc"
+        ],
+        "nb_outputs": 6,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/bismark_methylation_calls\", mode: 'copy', overwrite: true , saveAs: {filename -> if( filename.indexOf(\"splitting_report.txt\" ) > 0 ) \"reports/$filename\" else if( filename.indexOf(\"M-bias\" ) > 0) \"m-bias/$filename\" else if( filename.indexOf(\".cov\" ) > 0 ) \"methylation_coverage/$filename\" else if( filename.indexOf(\"bedGraph\" ) > 0 ) \"bedGraph/$filename\" else if( filename.indexOf(\"CpG_report\" ) > 0 ) \"stranded_CpG_report/$filename\" else \"methylation_calls/$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bismark_report": {
+        "name_process": "bismark_report",
+        "string_process": " process bismark_report {\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        tag \"$name\"\n        publishDir \"${params.outdir}/bismark_reports\", mode: 'copy', overwrite: true\n\n        input:\n        set val(name), file(align_log), file(dedup_log), file(splitting_report), file(mbias) from ch_bismark_logs_for_bismark_report\n\n        output:\n        file '*{html,txt}' into ch_bismark_reports_results_for_multiqc\n\n        script:\n        \"\"\"\n        bismark2report \\\n            --alignment_report $align_log \\\n            --dedup_report $dedup_log \\\n            --splitting_report $splitting_report \\\n            --mbias_report $mbias\n        \"\"\"\n    }",
+        "nb_lignes_process": 19,
+        "string_script": "        \"\"\"\n        bismark2report \\\n            --alignment_report $align_log \\\n            --dedup_report $dedup_log \\\n            --splitting_report $splitting_report \\\n            --mbias_report $mbias\n        \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bismark_logs_for_bismark_report"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_bismark_reports_results_for_multiqc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/bismark_reports\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bismark_summary": {
+        "name_process": "bismark_summary",
+        "string_process": " process bismark_summary {\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        publishDir \"${params.outdir}/bismark_summary\", mode: 'copy', overwrite: true\n\n        input:\n        file ('*') from ch_bam_for_bismark_summary.collect()\n        file ('*') from ch_bismark_align_log_for_bismark_summary.collect()\n        file ('*') from ch_bismark_dedup_log_for_bismark_summary.collect()\n        file ('*') from ch_bismark_splitting_report_for_bismark_summary.collect()\n        file ('*') from ch_bismark_mbias_for_bismark_summary.collect()\n\n        output:\n        file '*{html,txt}' into ch_bismark_summary_results_for_multiqc\n\n        script:\n        \"\"\"\n        bismark2summary\n        \"\"\"\n    }",
+        "nb_lignes_process": 18,
+        "string_script": "        \"\"\"\n        bismark2summary\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bam_for_bismark_summary",
+            "ch_bismark_align_log_for_bismark_summary",
+            "ch_bismark_dedup_log_for_bismark_summary",
+            "ch_bismark_splitting_report_for_bismark_summary",
+            "ch_bismark_mbias_for_bismark_summary"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "ch_bismark_summary_results_for_multiqc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "publishDir \"${params.outdir}/bismark_summary\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "qualimap": {
+        "name_process": "qualimap",
+        "string_process": " process qualimap {\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        tag \"$name\"\n        publishDir \"${params.outdir}/qualimap\", mode: 'copy', overwrite: true\n\n        input:\n        set val(name), file(bam) from ch_bam_dedup_for_qualimap\n\n        output:\n        file \"${bam.baseName}_qualimap\" into ch_qualimap_results_for_multiqc\n\n        script:\n        def avail_mem = task.memory ? ((task.memory.toGiga() - 6) / task.cpus).trunc() : false\n        def sort_mem = avail_mem && avail_mem > 2 ? \"-m ${avail_mem}G\" : ''\n        \"\"\"\n        samtools sort $bam \\\n            -@ ${task.cpus} $sort_mem \\\n            -o ${bam.baseName}.sorted.bam\n        qualimap bamqc -bam ${bam.baseName}.sorted.bam \\\n            -outdir ${bam.baseName}_qualimap \\\n            --collect-overlap-pairs \\\n            --java-mem-size=${task.memory.toGiga()}G \\\n            -nt ${task.cpus}\n        \"\"\"\n    }",
+        "nb_lignes_process": 24,
+        "string_script": "        def avail_mem = task.memory ? ((task.memory.toGiga() - 6) / task.cpus).trunc() : false\n        def sort_mem = avail_mem && avail_mem > 2 ? \"-m ${avail_mem}G\" : ''\n        \"\"\"\n        samtools sort $bam \\\n            -@ ${task.cpus} $sort_mem \\\n            -o ${bam.baseName}.sorted.bam\n        qualimap bamqc -bam ${bam.baseName}.sorted.bam \\\n            -outdir ${bam.baseName}_qualimap \\\n            --collect-overlap-pairs \\\n            --java-mem-size=${task.memory.toGiga()}G \\\n            -nt ${task.cpus}\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools",
+            "QualiMap"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools",
+            "https://bio.tools/qualimap"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "QualiMap",
+                "uri": "https://bio.tools/qualimap",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Platform-independent application written in Java and R that provides both a Graphical User Inteface (GUI) and a command-line interface to facilitate the quality control of alignment sequencing data.",
+                "homepage": "http://qualimap.bioinfo.cipf.es/"
+            }
+        ],
+        "inputs": [
+            "ch_bam_dedup_for_qualimap"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_qualimap_results_for_multiqc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/qualimap\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "preseq": {
+        "name_process": "preseq",
+        "string_process": " process preseq {\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        tag \"$name\"\n        publishDir \"${params.outdir}/preseq\", mode: 'copy', overwrite: true\n\n        input:\n        set val(name), file(bam) from ch_bam_for_preseq\n\n        output:\n        file \"${bam.baseName}.ccurve.txt\" into preseq_results\n\n        script:\n        def avail_mem = task.memory ? ((task.memory.toGiga() - 6) / task.cpus).trunc() : false\n        def sort_mem = avail_mem && avail_mem > 2 ? \"-m ${avail_mem}G\" : ''\n        \"\"\"\n        samtools sort $bam \\\\\n            -@ ${task.cpus} $sort_mem \\\\\n            -o ${bam.baseName}.sorted.bam\n        preseq lc_extrap -v -B ${bam.baseName}.sorted.bam -o ${bam.baseName}.ccurve.txt\n        \"\"\"\n    }",
+        "nb_lignes_process": 20,
+        "string_script": "        def avail_mem = task.memory ? ((task.memory.toGiga() - 6) / task.cpus).trunc() : false\n        def sort_mem = avail_mem && avail_mem > 2 ? \"-m ${avail_mem}G\" : ''\n        \"\"\"\n        samtools sort $bam \\\\\n            -@ ${task.cpus} $sort_mem \\\\\n            -o ${bam.baseName}.sorted.bam\n        preseq lc_extrap -v -B ${bam.baseName}.sorted.bam -o ${bam.baseName}.ccurve.txt\n        \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools",
+            "preseq"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools",
+            "https://bio.tools/preseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "preseq",
+                "uri": "https://bio.tools/preseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This package is aimed at predicting and number of distinct reads and how many will be expected from additional sequencing using an initial sequencing experiment. The estimates can then be used to examine the utility of further sequencing, optimize the sequencing depth, or to screen multiple libraries to avoid low complexity samples.",
+                "homepage": "http://smithlabresearch.org/software/preseq/"
+            }
+        ],
+        "inputs": [
+            "ch_bam_for_preseq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "preseq_results"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "tag \"$name\"",
+            "publishDir \"${params.outdir}/preseq\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": " process multiqc {\n        if (params.custom_container) container \"${params.custom_container}\"\n\n        publishDir \"${params.outdir}/MultiQC\", mode: 'copy', overwrite: true\n\n        input:\n        file ('fastqc/*') from ch_fastqc_results_for_multiqc.collect().ifEmpty([])\n        file ('trim_galore/*') from ch_trim_galore_results_for_multiqc.collect().ifEmpty([])\n        file ('bismark/*') from ch_bismark_align_log_for_multiqc.collect().ifEmpty([])\n        file ('bismark/*') from ch_bismark_dedup_log_for_multiqc.collect().ifEmpty([])\n        file ('bismark/*') from ch_bismark_splitting_report_for_multiqc.collect().ifEmpty([])\n        file ('bismark/*') from ch_bismark_mbias_for_multiqc.collect().ifEmpty([])\n        file ('bismark/*') from ch_bismark_reports_results_for_multiqc.collect().ifEmpty([])\n        file ('bismark/*') from ch_bismark_summary_results_for_multiqc.collect().ifEmpty([])\n        file ('qualimap/*') from ch_qualimap_results_for_multiqc.collect().ifEmpty([])\n        file ('preseq/*') from preseq_results.collect().ifEmpty([])\n\n        output:\n        file \"*multiqc_report.html\" into ch_multiqc_report\n        file \"*_data\"\n\n        script:\n        \"\"\"\n        multiqc . -m picard -m qualimap -m bismark -m samtools -m preseq -m cutadapt -m fastqc\n        \"\"\"\n    }",
+        "nb_lignes_process": 24,
+        "string_script": "        \"\"\"\n        multiqc . -m picard -m qualimap -m bismark -m samtools -m preseq -m cutadapt -m fastqc\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "ch_fastqc_results_for_multiqc",
+            "ch_trim_galore_results_for_multiqc",
+            "ch_bismark_align_log_for_multiqc",
+            "ch_bismark_dedup_log_for_multiqc",
+            "ch_bismark_splitting_report_for_multiqc",
+            "ch_bismark_mbias_for_multiqc",
+            "ch_bismark_reports_results_for_multiqc",
+            "ch_bismark_summary_results_for_multiqc",
+            "ch_qualimap_results_for_multiqc",
+            "preseq_results"
+        ],
+        "nb_inputs": 10,
+        "outputs": [
+            "ch_multiqc_report"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "robinfchan__bisulfite_align_nf",
+        "directive": [
+            "publishDir \"${params.outdir}/MultiQC\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

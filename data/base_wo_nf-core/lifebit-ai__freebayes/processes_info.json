@@ -1,0 +1,286 @@
+{
+    "preprocess_genome": {
+        "name_process": "preprocess_genome",
+        "string_process": "\nprocess preprocess_genome{\n\n  container 'lifebitai/samtools'\n\n\n  input:\n  file fasta from fasta\n  file fai from fai\n  file fastagz from fastagz\n  file gzfai from gzfai\n  file gzi from gzi\n  output:\n  set file(fasta),file(\"${fasta}.fai\"),file(\"${fasta}.gz\"),file(\"${fasta}.gz.fai\"), file(\"${fasta}.gz.gzi\"),file(\"${fasta.baseName}.dict\") into fastaChannel\n  script:\n  \"\"\"\n  [[ ${params.fai} == \"nofai\" ]] &&  samtools faidx $fasta || echo \" fai file of user is used, not created\"\n  [[ ${params.fastagz} == \"nofastagz\" ]]  && bgzip -c ${fasta} > ${fasta}.gz || echo \"fasta.gz file of user is used, not created \"\n  [[ ${params.gzfai} == \"nogzi\" ]] && bgzip -c -i ${fasta} > ${fasta}.gz || echo \"gzi file of user is used, not created\"\n  [[ ${params.gzi} == \"nogzfai\" ]] && samtools faidx \"${fasta}.gz\" || echo \"gz.fai file of user is used, not created\"\n  picard CreateSequenceDictionary R= $fasta O= ${fasta.baseName}.dict\n  \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "  \"\"\"\n  [[ ${params.fai} == \"nofai\" ]] &&  samtools faidx $fasta || echo \" fai file of user is used, not created\"\n  [[ ${params.fastagz} == \"nofastagz\" ]]  && bgzip -c ${fasta} > ${fasta}.gz || echo \"fasta.gz file of user is used, not created \"\n  [[ ${params.gzfai} == \"nogzi\" ]] && bgzip -c -i ${fasta} > ${fasta}.gz || echo \"gzi file of user is used, not created\"\n  [[ ${params.gzi} == \"nogzfai\" ]] && samtools faidx \"${fasta}.gz\" || echo \"gz.fai file of user is used, not created\"\n  picard CreateSequenceDictionary R= $fasta O= ${fasta.baseName}.dict\n  \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "fasta",
+            "fai",
+            "fastagz",
+            "gzfai",
+            "gzi"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "fastaChannel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__freebayes",
+        "directive": [
+            "container 'lifebitai/samtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "preprocess_bam": {
+        "name_process": "preprocess_bam",
+        "string_process": "\nprocess preprocess_bam {\n\n  tag \"${bam[0]}\"\n  container 'lifebitai/samtools'\n\n\n  input:\n  set val(prefix), file(bam) from bamChannel\n  set file(genome),file(genomefai),file(genomegz),file(genomegzfai),file(genomegzgzi),file(genomedict) from fastaChannel\n\n  output:\n  set file(\"ready/${bam[0]}\"), file(\"ready/${bam[0]}.bai\") into completeChannel\n\n  script:\n  \"\"\"\n  ## Add RG line in case it is missing\n    mkdir ready\n    [[ `samtools view -H ${bam[0]} | grep '@RG' | wc -l`   > 0 ]] && { mv $bam ready; }|| { picard  AddOrReplaceReadGroups \\\n    I=${bam[0]} O=ready/${bam[0]} RGID=${params.rgid} RGLB=${params.rglb} RGPL=${params.rgpl} RGPU=${params.rgpu} RGSM=${params.rgsm}; }\n  ## Index Bam file\n    cd ready; samtools index ${bam[0]};\n  \"\"\"\n\n}",
+        "nb_lignes_process": 23,
+        "string_script": "  \"\"\"\n  ## Add RG line in case it is missing\n    mkdir ready\n    [[ `samtools view -H ${bam[0]} | grep '@RG' | wc -l`   > 0 ]] && { mv $bam ready; }|| { picard  AddOrReplaceReadGroups \\\n    I=${bam[0]} O=ready/${bam[0]} RGID=${params.rgid} RGLB=${params.rglb} RGPL=${params.rgpl} RGPU=${params.rgpu} RGSM=${params.rgsm}; }\n  ## Index Bam file\n    cd ready; samtools index ${bam[0]};\n  \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "bamChannel",
+            "fastaChannel"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "completeChannel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__freebayes",
+        "directive": [
+            "tag \"${bam[0]}\"",
+            "container 'lifebitai/samtools'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_variant_caller": {
+        "name_process": "run_variant_caller",
+        "string_process": "\nprocess run_variant_caller {\n\n    tag \"${bam[1]}\"\n    container \"lifebitai/freebayes\"\n    publishDir params.resultdir, mode: 'copy'\n    cpus params.j\n\n    input:\n    set file(fasta), file(bam) from all_fa_bam\n\n    output:\n    file('calling_output.vcf') into methods_result\n\n    script:\n    \"\"\"\n    pwd=\\$PWD\n    cd ~/freebayes/scripts/\n    ./freebayes-parallel <(./fasta_generate_regions.py \\$pwd/${fasta[2]} 100000) ${task.cpus} -f \\$pwd/${fasta[1]} \\$pwd/${bam[1]} > \\$pwd/calling_output.vcf\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    pwd=\\$PWD\n    cd ~/freebayes/scripts/\n    ./freebayes-parallel <(./fasta_generate_regions.py \\$pwd/${fasta[2]} 100000) ${task.cpus} -f \\$pwd/${fasta[1]} \\$pwd/${bam[1]} > \\$pwd/calling_output.vcf\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_fa_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "methods_result"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__freebayes",
+        "directive": [
+            "tag \"${bam[1]}\"",
+            "container \"lifebitai/freebayes\"",
+            "publishDir params.resultdir, mode: 'copy'",
+            "cpus params.j"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

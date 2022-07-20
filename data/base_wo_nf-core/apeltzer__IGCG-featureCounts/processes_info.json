@@ -1,0 +1,293 @@
+{
+    "get_software_versions": {
+        "name_process": "get_software_versions",
+        "string_process": "\nprocess get_software_versions {\n\n    output:\n    file 'software_versions_mqc.yaml' into software_versions_yaml\n\n    script:\n    \"\"\"\n    echo $params.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    featureCounts --version > v_featurecounts.txt\n    multiqc --version > v_multiqc.txt\n    scrape_software_versions.py > software_versions_mqc.yaml\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    echo $params.version > v_pipeline.txt\n    echo $workflow.nextflow.version > v_nextflow.txt\n    featureCounts --version > v_featurecounts.txt\n    multiqc --version > v_multiqc.txt\n    scrape_software_versions.py > software_versions_mqc.yaml\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "FeatureCounts",
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/featurecounts",
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FeatureCounts",
+                "uri": "https://bio.tools/featurecounts",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3793",
+                                    "term": "Read summarisation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "featureCounts is a very efficient read quantifier. It can be used to summarize RNA-seq reads and gDNA-seq reads to a variety of genomic features such as genes, exons, promoters, gene bodies and genomic bins. It is included in the Bioconductor Rsubread package and also in the SourceForge Subread package.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/Rsubread.html"
+            },
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "software_versions_yaml"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "apeltzer__IGCG-featureCounts",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "fetch_encrypted_s3_url": {
+        "name_process": "fetch_encrypted_s3_url",
+        "string_process": "\nprocess fetch_encrypted_s3_url {\n    tag \"$file_name\"\n    \n    input:\n    set file_name, id from crypted_object_ids\n\n    output:\n    set file_name, file('s3_path.txt') into s3_url\n\n    script:\n    \"\"\"\n    score-client url --object-id $id | grep -e \"^https:\\/\\/\\S*\" > s3_path.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    score-client url --object-id $id | grep -e \"^https:\\/\\/\\S*\" > s3_path.txt\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "crypted_object_ids"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "s3_url"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "apeltzer__IGCG-featureCounts",
+        "directive": [
+            "tag \"$file_name\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "featureCounts": {
+        "name_process": "featureCounts",
+        "string_process": "\nprocess featureCounts{\n    tag \"$file_name\"\n    publishDir \"${params.outdir}/featureCounts\", mode: 'copy',\n        saveAs: {filename ->\n            if (filename.indexOf(\"biotype_counts\") > 0) \"biotype_counts/$filename\"\n            else if (filename.indexOf(\"_gene.featureCounts.txt.summary\") > 0) \"gene_count_summaries/$filename\"\n            else if (filename.indexOf(\"_gene.featureCounts.txt\") > 0) \"gene_counts/$filename\"\n            else \"$filename\"\n        }\n\n    input:\n    set file_name, file s3_path from s3_url\n    file gtf from gtf_featureCounts.collect()\n    file biotypes_header\n\n    output:\n    file \"${bam_featurecounts.baseName}_gene.featureCounts.txt\" into geneCounts, featureCounts_to_merge\n    file \"${bam_featurecounts.baseName}_gene.featureCounts.txt.summary\" into featureCounts_logs\n    file \"${bam_featurecounts.baseName}_biotype_counts*mqc.{txt,tsv}\" into featureCounts_biotype\n\n    script:\n    def featureCounts_direction = 0\n    if (forward_stranded && !unstranded) {\n        featureCounts_direction = 1\n    } else if (reverse_stranded && !unstranded){\n        featureCounts_direction = 2\n    }\n                                  \n    \"\"\"\n    url = cat \"${s3_path}\u201d\n    wget -O $file_name $url\n    featureCounts -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $file_name\n    featureCounts -a $gtf -g gene_biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $file_name\n    cut -f 1,7 ${file_name.baseName}_biotype.featureCounts.txt | tail -n +3 | cat $biotypes_header - >> ${file_name.baseName}_biotype_counts_mqc.txt\n    mqc_features_stat.py ${file_name.baseName}_biotype_counts_mqc.txt -s $file_name -f rRNA -o ${file_name.baseName}_biotype_counts_gs_mqc.tsv\n    \"\"\"\n\n\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    def featureCounts_direction = 0\n    if (forward_stranded && !unstranded) {\n        featureCounts_direction = 1\n    } else if (reverse_stranded && !unstranded){\n        featureCounts_direction = 2\n    }\n                                  \n    \"\"\"\n    url = cat \"${s3_path}\u201d\n    wget -O $file_name $url\n    featureCounts -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $file_name\n    featureCounts -a $gtf -g gene_biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $file_name\n    cut -f 1,7 ${file_name.baseName}_biotype.featureCounts.txt | tail -n +3 | cat $biotypes_header - >> ${file_name.baseName}_biotype_counts_mqc.txt\n    mqc_features_stat.py ${file_name.baseName}_biotype_counts_mqc.txt -s $file_name -f rRNA -o ${file_name.baseName}_biotype_counts_gs_mqc.tsv\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "CURLS",
+            "FeatureCounts"
+        ],
+        "tools_url": [
+            "https://bio.tools/CURLS",
+            "https://bio.tools/featurecounts"
+        ],
+        "tools_dico": [
+            {
+                "name": "CURLS",
+                "uri": "https://bio.tools/CURLS",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "Public health and epidemiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3421",
+                            "term": "Surgery"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Pathology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3335",
+                            "term": "Cardiovascular medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "https://en.wikipedia.org/wiki/Public_health"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3305",
+                            "term": "https://en.wikipedia.org/wiki/Epidemiology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3421",
+                            "term": "https://en.wikipedia.org/wiki/Surgery"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "Disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0634",
+                            "term": "https://en.wikipedia.org/wiki/Pathology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "towards a wider use of basic echo applications in Africa.\n\nBACKGROUND:Point-of-care ultrasound is increasingly being used as a diagnostic tool in resource-limited settings. The majority of existing ultrasound protocols have been developed and implemented in high-resource settings. In sub-Saharan Africa (SSA), patients with heart failure of various etiologies commonly present late in the disease process, with a similar syndrome of dyspnea, edema and cardiomegaly on chest X-ray. The causes of heart failure in SSA differ from those in high-resource settings. Point-of-care ultrasound has the potential to identify the underlying etiology of heart failure, and lead to targeted therapy.\n\n||| HOMEPAGE MISSING!.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'ultrasound', 'Cardiac ultrasound resource-limited settings', 'high-resource', 'cardiomegaly SSA'",
+                "homepage": "https://www.ncbi.nlm.nih.gov/pubmed/?term=31883027"
+            },
+            {
+                "name": "FeatureCounts",
+                "uri": "https://bio.tools/featurecounts",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3793",
+                                    "term": "Read summarisation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "featureCounts is a very efficient read quantifier. It can be used to summarize RNA-seq reads and gDNA-seq reads to a variety of genomic features such as genes, exons, promoters, gene bodies and genomic bins. It is included in the Bioconductor Rsubread package and also in the SourceForge Subread package.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/Rsubread.html"
+            }
+        ],
+        "inputs": [
+            "s3_url",
+            "gtf_featureCounts",
+            "biotypes_header"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "geneCounts",
+            "featureCounts_to_merge",
+            "featureCounts_logs",
+            "featureCounts_biotype"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "apeltzer__IGCG-featureCounts",
+        "directive": [
+            "tag \"$file_name\"",
+            "publishDir \"${params.outdir}/featureCounts\", mode: 'copy' , saveAs: {filename -> if (filename.indexOf(\"biotype_counts\") > 0) \"biotype_counts/$filename\" else if (filename.indexOf(\"_gene.featureCounts.txt.summary\") > 0) \"gene_count_summaries/$filename\" else if (filename.indexOf(\"_gene.featureCounts.txt\") > 0) \"gene_counts/$filename\" else \"$filename\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_featureCounts": {
+        "name_process": "merge_featureCounts",
+        "string_process": "\nprocess merge_featureCounts {\n    tag \"${input_files[0].baseName - '.sorted'}\"\n    publishDir \"${params.outdir}/featureCounts\", mode: 'copy'\n\n    input:\n    file input_files from featureCounts_to_merge.collect()\n\n    output:\n    file 'merged_gene_counts.txt'\n\n    script:\n    \"\"\"\n    merge_featurecounts.py -o merged_gene_counts.txt -i $input_files\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    merge_featurecounts.py -o merged_gene_counts.txt -i $input_files\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "featureCounts_to_merge"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "apeltzer__IGCG-featureCounts",
+        "directive": [
+            "tag \"${input_files[0].baseName - '.sorted'}\"",
+            "publishDir \"${params.outdir}/featureCounts\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,367 @@
+{
+    "get_picard_jar": {
+        "name_process": "get_picard_jar",
+        "string_process": "\nprocess get_picard_jar {\n\toutput:\n\tpath(\"picard.jar\")\n\n\t\"\"\"\n\twget -O picard.jar \\\n\t\thttps://github.com/broadinstitute/picard/releases/download/${params.picard_version}/picard.jar\n\t\"\"\"\n}",
+        "nb_lignes_process": 8,
+        "string_script": "\"\"\"\n\twget -O picard.jar \\\n\t\thttps://github.com/broadinstitute/picard/releases/download/${params.picard_version}/picard.jar\n\t\"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "convert_reads": {
+        "name_process": "convert_reads",
+        "string_process": "\nprocess convert_reads {\n\tpublishDir \"${output_directory}/${sample_name}/bams\", \\\n\t\tpattern: \"*.bam\", mode: 'copy', overwrite: true\n\n\tinput:\n\tpath(picard_jar)\n\ttuple val(sample_name), path(fastq1), path(fastq2)\n\n\toutput:\n\ttuple val(sample_name), path(\"${sample_name}.converted.bam\")\n\n\t\"\"\"\n\tjava -jar ${picard_jar} FastqToSam \\\n\tFASTQ=${fastq1} \\\n\tFASTQ2=${fastq2} \\\n\tOUTPUT=${sample_name}.converted.bam \\\n\tSAMPLE_NAME=${sample_name} \\\n\tSORT_ORDER=queryname \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp\n\t\"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"\n\tjava -jar ${picard_jar} FastqToSam \\\n\tFASTQ=${fastq1} \\\n\tFASTQ2=${fastq2} \\\n\tOUTPUT=${sample_name}.converted.bam \\\n\tSAMPLE_NAME=${sample_name} \\\n\tSORT_ORDER=queryname \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp\n\t\"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "picard_jar",
+            "sample_name",
+            "fastq1",
+            "fastq2"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "sample_name"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [
+            "publishDir \"${output_directory}/${sample_name}/bams\", pattern: \"*.bam\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "prepare_reads": {
+        "name_process": "prepare_reads",
+        "string_process": "\nprocess prepare_reads {\n\tpublishDir \"${output_directory}/${sample_name}/bams\", \\\n\t\tpattern: \"${sample_name}.prepared.bam\", mode: \"copy\", overwrite: true\n\tpublishDir \"${output_directory}/${sample_name}/summaries\", \\\n\t\tpattern: \"${sample_name}.*.summary.txt\", mode: \"copy\", overwrite: true\n\n\tinput:\n\ttuple val(sample_name), path(converted_bam)\n\n\toutput:\n\ttuple val(sample_name), path(\"${sample_name}.prepared.bam\")\n\n\t\"\"\"\n\tTagBamWithReadSequenceExtended \\\n\tINPUT=${converted_bam} \\\n\tOUTPUT=/dev/stdout \\\n\tSUMMARY=${sample_name}.cb-tag.summary.txt \\\n\tBASE_RANGE=${params.cell_barcode_base_range} \\\n\tBARCODED_READ=${params.barcoded_read} \\\n\tDISCARD_READ=false \\\n\tBASE_QUALITY=${params.barcode_min_base_quality} \\\n\tNUM_BASES_BELOW_QUALITY=${params.barcode_n_bases_below_min_quality} \\\n\tTAG_NAME=XC \\\n\tTAG_QUALITY=XQ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tTagBamWithReadSequenceExtended \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=/dev/stdout \\\n\tSUMMARY=${sample_name}.umi-tag.summary.txt \\\n\tBASE_RANGE=${params.umi_barcode_base_range} \\\n\tBARCODED_READ=${params.barcoded_read} \\\n\tDISCARD_READ=true \\\n\tBASE_QUALITY=${params.barcode_min_base_quality} \\\n\tNUM_BASES_BELOW_QUALITY=${params.barcode_n_bases_below_min_quality} \\\n\tTAG_NAME=XM \\\n\tTAG_QUALITY=XQ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tFilterBam \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=/dev/stdout \\\n\tSUMMARY=filter.summary.txt \\\n\tTAG_REJECT=XQ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tTrimStartingSequence \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=/dev/stdout \\\n\tOUTPUT_SUMMARY=${sample_name}.trim-starting.summary.txt \\\n\tSEQUENCE=${params.trim_starting_sequence} \\\n\tMISMATCHES=${params.trim_starting_n_mismatches} \\\n\tNUM_BASES=${params.trim_starting_n_bases} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tPolyATrimmer \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=${sample_name}.prepared.bam \\\n\tOUTPUT_SUMMARY=${sample_name}.trim-polyA.summary.txt \\\n\tUSE_NEW_TRIMMER=true \\\n\tADAPTER=${params.trim_polyA_adapter} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 73,
+        "string_script": "\"\"\"\n\tTagBamWithReadSequenceExtended \\\n\tINPUT=${converted_bam} \\\n\tOUTPUT=/dev/stdout \\\n\tSUMMARY=${sample_name}.cb-tag.summary.txt \\\n\tBASE_RANGE=${params.cell_barcode_base_range} \\\n\tBARCODED_READ=${params.barcoded_read} \\\n\tDISCARD_READ=false \\\n\tBASE_QUALITY=${params.barcode_min_base_quality} \\\n\tNUM_BASES_BELOW_QUALITY=${params.barcode_n_bases_below_min_quality} \\\n\tTAG_NAME=XC \\\n\tTAG_QUALITY=XQ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tTagBamWithReadSequenceExtended \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=/dev/stdout \\\n\tSUMMARY=${sample_name}.umi-tag.summary.txt \\\n\tBASE_RANGE=${params.umi_barcode_base_range} \\\n\tBARCODED_READ=${params.barcoded_read} \\\n\tDISCARD_READ=true \\\n\tBASE_QUALITY=${params.barcode_min_base_quality} \\\n\tNUM_BASES_BELOW_QUALITY=${params.barcode_n_bases_below_min_quality} \\\n\tTAG_NAME=XM \\\n\tTAG_QUALITY=XQ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tFilterBam \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=/dev/stdout \\\n\tSUMMARY=filter.summary.txt \\\n\tTAG_REJECT=XQ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tTrimStartingSequence \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=/dev/stdout \\\n\tOUTPUT_SUMMARY=${sample_name}.trim-starting.summary.txt \\\n\tSEQUENCE=${params.trim_starting_sequence} \\\n\tMISMATCHES=${params.trim_starting_n_mismatches} \\\n\tNUM_BASES=${params.trim_starting_n_bases} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tPolyATrimmer \\\n\tINPUT=/dev/stdin \\\n\tOUTPUT=${sample_name}.prepared.bam \\\n\tOUTPUT_SUMMARY=${sample_name}.trim-polyA.summary.txt \\\n\tUSE_NEW_TRIMMER=true \\\n\tADAPTER=${params.trim_polyA_adapter} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 60,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_name",
+            "converted_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "sample_name"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [
+            "publishDir \"${output_directory}/${sample_name}/bams\", pattern: \"${sample_name}.prepared.bam\", mode: \"copy\", overwrite: true",
+            "publishDir \"${output_directory}/${sample_name}/summaries\", pattern: \"${sample_name}.*.summary.txt\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "align_annotate_reads": {
+        "name_process": "align_annotate_reads",
+        "string_process": "\nprocess align_annotate_reads {\n\tpublishDir \"${output_directory}/${sample_name}/bams\", \\\n\t\tpattern: \"${sample_name}.annotated.bam\", mode: \"copy\", overwrite: true\n\n\tinput:\n\tpath(picard_jar)\n\ttuple val(sample_name), path(prepared_bam)\n\tpath(star_index)\n\tpath(normalized_fasta)\n\tpath(reference_dict)\n\tpath(reference_refFlat)\n\n\toutput:\n\ttuple val(sample_name), path(\"${sample_name}.annotated.bam\")\n\n\t\"\"\"\n\tjava -jar ${picard_jar} SamToFastq \\\n\tINPUT=${prepared_bam} \\\n\tFASTQ=/dev/stdout \\\n\tQUIET=true \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tSTAR \\\n\t--genomeDir ${star_index} \\\n\t--runThreadN ${params.star_n_cores} \\\n\t--readFilesIn /dev/stdin \\\n\t--outFileNamePrefix ${sample_name}-star-alignment/ \\\n\t--limitOutSJcollapsed ${params.star_limit_out_sj_collapsed}\n\n\tjava -jar ${picard_jar} SortSam \\\n\tINPUT=${sample_name}-star-alignment/Aligned.out.sam \\\n\tOUTPUT=${sample_name}.sorted.bam \\\n\tSORT_ORDER=queryname \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava -jar ${picard_jar} MergeBamAlignment \\\n\tREFERENCE_SEQUENCE=${normalized_fasta} \\\n\tUNMAPPED_BAM=${prepared_bam} \\\n\tALIGNED_BAM=${sample_name}.sorted.bam \\\n\tINCLUDE_SECONDARY_ALIGNMENTS=false \\\n\tCLIP_ADAPTERS=false \\\n\tOUTPUT=${sample_name}.merged.bam \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tTagReadWithGeneFunction \\\n\tINPUT=${sample_name}.merged.bam \\\n\tOUTPUT=${sample_name}.annotated.bam \\\n\tANNOTATIONS_FILE=${reference_refFlat} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 58,
+        "string_script": "\"\"\"\n\tjava -jar ${picard_jar} SamToFastq \\\n\tINPUT=${prepared_bam} \\\n\tFASTQ=/dev/stdout \\\n\tQUIET=true \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp | \\\n\n\tSTAR \\\n\t--genomeDir ${star_index} \\\n\t--runThreadN ${params.star_n_cores} \\\n\t--readFilesIn /dev/stdin \\\n\t--outFileNamePrefix ${sample_name}-star-alignment/ \\\n\t--limitOutSJcollapsed ${params.star_limit_out_sj_collapsed}\n\n\tjava -jar ${picard_jar} SortSam \\\n\tINPUT=${sample_name}-star-alignment/Aligned.out.sam \\\n\tOUTPUT=${sample_name}.sorted.bam \\\n\tSORT_ORDER=queryname \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava -jar ${picard_jar} MergeBamAlignment \\\n\tREFERENCE_SEQUENCE=${normalized_fasta} \\\n\tUNMAPPED_BAM=${prepared_bam} \\\n\tALIGNED_BAM=${sample_name}.sorted.bam \\\n\tINCLUDE_SECONDARY_ALIGNMENTS=false \\\n\tCLIP_ADAPTERS=false \\\n\tOUTPUT=${sample_name}.merged.bam \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tTagReadWithGeneFunction \\\n\tINPUT=${sample_name}.merged.bam \\\n\tOUTPUT=${sample_name}.annotated.bam \\\n\tANNOTATIONS_FILE=${reference_refFlat} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 42,
+        "language_script": "bash",
+        "tools": [
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "picard_jar",
+            "sample_name",
+            "prepared_bam",
+            "star_index",
+            "normalized_fasta",
+            "reference_dict",
+            "reference_refFlat"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "sample_name"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [
+            "publishDir \"${output_directory}/${sample_name}/bams\", pattern: \"${sample_name}.annotated.bam\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "repair_reads": {
+        "name_process": "repair_reads",
+        "string_process": "\nprocess repair_reads {\n\tpublishDir \"${output_directory}/${sample_name}/bams\", \\\n\t\tpattern: \"${sample_name}.repaired.bam\", mode: \"copy\", overwrite: true\n\tpublishDir \"${output_directory}/${sample_name}/summaries\", \\\n\t\tpattern: \"${sample_name}.*.{report,summary,stats}.txt\", mode: \"copy\", overwrite: true\n\n\tinput:\n\ttuple val(sample_name), path(annotated_bam)\n\n\t\"\"\"\n\tDetectBeadSubstitutionErrors \\\n\tINPUT=${annotated_bam} \\\n\tOUTPUT=${sample_name}.substitution.bam \\\n\tOUTPUT_REPORT=${sample_name}.substitution-repair.report.txt \\\n\tOUTPUT_SUMMARY=${sample_name}.substitution-repair.summary.txt \\\n\tMIN_UMIS_PER_CELL=${params.repair_min_umis_per_cell} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tDetectBeadSynthesisErrors \\\n\tINPUT=${sample_name}.substitution.bam \\\n\tOUTPUT=${sample_name}.repaired.bam \\\n\tREPORT=${sample_name}.synthesis-repair.report.txt \\\n\tOUTPUT_STATS=${sample_name}.synthesis-repair.stats.txt \\\n\tSUMMARY=${sample_name}.synthesis-repair.summary.txt \\\n\tMIN_UMIS_PER_CELL=${params.repair_min_umis_per_cell} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "\"\"\"\n\tDetectBeadSubstitutionErrors \\\n\tINPUT=${annotated_bam} \\\n\tOUTPUT=${sample_name}.substitution.bam \\\n\tOUTPUT_REPORT=${sample_name}.substitution-repair.report.txt \\\n\tOUTPUT_SUMMARY=${sample_name}.substitution-repair.summary.txt \\\n\tMIN_UMIS_PER_CELL=${params.repair_min_umis_per_cell} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tDetectBeadSynthesisErrors \\\n\tINPUT=${sample_name}.substitution.bam \\\n\tOUTPUT=${sample_name}.repaired.bam \\\n\tREPORT=${sample_name}.synthesis-repair.report.txt \\\n\tOUTPUT_STATS=${sample_name}.synthesis-repair.stats.txt \\\n\tSUMMARY=${sample_name}.synthesis-repair.summary.txt \\\n\tMIN_UMIS_PER_CELL=${params.repair_min_umis_per_cell} \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_name",
+            "annotated_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [
+            "publishDir \"${output_directory}/${sample_name}/bams\", pattern: \"${sample_name}.repaired.bam\", mode: \"copy\", overwrite: true",
+            "publishDir \"${output_directory}/${sample_name}/summaries\", pattern: \"${sample_name}.*.{report,summary,stats}.txt\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalize_fasta": {
+        "name_process": "normalize_fasta",
+        "string_process": "\nprocess normalize_fasta {\n\n\tinput:\n\tpath(picard_jar)\n\tpath(reference_fasta)\n\n\toutput:\n\tpath(\"reference.fasta\")\n\n\t\"\"\"\n\tjava -jar ${picard_jar} NormalizeFasta \\\n\tINPUT=${reference_fasta} \\\n\tOUTPUT=reference.fasta \\\n\tLINE_LENGTH=100 \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n\tjava -jar ${picard_jar} NormalizeFasta \\\n\tINPUT=${reference_fasta} \\\n\tOUTPUT=reference.fasta \\\n\tLINE_LENGTH=100 \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "picard_jar",
+            "reference_fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "create_sequence_dictionary": {
+        "name_process": "create_sequence_dictionary",
+        "string_process": "\nprocess create_sequence_dictionary {\n\t\n\tinput:\n\tpath(picard_jar)\n\tpath(normalized_fasta)\n\n\toutput:\n\tpath(\"reference.dict\")\n\n\t\"\"\"\n\tjava -jar ${picard_jar} CreateSequenceDictionary \\\n\tREFERENCE=${normalized_fasta} \\\n\tOUTPUT=reference.dict \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n\tjava -jar ${picard_jar} CreateSequenceDictionary \\\n\tREFERENCE=${normalized_fasta} \\\n\tOUTPUT=reference.dict \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "picard_jar",
+            "normalized_fasta"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "convert_to_refFlat": {
+        "name_process": "convert_to_refFlat",
+        "string_process": "\nprocess convert_to_refFlat {\n\t\n\tinput:\n\tpath(reference_gtf)\n\tpath(reference_dict)\n\n\toutput:\n\tpath(\"reference.refFlat\")\n\n\t\"\"\"\n\tConvertToRefFlat \\\n\tANNOTATIONS_FILE=${reference_gtf} \\\n\tSEQUENCE_DICTIONARY=${reference_dict} \\\n\tOUTPUT=reference.refFlat \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n\tConvertToRefFlat \\\n\tANNOTATIONS_FILE=${reference_gtf} \\\n\tSEQUENCE_DICTIONARY=${reference_dict} \\\n\tOUTPUT=reference.refFlat \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reference_gtf",
+            "reference_dict"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "reduce_gtf": {
+        "name_process": "reduce_gtf",
+        "string_process": "\nprocess reduce_gtf {\n\t\n\tinput:\n\tpath(reference_gtf)\n\tpath(reference_dict)\n\n\toutput:\n\tpath(\"reference.reduced.gtf\")\n\n\t\"\"\"\n\tReduceGtf \\\n\tGTF=${reference_gtf} \\\n\tSEQUENCE_DICTIONARY=${reference_dict} \\\n\tOUTPUT=reference.reduced.gtf \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n\tReduceGtf \\\n\tGTF=${reference_gtf} \\\n\tSEQUENCE_DICTIONARY=${reference_dict} \\\n\tOUTPUT=reference.reduced.gtf \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reference_gtf",
+            "reference_dict"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "create_intervals": {
+        "name_process": "create_intervals",
+        "string_process": "\nprocess create_intervals {\n\t\n\tinput:\n\tpath(reference_dict)\n\tpath(reduced_gtf)\n\n\toutput:\n\tpath(\"reference.*.intervals\")\n\n\t\"\"\"\n\tCreateIntervalsFiles \\\n\tSEQUENCE_DICTIONARY=${reference_dict} \\\n\tREDUCED_GTF=${reduced_gtf} \\\n\tPREFIX=reference \\\n\tMT_SEQUENCE=${params.mt_sequence} \\\n\tOUTPUT=./ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n\tCreateIntervalsFiles \\\n\tSEQUENCE_DICTIONARY=${reference_dict} \\\n\tREDUCED_GTF=${reduced_gtf} \\\n\tPREFIX=reference \\\n\tMT_SEQUENCE=${params.mt_sequence} \\\n\tOUTPUT=./ \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reference_dict",
+            "reduced_gtf"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "convert_intervals_to_bed": {
+        "name_process": "convert_intervals_to_bed",
+        "string_process": "\nprocess convert_intervals_to_bed {\n\t\n\tinput:\n\tpath(picard_jar)\n\tpath(intervals)\n\n\toutput:\n\tpath(\"reference.*.bed\")\n\n\t\"\"\"\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.rRNA.intervals \\\n\tOUTPUT=reference.rRNA.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.consensus_introns.intervals \\\n\tOUTPUT=reference.consensus_introns.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.exons.intervals \\\n\tOUTPUT=reference.exons.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.intergenic.intervals \\\n\tOUTPUT=reference.intergenic.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.genes.intervals \\\n\tOUTPUT=reference.genes.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 50,
+        "string_script": "\"\"\"\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.rRNA.intervals \\\n\tOUTPUT=reference.rRNA.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.consensus_introns.intervals \\\n\tOUTPUT=reference.consensus_introns.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.exons.intervals \\\n\tOUTPUT=reference.exons.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.intergenic.intervals \\\n\tOUTPUT=reference.intergenic.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.genes.intervals \\\n\tOUTPUT=reference.genes.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "picard_jar",
+            "intervals"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "convert_intervals_to_bed_mt": {
+        "name_process": "convert_intervals_to_bed_mt",
+        "string_process": "\nprocess convert_intervals_to_bed_mt {\n\n\tinput:\n\tpath(picard_jar)\n\tpath(intervals)\n\n\toutput:\n\tpath(\"reference.mt.bed\")\n\n\t\"\"\"\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.mt.intervals \\\n\tOUTPUT=reference.mt.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n\tjava \\\n\t-jar ${picard_jar} IntervalListToBed \\\n\tINPUT=reference.mt.intervals \\\n\tOUTPUT=reference.mt.bed \\\n\tUSE_JDK_DEFLATER=true \\\n\tUSE_JDK_INFLATER=true \\\n\tTMP_DIR=./.tmp \n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "picard_jar",
+            "intervals"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "liameabbott__drop-seq-tools-pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

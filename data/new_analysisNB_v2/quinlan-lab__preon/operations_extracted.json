@@ -1,0 +1,61 @@
+{
+    "OPERATION_1": {
+        "string": "Channel.fromPath(params.manifest)\n    .splitCsv(sep: '\\t')\n    .map { row ->\n        def sample_id = row[1]\n        def status = row[2].toInteger()\n        def run_id = row[3]\n        def r1 = file(row[4])\n        def r2 = file(row[5])\n        [[sample_id, status, run_id], r1, r2]\n    }\n                                       \n    .splitFastq(by: params.chunksize, pe:true, file:true)\n    .map { row ->\n        def identifiers = row[0]\n        def sample_id = identifiers[0]\n        def status = identifiers[1]\n        def run_id = identifiers[2]\n        def idx = row[1].baseName.split(/\\\\.fastq|\\\\.fq/)[0].split(\"\\\\.\")[-1]\n        [sample_id, status, run_id, idx, row[1], row[2]]\n    }\n    .set { fastq_ch }",
+        "origin": [
+            [
+                "params.manifest",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "fastq_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_2": {
+        "string": "Channel\n    .value(file(\"${params.fasta}.{amb,ann,bwt,pac,sa}\"))\n    .set { bwaidx_ch }",
+        "origin": [],
+        "gives": [
+            [
+                "bwaidx_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "intervals_ch = Channel\n    .from(params.intervals ? intervals : faidx)\n    .splitCsv(sep: '\\t')\n    .map { row ->\n                                 \n        if (row[0][0] != \"@\") {\n            def interval_start = row[1].toLong()\n            def interval_length = row[2].toLong()\n            long start\n            long end\n            int width = params.width\n\n            if (!params.intervals) {\n                                                            \n                interval_start = 0\n                interval_length = row[1].toLong()\n            }\n\n            while(interval_start < interval_length) {\n                start = interval_start\n                                       \n                end = interval_start + width + 500\n                interval_start = end - 500\n                if (end > interval_length) {\n                    end = interval_length\n                    interval_start = end\n                }\n                                                  \n                intervals_ch.bind( \"${row[0]}:${start}-${end}\" )\n            }\n        }\n    }",
+        "origin": [
+            [
+                "\"${row[0]}:${start}-${end}\"",
+                "V"
+            ]
+        ],
+        "gives": [
+            [
+                "intervals_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "create_call_bams_ch\n    .map { file -> tuple(file.getSimpleName(), file, file + (\"${file}\".endsWith('.cram') ? '.crai' : '.bai')) }\n    .into { call_bams; genotype_bams }",
+        "origin": [
+            [
+                "create_call_bams_ch",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "call_bams",
+                "P"
+            ],
+            [
+                "genotype_bams",
+                "P"
+            ]
+        ]
+    }
+}

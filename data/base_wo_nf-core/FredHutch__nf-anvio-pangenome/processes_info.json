@@ -1,0 +1,360 @@
+{
+    "parseSampleSheet": {
+        "name_process": "parseSampleSheet",
+        "string_process": "\nprocess parseSampleSheet {\n    container \"quay.io/fhcrc-microbiome/python-pandas:v0.24.2\"\n    label \"io_limited\"\n    \n    input:\n    file sample_sheet_csv from file(params.sample_sheet)\n    \n    output:\n    file \"${sample_sheet_csv}\" into sample_sheet_ch, sample_sheet_to_parse\n\n    \"\"\"#!/usr/bin/env python3\nimport pandas as pd\n\nprint(\"Reading in ${sample_sheet_csv}\")\n\ndf = pd.read_csv(\"${sample_sheet_csv}\", sep=\",\")\n\nprint(\"Read in %d rows and %d columns\" % (df.shape[0], df.shape[1]))\n\nfor k in [\"name\", \"genome\"]:\n    assert k in df.columns.values, \"Must provide a column '%s' in the sample sheet\" % k\n\n# Strip away all whitespace and carriage returns\ndf = df.applymap(str).applymap(lambda s: s.strip())\n\nprint(\"Writing out sanitized sample sheet\")\ndf.to_csv(\"${sample_sheet_csv}\", index=None, sep=\"\\\\t\")\nprint(\"Done\")\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "\"\"\"#!/usr/bin/env python3\nimport pandas as pd\n\nprint(\"Reading in ${sample_sheet_csv}\")\n\ndf = pd.read_csv(\"${sample_sheet_csv}\", sep=\",\")\n\nprint(\"Read in %d rows and %d columns\" % (df.shape[0], df.shape[1]))\n\nfor k in [\"name\", \"genome\"]:\n    assert k in df.columns.values, \"Must provide a column '%s' in the sample sheet\" % k\n\n# Strip away all whitespace and carriage returns\ndf = df.applymap(str).applymap(lambda s: s.strip())\n\nprint(\"Writing out sanitized sample sheet\")\ndf.to_csv(\"${sample_sheet_csv}\", index=None, sep=\"\\\\t\")\nprint(\"Done\")\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "sample_sheet_ch",
+            "sample_sheet_to_parse"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/python-pandas:v0.24.2\"",
+            "label \"io_limited\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "makeGenomeDB": {
+        "name_process": "makeGenomeDB",
+        "string_process": "\nprocess makeGenomeDB {\n    container \"${params.container__anvio}\"\n    label \"mem_medium\"\n    \n    input:\n    set name, file(fasta) from sample_sheet_ch.splitCsv(header:true, sep:\"\\t\").map { row -> tuple(row.name, file(row.genome)) }\n    \n    output:\n    set name, file(\"${name}.db\") into genomeDB_ch, nameDB_ch, aniDB_ch\n\n    \"\"\"#!/bin/bash\nset -e\n\nfasta=${fasta}\n# Decompress the FASTA if it is compressed\ngzip -t \\$fasta && gunzip \\$fasta && fasta=\\$(echo \\$fasta | sed 's/.gz//')\n# The file ending must be \"fa\", \"fsa\", or \"fasta\"\nif [[ \\$fasta =~ \".fa\" ]] || [[ \\$fasta =~ \".fsa\" ]] || [[ \\$fasta =~ \".fasta\" ]]; then\n    echo \"No need to rename \\$fasta\"\nelse\n    mv \\$fasta \\$fasta.fasta\n    fasta=\\$fasta.fasta\nfi\n\n# Reformat the FASTA to sanitize deflines\nanvi-script-reformat-fasta --simplify-names -l 0 -o \\$fasta.clean.fasta \\$fasta\n\n# Make the genome database\nanvi-gen-contigs-database -f \\$fasta.clean.fasta -n ${name} -o ${name}.db\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\nfasta=${fasta}\n# Decompress the FASTA if it is compressed\ngzip -t \\$fasta && gunzip \\$fasta && fasta=\\$(echo \\$fasta | sed 's/.gz//')\n# The file ending must be \"fa\", \"fsa\", or \"fasta\"\nif [[ \\$fasta =~ \".fa\" ]] || [[ \\$fasta =~ \".fsa\" ]] || [[ \\$fasta =~ \".fasta\" ]]; then\n    echo \"No need to rename \\$fasta\"\nelse\n    mv \\$fasta \\$fasta.fasta\n    fasta=\\$fasta.fasta\nfi\n\n# Reformat the FASTA to sanitize deflines\nanvi-script-reformat-fasta --simplify-names -l 0 -o \\$fasta.clean.fasta \\$fasta\n\n# Make the genome database\nanvi-gen-contigs-database -f \\$fasta.clean.fasta -n ${name} -o ${name}.db\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_sheet_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "genomeDB_ch",
+            "nameDB_ch",
+            "aniDB_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"mem_medium\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "setupNCBIcogs": {
+        "name_process": "setupNCBIcogs",
+        "string_process": " process setupNCBIcogs {\n        container \"${params.container__anvio}\"\n        label \"cpu_high\"\n        \n        output:\n        file \"COGS_DIR.tar\" into anvio_cogs_tar\n\n        \"\"\"#!/bin/bash\nset -e\n\nanvi-setup-ncbi-cogs --num-threads ${task.cpus} --cog-data-dir COGS_DIR --just-do-it --reset\ntar cvf COGS_DIR.tar COGS_DIR\n        \"\"\"\n    }",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\nanvi-setup-ncbi-cogs --num-threads ${task.cpus} --cog-data-dir COGS_DIR --just-do-it --reset\ntar cvf COGS_DIR.tar COGS_DIR\n        \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "anvio_cogs_tar"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"cpu_high\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotateGenes": {
+        "name_process": "annotateGenes",
+        "string_process": "\nprocess annotateGenes {\n    container \"${params.container__anvio}\"\n    label \"cpu_high\"\n    \n    input:\n    set name, file(db) from genomeDB_ch\n    file anvio_cogs_tar\n    \n    output:\n    file \"${db}\" into annotatedDB\n\n    \"\"\"#!/bin/bash\nset -e\n\ntar xvf ${anvio_cogs_tar}\nanvi-run-ncbi-cogs -c \"${db}\" --num-threads ${task.cpus} --cog-data-dir COGS_DIR\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\ntar xvf ${anvio_cogs_tar}\nanvi-run-ncbi-cogs -c \"${db}\" --num-threads ${task.cpus} --cog-data-dir COGS_DIR\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genomeDB_ch",
+            "anvio_cogs_tar"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "annotatedDB"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"cpu_high\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "linkGeneName": {
+        "name_process": "linkGeneName",
+        "string_process": "\nprocess linkGeneName {\n    container \"${params.container__anvio}\"\n    label \"mem_medium\"\n    \n    input:\n    set name, file(db) from nameDB_ch\n    \n    output:\n    file \"${db}.txt\" into layer_txt_for_combineGenomes\n\n    \"\"\"#!/bin/bash\nset -e\n\n# Link the name to the database\necho -e ${name},${db} | tr ',' '\\\\t' > ${db}.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\n# Link the name to the database\necho -e ${name},${db} | tr ',' '\\\\t' > ${db}.txt\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "nameDB_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "layer_txt_for_combineGenomes"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"mem_medium\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineGenomes": {
+        "name_process": "combineGenomes",
+        "string_process": "\nprocess combineGenomes {\n    container \"${params.container__anvio}\"\n    label \"mem_medium\"\n    publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true\n    \n    input:\n    file db_list from annotatedDB.collect()\n    file txt_list from layer_txt_for_combineGenomes.collect()\n    \n    output:\n    file \"${params.output_name}-GENOMES.db\" into combinedDB\n    file \"external-genomes.txt\" into external_genomes_for_ani\n\n    \"\"\"#!/bin/bash\nset -e\n\necho -e \"name\\\\tcontigs_db_path\" > external-genomes.txt\nfor fp in ${txt_list}; do cat \\$fp; done >> external-genomes.txt\ncat external-genomes.txt\nanvi-gen-genomes-storage -e external-genomes.txt \\\n                         -o ${params.output_name}-GENOMES.db\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\necho -e \"name\\\\tcontigs_db_path\" > external-genomes.txt\nfor fp in ${txt_list}; do cat \\$fp; done >> external-genomes.txt\ncat external-genomes.txt\nanvi-gen-genomes-storage -e external-genomes.txt \\\n                         -o ${params.output_name}-GENOMES.db\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "annotatedDB",
+            "layer_txt_for_combineGenomes"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "combinedDB",
+            "external_genomes_for_ani"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"mem_medium\"",
+            "publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "panGenomeAnalysis": {
+        "name_process": "panGenomeAnalysis",
+        "string_process": "\nprocess panGenomeAnalysis {\n    container \"${params.container__anvio}\"\n    label \"cpu_high\"\n    \n    input:\n    file combinedDB\n    val output_name from params.output_name\n    val min_occurrence from params.min_occurrence\n    val minbit from params.minbit\n    val distance from params.distance\n    val linkage from params.linkage\n    val mcl_inflation from params.mcl_inflation\n    \n    output:\n    file \"${params.output_name}-PAN.db\" into panGenome_for_addMetadata, panGenome_for_getSeqs\n\n    \"\"\"#!/bin/bash\nset -e\n\nanvi-pan-genome -g ${combinedDB} \\\n                --project-name ${output_name} \\\n                --output-dir ./ \\\n                --num-threads ${task.cpus} \\\n                --use-ncbi-blast \\\n                --min-occurrence ${min_occurrence} \\\n                --minbit ${minbit} \\\n                --distance ${distance} \\\n                --linkage ${linkage} \\\n                --mcl-inflation ${mcl_inflation}\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\nanvi-pan-genome -g ${combinedDB} \\\n                --project-name ${output_name} \\\n                --output-dir ./ \\\n                --num-threads ${task.cpus} \\\n                --use-ncbi-blast \\\n                --min-occurrence ${min_occurrence} \\\n                --minbit ${minbit} \\\n                --distance ${distance} \\\n                --linkage ${linkage} \\\n                --mcl-inflation ${mcl_inflation}\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "combinedDB",
+            "params",
+            "params",
+            "params",
+            "params",
+            "params",
+            "params"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "panGenome_for_addMetadata",
+            "panGenome_for_getSeqs"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"cpu_high\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "getSequencesForGCs": {
+        "name_process": "getSequencesForGCs",
+        "string_process": "\nprocess getSequencesForGCs {\n    container \"${params.container__anvio}\"\n    label \"mem_medium\"\n    publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true\n    \n    input:\n    file panGenome from panGenome_for_getSeqs\n    file combinedDB\n    val output_name from params.output_name\n    \n    output:\n    file \"${output_name}.gene_clusters.fastp\"\n    file \"${output_name}.gene_clusters.fasta\"\n\n    \"\"\"#!/bin/bash\nset -e\n\n\nset -e\n    \nanvi-get-sequences-for-gene-clusters \\\n    -p ${panGenome} \\\n    -g ${combinedDB} \\\n    -o ${output_name}.gene_clusters.fastp \\\n    --just-do-it\n\nanvi-get-sequences-for-gene-clusters \\\n    -p ${panGenome} \\\n    -g ${combinedDB} \\\n    -o ${output_name}.gene_clusters.fasta \\\n    --report-DNA-sequences \\\n    --just-do-it\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\n\nset -e\n    \nanvi-get-sequences-for-gene-clusters \\\n    -p ${panGenome} \\\n    -g ${combinedDB} \\\n    -o ${output_name}.gene_clusters.fastp \\\n    --just-do-it\n\nanvi-get-sequences-for-gene-clusters \\\n    -p ${panGenome} \\\n    -g ${combinedDB} \\\n    -o ${output_name}.gene_clusters.fasta \\\n    --report-DNA-sequences \\\n    --just-do-it\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "panGenome_for_getSeqs",
+            "combinedDB",
+            "params"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"mem_medium\"",
+            "publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "addMetadata": {
+        "name_process": "addMetadata",
+        "string_process": "\nprocess addMetadata {\n    container \"${params.container__anvio}\"\n    label \"io_limited\"\n    publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true\n    \n    input:\n    file panGenome from panGenome_for_addMetadata\n    file combinedDB\n    file sample_sheet from sample_sheet_to_parse\n    \n    output:\n    file \"${panGenome}\" into panGenome_for_enrichFunctions, panGenome_for_ani\n\n    \"\"\"#!/bin/bash\nset -e\n\n\n# Strip out the genome file path\ncat ${sample_sheet} | cut -f 2- > TEMP && mv TEMP ${sample_sheet}\necho \"Printing the reformatted sample sheet:\"\ncat ${sample_sheet}\n\nif (( \\$(head -1 ${sample_sheet} | tr \"\\\\t\" \"\\\\n\" | wc -l ) > 1 )); then\n    echo \"\"\n    echo \"Adding metadata\"\n    anvi-import-misc-data ${sample_sheet} \\\n                          -p ${panGenome} \\\n                          --target-data-table layers\nelse\n    echo \"\"\n    echo \"Not adding any metadata, none provided\"\n\nfi\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "\"\"\"#!/bin/bash\nset -e\n\n\n# Strip out the genome file path\ncat ${sample_sheet} | cut -f 2- > TEMP && mv TEMP ${sample_sheet}\necho \"Printing the reformatted sample sheet:\"\ncat ${sample_sheet}\n\nif (( \\$(head -1 ${sample_sheet} | tr \"\\\\t\" \"\\\\n\" | wc -l ) > 1 )); then\n    echo \"\"\n    echo \"Adding metadata\"\n    anvi-import-misc-data ${sample_sheet} \\\n                          -p ${panGenome} \\\n                          --target-data-table layers\nelse\n    echo \"\"\n    echo \"Not adding any metadata, none provided\"\n\nfi\n    \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [
+            "TEMP"
+        ],
+        "tools_url": [
+            "https://bio.tools/temp"
+        ],
+        "tools_dico": [
+            {
+                "name": "TEMP",
+                "uri": "https://bio.tools/temp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0427",
+                                    "term": "Transposon prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A software package for detecting transposable elements (TEs) insertions and excisions from pooled high-throughput sequencing data.",
+                "homepage": "https://github.com/JialiUMassWengLab/TEMP"
+            }
+        ],
+        "inputs": [
+            "panGenome_for_addMetadata",
+            "combinedDB",
+            "sample_sheet_to_parse"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "panGenome_for_enrichFunctions",
+            "panGenome_for_ani"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"io_limited\"",
+            "publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "enrichFunctions": {
+        "name_process": "enrichFunctions",
+        "string_process": " process enrichFunctions{\n        container \"${params.container__anvio}\"\n        label \"mem_medium\"\n        publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true\n        \n        input:\n        file panGenome from panGenome_for_enrichFunctions\n        file combinedDB\n        val output_name from params.output_name\n        val category_name from Channel.of(params.category_name.split(\",\"))\n        \n        output:\n        file \"${output_name}-enriched-functions-${category_name}.txt\"\n        file \"${output_name}-functions-occurrence.txt\"\n\n        script:\n\n        if (params.gene_enrichment == false)\n            \"\"\"#!/bin/bash\n            anvi-compute-functional-enrichment -p ${panGenome} \\\n                                                -g ${combinedDB} \\\n                                                --category-variable ${category_name} \\\n                                                --annotation-source COG20_FUNCTION \\\n                                                -o \"${output_name}-enriched-functions-${category_name}.txt\" \\\n                                                --functional-occurrence-table-output \"${output_name}-functions-occurrence.txt\"\n        \"\"\"\n\n        else\n            \"\"\"#!/bin/bash\n            anvi-compute-functional-enrichment -p ${panGenome} \\\n                                                -g ${combinedDB} \\\n                                                --category-variable ${category_name} \\\n                                                --annotation-source IDENTITY \\\n                                                --include-gc-identity-as-function \\\n                                                -o \"${output_name}-enriched-functions-${category_name}.txt\" \\\n                                                --functional-occurrence-table-output \"${output_name}-functions-occurrence.txt\"\n            \"\"\"\n    }",
+        "nb_lignes_process": 36,
+        "string_script": "        if (params.gene_enrichment == false)\n            \"\"\"#!/bin/bash\n            anvi-compute-functional-enrichment -p ${panGenome} \\\n                                                -g ${combinedDB} \\\n                                                --category-variable ${category_name} \\\n                                                --annotation-source COG20_FUNCTION \\\n                                                -o \"${output_name}-enriched-functions-${category_name}.txt\" \\\n                                                --functional-occurrence-table-output \"${output_name}-functions-occurrence.txt\"\n        \"\"\"\n\n        else\n            \"\"\"#!/bin/bash\n            anvi-compute-functional-enrichment -p ${panGenome} \\\n                                                -g ${combinedDB} \\\n                                                --category-variable ${category_name} \\\n                                                --annotation-source IDENTITY \\\n                                                --include-gc-identity-as-function \\\n                                                -o \"${output_name}-enriched-functions-${category_name}.txt\" \\\n                                                --functional-occurrence-table-output \"${output_name}-functions-occurrence.txt\"\n            \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "panGenome_for_enrichFunctions",
+            "combinedDB",
+            "params"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"mem_medium\"",
+            "publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "computeANI": {
+        "name_process": "computeANI",
+        "string_process": " process computeANI {\n        container \"${params.container__anvio}\"\n        label \"cpu_high\"\n        publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true\n        \n        input:\n        file panGenome from panGenome_for_ani\n        val output_name from params.output_name\n        val min_alignment_fraction from params.min_alignment_fraction\n        file combinedDB\n        file genome_db_list from aniDB_ch.collect()\n        file externalGenomes from external_genomes_for_ani\n        \n        output:\n        file \"${panGenome}\"\n        file \"ANI/*\"\n\n        \"\"\"\n    #!/bin/bash\n\n    set -e\n        \n    anvi-compute-genome-similarity \\\n        --external-genomes ${externalGenomes} \\\n        --min-alignment-fraction ${min_alignment_fraction} \\\n        --output-dir ANI \\\n        --num-threads ${task.cpus} \\\n        --pan-db ${panGenome} \\\n        --program ${params.ani_program} \\\n        -T ${task.cpus}\n        \"\"\"\n    }",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"\n    #!/bin/bash\n\n    set -e\n        \n    anvi-compute-genome-similarity \\\n        --external-genomes ${externalGenomes} \\\n        --min-alignment-fraction ${min_alignment_fraction} \\\n        --output-dir ANI \\\n        --num-threads ${task.cpus} \\\n        --pan-db ${panGenome} \\\n        --program ${params.ani_program} \\\n        -T ${task.cpus}\n        \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "panGenome_for_ani",
+            "params",
+            "params",
+            "combinedDB",
+            "aniDB_ch",
+            "external_genomes_for_ani"
+        ],
+        "nb_inputs": 6,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__nf-anvio-pangenome",
+        "directive": [
+            "container \"${params.container__anvio}\"",
+            "label \"cpu_high\"",
+            "publishDir \"${params.output_folder}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

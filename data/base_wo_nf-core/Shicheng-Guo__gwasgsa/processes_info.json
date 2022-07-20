@@ -1,0 +1,753 @@
+{
+    "preprocess_plink": {
+        "name_process": "preprocess_plink",
+        "string_process": " process preprocess_plink {\n\n        input:\n        file bed from ch_bed\n        file bim from ch_bim\n        file fam from ch_fam\n\n        output:\n        set file(\"${bed}\"), file(\"${bim}\"), file(\"${fam}\") into ch_plink_direct, ch_plink_direct_2\n\n        script:\n        \"\"\"\n        echo \"No Modifications to files. This step used for staging the files to make a unified nextflow channel for next step.\"\n        \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "        \"\"\"\n        echo \"No Modifications to files. This step used for staging the files to make a unified nextflow channel for next step.\"\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bed",
+            "ch_bim",
+            "ch_fam"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_plink_direct",
+            "ch_plink_direct_2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "preprocess_ref_panel": {
+        "name_process": "preprocess_ref_panel",
+        "string_process": " process preprocess_ref_panel {\n\n        input:\n        file bed from ch_ref_panel_bed\n        file bim from ch_ref_panel_bim\n        file fam from ch_ref_panel_fam\n\n        output:\n        set file(\"${bed}\"), file(\"${bim}\"), file(\"${fam}\") into ch_plink_ref_panel, ch_plink_ref_panel_2\n\n        script:\n        \"\"\"\n        echo \"No Modifications to files. This step used for staging the files to make a unified nextflow channel for next step.\"\n        \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "        \"\"\"\n        echo \"No Modifications to files. This step used for staging the files to make a unified nextflow channel for next step.\"\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_ref_panel_bed",
+            "ch_ref_panel_bim",
+            "ch_ref_panel_fam"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_plink_ref_panel",
+            "ch_plink_ref_panel_2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "preprocess_summary_stats": {
+        "name_process": "preprocess_summary_stats",
+        "string_process": " process preprocess_summary_stats {\n    \n        input:\n        file summary_stats from ch_summary_stats\n\n        output:\n        file('snp_p.tsv') into ch_snp_p_txt\n\n        script:\n        \"\"\"\n        csvtk cut -f ${params.snp_col_name},${params.pval_col_name} \\\n            ${summary_stats} > temp_1.txt\n        awk '{gsub(\"${params.snp_col_name}\", \"SNP\", \\$0); print}' temp_1.txt > temp_2.txt\n        awk '{gsub(\"${params.pval_col_name}\", \"P\", \\$0); print}' temp_2.txt > snp_p.txt\n        csvtk csv2tab snp_p.txt > snp_p.tsv\n        \"\"\"\n    }",
+        "nb_lignes_process": 15,
+        "string_script": "        \"\"\"\n        csvtk cut -f ${params.snp_col_name},${params.pval_col_name} \\\n            ${summary_stats} > temp_1.txt\n        awk '{gsub(\"${params.snp_col_name}\", \"SNP\", \\$0); print}' temp_1.txt > temp_2.txt\n        awk '{gsub(\"${params.pval_col_name}\", \"P\", \\$0); print}' temp_2.txt > snp_p.txt\n        csvtk csv2tab snp_p.txt > snp_p.tsv\n        \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_summary_stats"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_snp_p_txt"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "preprocessing_vcf": {
+        "name_process": "preprocessing_vcf",
+        "string_process": " process preprocessing_vcf {\n        publishDir \"${params.outdir}/processed_files\", mode: 'copy'\n        \n        input:\n        file vcfs from vcfs.collect()\n        file vcf_file from vcf_file\n\n        output:\n        file 'merged.vcf' into vcf_plink\n        file 'sample.phe' into data\n\n        script:\n        \"\"\"\n        # iterate through urls in csv replacing s3 path with the local one\n        urls=\"\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}')\"\n        for url in \\$(echo \\$urls); do\n            vcf=\"\\${url##*/}\"\n            sed -i -e \"s~\\$url~\\$vcf~g\" $vcf_file\n        done\n        # bgzip uncompressed vcfs\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            if [ \\${vcf: -4} == \".vcf\" ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                    sed -i \"s/\\$vcf/\\${vcf}.gz/g\" $vcf_file \n            fi\n        done\n        # remove any prexisting columns for sex \n        if grep -Fq \"SEX\" $vcf_file; then\n            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\\$i==\"SEX\"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf \"%s%s\",\\$i,i==m?ORS:OFS}' $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        fi\n        # determine sex of each individual from VCF file & add to csv file\n        echo 'SEX' > sex.txt\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            bcftools index -f \\$vcf\n            SEX=\"\\$(bcftools plugin vcf2sex \\$vcf)\"\n            if [[ \\$SEX == *M ]]; then\n                    echo \"1\" >> sex.txt\n            elif [ \\$SEX == *F ]]; then\n                    echo \"2\" >> sex.txt\n            fi\n        done\n        # make fam file & merge vcfs\n        paste -d, sex.txt $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        make_fam2.py $vcf_file\n        vcfs=\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$3}')\n        bcftools merge --force-samples \\$vcfs > merged.vcf\n        \"\"\"\n    }",
+        "nb_lignes_process": 46,
+        "string_script": "        \"\"\"\n        # iterate through urls in csv replacing s3 path with the local one\n        urls=\"\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}')\"\n        for url in \\$(echo \\$urls); do\n            vcf=\"\\${url##*/}\"\n            sed -i -e \"s~\\$url~\\$vcf~g\" $vcf_file\n        done\n        # bgzip uncompressed vcfs\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            if [ \\${vcf: -4} == \".vcf\" ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                    sed -i \"s/\\$vcf/\\${vcf}.gz/g\" $vcf_file \n            fi\n        done\n        # remove any prexisting columns for sex \n        if grep -Fq \"SEX\" $vcf_file; then\n            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\\$i==\"SEX\"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf \"%s%s\",\\$i,i==m?ORS:OFS}' $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        fi\n        # determine sex of each individual from VCF file & add to csv file\n        echo 'SEX' > sex.txt\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            bcftools index -f \\$vcf\n            SEX=\"\\$(bcftools plugin vcf2sex \\$vcf)\"\n            if [[ \\$SEX == *M ]]; then\n                    echo \"1\" >> sex.txt\n            elif [ \\$SEX == *F ]]; then\n                    echo \"2\" >> sex.txt\n            fi\n        done\n        # make fam file & merge vcfs\n        paste -d, sex.txt $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        make_fam2.py $vcf_file\n        vcfs=\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$3}')\n        bcftools merge --force-samples \\$vcfs > merged.vcf\n        \"\"\"",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "vcfs",
+            "vcf_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "vcf_plink",
+            "data"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/processed_files\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "plink": {
+        "name_process": "plink",
+        "string_process": " process plink {\n        publishDir \"${params.outdir}/plink\", mode: 'copy'\n        \n        input:\n        file vcf from vcf_plink\n        file fam from data\n\n        output:\n        set file('*.bed'), file('*.bim'), file('*.fam') into ch_plink_undirect, ch_plink_undirect_2\n\n        script:\n        \"\"\"\n        sed '1d' $fam > tmpfile; mv tmpfile $fam\n        # remove contigs eg GL000229.1 to prevent errors\n        sed -i '/^GL/ d' $vcf\n        plink --vcf $vcf --make-bed\n        rm plink.fam\n        mv $fam plink.fam\n        \"\"\"\n    }",
+        "nb_lignes_process": 18,
+        "string_script": "        \"\"\"\n        sed '1d' $fam > tmpfile; mv tmpfile $fam\n        # remove contigs eg GL000229.1 to prevent errors\n        sed -i '/^GL/ d' $vcf\n        plink --vcf $vcf --make-bed\n        rm plink.fam\n        mv $fam plink.fam\n        \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "pLink"
+        ],
+        "tools_url": [
+            "https://bio.tools/pLink-2"
+        ],
+        "tools_dico": [
+            {
+                "name": "pLink",
+                "uri": "https://bio.tools/pLink-2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0154",
+                            "term": "Small molecules"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3649",
+                                    "term": "Target-Decoy"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fragment weight comparison"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "PMF"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Peptide mass fingerprinting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fingerprinting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A high-speed search engine pLink 2 with systematic evaluation for proteome-scale identification of cross-linked peptides.",
+                "homepage": "http://pfind.ict.ac.cn/software/pLink/index.html"
+            }
+        ],
+        "inputs": [
+            "vcf_plink",
+            "data"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_plink_undirect",
+            "ch_plink_undirect_2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/plink\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "magma_annotation": {
+        "name_process": "magma_annotation",
+        "string_process": "\nprocess magma_annotation {\n    publishDir \"${params.outdir}/magma\", mode: 'copy'\n    \n    input:\n    set file(bed), file(bim), file(fam) from ch_plink\n    file(gene_loc_file) from ch_gene_loc_file\n    file(snp_subset_file) from ch_snp_subset\n\n    output:\n    file('magma_out.genes.annot') into (ch_magma_anot, ch_magma_anot_2)\n    file('magma_out.genes.annot.log')\n\n    script:\n    if (params.snp_subset) annotate_filter='filter=snpsubset.bim' else annotate_filter=''\n    \"\"\"\n    mv $snp_subset_file snpsubset.bim\n    magma --annotate \\\n        window=${params.window} ${annotate_filter} \\\n        --snp-loc ${bim} \\\n        --gene-loc ${gene_loc_file} \\\n        --out magma_out\n    mv magma_out.log magma_out.genes.annot.log\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    if (params.snp_subset) annotate_filter='filter=snpsubset.bim' else annotate_filter=''\n    \"\"\"\n    mv $snp_subset_file snpsubset.bim\n    magma --annotate \\\n        window=${params.window} ${annotate_filter} \\\n        --snp-loc ${bim} \\\n        --gene-loc ${gene_loc_file} \\\n        --out magma_out\n    mv magma_out.log magma_out.genes.annot.log\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "Magma"
+        ],
+        "tools_url": [
+            "https://bio.tools/magma_motif"
+        ],
+        "tools_dico": [
+            {
+                "name": "Magma",
+                "uri": "https://bio.tools/magma_motif",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0204",
+                            "term": "Gene regulation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcriptional regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Sequence motif discovery"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcription regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Motif discovery"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast, sensitive tool for whole regulome motif-finding in eukaryotic genomes",
+                "homepage": "http://stormo.wustl.edu/Magma/"
+            }
+        ],
+        "inputs": [
+            "ch_plink",
+            "ch_gene_loc_file",
+            "ch_snp_subset"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/magma\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "magma_gene_analysis": {
+        "name_process": "magma_gene_analysis",
+        "string_process": "\nprocess magma_gene_analysis {\n    publishDir \"${params.outdir}/magma\", mode: 'copy'\n    \n    input:\n    set file(bed), file(bim), file(fam) from ch_plink_2\n    file(magma_anot) from ch_magma_anot\n    file(snp_p_file) from ch_snp_p\n    file(ref_panel_synonyms) from ch_ref_panel_synonyms\n\n    output:\n    file('magma_out.genes.raw') into (ch_genes_raw, ch_genes_raw_2)\n    file('magma_out.genes.out')\n    file('magma_out.genes.out.log')\n\n    script:\n                                        \n    if (params.summary_stats) pval = \"--pval snp_p.tsv N=\" + params.sample_size else pval=''\n    if(params.seed) seed = \"--seed \" + params.seed else seed=''\n    if(params.snp_max_maf) snp_max_maf = \"snp-max-maf=\" + params.snp_max_maf else snp_max_maf=''\n    if(params.snp_max_mac) snp_max_mac = \"snp-max-mac=\" + params.snp_max_mac else snp_max_mac=''\n    if(params.burden) burden = \"--burden \" + params.burden else burden = ''\n    if(params.big_data) big_data = \"--big-data\" + params.big_data else big_data=''\n    if(params.gene_model) gene_model = \"--gene-model \" + params.gene_model else gene_model=''\n                                         \n    if (params.summary_stats && params.gene_model == \"linreg\") println \"Workflow Error: '--gene_model linreg' can't be used with summary stats file\" exit 0\n    \"\"\"\n    # change the names. It should be equal for all (for the purpose of upload timestamp)\n    mv ${bed} plink_file.bed\n    mv ${bim} plink_file.bim\n    mv ${fam} plink_file.fam\n\n    magma --bfile plink_file \\\n        ${pval} \\\n        --gene-settings \\\n        snp-min-maf=${params.snp_min_maf} \\\n        ${snp_max_maf} \\\n        snp-min-mac=${params.snp_min_mac} \\\n        ${snp_max_mac} \\\n        snp-max-miss=${params.snp_max_miss} \\\n        snp-diff=${params.snp_diff} \\\n        ${seed} \\\n        ${burden} \\\n        ${big_data} \\\n        ${gene_model} \\\n        --gene-annot ${magma_anot} \\\n        --out magma_out\n    mv magma_out.log magma_out.genes.out.log\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    if (params.summary_stats) pval = \"--pval snp_p.tsv N=\" + params.sample_size else pval=''\n    if(params.seed) seed = \"--seed \" + params.seed else seed=''\n    if(params.snp_max_maf) snp_max_maf = \"snp-max-maf=\" + params.snp_max_maf else snp_max_maf=''\n    if(params.snp_max_mac) snp_max_mac = \"snp-max-mac=\" + params.snp_max_mac else snp_max_mac=''\n    if(params.burden) burden = \"--burden \" + params.burden else burden = ''\n    if(params.big_data) big_data = \"--big-data\" + params.big_data else big_data=''\n    if(params.gene_model) gene_model = \"--gene-model \" + params.gene_model else gene_model=''\n                                         \n    if (params.summary_stats && params.gene_model == \"linreg\") println \"Workflow Error: '--gene_model linreg' can't be used with summary stats file\" exit 0\n    \"\"\"\n    # change the names. It should be equal for all (for the purpose of upload timestamp)\n    mv ${bed} plink_file.bed\n    mv ${bim} plink_file.bim\n    mv ${fam} plink_file.fam\n\n    magma --bfile plink_file \\\n        ${pval} \\\n        --gene-settings \\\n        snp-min-maf=${params.snp_min_maf} \\\n        ${snp_max_maf} \\\n        snp-min-mac=${params.snp_min_mac} \\\n        ${snp_max_mac} \\\n        snp-max-miss=${params.snp_max_miss} \\\n        snp-diff=${params.snp_diff} \\\n        ${seed} \\\n        ${burden} \\\n        ${big_data} \\\n        ${gene_model} \\\n        --gene-annot ${magma_anot} \\\n        --out magma_out\n    mv magma_out.log magma_out.genes.out.log\n    \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [
+            "Magma"
+        ],
+        "tools_url": [
+            "https://bio.tools/magma_motif"
+        ],
+        "tools_dico": [
+            {
+                "name": "Magma",
+                "uri": "https://bio.tools/magma_motif",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0204",
+                            "term": "Gene regulation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcriptional regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Sequence motif discovery"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcription regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Motif discovery"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast, sensitive tool for whole regulome motif-finding in eukaryotic genomes",
+                "homepage": "http://stormo.wustl.edu/Magma/"
+            }
+        ],
+        "inputs": [
+            "ch_plink_2",
+            "ch_magma_anot",
+            "ch_snp_p",
+            "ch_ref_panel_synonyms"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/magma\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "magma_geneset_analysis": {
+        "name_process": "magma_geneset_analysis",
+        "string_process": "\nprocess magma_geneset_analysis {\n    publishDir \"${params.outdir}/magma\", mode: 'copy'\n    \n    input:\n    file(gene_raw) from ch_genes_raw\n    file(set_anot) from ch_set_anot\n\n    output:\n    file('magma_out.gsa.out') into ch_geneset\n    file('*.out')                                       \n    file('magma_out.gsa.out.log')\n\n    script:\n                                             \n    if(params.gene_info) gene_info = \"gene-info\" else gene_info = ''\n    if(params.self_contained) self_contained = \"self-contained\" else self_contained = ''\n    if(params.alpha) alpha = \"alpha=\" + params.alpha else alpha=''\n    \"\"\"\n    magma --gene-results ${gene_raw} \\\n        --settings outlier=${params.outlier_up},${params.outlier_down} \\\n        ${gene_info} \\\n        --model direction-sets=${params.direction_sets} \\\n        ${self_contained} ${alpha} \\\n        correct=${params.correct} \\\n        --set-annot ${set_anot} \\\n        --out magma_out\n    mv magma_out.log magma_out.gsa.out.log\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    if(params.gene_info) gene_info = \"gene-info\" else gene_info = ''\n    if(params.self_contained) self_contained = \"self-contained\" else self_contained = ''\n    if(params.alpha) alpha = \"alpha=\" + params.alpha else alpha=''\n    \"\"\"\n    magma --gene-results ${gene_raw} \\\n        --settings outlier=${params.outlier_up},${params.outlier_down} \\\n        ${gene_info} \\\n        --model direction-sets=${params.direction_sets} \\\n        ${self_contained} ${alpha} \\\n        correct=${params.correct} \\\n        --set-annot ${set_anot} \\\n        --out magma_out\n    mv magma_out.log magma_out.gsa.out.log\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "Magma"
+        ],
+        "tools_url": [
+            "https://bio.tools/magma_motif"
+        ],
+        "tools_dico": [
+            {
+                "name": "Magma",
+                "uri": "https://bio.tools/magma_motif",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0204",
+                            "term": "Gene regulation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcriptional regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Sequence motif discovery"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcription regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Motif discovery"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast, sensitive tool for whole regulome motif-finding in eukaryotic genomes",
+                "homepage": "http://stormo.wustl.edu/Magma/"
+            }
+        ],
+        "inputs": [
+            "ch_genes_raw",
+            "ch_set_anot"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_geneset"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/magma\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "magma_gene_property_analysis": {
+        "name_process": "magma_gene_property_analysis",
+        "string_process": " process magma_gene_property_analysis {\n        publishDir \"${params.outdir}/magma\", mode: 'copy'\n        \n        input:\n        file(gene_raw) from ch_genes_raw_2\n        file(cov) from ch_cov\n\n        output:\n        file('magma_out.gsa.out.cov')\n        file('magma_out.gsa.out.cov.log')\n\n        script:\n        \"\"\"\n        magma --gene-results ${gene_raw} \\\n            --gene-covar ${cov} \\\n            --out magma_out\n        mv magma_out.gsa.out magma_out.gsa.out.cov\n        mv magma_out.log magma_out.gsa.out.cov.log\n        \"\"\"\n    }",
+        "nb_lignes_process": 18,
+        "string_script": "        \"\"\"\n        magma --gene-results ${gene_raw} \\\n            --gene-covar ${cov} \\\n            --out magma_out\n        mv magma_out.gsa.out magma_out.gsa.out.cov\n        mv magma_out.log magma_out.gsa.out.cov.log\n        \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "Magma"
+        ],
+        "tools_url": [
+            "https://bio.tools/magma_motif"
+        ],
+        "tools_dico": [
+            {
+                "name": "Magma",
+                "uri": "https://bio.tools/magma_motif",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0204",
+                            "term": "Gene regulation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcriptional regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Sequence motif discovery"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcription regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0238",
+                                    "term": "Motif discovery"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast, sensitive tool for whole regulome motif-finding in eukaryotic genomes",
+                "homepage": "http://stormo.wustl.edu/Magma/"
+            }
+        ],
+        "inputs": [
+            "ch_genes_raw_2",
+            "ch_cov"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/magma\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "results_plots": {
+        "name_process": "results_plots",
+        "string_process": "\nprocess results_plots {\n    publishDir \"${params.outdir}/magma\", mode: 'copy'\n    \n    input:\n    file(geneset) from ch_geneset\n\n    output:\n    file('*.png') into ch_report_plot\n    file('*.sorted.csv') into ch_res_sorted\n    file('*.plot.csv') into ch_res_top\n\n    script:\n    \"\"\"\n    dot_plot.R ${geneset} ${params.pvalue_cutoff} ${params.top_n_value}\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    dot_plot.R ${geneset} ${params.pvalue_cutoff} ${params.top_n_value}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_geneset"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_report_plot",
+            "ch_res_sorted",
+            "ch_res_top"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/magma\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_genenames": {
+        "name_process": "get_genenames",
+        "string_process": "\nprocess get_genenames {\n    publishDir \"${params.outdir}/magma\", mode: 'copy'\n    \n    input:\n    file(res_sorted) from ch_res_sorted\n    file(res_top) from ch_res_top\n    file(anot) from ch_magma_anot_2\n    file(geneset) from ch_set_anot_2\n    file(geneloc) from ch_gene_loc_file_2\n\n    output:\n    file(\"magma_out.gsa.out.sorted.genenames.tsv\") into ch_report_table\n    file('*top*.tsv')\n\n    script:\n    \"\"\"\n    gene_map.R ${res_sorted} ${anot} ${geneset} ${geneloc}\n    gene_map.R ${res_top} ${anot} ${geneset} ${geneloc}\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    gene_map.R ${res_sorted} ${anot} ${geneset} ${geneloc}\n    gene_map.R ${res_top} ${anot} ${geneset} ${geneloc}\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_res_sorted",
+            "ch_res_top",
+            "ch_magma_anot_2",
+            "ch_set_anot_2",
+            "ch_gene_loc_file_2"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "ch_report_table"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/magma\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n    publishDir \"${params.outdir}/MultiQC\", mode: 'copy'\n\n    input:\n    file (report_table) from ch_report_table\n    file (report_plot) from ch_report_plot\n    \n    output:\n    file \"multiqc_report.html\" into ch_multiqc_report\n\n    script:\n    \"\"\"\n    cp /opt/bin/* .\n    Rscript -e \"rmarkdown::render('report.Rmd', params = list(gsa_plot='$report_plot',gsa_result='$report_table'))\"\n    mv report.html multiqc_report.html\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    cp /opt/bin/* .\n    Rscript -e \"rmarkdown::render('report.Rmd', params = list(gsa_plot='$report_plot',gsa_result='$report_table'))\"\n    mv report.html multiqc_report.html\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_report_table",
+            "ch_report_plot"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_multiqc_report"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Shicheng-Guo__gwasgsa",
+        "directive": [
+            "publishDir \"${params.outdir}/MultiQC\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

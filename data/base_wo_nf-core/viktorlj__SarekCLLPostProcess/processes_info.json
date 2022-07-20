@@ -1,0 +1,249 @@
+{
+    "LCRfilterVCF": {
+        "name_process": "LCRfilterVCF",
+        "string_process": "\nprocess LCRfilterVCF {\n    tag {vcf}\n\n    input:\n       file(vcf) from vcfToAnnotate\n       set file(genomeFile), file(genomeIndex), file(genomeDict), file(lcrFilter), file(lcrIndex), file(igFilter), file(igIndex) from Channel.value([referenceMap.genomeFile, referenceMap.genomeIndex, referenceMap.genomeDict, referenceMap.lcrFilter, referenceMap.lcrIndex, referenceMap.igFilter, referenceMap.igIndex])\n\n    output:\n      file(\"${vcf.baseName}.lcrfiltered.vcf\") into lcrfilteredvcf\n        \n    script:\n    \"\"\"\n    grep -E '#|PASS' ${vcf} > ${vcf.baseName}.pass.vcf\n\n    java -Xmx4g \\\n    -jar \\$GATK_HOME/GenomeAnalysisTK.jar \\\n    -T VariantFiltration \\\n    --variant ${vcf.baseName}.pass.vcf \\\n    --mask ${lcrFilter} \\\n    -R ${genomeFile} \\\n    --maskName LCRfiltered \\\n    -o ${vcf.baseName}.lcrfiltered.vcf\n    \"\"\"\n\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    grep -E '#|PASS' ${vcf} > ${vcf.baseName}.pass.vcf\n\n    java -Xmx4g \\\n    -jar \\$GATK_HOME/GenomeAnalysisTK.jar \\\n    -T VariantFiltration \\\n    --variant ${vcf.baseName}.pass.vcf \\\n    --mask ${lcrFilter} \\\n    -R ${genomeFile} \\\n    --maskName LCRfiltered \\\n    -o ${vcf.baseName}.lcrfiltered.vcf\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "PASS"
+        ],
+        "tools_url": [
+            "https://bio.tools/pass"
+        ],
+        "tools_dico": [
+            {
+                "name": "PASS",
+                "uri": "https://bio.tools/pass",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "PASS: a program to align short sequences",
+                "homepage": "http://pass.cribi.unipd.it/cgi-bin/pass.pl"
+            }
+        ],
+        "inputs": [
+            "vcfToAnnotate"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "lcrfilteredvcf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "viktorlj__SarekCLLPostProcess",
+        "directive": [
+            "tag {vcf}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "siftAddCosmic": {
+        "name_process": "siftAddCosmic",
+        "string_process": "\nprocess siftAddCosmic {\n    tag {vcf}\n\n    input:\n       file(vcf) from lcrfilteredvcf\n       set file(cosmic), file(cosmicIndex) from Channel.value([\n       referenceMap.cosmic,\n       referenceMap.cosmicIndex,\n    ])\n    \n    output:\n        file(\"${vcf.baseName}.cosmic.ann.vcf\") into filteredcosmicvcf\n\n    script:\n    \"\"\"\n    java -Xmx4g \\\n\t  -jar \\$SNPEFF_HOME/SnpSift.jar \\\n\t  annotate \\\n\t  -info CNT \\\n    ${cosmic} \\\n\t  ${vcf} \\\n\t  > ${vcf.baseName}.cosmic.ann.vcf\n    \"\"\"\n\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    java -Xmx4g \\\n\t  -jar \\$SNPEFF_HOME/SnpSift.jar \\\n\t  annotate \\\n\t  -info CNT \\\n    ${cosmic} \\\n\t  ${vcf} \\\n\t  > ${vcf.baseName}.cosmic.ann.vcf\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "lcrfilteredvcf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "filteredcosmicvcf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "viktorlj__SarekCLLPostProcess",
+        "directive": [
+            "tag {vcf}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "finishVCF": {
+        "name_process": "finishVCF",
+        "string_process": "\nprocess finishVCF {\n    tag {vcf}\n\n    publishDir directoryMap.txtAnnotate, mode: 'link', pattern: '*.txt'\n\n    input:\n        file(vcf) from filteredcosmicvcf\n        val(sampleID) from Channel.value(sampleID)\n\n    output:\n        file(\"${vcf.baseName}.anno.done.txt\") into finishedFile\n        file(\"${vcf.baseName}.ADfiltered.vcf\") into finishedVCFFile\n\n    script:\n    \"\"\"\n    seqtool vcf strelka -f ${vcf} -o ${vcf.baseName}.strelkaadjusted.vcf\n\n    java -Xmx4g \\\n\t  -jar \\$SNPEFF_HOME/SnpSift.jar \\\n\t  filter \"( TUMVAF >= 0.1 ) & ( TUMALT > 4 )\" \\\n\t  -f ${vcf.baseName}.strelkaadjusted.vcf \\\n\t  > ${vcf.baseName}.ADfiltered.vcf\n\n    seqtool vcf melt -f ${vcf.baseName}.ADfiltered.vcf -o ${vcf.baseName}.melt.txt -s ${vcf.baseName} --includeHeader\n\n    pyenv global 3.6.3\n    eval \"\\$(pyenv init -)\"\n    strelka2pandas.py -i ${vcf.baseName}.melt.txt -o ${vcf.baseName}.anno.txt\n\n    grep -E -v 'LCRfiltered|IGRegion' ${vcf.baseName}.anno.txt > ${vcf.baseName}.anno.done.txt\n\n    \"\"\" \n\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    \"\"\"\n    seqtool vcf strelka -f ${vcf} -o ${vcf.baseName}.strelkaadjusted.vcf\n\n    java -Xmx4g \\\n\t  -jar \\$SNPEFF_HOME/SnpSift.jar \\\n\t  filter \"( TUMVAF >= 0.1 ) & ( TUMALT > 4 )\" \\\n\t  -f ${vcf.baseName}.strelkaadjusted.vcf \\\n\t  > ${vcf.baseName}.ADfiltered.vcf\n\n    seqtool vcf melt -f ${vcf.baseName}.ADfiltered.vcf -o ${vcf.baseName}.melt.txt -s ${vcf.baseName} --includeHeader\n\n    pyenv global 3.6.3\n    eval \"\\$(pyenv init -)\"\n    strelka2pandas.py -i ${vcf.baseName}.melt.txt -o ${vcf.baseName}.anno.txt\n\n    grep -E -v 'LCRfiltered|IGRegion' ${vcf.baseName}.anno.txt > ${vcf.baseName}.anno.done.txt\n\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "seqTools",
+            "BTEVAL"
+        ],
+        "tools_url": [
+            "https://bio.tools/seqtools",
+            "https://bio.tools/bteval"
+        ],
+        "tools_dico": [
+            {
+                "name": "seqTools",
+                "uri": "https://bio.tools/seqtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Nucleic acid sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Sequence analysis (nucleic acid)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Analyze read length, phred scores and alphabet frequency and DNA k-mers on uncompressed and compressed fastq files.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/seqTools.html"
+            },
+            {
+                "name": "BTEVAL",
+                "uri": "https://bio.tools/bteval",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Protein sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2423",
+                                    "term": "Prediction and recognition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2479",
+                                    "term": "Sequence analysis (protein)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The aim of BTEVAL server is to evaluate beta turn prediction algorithms on a uniform data set of 426 proteins or subsets of these proteins. It is the new data set in which no two protein chains have more that 25% sequence identity and each chain contains minimum one beta turn.",
+                "homepage": "http://www.imtech.res.in/raghava/bteval"
+            }
+        ],
+        "inputs": [
+            "filteredcosmicvcf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "finishedFile",
+            "finishedVCFFile"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "viktorlj__SarekCLLPostProcess",
+        "directive": [
+            "tag {vcf}",
+            "publishDir directoryMap.txtAnnotate, mode: 'link', pattern: '*.txt'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "publishVCF": {
+        "name_process": "publishVCF",
+        "string_process": "\nprocess publishVCF{\n  tag {vcf}\n\n  publishDir directoryMap.finishedVCF, mode: 'link'\n\n  input:\n    file(vcf) from finishedVCFFile\n\n  output:\n    file(\"${vcf.baseName}.finished.vcf\") into publishedVCF\n\n  script:\n  \"\"\"\n  cat ${vcf} > ${vcf.baseName}.finished.vcf\n  \"\"\"\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "  \"\"\"\n  cat ${vcf} > ${vcf.baseName}.finished.vcf\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "finishedVCFFile"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "publishedVCF"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "viktorlj__SarekCLLPostProcess",
+        "directive": [
+            "tag {vcf}",
+            "publishDir directoryMap.finishedVCF, mode: 'link'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

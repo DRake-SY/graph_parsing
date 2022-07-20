@@ -1,0 +1,219 @@
+{
+    "runManta": {
+        "name_process": "runManta",
+        "string_process": "\nprocess runManta {\n\tcpus params.manta_parallel\n        memory '5GB'\n\ttag {idSample}\n\tmaxForks 60\n\tinput:\n\t  file(ref) \n\t  file(refi)\n\t  set idSample, file(bam) from pairs\n        publishDir \"run_temp/manta_vcf\", mode:'copy'\n\toutput:\n\t  set idSample, file(\"${idSample}.vcf.gz\"),\n      \t                file(\"${idSample}.vcf.gz.tbi\") \\\n            into mantaOutput \n\t\"\"\"\n\tconfigManta.py \\\n\t    --bam ${idSample}.bam \\\n\t    --referenceFasta ${ref} \\\n\t    --runDir .\n\t./runWorkflow.py -j ${params.manta_parallel} -g 5\n        cp results/variants/${params.variant}.vcf.gz ${idSample}.vcf.gz\n        cp results/variants/${params.variant}.vcf.gz.tbi ${idSample}.vcf.gz.tbi\n\t\"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n\tconfigManta.py \\\n\t    --bam ${idSample}.bam \\\n\t    --referenceFasta ${ref} \\\n\t    --runDir .\n\t./runWorkflow.py -j ${params.manta_parallel} -g 5\n        cp results/variants/${params.variant}.vcf.gz ${idSample}.vcf.gz\n        cp results/variants/${params.variant}.vcf.gz.tbi ${idSample}.vcf.gz.tbi\n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ref",
+            "refi",
+            "pairs"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "mantaOutput"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "emmakwiener__PhD-CNV-Analysis",
+        "directive": [
+            "cpus params.manta_parallel",
+            "memory '5GB'",
+            "tag {idSample}",
+            "maxForks 60"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineNewSiteVCFs": {
+        "name_process": "combineNewSiteVCFs",
+        "string_process": "\nprocess combineNewSiteVCFs {\n  cpus  8 \n  input:\n     file(inputs) from mantaOutput.collect()\n  output:\n     set file(\"${out}.vcf.gz\"), file(\"${out}.vcf.gz.tbi\") into mergedVCF\n  script:\n       \n    \"\"\"\n      ls *vcf.gz > input_vcfs\n      svimmer --threads 8 input_vcfs $chrom_list --output  ${out}.vcf\n      sed -i \"/chr6.*BND/d\" ${out}.vcf \n      bgzip ${out}.vcf\n      tabix ${out}.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n      ls *vcf.gz > input_vcfs\n      svimmer --threads 8 input_vcfs $chrom_list --output  ${out}.vcf\n      sed -i \"/chr6.*BND/d\" ${out}.vcf \n      bgzip ${out}.vcf\n      tabix ${out}.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mantaOutput"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mergedVCF"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "emmakwiener__PhD-CNV-Analysis",
+        "directive": [
+            "cpus 8"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "graphTyper": {
+        "name_process": "graphTyper",
+        "string_process": "\nprocess graphTyper {\n  errorStrategy 'finish'\n  cpus params.graphtyper_parallel\n  memory '300GB'\n  input:\n    file(bams) from bams.collect()     \n    file(ref)\n    file(refi)\n    set file(merged), file(tbi) from mergedVCF\n    each chrom from chroms\n  output:\n    file(\"sv_results/${chrom}\") into calledIndivVCFs \n  script:\n     \"\"\"\n     #!/bin/bash\n     ls *bam > bamlist\n     graphtyper genotype_sv $ref $merged --sams=bamlist --region=$chrom \\\n                 --threads=${params.graphtyper_parallel}\n     \"\"\"\n\n}",
+        "nb_lignes_process": 20,
+        "string_script": "     \"\"\"\n     #!/bin/bash\n     ls *bam > bamlist\n     graphtyper genotype_sv $ref $merged --sams=bamlist --region=$chrom \\\n                 --threads=${params.graphtyper_parallel}\n     \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Graphtyper"
+        ],
+        "tools_url": [
+            "https://bio.tools/Graphtyper"
+        ],
+        "tools_dico": [
+            {
+                "name": "Graphtyper",
+                "uri": "https://bio.tools/Graphtyper",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0484",
+                                    "term": "SNP detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0484",
+                                    "term": "Single nucleotide polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0484",
+                                    "term": "SNP discovery"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0484",
+                                    "term": "SNP calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Publicly available novel algorithm and software for discovering and genotyping sequence variants.",
+                "homepage": "https://github.com/DecodeGenetics/graphtyper"
+            }
+        ],
+        "inputs": [
+            "bams",
+            "ref",
+            "refi",
+            "mergedVCF",
+            "chroms"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "calledIndivVCFs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "emmakwiener__PhD-CNV-Analysis",
+        "directive": [
+            "errorStrategy 'finish'",
+            "cpus params.graphtyper_parallel",
+            "memory '300GB'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mergeCalledByChromosome": {
+        "name_process": "mergeCalledByChromosome",
+        "string_process": "\nprocess  mergeCalledByChromosome {\n  input:\n    file(chrom) from calledIndivVCFs\n  output:\n    set file(\"${chrom}.vcf.gz\"), file(\"${chrom}.vcf.gz.tbi\") into chromResult\n  script:\n     \"\"\"\n      vcf-concat $chrom/*vcf.gz | bgzip -c > ${chrom}.vcf.gz\n      tabix ${chrom}.vcf.gz\n     \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "     \"\"\"\n      vcf-concat $chrom/*vcf.gz | bgzip -c > ${chrom}.vcf.gz\n      tabix ${chrom}.vcf.gz\n     \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "calledIndivVCFs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "chromResult"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "emmakwiener__PhD-CNV-Analysis",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "mergeAllChroms": {
+        "name_process": "mergeAllChroms",
+        "string_process": "\nprocess mergeAllChroms {\n  input:\n    file(all) from chromResult.collect()\n  output:\n    set file(\"${out}.vcf.gz\"), file(\"${out}.vcf.gz.tbi\") into allResult\n  publishDir \"results\", mode:'copy'\n  script:\n    \"\"\"\n      vcf-concat ${chrom_vcf} | bgzip -c > ${out}.vcf.gz\n      tabix ${out}.vcf.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "    \"\"\"\n      vcf-concat ${chrom_vcf} | bgzip -c > ${out}.vcf.gz\n      tabix ${out}.vcf.gz\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chromResult"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "allResult"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "emmakwiener__PhD-CNV-Analysis",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

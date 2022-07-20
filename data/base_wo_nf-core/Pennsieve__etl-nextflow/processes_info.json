@@ -1,0 +1,1334 @@
+{
+    "convert_video": {
+        "name_process": "convert_video",
+        "string_process": "\nprocess convert_video {\n    container = \"${params.video_container}\"\n\n    input:\n    file input_file from s3_keys.map{ file(it) }\n\n    output:\n    file 'asset.json' into converted_video_asset\n    file 'thumbnail_asset.json' into thumbnail\n\n    script:\n    cmd = \"python /app/run.py --file=\" + \"${input_file}\" + \" --convert=true\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    cmd = \"python /app/run.py --file=\" + \"${input_file}\" + \" --convert=true\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "s3_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "converted_video_asset",
+            "thumbnail"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.video_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "create_view_asset": {
+        "name_process": "create_view_asset",
+        "string_process": "\nprocess create_view_asset {\n    container = \"${params.cli_container}\"\n\n    input:\n    file 'asset_info.json' from video_view\n    file 'view_asset_info.json' from thumbnail\n\n    script:\n\t\"\"\"\n\t#!/bin/bashlog\n\t/app/etl-data create-asset \\\n\t\t--asset-info=asset_info.json \\\n\t\t--package-id=${params.packageId} \\\n\t\t--organization-id=${params.organizationId}\n\t /app/etl-data create-asset \\\n\t\t--asset-info=view_asset_info.json \\\n\t\t--package-id=${params.packageId} \\\n\t\t--organization-id=${params.organizationId}\n\t\"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\t\"\"\"\n\t#!/bin/bashlog\n\t/app/etl-data create-asset \\\n\t\t--asset-info=asset_info.json \\\n\t\t--package-id=${params.packageId} \\\n\t\t--organization-id=${params.organizationId}\n\t /app/etl-data create-asset \\\n\t\t--asset-info=view_asset_info.json \\\n\t\t--package-id=${params.packageId} \\\n\t\t--organization-id=${params.organizationId}\n\t\"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "video_view",
+            "thumbnail"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dicom_processor": {
+        "name_process": "dicom_processor",
+        "string_process": "\nprocess dicom_processor {\n    container = \"${params.dicom_container}\"\n    file_type = params.fileType.toLowerCase()\n\n    when:\n    file_type == 'dicom'\n\n    input:\n    file input_files from dicom_keys.collect { file(it) }\n\n    output:\n    file '*.nii.gz' into dicom_nifti_file\n\n    script:\n    cmd  = \"/usr/local/bin/dcm2niix -z y -m y .\"\n\n    \"\"\"\n    #!/bin/bashlog\n    echo 'Decoding DICOM input file(s) and created NIfTI files'\n    ${cmd}\n    python /app/sanitize.py\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    cmd  = \"/usr/local/bin/dcm2niix -z y -m y .\"\n\n    \"\"\"\n    #!/bin/bashlog\n    echo 'Decoding DICOM input file(s) and created NIfTI files'\n    ${cmd}\n    python /app/sanitize.py\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dicom_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "dicom_nifti_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.dicom_container}\" file_type = params.fileType.toLowerCase()"
+        ],
+        "when": "file_type == 'dicom'",
+        "stub": ""
+    },
+    "non_dicom_processor": {
+        "name_process": "non_dicom_processor",
+        "string_process": "\nprocess non_dicom_processor {\n    container = \"${params.freesurfer_container}\"\n\n    when:\n    file_type != 'dicom'\n\n    input:\n    file input_files from non_dicom_keys.collect { file(it) }\n\n    output:\n    file 'view_asset_info.json' into view_asset_mutation\n\n    script:\n    cmd  = \"\"\n    input_args = []\n\n                                                                                       \n    input_files.each { if (it.toString().endsWith('.img')) {\n            input_args.push(it.toString())\n        }\n    }\n    if (input_args.size() == 0) {\n        input_args = input_files\n    }\n    input_args = input_args.join(' ')\n\n                                             \n    s3_view_key = \"${params.assetDirectory}view_asset/view.nii.gz\"\n\n    \"\"\"\n    mri_convert -ot nii ${input_args} output.nii.gz\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        output.nii.gz \\\n        \"s3://${params.storage_bucket}/${s3_view_key}\" \\\n        --sse AES256\n\n    file_size=`aws \\$AWS_CLI_FLAGS s3api list-objects --bucket=${params.storage_bucket} --prefix=\"${s3_view_key}\" --query 'Contents[0].Size'`\n\n    cat > view_asset_info.json <<- EOF\n    {\n      \\\"bucket\\\": \\\"${params.storage_bucket}\\\",\n      \\\"key\\\": \\\"${s3_view_key}\\\",\n      \\\"type\\\": \\\"View\\\",\n      \\\"fileType\\\": \\\"NIFTI\\\",\n      \\\"size\\\": \\${file_size}\n    }\n    EOF\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    cmd  = \"\"\n    input_args = []\n\n                                                                                       \n    input_files.each { if (it.toString().endsWith('.img')) {\n            input_args.push(it.toString())\n        }\n    }\n    if (input_args.size() == 0) {\n        input_args = input_files\n    }\n    input_args = input_args.join(' ')\n\n                                             \n    s3_view_key = \"${params.assetDirectory}view_asset/view.nii.gz\"\n\n    \"\"\"\n    mri_convert -ot nii ${input_args} output.nii.gz\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        output.nii.gz \\\n        \"s3://${params.storage_bucket}/${s3_view_key}\" \\\n        --sse AES256\n\n    file_size=`aws \\$AWS_CLI_FLAGS s3api list-objects --bucket=${params.storage_bucket} --prefix=\"${s3_view_key}\" --query 'Contents[0].Size'`\n\n    cat > view_asset_info.json <<- EOF\n    {\n      \\\"bucket\\\": \\\"${params.storage_bucket}\\\",\n      \\\"key\\\": \\\"${s3_view_key}\\\",\n      \\\"type\\\": \\\"View\\\",\n      \\\"fileType\\\": \\\"NIFTI\\\",\n      \\\"size\\\": \\${file_size}\n    }\n    EOF\n    \"\"\"",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [
+            "JABAWS",
+            "NeoFuse"
+        ],
+        "tools_url": [
+            "https://bio.tools/jabaws",
+            "https://bio.tools/NeoFuse"
+        ],
+        "tools_dico": [
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            },
+            {
+                "name": "NeoFuse",
+                "uri": "https://bio.tools/NeoFuse",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2830",
+                            "term": "Immunoproteins and antigens"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0154",
+                            "term": "Small molecules"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "Oncology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "Cancer biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "https://en.wikipedia.org/wiki/Oncology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0310",
+                                    "term": "Sequence assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0252",
+                                    "term": "Peptide immunogenicity prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0252",
+                                    "term": "Immunogenicity prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0252",
+                                    "term": "Antigenicity prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Predicting fusion neoantigens from RNA sequencing data.\n\nThe Section for Bioinformatrics at the Biocenter of Innsbruck Medical University is commited to the generation, management, integration, and leveraging data from genomics studies.\n\nQuantification of the tumor immune contexture.\n\nZlatko Trajanoski awarded with ERC Advanced Grant.",
+                "homepage": "https://icbi.i-med.ac.at/NeoFuse/"
+            }
+        ],
+        "inputs": [
+            "non_dicom_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "view_asset_mutation"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.freesurfer_container}\""
+        ],
+        "when": "file_type != 'dicom'",
+        "stub": ""
+    },
+    "upload_file_and_view": {
+        "name_process": "upload_file_and_view",
+        "string_process": "\nprocess upload_file_and_view {\n    container = \"${params.cli_container}\"\n\n    input:\n    file('view_asset_info.json') from tiled_view_asset_mutation\n\n    output:\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tiled_view_asset_mutation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "format_parser": {
+        "name_process": "format_parser",
+        "string_process": "\nprocess format_parser {\n    file_type = params.fileType.toLowerCase()\n    container = params.import_processor_template.replace('<TYPE>',file_type)\n\n    input:\n    file input_files from s3_keys.collect { file(it) }\n    file 'existing_channels.json' from channels_json\n\n    output:\n    file 'channel*.json'   into ts_channels mode flatten\n    file 'channel*.ts.bin' into ts_channel_data mode flatten\n\n    script:\n    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py --mode=append --channels=existing_channels.json ${arglist}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py --mode=append --channels=existing_channels.json ${arglist}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "s3_keys",
+            "channels_json"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ts_channels",
+            "ts_channel_data"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.import_processor_template.replace('<TYPE>',file_type)"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "create_channel": {
+        "name_process": "create_channel",
+        "string_process": "\nprocess create_channel {\n    container = params.cli_container\n\n    maxForks params.max_forks\n\n    input:\n    set file(channel_info), val(ch_data_file) from channel_pairs\n\n    output:\n    set file('channel.json'), ch_data_file into created_channel\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n\n    /app/etl-data set-channel \\\n        --channel-info=${channel_info} \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId} \\\n        --output-file=channel.json\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n\n    /app/etl-data set-channel \\\n        --channel-info=${channel_info} \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId} \\\n        --output-file=channel.json\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "channel_pairs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "created_channel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.cli_container",
+            "maxForks params.max_forks"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "channel_writer": {
+        "name_process": "channel_writer",
+        "string_process": "\nprocess channel_writer {\n    container = params.import_processor_template.replace('<TYPE>','channel-writer')\n\n    maxForks params.max_forks\n\n    input:\n    set file(ch_info_file:'channel.json'), file(ch_data_file:'channel.ts.bin') from created_channel\n\n    output:\n    stdout output into result\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    export WRITE_MODE=APPEND\n    python /app/run.py --channel=channel.json --file=channel.ts.bin\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    export WRITE_MODE=APPEND\n    python /app/run.py --channel=channel.json --file=channel.ts.bin\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "created_channel"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "result"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.import_processor_template.replace('<TYPE>','channel-writer')",
+            "maxForks params.max_forks"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "svs_processor": {
+        "name_process": "svs_processor",
+        "string_process": "\nprocess svs_processor {\n    queue = \"${env}-etl-default-low-priority-queue-use1\"\n    container = \"${params.svs_container}\"\n    file_type = params.fileType.toLowerCase()\n\n    maxForks params.max_forks\n\n    when:\n    file_type == 'aperio'\n\n    input:\n    file input_files from svs_keys.collect { file(it) }\n    file(sub_region_svs) from sub_regions_svs\n\n    output:\n    file 'view_asset_info.json' into svs_view_asset_mutation\n    file 'metadata.json' optional true into svs_metadata\n\n    script:\n    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_svs.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n\n    aws_view_key = \"${params.assetDirectory}${input_filename}-zoomed\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n\n    \"\"\"\n    #!/bin/bashlog\n    echo 'Decoding SVS input file(s) and created exploded view assets (might take some time ...)'\n    echo ${cmd}\n    ${cmd}\n    echo 'Uploading output view to S3'\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        ${input_filename}-zoomed \\\n        ${aws_view_storage_dest} \\\n        --sse AES256 \\\n        --recursive\n    \"\"\"\n}",
+        "nb_lignes_process": 44,
+        "string_script": "    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_svs.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n\n    aws_view_key = \"${params.assetDirectory}${input_filename}-zoomed\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n\n    \"\"\"\n    #!/bin/bashlog\n    echo 'Decoding SVS input file(s) and created exploded view assets (might take some time ...)'\n    echo ${cmd}\n    ${cmd}\n    echo 'Uploading output view to S3'\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        ${input_filename}-zoomed \\\n        ${aws_view_storage_dest} \\\n        --sse AES256 \\\n        --recursive\n    \"\"\"",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [
+            "JABAWS"
+        ],
+        "tools_url": [
+            "https://bio.tools/jabaws"
+        ],
+        "tools_dico": [
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            }
+        ],
+        "inputs": [
+            "svs_keys",
+            "sub_regions_svs"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "svs_view_asset_mutation",
+            "svs_metadata"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "queue = \"${env}-etl-default-low-priority-queue-use1\"",
+            "container = \"${params.svs_container}\" file_type = params.fileType.toLowerCase()",
+            "maxForks params.max_forks"
+        ],
+        "when": "file_type == 'aperio'",
+        "stub": ""
+    },
+    "czi_processor": {
+        "name_process": "czi_processor",
+        "string_process": "\nprocess czi_processor {\n    container = \"${params.czi_container}\"\n    queue = \"${env}-etl-default-low-priority-queue-use1\"\n\n    when:\n    file_type == 'czi' || file_type == 'jpeg'\n\n    input:\n    file input_files from czi_keys.collect { file(it) }\n    file sub_region_czi from sub_regions_czi\n\n    output:\n    file 'view_asset_info.json' into czi_view_asset_mutation\n    file 'metadata.json' optional true into czi_metadata\n\n    script:\n    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_czi.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n    aws_view_key = \"${params.assetDirectory}${input_filename}-zoomed\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        ${input_filename}-zoomed \\\n        ${aws_view_storage_dest} \\\n        --sse AES256 \\\n        --recursive \\\n        --quiet\n\n    # for backwards compatibility with viewer: proxy \"slide.dzi\" if first slice\n    if [ -e \"${input_filename}-zoomed/dim_Z_slice_0_dim_T_slice_0_files\" ]; then\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            ${aws_view_storage_dest}/dim_Z_slice_0_dim_T_slice_0_files \\\n            ${aws_view_storage_dest}/slide_files \\\n            --sse AES256 \\\n            --recursive \\\n            --quiet\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            ${aws_view_storage_dest}/dim_Z_slice_0_dim_T_slice_0.dzi \\\n            ${aws_view_storage_dest}/slide.dzi \\\n            --sse AES256 \\\n            --quiet\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 52,
+        "string_script": "    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_czi.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n    aws_view_key = \"${params.assetDirectory}${input_filename}-zoomed\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        ${input_filename}-zoomed \\\n        ${aws_view_storage_dest} \\\n        --sse AES256 \\\n        --recursive \\\n        --quiet\n\n    # for backwards compatibility with viewer: proxy \"slide.dzi\" if first slice\n    if [ -e \"${input_filename}-zoomed/dim_Z_slice_0_dim_T_slice_0_files\" ]; then\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            ${aws_view_storage_dest}/dim_Z_slice_0_dim_T_slice_0_files \\\n            ${aws_view_storage_dest}/slide_files \\\n            --sse AES256 \\\n            --recursive \\\n            --quiet\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            ${aws_view_storage_dest}/dim_Z_slice_0_dim_T_slice_0.dzi \\\n            ${aws_view_storage_dest}/slide.dzi \\\n            --sse AES256 \\\n            --quiet\n    fi\n    \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "bash",
+        "tools": [
+            "JABAWS"
+        ],
+        "tools_url": [
+            "https://bio.tools/jabaws"
+        ],
+        "tools_dico": [
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            }
+        ],
+        "inputs": [
+            "czi_keys",
+            "sub_regions_czi"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "czi_view_asset_mutation",
+            "czi_metadata"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.czi_container}\"",
+            "queue = \"${env}-etl-default-low-priority-queue-use1\""
+        ],
+        "when": "file_type == 'czi' || file_type == 'jpeg'",
+        "stub": ""
+    },
+    "brukertiff_processor": {
+        "name_process": "brukertiff_processor",
+        "string_process": "\nprocess brukertiff_processor {\n    container = \"${params.brukertiff_container}\"\n\n    when:\n    file_type == 'brukertiff'\n\n    input:\n    file input_files from brukertiff_keys.collect { file(it) }\n    file sub_region_brukertiff from sub_regions_brukertiff\n\n    output:\n    file 'view_asset_info.json' into brukertiff_view_asset_mutation\n    file 'metadata.json' optional true into brukertiff_metadata\n\n    script:\n    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_brukertiff.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n    aws_view_key = \"${params.assetDirectory}\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n    \"\"\"\n    #!/bin/bashlog\n    echo '1. Decoding Bruker TIFF input file(s) and creating exploded view assets'\n    echo '2. Uploading all output file and view assets to S3'\n    ${cmd}\n    zoom_dir=\\$(ls -d1 *-zoomed |  head -n 1)\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        \\$zoom_dir \\\n        ${aws_view_storage_dest}\\$zoom_dir \\\n        --sse AES256 \\\n        --recursive\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_brukertiff.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n    aws_view_key = \"${params.assetDirectory}\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n    \"\"\"\n    #!/bin/bashlog\n    echo '1. Decoding Bruker TIFF input file(s) and creating exploded view assets'\n    echo '2. Uploading all output file and view assets to S3'\n    ${cmd}\n    zoom_dir=\\$(ls -d1 *-zoomed |  head -n 1)\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        \\$zoom_dir \\\n        ${aws_view_storage_dest}\\$zoom_dir \\\n        --sse AES256 \\\n        --recursive\n    \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [
+            "JABAWS"
+        ],
+        "tools_url": [
+            "https://bio.tools/jabaws"
+        ],
+        "tools_dico": [
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            }
+        ],
+        "inputs": [
+            "brukertiff_keys",
+            "sub_regions_brukertiff"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "brukertiff_view_asset_mutation",
+            "brukertiff_metadata"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.brukertiff_container}\""
+        ],
+        "when": "file_type == 'brukertiff'",
+        "stub": ""
+    },
+    "ometiff_processor": {
+        "name_process": "ometiff_processor",
+        "string_process": "\nprocess ometiff_processor {\n    queue = \"${env}-etl-default-low-priority-queue-use1\"\n    container = \"${params.ometiff_container}\"\n\n    when:\n    file_type == 'ometiff' || file_type == 'tiff'\n\n    input:\n    file input_files from ometiff_keys.collect { file(it) }\n    file sub_region_ometiff from sub_regions_ometiff\n\n    output:\n    file 'view_asset_info.json' into ometiff_view_asset_mutation\n    file 'metadata.json' optional true into ometiff_metadata\n\n    script:\n    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_ometiff.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n    aws_view_key = \"${params.assetDirectory}${input_filename}-zoomed\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n    \"\"\"\n    #!/bin/bashlog\n    echo '1. Decoding OMETIFF input file(s) and creating exploded view assets'\n    echo '2. Uploading all output file and view assets to S3'\n    ${cmd}\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        ${input_filename}-zoomed \\\n        ${aws_view_storage_dest} \\\n        --sse AES256 \\\n        --recursive\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region_ometiff.toString() + '\"')\n    arglist = arglist.join(' ')\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n    aws_view_key = \"${params.assetDirectory}${input_filename}-zoomed\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n    \"\"\"\n    #!/bin/bashlog\n    echo '1. Decoding OMETIFF input file(s) and creating exploded view assets'\n    echo '2. Uploading all output file and view assets to S3'\n    ${cmd}\n    aws \\$AWS_CLI_FLAGS s3 cp \\\n        ${input_filename}-zoomed \\\n        ${aws_view_storage_dest} \\\n        --sse AES256 \\\n        --recursive\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "JABAWS"
+        ],
+        "tools_url": [
+            "https://bio.tools/jabaws"
+        ],
+        "tools_dico": [
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            }
+        ],
+        "inputs": [
+            "ometiff_keys",
+            "sub_regions_ometiff"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ometiff_view_asset_mutation",
+            "ometiff_metadata"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "queue = \"${env}-etl-default-low-priority-queue-use1\"",
+            "container = \"${params.ometiff_container}\""
+        ],
+        "when": "file_type == 'ometiff' || file_type == 'tiff'",
+        "stub": ""
+    },
+    "upload_file_and_view_brukertiff": {
+        "name_process": "upload_file_and_view_brukertiff",
+        "string_process": "\nprocess upload_file_and_view_brukertiff {\n    container = \"${params.cli_container}\"\n\n    when:\n    file_type == 'brukertiff'\n\n    input:\n    file 'view_asset_info*.json' from brukertiff_view_asset_mutation.collect()\n\n    output:\n    file 'view_asset_info1.json' into upload_file_and_view_brukertiff_complete\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "brukertiff_view_asset_mutation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "upload_file_and_view_brukertiff_complete"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "file_type == 'brukertiff'",
+        "stub": ""
+    },
+    "upload_file_and_view_svs": {
+        "name_process": "upload_file_and_view_svs",
+        "string_process": "\nprocess upload_file_and_view_svs {\n    container = \"${params.cli_container}\"\n\n    when:\n    file_type == 'aperio'\n\n    input:\n    file 'view_asset_info*.json' from svs_view_asset_mutation.collect()\n\n    output:\n    file 'view_asset_info1.json' into upload_file_and_view_svs_complete\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "svs_view_asset_mutation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "upload_file_and_view_svs_complete"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "file_type == 'aperio'",
+        "stub": ""
+    },
+    "upload_file_and_view_czi": {
+        "name_process": "upload_file_and_view_czi",
+        "string_process": "\nprocess upload_file_and_view_czi {\n    container = \"${params.cli_container}\"\n\n    when:\n    file_type == 'czi' || file_type == 'jpeg'\n\n    input:\n    file 'view_asset_info*.json' from czi_view_asset_mutation.collect()\n\n    output:\n    file 'view_asset_info1.json' into upload_file_and_view_czi_complete\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    /app/etl-data update-package-type \\\n            --package-type='Slide' \\\n            --package-id=${params.packageId} \\\n            --organization-id=${params.organizationId}\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    /app/etl-data update-package-type \\\n            --package-type='Slide' \\\n            --package-id=${params.packageId} \\\n            --organization-id=${params.organizationId}\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "czi_view_asset_mutation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "upload_file_and_view_czi_complete"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "file_type == 'czi' || file_type == 'jpeg'",
+        "stub": ""
+    },
+    "upload_file_and_view_ometiff": {
+        "name_process": "upload_file_and_view_ometiff",
+        "string_process": "\nprocess upload_file_and_view_ometiff {\n    container = \"${params.cli_container}\"\n\n    when:\n    file_type == 'ometiff'\n\n    input:\n    file 'view_asset_info*.json' from ometiff_view_asset_mutation.collect()\n\n    output:\n    file 'view_asset_info1.json' into upload_file_and_view_ometiff_complete\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data create-asset \\\n        --asset-info=view_asset_info1.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ometiff_view_asset_mutation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "upload_file_and_view_ometiff_complete"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "file_type == 'ometiff'",
+        "stub": ""
+    },
+    "update_properties": {
+        "name_process": "update_properties",
+        "string_process": "\nprocess update_properties {\n    container = \"${params.cli_container}\"\n\n    input:\n    file 'metadata.json' from standard_image_metadata\n\n    output:\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data set-package-properties \\\n        --property-info=metadata.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data set-package-properties \\\n        --property-info=metadata.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId}\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "standard_image_metadata"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "init_standard_image_processor": {
+        "name_process": "init_standard_image_processor",
+        "string_process": "\nprocess init_standard_image_processor {\n    container = \"${params.cli_container}\"\n\n    input:\n    file input_files from s3_keys.collect { file(it) }\n\n    output:\n    file 'small_file.txt' optional true into untiled_standard_image_descriptor\n    file 'large_file.txt' optional true into tiled_standard_image_descriptor\n    file input_files into untiled_standard_image, tiled_standard_image\n\n    script:\n    input_file = input_files.join(' ')\n    \"\"\"\n    #!/bin/bashlog\n    file_size=`du -Lk ${input_file} | cut -f1`\n    if (( \\$file_size > 50000 ))\n    then\n        echo \\$file_size > large_file.txt;\n    else\n        echo \\$file_size > small_file.txt;\n    fi;\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    input_file = input_files.join(' ')\n    \"\"\"\n    #!/bin/bashlog\n    file_size=`du -Lk ${input_file} | cut -f1`\n    if (( \\$file_size > 50000 ))\n    then\n        echo \\$file_size > large_file.txt;\n    else\n        echo \\$file_size > small_file.txt;\n    fi;\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "s3_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "untiled_standard_image_descriptor",
+            "tiled_standard_image_descriptor",
+            "untiled_standard_image",
+            "tiled_standard_image"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "tiled_standard_image_processor": {
+        "name_process": "tiled_standard_image_processor",
+        "string_process": "\nprocess tiled_standard_image_processor {\n    container = \"${params.standard_image_container}\"\n\n    memory_req = \"${params.memory}\"\n    memory memory_req\n\n    maxForks params.max_forks\n\n    input:\n    file input_files from s3_keys.collect { file(it) }\n    file(sub_region) from sub_regions\n\n    output:\n    file 'view_asset_info.json' optional true into tiled_view_asset_mutation\n    file 'update-package-to-slide*.txt' optional true into update_package_to_slide\n\n    script:\n    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region.toString() + '\"')\n    arglist = arglist.join(' ')\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n\n    aws_view_key = \"${params.assetDirectory}view\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    \"\"\"\n    #!/bin/bashlog\n    echo ${input_files}\n    echo ${cmd}\n    echo 'Decoding input file(s) and created exploded view assets if necessary'\n    echo 'Creating create-asset mutation for views files'\n    ${cmd}\n    echo 'Uploading output view to S3'\n    if [ -f view/slide.dzi ]; then\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            view \\\n            ${aws_view_storage_dest} \\\n            --sse AES256\n            --recursive\n        echo 'slide' > update-package-to-slide.txt\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist.push('--sub-region-file=\"' + sub_region.toString() + '\"')\n    arglist = arglist.join(' ')\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n\n    aws_view_key = \"${params.assetDirectory}view\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    \"\"\"\n    #!/bin/bashlog\n    echo ${input_files}\n    echo ${cmd}\n    echo 'Decoding input file(s) and created exploded view assets if necessary'\n    echo 'Creating create-asset mutation for views files'\n    ${cmd}\n    echo 'Uploading output view to S3'\n    if [ -f view/slide.dzi ]; then\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            view \\\n            ${aws_view_storage_dest} \\\n            --sse AES256\n            --recursive\n        echo 'slide' > update-package-to-slide.txt\n    fi\n    \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [
+            "JABAWS",
+            "iview"
+        ],
+        "tools_url": [
+            "https://bio.tools/jabaws",
+            "https://bio.tools/iview"
+        ],
+        "tools_dico": [
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            },
+            {
+                "name": "iview",
+                "uri": "https://bio.tools/iview",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2275",
+                            "term": "Molecular modelling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein modelling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein structure comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology structure modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Interactive HTML5 visualizer of protein-ligand complex.",
+                "homepage": "http://istar.cse.cuhk.edu.hk/iview/"
+            }
+        ],
+        "inputs": [
+            "s3_keys",
+            "sub_regions"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "tiled_view_asset_mutation",
+            "update_package_to_slide"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.standard_image_container}\"",
+            "memory_req = \"${params.memory}\"",
+            "memory memory_req",
+            "maxForks params.max_forks"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "untiled_standard_image_processor": {
+        "name_process": "untiled_standard_image_processor",
+        "string_process": "\nprocess untiled_standard_image_processor {\n    container = \"${params.standard_image_container}\"\n\n    memory_req = \"${params.memory}\"\n    memory memory_req\n\n    maxForks params.max_forks\n\n    input:\n    file 'small_file.txt' from untiled_standard_image_descriptor\n    file input_files from untiled_standard_image\n\n    output:\n    file 'view_asset_info.json' optional true into untiled_view_asset_mutation\n    file 'metadata.json' into standard_untiled_image_metadata\n\n    script:\n    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist = arglist.join(' ')\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n\n    aws_view_key = \"${params.assetDirectory}view\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    \"\"\"\n    echo ${input_files}\n    echo ${cmd}\n    echo 'Decoding input file(s) and created exploded view assets if necessary'\n    echo 'Creating create-asset mutation for views files'\n    ${cmd}\n    echo 'Uploading output view to S3 to view/output.png'\n    if [ -f output.png ]; then\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            output.png \\\n            ${aws_view_storage_dest}/output.png \\\n            --sse AES256\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 44,
+        "string_script": "    arglist = []\n    input_files.each { arglist.push('--file=\"'+it.toString()+'\"')}\n    arglist = arglist.join(' ')\n\n    input_filename = []\n    input_files.each { input_filename.push(it.toString().tokenize('/')[-1])}\n    input_filename = input_filename.join(' ')\n\n    aws_view_key = \"${params.assetDirectory}view\"\n    aws_view_storage_dest = \"s3://${params.storage_bucket}/\" + aws_view_key\n\n    cmd  = \"python /app/run.py ${arglist}\"\n\n    \"\"\"\n    echo ${input_files}\n    echo ${cmd}\n    echo 'Decoding input file(s) and created exploded view assets if necessary'\n    echo 'Creating create-asset mutation for views files'\n    ${cmd}\n    echo 'Uploading output view to S3 to view/output.png'\n    if [ -f output.png ]; then\n        aws \\$AWS_CLI_FLAGS s3 cp \\\n            output.png \\\n            ${aws_view_storage_dest}/output.png \\\n            --sse AES256\n    fi\n    \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [
+            "JABAWS"
+        ],
+        "tools_url": [
+            "https://bio.tools/jabaws"
+        ],
+        "tools_dico": [
+            {
+                "name": "JABAWS",
+                "uri": "https://bio.tools/jabaws",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0097",
+                            "term": "Nucleic acid structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Collection of web services for bioinformatics, and currently provides services that make it easy to access well-known multiple sequence It is free software which provides web services conveniently packaged to run on your local computer, server, cluster or Amazon EC2 instance.",
+                "homepage": "http://www.compbio.dundee.ac.uk/jabaws/"
+            }
+        ],
+        "inputs": [
+            "untiled_standard_image_descriptor",
+            "untiled_standard_image"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "untiled_view_asset_mutation",
+            "standard_untiled_image_metadata"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.standard_image_container}\"",
+            "memory_req = \"${params.memory}\"",
+            "memory memory_req",
+            "maxForks params.max_forks"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "update_package_type": {
+        "name_process": "update_package_type",
+        "string_process": "\nprocess update_package_type {\n    container = \"${params.cli_container}\"\n\n    input:\n    file('update-package-to-slide*.txt') from update_package_to_slide.collect()\n\n    output:\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    if [ -f update-package-to-slide1.txt ]; then\n        /app/etl-data update-package-type \\\n            --package-type='Slide' \\\n            --package-id=${params.packageId} \\\n            --organization-id=${params.organizationId}\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    if [ -f update-package-to-slide1.txt ]; then\n        /app/etl-data update-package-type \\\n            --package-type='Slide' \\\n            --package-id=${params.packageId} \\\n            --organization-id=${params.organizationId}\n    fi\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "update_package_to_slide"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "update_channel": {
+        "name_process": "update_channel",
+        "string_process": "\nprocess update_channel {\n    container = params.cli_container\n\n    maxForks params.max_forks\n\n    input:\n    set file('channel_info.json'), val(ch_data_file) from channel_pairs\n\n    output:\n    set file('channel.json'), ch_data_file into created_channel\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data set-channel \\\n        --channel-info=channel_info.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId} \\\n        --output-file=channel.json\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    /app/etl-data set-channel \\\n        --channel-info=channel_info.json \\\n        --package-id=${params.packageId} \\\n        --organization-id=${params.organizationId} \\\n        --output-file=channel.json\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "channel_pairs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "created_channel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.cli_container",
+            "maxForks params.max_forks"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "simple": {
+        "name_process": "simple",
+        "string_process": "\nprocess simple {\n\n    script:\n    \"\"\"\n    echo 'Hello, World! From within a Nextflow workflow :)'\n    \"\"\"\n}",
+        "nb_lignes_process": 6,
+        "string_script": "    \"\"\"\n    echo 'Hello, World! From within a Nextflow workflow :)'\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "extract_metadata_from_hdf5": {
+        "name_process": "extract_metadata_from_hdf5",
+        "string_process": "\nprocess extract_metadata_from_hdf5 {\n    file_type = params.fileType.toLowerCase()\n    container = params.import_processor_template.replace('<TYPE>',\"hdf5\")\n\n    input:\n    file input_file from s3_keys.map{ file(it) }\n\n    output:\n    file 'asset_info.json' into hdf5_schema\n\n    script:\n    cmd = \"python /app/run.py --file=\" + \"${input_file}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    cmd = \"python /app/run.py --file=\" + \"${input_file}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "s3_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "hdf5_schema"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.import_processor_template.replace('<TYPE>',\"hdf5\")"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "parse_tabular": {
+        "name_process": "parse_tabular",
+        "string_process": "\nprocess parse_tabular {\n    errorStrategy 'retry'\n    maxRetries 3\n    container = \"${params.tabular_container}\"\n\n    input:\n    file input_files from s3_keys.collect { file(it) }\n\n    output:\n    file 'schema.json'   into schema\n\n    script:\n    file_list = []\n    input_files.each { file_list.push('--file=\"'+it.toString()+'\"')}\n    file_list = file_list.join(' ')\n    package_id = '--package_id=\"' + params.packageNodeId.toString() + '\"'\n    cmd = \"python /app/run.py ${file_list} ${package_id}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    file_list = []\n    input_files.each { file_list.push('--file=\"'+it.toString()+'\"')}\n    file_list = file_list.join(' ')\n    package_id = '--package_id=\"' + params.packageNodeId.toString() + '\"'\n    cmd = \"python /app/run.py ${file_list} ${package_id}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "s3_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "schema"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "errorStrategy 'retry'",
+            "maxRetries 3",
+            "container = \"${params.tabular_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "create_schema": {
+        "name_process": "create_schema",
+        "string_process": "\nprocess create_schema {\n    errorStrategy 'retry'\n    maxRetries 3\n    container = \"${params.cli_container}\"\n\n    input:\n    file 'schema_info.json' from schema\n\n    script:\n\t\"\"\"\n\t#!/bin/bashlog\n\t/app/etl-data create-tabular-schema \\\n\t\t--schema-info=schema_info.json \\\n\t\t--package-id=${params.packageId} \\\n\t\t--organization-id=${params.organizationId}\n\t\"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\t\"\"\"\n\t#!/bin/bashlog\n\t/app/etl-data create-tabular-schema \\\n\t\t--schema-info=schema_info.json \\\n\t\t--package-id=${params.packageId} \\\n\t\t--organization-id=${params.organizationId}\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "schema"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "errorStrategy 'retry'",
+            "maxRetries 3",
+            "container = \"${params.cli_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extract_metadata_from_zip": {
+        "name_process": "extract_metadata_from_zip",
+        "string_process": "\nprocess extract_metadata_from_zip {\n    file_type = params.fileType.toLowerCase()\n    container = params.import_processor_template.replace('<TYPE>',\"zip\")\n\n    input:\n    file input_file from s3_keys.map{ file(it) }\n\n    output:\n    file 'asset_info.json' into zip_schema\n\n    script:\n    cmd = \"python /app/run.py --file=\" + \"${input_file}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    cmd = \"python /app/run.py --file=\" + \"${input_file}\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "s3_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "zip_schema"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.import_processor_template.replace('<TYPE>',\"zip\")"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_channels": {
+        "name_process": "get_channels",
+        "string_process": "\nprocess get_channels {\n    container = params.cli_container\n\n    output:\n    file 'channels.json' into channels\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n\n    /app/etl-data get-channels \\\n        --package-id=\"${params.sourcePackageId}\" \\\n        --organization-id=\"${params.organizationId}\" \\\n        --output-file=\"channels.json\"\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n\n    /app/etl-data get-channels \\\n        --package-id=\"${params.sourcePackageId}\" \\\n        --organization-id=\"${params.organizationId}\" \\\n        --output-file=\"channels.json\"\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "channels"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.cli_container"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_exporter": {
+        "name_process": "run_exporter",
+        "string_process": "\nprocess run_exporter {\n    container = params.export_processor_template.replace('<TYPE>', 'timeseries')\n\n    input:\n    file 'channels.json' from channels\n\n    output:\n    file 'asset.json' into asset_file\n\n    script:\n    \"\"\"\n    #!/bin/bashlog\n    echo \"- packageId: ${params.packageId}\"\n    echo \"- userId: ${params.userId}\"\n\n    python /app/run.py \\\n      --channels=\"channels.json\" \\\n      --package-id=\"${params.packageId}\" \\\n      --user-id=\"${params.userId}\"\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    #!/bin/bashlog\n    echo \"- packageId: ${params.packageId}\"\n    echo \"- userId: ${params.userId}\"\n\n    python /app/run.py \\\n      --channels=\"channels.json\" \\\n      --package-id=\"${params.packageId}\" \\\n      --user-id=\"${params.userId}\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "channels"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "asset_file"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.export_processor_template.replace('<TYPE>', 'timeseries')"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "generate_asset_file": {
+        "name_process": "generate_asset_file",
+        "string_process": "\nprocess generate_asset_file {\n  container = params.cli_container\n\n  input:\n  file 'asset.json' from asset_file\n\n  script:\n  \"\"\"\n  #!/bin/bashlog\n  /app/etl-data create-asset \\\n      --asset-info=asset.json \\\n      --package-id=${params.packageId} \\\n      --organization-id=${params.organizationId}\n  \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "  \"\"\"\n  #!/bin/bashlog\n  /app/etl-data create-asset \\\n      --asset-info=asset.json \\\n      --package-id=${params.packageId} \\\n      --organization-id=${params.organizationId}\n  \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "asset_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = params.cli_container"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_thumbnail": {
+        "name_process": "get_thumbnail",
+        "string_process": "\nprocess get_thumbnail {\n    container = \"${params.video_container}\"\n\n    input:\n    file input_file from s3_keys.map{ file(it) }\n\n    output:\n    file 'asset.json' into video_view\n    file 'thumbnail_asset.json' into thumbnail\n\n    script:\n    cmd = \"python /app/run.py --file=\" + \"${input_file}\" + \" --convert=false\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    cmd = \"python /app/run.py --file=\" + \"${input_file}\" + \" --convert=false\"\n    \"\"\"\n    #!/bin/bashlog\n    ${cmd}\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "s3_keys"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "video_view",
+            "thumbnail"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Pennsieve__etl-nextflow",
+        "directive": [
+            "container = \"${params.video_container}\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

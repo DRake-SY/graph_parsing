@@ -1,0 +1,360 @@
+{
+    "download_fastqs": {
+        "name_process": "download_fastqs",
+        "string_process": "\nprocess download_fastqs {\n    \n    conda \"${baseDir}/envs/atlas-fastq-provider.yml\"\n    \n    maxForks params.maxConcurrentDownloads\n    time { 10.hour * task.attempt }\n    memory { 20.GB * task.attempt }\n\n    errorStrategy { task.attempt<=10 & task.exitStatus != 4 ? 'retry' : 'finish' } \n    \n    input:\n        set runId, cdnaFastqURI, barcodesFastqURI, cdnaFastqFile, barcodesFastqFile, val(barcodeLength), val(umiLength), val(end), val(cellCount), val(controlledAccess) from FASTQ_RUNS\n\n    output:\n        set val(runId), file(\"${cdnaFastqFile}\"), file(\"${barcodesFastqFile}\"), val(barcodeLength), val(umiLength), val(end), val(cellCount) into DOWNLOADED_FASTQS\n\n    \"\"\"\n        if [ -n \"$manualDownloadFolder\" ] && [ -e $manualDownloadFolder/${cdnaFastqFile} ] && [ -e $manualDownloadFolder/${barcodesFastqFile} ]; then\n           ln -s $manualDownloadFolder/${cdnaFastqFile} ${cdnaFastqFile}\n           ln -s $manualDownloadFolder/${barcodesFastqFile} ${barcodesFastqFile}\n        elif [ -n \"$manualDownloadFolder\" ] && [ -e $manualDownloadFolder/${cdnaFastqFile} ] && [ ! -e $manualDownloadFolder/${barcodesFastqFile} ]; then\n            echo 'cDNA file $cdnaFastqFile is available locally, but barcodes file $barcodesFastqFile is not 1>&2\n            exit 2    \n        elif [ -n \"$manualDownloadFolder\" ] && [ ! -e $manualDownloadFolder/${cdnaFastqFile} ] && [ -e $manualDownloadFolder/${barcodesFastqFile} ]; then\n            echo 'cDNA file $cdnaFastqFile is not available locally, but barcodes file $barcodesFastqFile is 1>&2\n            exit 3 \n        elif [ \"$controlledAccess\" = 'yes' ]; then\n            echo \"One or both of ${cdnaFastqFile}, ${barcodesFastqFile} are not available at $manualDownloadFolder/ for this controlled access experiment\" 1>&2\n            exit 4   \n        else\n            confPart=''\n            if [ -n \"$fastqProviderConfig\" ] && [ -e \"$fastqProviderConfig\" ]; then\n                confPart=\" -c $fastqProviderConfig\"\n            fi \n\n            # Stop fastq downloader from testing different methods -assume the control workflow has done that \n            export NOPROBE=1\n        \n            fetchFastq.sh -f ${cdnaFastqURI} -t ${cdnaFastqFile} -m ${params.downloadMethod} \\$confPart\n            \n            # Allow for the first download also having produced the second output already\n\n            if [ ! -e ${barcodesFastqFile} ]; then\n                fetchFastq.sh -f ${barcodesFastqURI} -t ${barcodesFastqFile} -m ${params.downloadMethod} \\$confPart\n            fi\n        fi\n    \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "\"\"\"\n        if [ -n \"$manualDownloadFolder\" ] && [ -e $manualDownloadFolder/${cdnaFastqFile} ] && [ -e $manualDownloadFolder/${barcodesFastqFile} ]; then\n           ln -s $manualDownloadFolder/${cdnaFastqFile} ${cdnaFastqFile}\n           ln -s $manualDownloadFolder/${barcodesFastqFile} ${barcodesFastqFile}\n        elif [ -n \"$manualDownloadFolder\" ] && [ -e $manualDownloadFolder/${cdnaFastqFile} ] && [ ! -e $manualDownloadFolder/${barcodesFastqFile} ]; then\n            echo 'cDNA file $cdnaFastqFile is available locally, but barcodes file $barcodesFastqFile is not 1>&2\n            exit 2    \n        elif [ -n \"$manualDownloadFolder\" ] && [ ! -e $manualDownloadFolder/${cdnaFastqFile} ] && [ -e $manualDownloadFolder/${barcodesFastqFile} ]; then\n            echo 'cDNA file $cdnaFastqFile is not available locally, but barcodes file $barcodesFastqFile is 1>&2\n            exit 3 \n        elif [ \"$controlledAccess\" = 'yes' ]; then\n            echo \"One or both of ${cdnaFastqFile}, ${barcodesFastqFile} are not available at $manualDownloadFolder/ for this controlled access experiment\" 1>&2\n            exit 4   \n        else\n            confPart=''\n            if [ -n \"$fastqProviderConfig\" ] && [ -e \"$fastqProviderConfig\" ]; then\n                confPart=\" -c $fastqProviderConfig\"\n            fi \n\n            # Stop fastq downloader from testing different methods -assume the control workflow has done that \n            export NOPROBE=1\n        \n            fetchFastq.sh -f ${cdnaFastqURI} -t ${cdnaFastqFile} -m ${params.downloadMethod} \\$confPart\n            \n            # Allow for the first download also having produced the second output already\n\n            if [ ! -e ${barcodesFastqFile} ]; then\n                fetchFastq.sh -f ${barcodesFastqURI} -t ${barcodesFastqFile} -m ${params.downloadMethod} \\$confPart\n            fi\n        fi\n    \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FASTQ_RUNS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "DOWNLOADED_FASTQS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/atlas-fastq-provider.yml\"",
+            "maxForks params.maxConcurrentDownloads",
+            "time { 10.hour * task.attempt }",
+            "memory { 20.GB * task.attempt }",
+            "errorStrategy { task.attempt<=10 & task.exitStatus != 4 ? 'retry' : 'finish' }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alevin_config": {
+        "name_process": "alevin_config",
+        "string_process": "\nprocess alevin_config {\n\n    input:\n        set val(runId), file(\"cdna*.fastq.gz\"), file(\"barcodes*.fastq.gz\"), val(barcodeLength), val(umiLength), val(end), val(cellCount) from FINAL_FASTQS_FOR_CONFIG\n\n    output:\n        set val(runId), stdout into ALEVIN_CONFIG\n    \n    script:\n\n        def barcodeConfig = ''\n\n        if ( params.containsKey(protocol) ){\n\n            canonicalProtocol = params.get(protocol)\n            alevinType = canonicalProtocol.alevinType\n\n                                                                         \n\n            if ( alevinType == 'custom' || \"${canonicalProtocol.barcodeLength}\" != barcodeLength || \"${canonicalProtocol.umiLength}\" != umiLength || \"${canonicalProtocol.end}\" != end ){\n                barcodeConfig = \"--barcodeLength ${barcodeLength} --umiLength ${umiLength} --end ${end}\" \n\n            }else{\n                barcodeConfig = \"--$alevinType\"\n            }\n            barcodeConfig = \"-l ${canonicalProtocol.libType} $barcodeConfig\" \n        }\n\n        \"\"\"\n        if [ -z \"$barcodeConfig\" ]; then\n            echo Input of $protocol results is misconfigured 1>&2\n            exit 1\n        fi\n\n        # Also check barcode read lengths and return non-0 if they're not what they should be\n\n        targetLen=\\$(($umiLength + $barcodeLength))\n        barcodesGood=0\n        set +e\n        while read -r l; do\n            checkBarcodeRead.sh -r \\$(readlink -f \\$l) -b $barcodeLength -u $umiLength -n 1000000 1>&2\n            if [ \\$? -ne 0 ]; then\n                barcodesGood=1\n            fi\n        done <<< \"\\$(ls barcodes*.fastq.gz)\"\n        set -e\n        \n        echo -n \"$barcodeConfig\"\n        exit \\$barcodesGood\n        \"\"\"\n}",
+        "nb_lignes_process": 50,
+        "string_script": "        def barcodeConfig = ''\n\n        if ( params.containsKey(protocol) ){\n\n            canonicalProtocol = params.get(protocol)\n            alevinType = canonicalProtocol.alevinType\n\n                                                                         \n\n            if ( alevinType == 'custom' || \"${canonicalProtocol.barcodeLength}\" != barcodeLength || \"${canonicalProtocol.umiLength}\" != umiLength || \"${canonicalProtocol.end}\" != end ){\n                barcodeConfig = \"--barcodeLength ${barcodeLength} --umiLength ${umiLength} --end ${end}\" \n\n            }else{\n                barcodeConfig = \"--$alevinType\"\n            }\n            barcodeConfig = \"-l ${canonicalProtocol.libType} $barcodeConfig\" \n        }\n\n        \"\"\"\n        if [ -z \"$barcodeConfig\" ]; then\n            echo Input of $protocol results is misconfigured 1>&2\n            exit 1\n        fi\n\n        # Also check barcode read lengths and return non-0 if they're not what they should be\n\n        targetLen=\\$(($umiLength + $barcodeLength))\n        barcodesGood=0\n        set +e\n        while read -r l; do\n            checkBarcodeRead.sh -r \\$(readlink -f \\$l) -b $barcodeLength -u $umiLength -n 1000000 1>&2\n            if [ \\$? -ne 0 ]; then\n                barcodesGood=1\n            fi\n        done <<< \"\\$(ls barcodes*.fastq.gz)\"\n        set -e\n        \n        echo -n \"$barcodeConfig\"\n        exit \\$barcodesGood\n        \"\"\"",
+        "nb_lignes_script": 39,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FINAL_FASTQS_FOR_CONFIG"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ALEVIN_CONFIG"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "alevin": {
+        "name_process": "alevin",
+        "string_process": "\nprocess alevin {\n\n    conda \"${baseDir}/envs/alevin.yml\"\n    \n    cache 'deep'\n\n    memory { 20.GB * task.attempt }\n    cpus 12\n\n    errorStrategy { task.exitStatus !=2 && (task.exitStatus == 130 || task.exitStatus == 137 || task.attempt < 3)  ? 'retry' : 'ignore' }\n    maxRetries 10\n\n    input:\n        set val(runId), file(\"cdna*.fastq.gz\"), file(\"barcodes*.fastq.gz\"), val(barcodeLength), val(umiLength), val(end), val(cellCount), val(barcodeConfig) from FINAL_FASTQS_FOR_ALEVIN.join(ALEVIN_CONFIG)\n        file(transcriptToGene) from TRANSCRIPT_TO_GENE\n\n    output:\n        set val(runId), file(\"${runId}\"),  file(\"${runId}/alevin/raw_cb_frequency.txt\") into ALEVIN_RESULTS\n\n    \"\"\"\n    salmon alevin ${barcodeConfig} -1 \\$(ls barcodes*.fastq.gz | tr '\\\\n' ' ') -2 \\$(ls cdna*.fastq.gz | tr '\\\\n' ' ') \\\n        -i ${transcriptomeIndex} -p ${task.cpus} -o ${runId}_tmp --tgMap ${transcriptToGene} --dumpFeatures --keepCBFraction 1 \\\n        --freqThreshold ${params.minCbFreq} --dumpMtx\n\n    min_mapping=\\$(grep \"percent_mapped\" ${runId}_tmp/aux_info/meta_info.json | sed 's/,//g' | awk -F': ' '{print \\$2}' | sort -n | head -n 1)   \n    if [ \"\\${min_mapping%.*}\" -lt \"${params.minMappingRate}\" ]; then\n        echo \"Minimum mapping rate (\\$min_mapping) is less than the specified threshold of ${params.minMappingRate}\" 1>&2\n        exit 1 \n    fi\n \n    mv ${runId}_tmp ${runId}\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "\"\"\"\n    salmon alevin ${barcodeConfig} -1 \\$(ls barcodes*.fastq.gz | tr '\\\\n' ' ') -2 \\$(ls cdna*.fastq.gz | tr '\\\\n' ' ') \\\n        -i ${transcriptomeIndex} -p ${task.cpus} -o ${runId}_tmp --tgMap ${transcriptToGene} --dumpFeatures --keepCBFraction 1 \\\n        --freqThreshold ${params.minCbFreq} --dumpMtx\n\n    min_mapping=\\$(grep \"percent_mapped\" ${runId}_tmp/aux_info/meta_info.json | sed 's/,//g' | awk -F': ' '{print \\$2}' | sort -n | head -n 1)   \n    if [ \"\\${min_mapping%.*}\" -lt \"${params.minMappingRate}\" ]; then\n        echo \"Minimum mapping rate (\\$min_mapping) is less than the specified threshold of ${params.minMappingRate}\" 1>&2\n        exit 1 \n    fi\n \n    mv ${runId}_tmp ${runId}\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "Salmon"
+        ],
+        "tools_url": [
+            "https://bio.tools/salmon"
+        ],
+        "tools_dico": [
+            {
+                "name": "Salmon",
+                "uri": "https://bio.tools/salmon",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3496",
+                                "term": "RNA sequence (raw)"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2093",
+                                "term": "Data reference"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for transcript expression quantification from RNA-seq data",
+                "homepage": "https://github.com/COMBINE-lab/salmon"
+            }
+        ],
+        "inputs": [
+            "FINAL_FASTQS_FOR_ALEVIN",
+            "ALEVIN_CONFIG",
+            "TRANSCRIPT_TO_GENE"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ALEVIN_RESULTS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/alevin.yml\"",
+            "cache 'deep'",
+            "memory { 20.GB * task.attempt }",
+            "cpus 12",
+            "errorStrategy { task.exitStatus !=2 && (task.exitStatus == 130 || task.exitStatus == 137 || task.attempt < 3) ? 'retry' : 'ignore' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alevin_to_mtx": {
+        "name_process": "alevin_to_mtx",
+        "string_process": "\nprocess alevin_to_mtx {\n\n    conda \"${baseDir}/envs/parse_alevin.yml\"\n    \n    memory { 10.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 20\n\n    input:\n        set val(runId), file(alevinResult), file(rawBarcodeFreq) from ALEVIN_RESULTS_FOR_PROCESSING\n\n    output:\n        set val(runId), file(\"counts_mtx\") into ALEVIN_MTX\n\n    \"\"\"\n    alevinMtxTo10x.py --cell_prefix ${runId}- $alevinResult counts_mtx\n    \"\"\" \n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    alevinMtxTo10x.py --cell_prefix ${runId}- $alevinResult counts_mtx\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ALEVIN_RESULTS_FOR_PROCESSING"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ALEVIN_MTX"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/parse_alevin.yml\"",
+            "memory { 10.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "droplet_qc_plot": {
+        "name_process": "droplet_qc_plot",
+        "string_process": "\nprocess droplet_qc_plot{\n    \n    conda \"${baseDir}/envs/alevin.yml\"\n    \n    memory { 10.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 20\n\n    input:\n        set val(runId), file(alevinResult), file(rawBarcodeFreq), file(mtx) from ALEVIN_QC_INPUTS\n\n    output:\n        set val(runId), file(\"${runId}.png\") into ALEVIN_QC_PLOTS\n\n    \"\"\"\n    dropletBarcodePlot.R $rawBarcodeFreq $mtx $runId ${runId}.png\n    \"\"\" \n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    dropletBarcodePlot.R $rawBarcodeFreq $mtx $runId ${runId}.png\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ALEVIN_QC_INPUTS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ALEVIN_QC_PLOTS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/alevin.yml\"",
+            "memory { 10.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "remove_empty_drops": {
+        "name_process": "remove_empty_drops",
+        "string_process": "\nprocess remove_empty_drops {\n    \n    conda \"${baseDir}/envs/dropletutils.yml\"\n\n    memory { 10.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'ignore' }\n    maxRetries 20\n   \n    input:\n        set val(runId), file(countsMtx) from ALEVIN_MTX_FOR_EMPTYDROPS\n\n    output:\n        set val(runId), file('nonempty.rds') into NONEMPTY_RDS\n\n    \"\"\"\n        dropletutils-read-10x-counts.R -s counts_mtx -c TRUE -o matrix.rds\n        dropletutils-empty-drops.R -i matrix.rds --lower ${params.emptyDrops.lower} --niters ${params.emptyDrops.nIters} --filter-empty ${params.emptyDrops.filterEmpty} \\\n            --filter-fdr ${params.emptyDrops.filterFdr} --ignore ${params.minCbFreq} -o nonempty.rds -t nonempty.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n        dropletutils-read-10x-counts.R -s counts_mtx -c TRUE -o matrix.rds\n        dropletutils-empty-drops.R -i matrix.rds --lower ${params.emptyDrops.lower} --niters ${params.emptyDrops.nIters} --filter-empty ${params.emptyDrops.filterEmpty} \\\n            --filter-fdr ${params.emptyDrops.filterFdr} --ignore ${params.minCbFreq} -o nonempty.rds -t nonempty.txt\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ALEVIN_MTX_FOR_EMPTYDROPS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "NONEMPTY_RDS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/dropletutils.yml\"",
+            "memory { 10.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'ignore' }",
+            "maxRetries 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rds_to_mtx": {
+        "name_process": "rds_to_mtx",
+        "string_process": "\nprocess rds_to_mtx{\n\n    conda \"${baseDir}/envs/dropletutils.yml\"\n\n    memory { 10.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 20\n   \n    input:\n        set val(runId), file(rds) from NONEMPTY_RDS\n\n    output:\n        set val(runId), file(\"counts_mtx_nonempty\") into NONEMPTY_MTX\n\n    \"\"\" \n        #!/usr/bin/env Rscript\n        \n        suppressPackageStartupMessages(require(DropletUtils))\n\n        counts_sce <- readRDS('$rds')\n        write10xCounts(assays(counts_sce)[[1]], path = 'counts_mtx_nonempty', barcodes = colData(counts_sce)\\$Barcode, gene.id = rownames(counts_sce))\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\" \n        #!/usr/bin/env Rscript\n        \n        suppressPackageStartupMessages(require(DropletUtils))\n\n        counts_sce <- readRDS('$rds')\n        write10xCounts(assays(counts_sce)[[1]], path = 'counts_mtx_nonempty', barcodes = colData(counts_sce)\\$Barcode, gene.id = rownames(counts_sce))\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "NONEMPTY_RDS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "NONEMPTY_MTX"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/dropletutils.yml\"",
+            "memory { 10.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "compile_results": {
+        "name_process": "compile_results",
+        "string_process": "\nprocess compile_results{\n\n    publishDir \"$resultsRoot/alevin\", mode: 'copy', overwrite: true\n    \n    input:\n        set val(runId), file('raw_alevin'), file(rawBarcodeFreq), file(countsMtx), file(countsMtxNonempty), file(qcPlot) from COMPILED_RESULTS\n\n    output:\n        set val(runId), file(\"$runId\") into RESULTS_FOR_COUNTING\n\n    \"\"\"\n        mkdir -p raw_alevin/alevin/mtx\n        cp -P $countsMtx $countsMtxNonempty raw_alevin/alevin/mtx \n        mkdir -p raw_alevin/alevin/qc\n        cp -P $qcPlot raw_alevin/alevin/qc\n        cp -P raw_alevin $runId\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n        mkdir -p raw_alevin/alevin/mtx\n        cp -P $countsMtx $countsMtxNonempty raw_alevin/alevin/mtx \n        mkdir -p raw_alevin/alevin/qc\n        cp -P $qcPlot raw_alevin/alevin/qc\n        cp -P raw_alevin $runId\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "COMPILED_RESULTS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "RESULTS_FOR_COUNTING"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "publishDir \"$resultsRoot/alevin\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "validate_results": {
+        "name_process": "validate_results",
+        "string_process": "\nprocess validate_results {\n    \n    executor 'local'\n    \n    input:\n        val(kallistoResultCount) from ALEVIN_RESULTS_COUNT \n        val(targetCount) from TARGET_RESULT_COUNT\n\n    output:\n        stdout DONE\n\n    \"\"\"\n    if [ \"$kallistoResultCount\" -ne \"$targetCount\" ]; then\n        echo \"Alevin results count of $kallistoResultCount does not match expected results number ($targetCount)\" 1>&2\n        exit 1\n    else\n        echo \"Alevin results count of $kallistoResultCount matches expected results number ($targetCount)\"\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n    if [ \"$kallistoResultCount\" -ne \"$targetCount\" ]; then\n        echo \"Alevin results count of $kallistoResultCount does not match expected results number ($targetCount)\" 1>&2\n        exit 1\n    else\n        echo \"Alevin results count of $kallistoResultCount matches expected results number ($targetCount)\"\n    fi\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ALEVIN_RESULTS_COUNT",
+            "TARGET_RESULT_COUNT"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "DONE"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-droplet-quantification-workflow",
+        "directive": [
+            "executor 'local'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,439 @@
+{
+    "concatenate_fasta_plasmid": {
+        "name_process": "concatenate_fasta_plasmid",
+        "string_process": "\nprocess concatenate_fasta_plasmid {\n    publishDir \"${params.outdir}/simulated_genomes/${plasmid.getBaseName()}/${recipient.getBaseName()}\", mode: 'copy'\n\n    input:\n    each path(recipient) from recipients_ch\n    each path(plasmid) from plasmids_ch\n\n    output:\n    tuple(val (\"${plasmid.getBaseName()}\"), val (\"${recipient.getBaseName()}\"), path(\"${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\")) into readsim_ch\n\n    script:\n    if (!params.linear_concat)\n    \"\"\"\n    cat ${recipient} ${plasmid} > ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    \"\"\"\n\n    else\n    \"\"\"\n    echo '>${plasmid.getBaseName()}_{recipient.getBaseName()}' > ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    awk 'FNR > 1' ${recipient} | tr -d '\\n' >> ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    awk 'FNR > 1' ${plasmid} >> ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    if (!params.linear_concat)\n    \"\"\"\n    cat ${recipient} ${plasmid} > ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    \"\"\"\n\n    else\n    \"\"\"\n    echo '>${plasmid.getBaseName()}_{recipient.getBaseName()}' > ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    awk 'FNR > 1' ${recipient} | tr -d '\\n' >> ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    awk 'FNR > 1' ${plasmid} >> ${plasmid.getBaseName()}_${recipient.getBaseName()}.fasta\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "recipients_ch",
+            "plasmids_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "readsim_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "publishDir \"${params.outdir}/simulated_genomes/${plasmid.getBaseName()}/${recipient.getBaseName()}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "simulate_reads": {
+        "name_process": "simulate_reads",
+        "string_process": "\nprocess simulate_reads {\n    publishDir \"${params.outdir}/simulated_reads/${plasmid}/${recipient}\", mode: 'copy'\n\n    input:\n    tuple(plasmid, recipient, path(fasta)) from readsim_ch\n\n    output:\n    tuple(plasmid, recipient, path(\"${fasta.getBaseName()}_*.fastq.gz\")) into fastp_ch\n    \n    script:\n    \"\"\"\n    randomreads.sh ref=${fasta} out1=${fasta.getBaseName()}_1.fastq.gz out2=${fasta.getBaseName()}_2.fastq.gz reads=${params.num_reads} length=${params.read_length} illuminanames=t paired=t mininsert=${params.min_insert} maxinsert=${params.max_insert} fragadapter=${params.adapter_1} fragadapter2=${params.adapter_2}\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    randomreads.sh ref=${fasta} out1=${fasta.getBaseName()}_1.fastq.gz out2=${fasta.getBaseName()}_2.fastq.gz reads=${params.num_reads} length=${params.read_length} illuminanames=t paired=t mininsert=${params.min_insert} maxinsert=${params.max_insert} fragadapter=${params.adapter_1} fragadapter2=${params.adapter_2}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "readsim_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastp_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "publishDir \"${params.outdir}/simulated_reads/${plasmid}/${recipient}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastp": {
+        "name_process": "fastp",
+        "string_process": "\nprocess fastp {\n    publishDir \"${params.outdir}/fastp/${plasmid}/${recipient}/\", mode: 'copy'\n\n    input:\n    tuple(plasmid, recipient, path(reads)) from fastp_ch\n\n    output:\n    tuple(plasmid, recipient, path(\"trim*.fastq.gz\")) into assembly_ch\n    path(\"*fastp.{json,html}\")\n\n    script:\n    \"\"\"\n    fastp -i ${reads[0]} -I ${reads[1]} -o trim_${reads[0]} -O trim_${reads[1]} -w ${task.cpus} --json ${plasmid}_${recipient}_fastp.json --html ${plasmid}_${recipient}_fastp.html\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    fastp -i ${reads[0]} -I ${reads[1]} -o trim_${reads[0]} -O trim_${reads[1]} -w ${task.cpus} --json ${plasmid}_${recipient}_fastp.json --html ${plasmid}_${recipient}_fastp.html\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "fastPHASE"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastphase"
+        ],
+        "tools_dico": [
+            {
+                "name": "fastPHASE",
+                "uri": "https://bio.tools/fastphase",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3454",
+                                    "term": "Phasing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Imputation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Data imputation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "fastPHASE is a program to estimate missing genotypes and unobserved haplotypes. It is an implementation of the model described in Scheet & Stephens (2006). This is a cluster-based model for haplotype variation, and gains its utility from implicitly modeling the genealogy of chromosomes in a random sample from a population as a tree but summarizing all haplotype variation in the \"tips\" of the trees.",
+                "homepage": "http://scheet.org/software.html"
+            }
+        ],
+        "inputs": [
+            "fastp_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "assembly_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "publishDir \"${params.outdir}/fastp/${plasmid}/${recipient}/\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "unicycler": {
+        "name_process": "unicycler",
+        "string_process": "\nprocess unicycler {\n    label \"process_high\"\n    tag \"${plasmid}_${recipient}\"\n    publishDir \"${params.outdir}/unicycler/${plasmid}/${recipient}\", mode: 'copy'\n\n    input:\n    tuple(plasmid, recipient, path(reads)) from assembly_ch\n\n    output:\n    tuple (plasmid, recipient, path(\"${plasmid}_${recipient}_assembly.fasta\"), path(\"${plasmid}_${recipient}_assembly.gfa\")) into (quast_ch, abricate_ch)\n    path(\"${plasmid}_${recipient}_assembly.gfa\")\n    path(\"${plasmid}_${recipient}_unicycler.log\")\n\n    script:\n    \"\"\"\n    unicycler --threads ${task.cpus} ${params.unicycler_args} --keep 0 -o . -1 ${reads[0]} -2 ${reads[1]}\n    cp unicycler.log ${plasmid}_${recipient}_unicycler.log\n    cp assembly.gfa ${plasmid}_${recipient}_assembly.gfa\n    cp assembly.fasta ${plasmid}_${recipient}_assembly.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    unicycler --threads ${task.cpus} ${params.unicycler_args} --keep 0 -o . -1 ${reads[0]} -2 ${reads[1]}\n    cp unicycler.log ${plasmid}_${recipient}_unicycler.log\n    cp assembly.gfa ${plasmid}_${recipient}_assembly.gfa\n    cp assembly.fasta ${plasmid}_${recipient}_assembly.fasta\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Unicycler"
+        ],
+        "tools_url": [
+            "https://bio.tools/unicycler"
+        ],
+        "tools_dico": [
+            {
+                "name": "Unicycler",
+                "uri": "https://bio.tools/unicycler",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0925",
+                                "term": "Sequence assembly"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for assembling bacterial genomes from a combination of short (2nd generation) and long (3rd generation) sequencing reads.",
+                "homepage": "https://github.com/rrwick/Unicycler"
+            }
+        ],
+        "inputs": [
+            "assembly_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "label \"process_high\"",
+            "tag \"${plasmid}_${recipient}\"",
+            "publishDir \"${params.outdir}/unicycler/${plasmid}/${recipient}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "quast": {
+        "name_process": "quast",
+        "string_process": "\nprocess quast {\n    tag \"${plasmid}_${recipient}\"\n    publishDir \"${params.outdir}/quast/${plasmid}/${recipient}\", mode: 'copy'\n\n    input:\n    tuple (plasmid, recipient, path(assembly), path(gfa)) from quast_ch\n    \n    output:\n    path(\"${plasmid}_${recipient}_assembly_QC/\")\n    path(\"${plasmid}_${recipient}_assembly_QC/report.tsv\") into quast_log_ch\n\n    script:\n    \"\"\"\n    quast -t ${task.cpus} -o ${plasmid}_${recipient}_assembly_QC ${assembly}\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    quast -t ${task.cpus} -o ${plasmid}_${recipient}_assembly_QC ${assembly}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "QUAST"
+        ],
+        "tools_url": [
+            "https://bio.tools/quast"
+        ],
+        "tools_dico": [
+            {
+                "name": "QUAST",
+                "uri": "https://bio.tools/quast",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Sequence assembly validation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Sequence assembly quality evaluation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Assembly QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Assembly quality evaluation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Sequence assembly QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "QUAST stands for QUality ASsessment Tool.  \nIt evaluates a quality of genome assemblies by computing various metrics and providing nice reports.",
+                "homepage": "http://quast.sourceforge.net/quast"
+            }
+        ],
+        "inputs": [
+            "quast_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "quast_log_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "tag \"${plasmid}_${recipient}\"",
+            "publishDir \"${params.outdir}/quast/${plasmid}/${recipient}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "abricate": {
+        "name_process": "abricate",
+        "string_process": "\nprocess abricate {\n    tag \"${plasmid}_${recipient}\"\n    publishDir \"${params.outdir}/abricate/${plasmid}/${recipient}\", mode: 'copy'\n\n    input:\n    tuple(plasmid, recipient, path(assembly), path(gfa)) from abricate_ch\n    \n    output:\n    tuple(plasmid, recipient, path(assembly), path(gfa), path(\"${plasmid}_${recipient}_assembly.genes\")) into amr_ch\n\n    shell:\n    '''\n    abricate --threads !{task.cpus} --db ncbi !{assembly} > !{plasmid}_!{recipient}_assembly.amr\n    cat !{plasmid}_!{recipient}_assembly.amr | awk 'FNR > 1 { print $6}' > !{plasmid}_!{recipient}_assembly.genes\n    '''\n    \n}",
+        "nb_lignes_process": 16,
+        "string_script": "    '''\n    abricate --threads !{task.cpus} --db ncbi !{assembly} > !{plasmid}_!{recipient}_assembly.amr\n    cat !{plasmid}_!{recipient}_assembly.amr | awk 'FNR > 1 { print $6}' > !{plasmid}_!{recipient}_assembly.genes\n    '''",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "ABRicate"
+        ],
+        "tools_url": [
+            "https://bio.tools/ABRicate"
+        ],
+        "tools_dico": [
+            {
+                "name": "ABRicate",
+                "uri": "https://bio.tools/ABRicate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3482",
+                                    "term": "Antimicrobial resistance prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1234",
+                                "term": "Sequence set (nucleic acid)"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0916",
+                                "term": "Gene report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Mass screening of contigs for antimicrobial resistance or virulence genes.",
+                "homepage": "https://github.com/tseemann/abricate"
+            }
+        ],
+        "inputs": [
+            "abricate_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "amr_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "tag \"${plasmid}_${recipient}\"",
+            "publishDir \"${params.outdir}/abricate/${plasmid}/${recipient}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sort_genes": {
+        "name_process": "sort_genes",
+        "string_process": "\nprocess sort_genes {\n    publishDir \"${params.outdir}/genes\", mode: 'copy'\n\n    input:\n    tuple(plasmid, recipient, path(assembly), path(gfa), path(genes)) from amr_ch \n    \n    output:\n    path(\"*/*.{fasta,gfa}\")\n\n    script:\n    \"\"\"\n    while read p\n    do\n    mkdir -p \\$p\n    cp $assembly \\$p\n    cp $gfa \\$p\n    done < $genes\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    while read p\n    do\n    mkdir -p \\$p\n    cp $assembly \\$p\n    cp $gfa \\$p\n    done < $genes\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "amr_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "publishDir \"${params.outdir}/genes\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "output_documentation": {
+        "name_process": "output_documentation",
+        "string_process": "\nprocess output_documentation {\n    publishDir \"${params.outdir}/pipeline_info\", mode: 'copy'\n\n    input:\n    file output_docs from ch_output_docs\n\n    output:\n    file \"results_description.html\"\n\n    script:\n    \"\"\"\n    markdown_to_html.r $output_docs results_description.html\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    markdown_to_html.r $output_docs results_description.html\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_output_docs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "samlhao__hgtsimulation",
+        "directive": [
+            "publishDir \"${params.outdir}/pipeline_info\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

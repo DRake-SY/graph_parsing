@@ -1,0 +1,832 @@
+{
+    "indexReference": {
+        "name_process": "indexReference",
+        "string_process": "\nprocess indexReference {\n  input:\n    path \"ref.fa\" from file(params.ref_fasta)\n  output:\n    path \"ref_index\" into reference_ch\n\n  script:\n  \"\"\"\n   module load kallisto\n   kallisto index -i ref_index ref.fa\n  \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "  \"\"\"\n   module load kallisto\n   kallisto index -i ref_index ref.fa\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "kallisto"
+        ],
+        "tools_url": [
+            "https://bio.tools/kallisto"
+        ],
+        "tools_dico": [
+            {
+                "name": "kallisto",
+                "uri": "https://bio.tools/kallisto",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profiling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Functional profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Feature expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene transcription profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A program for quantifying abundances of transcripts from RNA-Seq data, or more generally of target sequences using high-throughput sequencing reads. It is based on the novel idea of pseudoalignment for rapidly determining the compatibility of reads with targets, without the need for alignment.",
+                "homepage": "https://pachterlab.github.io/kallisto/about.html"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "reference_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NAMlab__rnaseq-mapper",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "SRA": {
+        "name_process": "SRA",
+        "string_process": "\nprocess SRA {\n  publishDir \"work/out/fastqc-reports\", mode: 'move', pattern: '*_fastqc.zip'\n  scratch params.scratch_dir\n  errorStrategy 'retry'\n  maxRetries 4\n\n  input:\n    val sequence from sequences_sra_ch\n    path \"ref_index\" from reference_ch\n  output:\n    path \"${sequence.sra_run_id}.tsv\" into abundances_ch\n    path \"${sequence.sra_run_id}*_fastqc.zip\" into fastqc_ch\n\n  script:\n    if (sequence.layout == \"paired\")\n      \"\"\"\n       module load kallisto sratoolkit fastqc\n       fasterq-dump --split-files ${sequence.sra_run_id}\n       fastqc -t 2 ${sequence.sra_run_id}_1.fastq ${sequence.sra_run_id}_2.fastq\n       kallisto quant -i ref_index -o ./ ${sequence.sra_run_id}_1.fastq ${sequence.sra_run_id}_2.fastq\n       mv abundance.tsv ${sequence.sra_run_id}.tsv\n      \"\"\"\n    else if (sequence.layout == \"single\")\n      \"\"\"\n       module load kallisto sratoolkit fastqc\n       fasterq-dump ${sequence.sra_run_id}\n       fastqc ${sequence.sra_run_id}.fastq\n       kallisto quant -i ref_index -o ./ --single -l ${sequence.fragment_length_average} -s ${sequence.fragment_length_sd} ${sequence.sra_run_id}.fastq\n       mv abundance.tsv ${sequence.sra_run_id}.tsv\n      \"\"\"\n    else\n      error \"Invalid sequence layout: ${sequence.layout}\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    if (sequence.layout == \"paired\")\n      \"\"\"\n       module load kallisto sratoolkit fastqc\n       fasterq-dump --split-files ${sequence.sra_run_id}\n       fastqc -t 2 ${sequence.sra_run_id}_1.fastq ${sequence.sra_run_id}_2.fastq\n       kallisto quant -i ref_index -o ./ ${sequence.sra_run_id}_1.fastq ${sequence.sra_run_id}_2.fastq\n       mv abundance.tsv ${sequence.sra_run_id}.tsv\n      \"\"\"\n    else if (sequence.layout == \"single\")\n      \"\"\"\n       module load kallisto sratoolkit fastqc\n       fasterq-dump ${sequence.sra_run_id}\n       fastqc ${sequence.sra_run_id}.fastq\n       kallisto quant -i ref_index -o ./ --single -l ${sequence.fragment_length_average} -s ${sequence.fragment_length_sd} ${sequence.sra_run_id}.fastq\n       mv abundance.tsv ${sequence.sra_run_id}.tsv\n      \"\"\"\n    else\n      error \"Invalid sequence layout: ${sequence.layout}\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "FastQC",
+            "kallisto"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc",
+            "https://bio.tools/kallisto"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            },
+            {
+                "name": "kallisto",
+                "uri": "https://bio.tools/kallisto",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profiling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Functional profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Feature expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene transcription profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A program for quantifying abundances of transcripts from RNA-Seq data, or more generally of target sequences using high-throughput sequencing reads. It is based on the novel idea of pseudoalignment for rapidly determining the compatibility of reads with targets, without the need for alignment.",
+                "homepage": "https://pachterlab.github.io/kallisto/about.html"
+            }
+        ],
+        "inputs": [
+            "sequences_sra_ch",
+            "reference_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "abundances_ch",
+            "fastqc_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "NAMlab__rnaseq-mapper",
+        "directive": [
+            "publishDir \"work/out/fastqc-reports\", mode: 'move', pattern: '*_fastqc.zip'",
+            "scratch params.scratch_dir",
+            "errorStrategy 'retry'",
+            "maxRetries 4"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "LocalPaired": {
+        "name_process": "LocalPaired",
+        "string_process": "\nprocess LocalPaired {\n  publishDir \"work/out/fastqc-reports\", mode: 'move', pattern: '*_fastqc.zip'\n  scratch params.scratch_dir\n\n  input:\n    set pair_id, file(reads) from sequences_local_paired_ch\n    path \"ref_index\" from reference_ch\n  output:\n    path \"${pair_id}.tsv\" into abundances_local_paired_ch\n    path \"${pair_id}*_fastqc.zip\" into fastqc_local_paired_ch\n\n  script:\n    \"\"\"\n     module load kallisto sratoolkit fastqc\n     gunzip -c ${reads[0]} > ${pair_id}_1.fastq\n     gunzip -c ${reads[1]} > ${pair_id}_2.fastq\n     fastqc -t 2 ${pair_id}_1.fastq ${pair_id}_2.fastq\n     kallisto quant -i ref_index -o ./ ${pair_id}_1.fastq ${pair_id}_2.fastq\n     mv abundance.tsv ${pair_id}.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n     module load kallisto sratoolkit fastqc\n     gunzip -c ${reads[0]} > ${pair_id}_1.fastq\n     gunzip -c ${reads[1]} > ${pair_id}_2.fastq\n     fastqc -t 2 ${pair_id}_1.fastq ${pair_id}_2.fastq\n     kallisto quant -i ref_index -o ./ ${pair_id}_1.fastq ${pair_id}_2.fastq\n     mv abundance.tsv ${pair_id}.tsv\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "FastQC",
+            "kallisto"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc",
+            "https://bio.tools/kallisto"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            },
+            {
+                "name": "kallisto",
+                "uri": "https://bio.tools/kallisto",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profiling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Functional profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Feature expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene transcription profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A program for quantifying abundances of transcripts from RNA-Seq data, or more generally of target sequences using high-throughput sequencing reads. It is based on the novel idea of pseudoalignment for rapidly determining the compatibility of reads with targets, without the need for alignment.",
+                "homepage": "https://pachterlab.github.io/kallisto/about.html"
+            }
+        ],
+        "inputs": [
+            "sequences_local_paired_ch",
+            "reference_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "abundances_local_paired_ch",
+            "fastqc_local_paired_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "NAMlab__rnaseq-mapper",
+        "directive": [
+            "publishDir \"work/out/fastqc-reports\", mode: 'move', pattern: '*_fastqc.zip'",
+            "scratch params.scratch_dir"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "LocalSingle": {
+        "name_process": "LocalSingle",
+        "string_process": "\nprocess LocalSingle {\n  publishDir \"work/out/fastqc-reports\", mode: 'move', pattern: '*_fastqc.zip'\n  scratch params.scratch_dir\n\n  input:\n    path fastq_file from sequences_local_single_ch\n    path \"ref_index\" from reference_ch\n\n  output:\n    path \"${fastq_file.simpleName}.tsv\" into abundances_local_single_ch\n    path \"${fastq_file.simpleName}*_fastqc.zip\" into fastqc_local_single_ch\n\n  script:\n    \"\"\"\n     module load kallisto sratoolkit fastqc\n     gunzip -c ${fastq_file} > ${fastq_file.simpleName}.fastq\n     fastqc ${fastq_file.simpleName}.fastq\n     kallisto quant -i ref_index -o ./ --single -l ${params.local_reads_single_fraglength_mean} -s ${params.local_reads_single_fraglength_sd} ${fastq_file.simpleName}.fastq\n     mv abundance.tsv ${fastq_file.simpleName}.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n     module load kallisto sratoolkit fastqc\n     gunzip -c ${fastq_file} > ${fastq_file.simpleName}.fastq\n     fastqc ${fastq_file.simpleName}.fastq\n     kallisto quant -i ref_index -o ./ --single -l ${params.local_reads_single_fraglength_mean} -s ${params.local_reads_single_fraglength_sd} ${fastq_file.simpleName}.fastq\n     mv abundance.tsv ${fastq_file.simpleName}.tsv\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "FastQC",
+            "kallisto"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc",
+            "https://bio.tools/kallisto"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            },
+            {
+                "name": "kallisto",
+                "uri": "https://bio.tools/kallisto",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profiling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Functional profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Feature expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene transcription profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A program for quantifying abundances of transcripts from RNA-Seq data, or more generally of target sequences using high-throughput sequencing reads. It is based on the novel idea of pseudoalignment for rapidly determining the compatibility of reads with targets, without the need for alignment.",
+                "homepage": "https://pachterlab.github.io/kallisto/about.html"
+            }
+        ],
+        "inputs": [
+            "sequences_local_single_ch",
+            "reference_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "abundances_local_single_ch",
+            "fastqc_local_single_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "NAMlab__rnaseq-mapper",
+        "directive": [
+            "publishDir \"work/out/fastqc-reports\", mode: 'move', pattern: '*_fastqc.zip'",
+            "scratch params.scratch_dir"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combineAll": {
+        "name_process": "combineAll",
+        "string_process": "\nprocess combineAll {\n  publishDir \"work/out/\", mode: 'move'\n\n  input:\n    path \"*\" from abundances_ch.mix(abundances_local_paired_ch).mix(abundances_local_single_ch).collect()\n  output:\n    path \"combined_abundance.tsv\" into combined_ch\n    \n  module 'R'\n\n  script:\n  \"\"\"\n  #!/usr/bin/env Rscript\n\n  abundance.files = list.files(pattern=(\"*.tsv\"))\n  accession.ids = sub(\".tsv\", \"\", abundance.files)\n  combined_df = read.csv(abundance.files[1], sep=\"\\t\")\n  names(combined_df) = c(\"target_id\", \"length\", \n                         paste0(accession.ids[1], \"_eff_length\"), \n                         paste0(accession.ids[1], \"_est_counts\"), \n                         paste0(accession.ids[1], \"_tpm\"))\n  for(i in 2:length(abundance.files)) {\n    additional_df = read.csv(abundance.files[i], sep=\"\\t\")\n    names(additional_df) = c(\"target_id\", \"length\", \n                             paste0(accession.ids[i], \"_eff_length\"), \n                             paste0(accession.ids[i], \"_est_counts\"), \n                             paste0(accession.ids[i], \"_tpm\"))\n    combined_df = merge(combined_df, additional_df, all=T)\n  }\n  write.table(combined_df, \"combined_abundance.tsv\", row.names=F, sep=\"\\t\", quote=F)\n  \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "  \"\"\"\n  #!/usr/bin/env Rscript\n\n  abundance.files = list.files(pattern=(\"*.tsv\"))\n  accession.ids = sub(\".tsv\", \"\", abundance.files)\n  combined_df = read.csv(abundance.files[1], sep=\"\\t\")\n  names(combined_df) = c(\"target_id\", \"length\", \n                         paste0(accession.ids[1], \"_eff_length\"), \n                         paste0(accession.ids[1], \"_est_counts\"), \n                         paste0(accession.ids[1], \"_tpm\"))\n  for(i in 2:length(abundance.files)) {\n    additional_df = read.csv(abundance.files[i], sep=\"\\t\")\n    names(additional_df) = c(\"target_id\", \"length\", \n                             paste0(accession.ids[i], \"_eff_length\"), \n                             paste0(accession.ids[i], \"_est_counts\"), \n                             paste0(accession.ids[i], \"_tpm\"))\n    combined_df = merge(combined_df, additional_df, all=T)\n  }\n  write.table(combined_df, \"combined_abundance.tsv\", row.names=F, sep=\"\\t\", quote=F)\n  \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "abundances_ch",
+            "abundances_local_paired_ch",
+            "abundances_local_single_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "combined_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "NAMlab__rnaseq-mapper",
+        "directive": [
+            "publishDir \"work/out/\", mode: 'move'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

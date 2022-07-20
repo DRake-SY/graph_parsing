@@ -1,0 +1,59 @@
+{
+    "getBioProjectAccessions": {
+        "name_process": "getBioProjectAccessions",
+        "string_process": " process getBioProjectAccessions {\n    container \"quay.io/fhcrc-microbiome/biopython-pandas:latest\"\n    cpus 4\n    memory \"8 GB\"\n    errorStrategy \"retry\"\n    publishDir \"${params.output_folder}\"\n\n    input:\n    val bioproject from params.bioproject\n    val email from params.email\n    \n    output:\n    file \"${bioproject}.csv\" \n    stdout accession_ch\n\n    afterScript \"rm *\"\n\n    \"\"\"\n#!/usr/bin/env python3\n\nfrom Bio import Entrez\nimport pandas as pd\nfrom time import sleep\nimport xmltodict\nimport json\n\nEntrez.email = \"${email}\"\n\ndef get_sub_key(i, key_list):\n    for k in key_list:\n        assert isinstance(i, dict), \"%s not a dict\" % (json.dumps(i, indent=4))\n        assert k in i, \"%s not in %s\" % (k, json.dumps(i, indent=4))\n        i = i[k]\n    return i\n\ndef get_samples_from_bioproject(bioproject):\n\n    handle = Entrez.esearch(db=\"bioproject\", term=bioproject)\n    search_results = Entrez.read(handle)\n    samples = Entrez.elink(dbfrom=\"bioproject\", id=search_results[\"IdList\"][0], linkname=\"bioproject_biosample\")\n    for element in Entrez.parse(samples):\n        for linkset in get_sub_key(element, [\"LinkSetDb\"]):\n            for sample in get_sub_key(linkset, [\"Link\"]):\n                yield sample[\"Id\"]\n            \ndef get_sample_info(biosample_id):\n    try:\n        biosample = Entrez.efetch(db=\"biosample\", id=biosample_id)\n    except:\n        sleep(5)\n        biosample = Entrez.efetch(db=\"biosample\", id=biosample_id)\n    biosample = xmltodict.parse(\"\".join([line for line in biosample]))\n    \n    d = {}\n    \n    for i in get_sub_key(biosample, [\"BioSampleSet\", \"BioSample\", \"Attributes\", \"Attribute\"]):\n        if \"@attribute_name\" in i and \"#text\" in i:\n            d[i[\"@attribute_name\"]] = i[\"#text\"]\n    \n    for i in get_sub_key(biosample, [\"BioSampleSet\", \"BioSample\", \"Ids\", \"Id\"]):\n        for k in [\"@db\", \"@db_label\"]:\n            if k in i and \"#text\" in i:\n                d[i[k]] = i[\"#text\"]\n                \n    for sra_accession in get_biosample_runs(biosample_id):\n        if sra_accession is not None:\n            d[\"Run\"] = sra_accession\n            yield d\n        \ndef get_biosample_runs(biosample_id):\n    try:\n        handle = Entrez.elink(dbfrom=\"biosample\", id=biosample_id, linkname=\"biosample_sra\")\n    except:\n        sleep(5)\n        handle = Entrez.elink(dbfrom=\"biosample\", id=biosample_id, linkname=\"biosample_sra\")\n    search_results = xmltodict.parse(\"\".join([line for line in handle]))\n    \n    try:\n        links = get_sub_key(search_results, [\"eLinkResult\", \"LinkSet\", \"LinkSetDb\"])\n    except:\n        yield None\n        return\n\n    if isinstance(links, dict):\n        links = [links]\n    \n    for link in links:\n        try:\n            run = Entrez.efetch(db=\"sra\", id=get_sub_key(link, [\"Link\", \"Id\"]))\n        except:\n            sleep(5)\n            run = Entrez.efetch(db=\"sra\", id=get_sub_key(link, [\"Link\", \"Id\"]))\n        run = xmltodict.parse(\"\".join([line for line in run]))\n        yield get_sub_key(run, [\"EXPERIMENT_PACKAGE_SET\", \"EXPERIMENT_PACKAGE\", \"RUN_SET\", \"RUN\", \"@accession\"])\n    \ndf = []\nfor sample_id in get_samples_from_bioproject(\"${bioproject}\"):\n    for run in get_sample_info(sample_id):\n        df.append(run)\n\ndf = pd.DataFrame(df)\n\ndf.to_csv(\"${bioproject}.csv\", index=None)\n\nprint(\"\\\\n\".join(df[\"Run\"].tolist()))\n\n    \"\"\"\n    }",
+        "nb_lignes_process": 106,
+        "string_script": "\"\"\"\n#!/usr/bin/env python3\n\nfrom Bio import Entrez\nimport pandas as pd\nfrom time import sleep\nimport xmltodict\nimport json\n\nEntrez.email = \"${email}\"\n\ndef get_sub_key(i, key_list):\n    for k in key_list:\n        assert isinstance(i, dict), \"%s not a dict\" % (json.dumps(i, indent=4))\n        assert k in i, \"%s not in %s\" % (k, json.dumps(i, indent=4))\n        i = i[k]\n    return i\n\ndef get_samples_from_bioproject(bioproject):\n\n    handle = Entrez.esearch(db=\"bioproject\", term=bioproject)\n    search_results = Entrez.read(handle)\n    samples = Entrez.elink(dbfrom=\"bioproject\", id=search_results[\"IdList\"][0], linkname=\"bioproject_biosample\")\n    for element in Entrez.parse(samples):\n        for linkset in get_sub_key(element, [\"LinkSetDb\"]):\n            for sample in get_sub_key(linkset, [\"Link\"]):\n                yield sample[\"Id\"]\n            \ndef get_sample_info(biosample_id):\n    try:\n        biosample = Entrez.efetch(db=\"biosample\", id=biosample_id)\n    except:\n        sleep(5)\n        biosample = Entrez.efetch(db=\"biosample\", id=biosample_id)\n    biosample = xmltodict.parse(\"\".join([line for line in biosample]))\n    \n    d = {}\n    \n    for i in get_sub_key(biosample, [\"BioSampleSet\", \"BioSample\", \"Attributes\", \"Attribute\"]):\n        if \"@attribute_name\" in i and \"#text\" in i:\n            d[i[\"@attribute_name\"]] = i[\"#text\"]\n    \n    for i in get_sub_key(biosample, [\"BioSampleSet\", \"BioSample\", \"Ids\", \"Id\"]):\n        for k in [\"@db\", \"@db_label\"]:\n            if k in i and \"#text\" in i:\n                d[i[k]] = i[\"#text\"]\n                \n    for sra_accession in get_biosample_runs(biosample_id):\n        if sra_accession is not None:\n            d[\"Run\"] = sra_accession\n            yield d\n        \ndef get_biosample_runs(biosample_id):\n    try:\n        handle = Entrez.elink(dbfrom=\"biosample\", id=biosample_id, linkname=\"biosample_sra\")\n    except:\n        sleep(5)\n        handle = Entrez.elink(dbfrom=\"biosample\", id=biosample_id, linkname=\"biosample_sra\")\n    search_results = xmltodict.parse(\"\".join([line for line in handle]))\n    \n    try:\n        links = get_sub_key(search_results, [\"eLinkResult\", \"LinkSet\", \"LinkSetDb\"])\n    except:\n        yield None\n        return\n\n    if isinstance(links, dict):\n        links = [links]\n    \n    for link in links:\n        try:\n            run = Entrez.efetch(db=\"sra\", id=get_sub_key(link, [\"Link\", \"Id\"]))\n        except:\n            sleep(5)\n            run = Entrez.efetch(db=\"sra\", id=get_sub_key(link, [\"Link\", \"Id\"]))\n        run = xmltodict.parse(\"\".join([line for line in run]))\n        yield get_sub_key(run, [\"EXPERIMENT_PACKAGE_SET\", \"EXPERIMENT_PACKAGE\", \"RUN_SET\", \"RUN\", \"@accession\"])\n    \ndf = []\nfor sample_id in get_samples_from_bioproject(\"${bioproject}\"):\n    for run in get_sample_info(sample_id):\n        df.append(run)\n\ndf = pd.DataFrame(df)\n\ndf.to_csv(\"${bioproject}.csv\", index=None)\n\nprint(\"\\\\n\".join(df[\"Run\"].tolist()))\n\n    \"\"\"",
+        "nb_lignes_script": 89,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "params",
+            "params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "accession_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "FredHutch__nf-sra",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/biopython-pandas:latest\"",
+            "cpus 4",
+            "memory \"8 GB\"",
+            "errorStrategy \"retry\"",
+            "publishDir \"${params.output_folder}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "downloadSraFastq": {
+        "name_process": "downloadSraFastq",
+        "string_process": "\nprocess downloadSraFastq {\n    container \"quay.io/fhcrc-microbiome/get_sra:v0.4\"\n    cpus 4\n    memory \"8 GB\"\n    errorStrategy \"retry\"\n    publishDir \"${params.output_folder}\"\n\n    input:\n    val accession from accession_ch.splitText().map{acc -> acc.trim()}\n\n    output:\n    file \"*.fastq.gz\"\n\n    afterScript \"rm -rf *\"\n\n\"\"\"\n# Cache to the local folder\nmkdir -p ~/.ncbi\nmkdir cache\necho '/repository/user/main/public/root = \"\\$PWD/cache\"' > ~/.ncbi/user-settings.mkfg\n\n# Get each read\necho \"Get the FASTQ files\"\nfastq-dump --split-files --defline-seq '@\\$ac.\\$si.\\$sg/\\$ri' --defline-qual + --outdir \\$PWD ${accession}\n\nr1=_1.fastq\nr2=_2.fastq\n\n# If there is a second read, interleave them\nif [[ -s ${accession}\\$r2 ]]; then\n    echo \"Making paired reads\"\n    fastq_pair ${accession}\\$r1 ${accession}\\$r2\n    \n    echo \"Interleave\"\n    paste ${accession}\\$r1.paired.fq ${accession}\\$r2.paired.fq | paste - - - - | awk -v OFS=\"\\\\n\" -v FS=\"\\\\t\" '{print(\\$1,\\$3,\\$5,\\$7,\\$2,\\$4,\\$6,\\$8)}' | gzip -c > \"${accession}.fastq.gz\"\nelse\n    echo \"Compressing\"\n    mv ${accession}\\$r1 ${accession}.fastq\n    gzip ${accession}.fastq\nfi\n\nrm -f ${accession}\\$r1 ${accession}\\$r2 ${accession}\\$r1.paired.fq ${accession}\\$r2.paired.fq\n\n\"\"\"\n}",
+        "nb_lignes_process": 44,
+        "string_script": "\"\"\"\n# Cache to the local folder\nmkdir -p ~/.ncbi\nmkdir cache\necho '/repository/user/main/public/root = \"\\$PWD/cache\"' > ~/.ncbi/user-settings.mkfg\n\n# Get each read\necho \"Get the FASTQ files\"\nfastq-dump --split-files --defline-seq '@\\$ac.\\$si.\\$sg/\\$ri' --defline-qual + --outdir \\$PWD ${accession}\n\nr1=_1.fastq\nr2=_2.fastq\n\n# If there is a second read, interleave them\nif [[ -s ${accession}\\$r2 ]]; then\n    echo \"Making paired reads\"\n    fastq_pair ${accession}\\$r1 ${accession}\\$r2\n    \n    echo \"Interleave\"\n    paste ${accession}\\$r1.paired.fq ${accession}\\$r2.paired.fq | paste - - - - | awk -v OFS=\"\\\\n\" -v FS=\"\\\\t\" '{print(\\$1,\\$3,\\$5,\\$7,\\$2,\\$4,\\$6,\\$8)}' | gzip -c > \"${accession}.fastq.gz\"\nelse\n    echo \"Compressing\"\n    mv ${accession}\\$r1 ${accession}.fastq\n    gzip ${accession}.fastq\nfi\n\nrm -f ${accession}\\$r1 ${accession}\\$r2 ${accession}\\$r1.paired.fq ${accession}\\$r2.paired.fq\n\n\"\"\"",
+        "nb_lignes_script": 28,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "accession_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "FredHutch__nf-sra",
+        "directive": [
+            "container \"quay.io/fhcrc-microbiome/get_sra:v0.4\"",
+            "cpus 4",
+            "memory \"8 GB\"",
+            "errorStrategy \"retry\"",
+            "publishDir \"${params.output_folder}\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

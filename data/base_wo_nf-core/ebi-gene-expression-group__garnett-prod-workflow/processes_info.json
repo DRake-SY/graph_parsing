@@ -1,0 +1,133 @@
+{
+    "build_query_cds": {
+        "name_process": "build_query_cds",
+        "string_process": "\nprocess build_query_cds {\n\n    conda \"${baseDir}/envs/monocle3-cli.yaml\"\n\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137  ? 'retry' : 'finish' }   \n    maxRetries 5\n    memory { 16.GB * task.attempt }\n\n    input:\n        file(query_10x_dir) from QUERY_10X_DIR\n\n    output:\n        file(\"query_cds_obj.rds\") into QUERY_CDS_OBJECT\n\n    \"\"\"\n    monocle3 create query_cds_obj.rds\\\n            --expression-matrix ${query_10x_dir}/matrix.mtx\\\n            --cell-metadata ${query_10x_dir}/barcodes.tsv\\\n            --gene-annotation ${query_10x_dir}/genes.tsv\n    \"\"\" \n\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\"\"\"\n    monocle3 create query_cds_obj.rds\\\n            --expression-matrix ${query_10x_dir}/matrix.mtx\\\n            --cell-metadata ${query_10x_dir}/barcodes.tsv\\\n            --gene-annotation ${query_10x_dir}/genes.tsv\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "QUERY_10X_DIR"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "QUERY_CDS_OBJECT"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__garnett-prod-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/monocle3-cli.yaml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 5",
+            "memory { 16.GB * task.attempt }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_garnett_predictions": {
+        "name_process": "run_garnett_predictions",
+        "string_process": "\nprocess run_garnett_predictions{\n    conda \"${baseDir}/envs/garnett-cli.yaml\"\n\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137  ? 'retry' : 'finish' }   \n    maxRetries 5\n    memory { 16.GB * task.attempt }\n    \n    input:\n        set val(acc), file(classifier) from CLASSIFIERS\n        file(query_cds_obj) from QUERY_CDS_OBJECT.first()\n        \n    output:\n        set val(acc), file(\"${acc}_predicted.rds\") into PRED_LABELS_OBJ\n\n\n    \"\"\"\n    garnett_classify_cells.R\\\n            --cds-object ${query_cds_obj}\\\n            --classifier-object ${classifier}\\\n            --database ${params.database}\\\n            --cds-gene-id-type ${params.cds_gene_id_type}\\\n            --cluster-extend ${params.cluster_extend}\\\n            --rank-prob-ratio ${params.rank_prob_ratio}\\\n            --cds-output-obj ${acc}_predicted.rds\n    \"\"\"   \n}",
+        "nb_lignes_process": 25,
+        "string_script": "\"\"\"\n    garnett_classify_cells.R\\\n            --cds-object ${query_cds_obj}\\\n            --classifier-object ${classifier}\\\n            --database ${params.database}\\\n            --cds-gene-id-type ${params.cds_gene_id_type}\\\n            --cluster-extend ${params.cluster_extend}\\\n            --rank-prob-ratio ${params.rank_prob_ratio}\\\n            --cds-output-obj ${acc}_predicted.rds\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "CLASSIFIERS",
+            "QUERY_CDS_OBJECT"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "PRED_LABELS_OBJ"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__garnett-prod-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/garnett-cli.yaml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 5",
+            "memory { 16.GB * task.attempt }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_final_tables": {
+        "name_process": "get_final_tables",
+        "string_process": "\nprocess get_final_tables {\n    conda \"${baseDir}/envs/garnett-cli.yaml\"\n\n    input:\n        set val(acc), file(pred_labs_object) from PRED_LABELS_OBJ        \n\n    output:\n        file(\"${acc}_final_labs.tsv\") into PRED_LABELS_TBLS\n\n    \"\"\"\n    garnett_get_std_output.R\\\n            --input-object ${pred_labs_object}\\\n            --predicted-cell-type-field ${params.predicted_cell_type_field}\\\n            --output-file-path ${acc}_labs.tsv\n\n\n    # add metadata fields to output table\n    echo \"# dataset ${acc}\" > ${acc}_final_labs.tsv\n    echo \"# tool garnett\" >> ${acc}_final_labs.tsv\n    cat ${acc}_labs.tsv >> ${acc}_final_labs.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\"\"\"\n    garnett_get_std_output.R\\\n            --input-object ${pred_labs_object}\\\n            --predicted-cell-type-field ${params.predicted_cell_type_field}\\\n            --output-file-path ${acc}_labs.tsv\n\n\n    # add metadata fields to output table\n    echo \"# dataset ${acc}\" > ${acc}_final_labs.tsv\n    echo \"# tool garnett\" >> ${acc}_final_labs.tsv\n    cat ${acc}_labs.tsv >> ${acc}_final_labs.tsv\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "PRED_LABELS_OBJ"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "PRED_LABELS_TBLS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__garnett-prod-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/garnett-cli.yaml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_labels": {
+        "name_process": "combine_labels",
+        "string_process": "\nprocess combine_labels{\n    input:\n        file(labels) from PRED_LABELS_TBLS.collect()\n\n    output:\n        file(\"${params.label_dir}\") into GARNETT_LABELS_DIR\n\n\n    \"\"\"\n    mkdir -p ${params.label_dir}\n    for file in ${labels}\n    do\n        mv \\$file ${params.label_dir}\n    done\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    mkdir -p ${params.label_dir}\n    for file in ${labels}\n    do\n        mv \\$file ${params.label_dir}\n    done\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "PRED_LABELS_TBLS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "GARNETT_LABELS_DIR"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__garnett-prod-workflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "select_top_labs": {
+        "name_process": "select_top_labs",
+        "string_process": "\nprocess select_top_labs {\n    conda \"${baseDir}/envs/cell-types-analysis.yaml\" \n    publishDir \"${params.results_dir}\", mode: 'copy'\n\n    input:\n        file(label_dir) from GARNETT_LABELS_DIR\n\n    output:\n        file(\"garnett_output.tsv\") into GARNETT_TOP_LABS\n\n    \"\"\"\n    combine_tool_outputs.R\\\n        --input-dir ${label_dir}\\\n        --top-labels-num 2\\\n        --output-table garnett_output.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    combine_tool_outputs.R\\\n        --input-dir ${label_dir}\\\n        --top-labels-num 2\\\n        --output-table garnett_output.tsv\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "GARNETT_LABELS_DIR"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "GARNETT_TOP_LABS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__garnett-prod-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/cell-types-analysis.yaml\"",
+            "publishDir \"${params.results_dir}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

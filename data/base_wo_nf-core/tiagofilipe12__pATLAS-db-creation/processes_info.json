@@ -1,0 +1,638 @@
+{
+    "downloadFastas": {
+        "name_process": "downloadFastas",
+        "string_process": "\nprocess downloadFastas {\n\n    tag {\"downloading plasmids from ncbi refseq ftp\"}\n\n    output:\n    file \"plasmid.*.1.genomic.fna\" into downloadedFastas\n                                                          \n\n    \"\"\"\n    wget $params.ncbi_ftp\n    gunzip plasmid.*.1.genomic.fna.gz\n    \"\"\"\n\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    wget $params.ncbi_ftp\n    gunzip plasmid.*.1.genomic.fna.gz\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "downloadedFastas"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"downloading plasmids from ncbi refseq ftp\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "runMASHix": {
+        "name_process": "runMASHix",
+        "string_process": "\nprocess runMASHix {\n\n    tag {\"Running MASHix\"}\n\n    publishDir \"results/MASHix/\"\n\n    input:\n    file fastas from downloadedFastas\n    val db_name_var from IN_db_name\n    val sequencesToRemove from IN_sequences_removal\n\n    output:\n    file \"${db_name_var}/*.fas\" into (masterFasta_abricate, masterFasta_abricatepf, masterFasta_samtools, masterFasta_bowtie2, masterFasta_diamond)\n    file \"${db_name_var}/results/*.json\" into patlasJson\n    file \"*.json\" into taxaTree\n    file \"*sql\" into sqlFileMashix\n    file \"${db_name_var}/*json\" into lenghtJson\n    file \"${db_name_var}/reference_sketch/${db_name_var}_reference.msh\" into mashIndex\n    file \"${db_name_var}/*.txt\" into actualRemovedSequences\n\n    \"\"\"\n    echo \"Configuring psql and creating $db_name_var\"\n    service postgresql start\n    service postgresql status\n    sudo -u postgres createuser -w -s root\n    createdb $db_name_var\n    db_create.py $db_name_var\n    echo \"Downloading ncbi taxonomy\"\n    wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz\n    tar -xvzf taxdump.tar.gz\n    echo \"Running MASHix.py\"\n    MASHix.py -i ${fastas} -o ${db_name_var} -t ${task.cpus} -non nodes.dmp \\\n    -nan names.dmp -rm ${sequencesToRemove} -db ${db_name_var}\n    echo \"Dumping to database file\"\n    pg_dump ${db_name_var} > ${db_name_var}.sql\n    rm *.dmp *.prt *.txt *.tar.gz\n    \"\"\"\n\n}",
+        "nb_lignes_process": 38,
+        "string_script": "\"\"\"\n    echo \"Configuring psql and creating $db_name_var\"\n    service postgresql start\n    service postgresql status\n    sudo -u postgres createuser -w -s root\n    createdb $db_name_var\n    db_create.py $db_name_var\n    echo \"Downloading ncbi taxonomy\"\n    wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz\n    tar -xvzf taxdump.tar.gz\n    echo \"Running MASHix.py\"\n    MASHix.py -i ${fastas} -o ${db_name_var} -t ${task.cpus} -non nodes.dmp \\\n    -nan names.dmp -rm ${sequencesToRemove} -db ${db_name_var}\n    echo \"Dumping to database file\"\n    pg_dump ${db_name_var} > ${db_name_var}.sql\n    rm *.dmp *.prt *.txt *.tar.gz\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "Bioservices"
+        ],
+        "tools_url": [
+            "https://bio.tools/bioservices"
+        ],
+        "tools_dico": [
+            {
+                "name": "Bioservices",
+                "uri": "https://bio.tools/bioservices",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3070",
+                            "term": "Biology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3070",
+                            "term": "Biological science"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BioServices is a Python package that provides programmatic access to many Bioinformatics Web Services (e.g., UniProt, EUtils, ENA, UniChem, etc) and a framework to easily implement new Web Service wrappers (based on WSDL/SOAP or REST protocols).",
+                "homepage": "https://bioservices.readthedocs.io/"
+            }
+        ],
+        "inputs": [
+            "downloadedFastas",
+            "IN_db_name",
+            "IN_sequences_removal"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "",
+            "patlasJson",
+            "taxaTree",
+            "sqlFileMashix",
+            "lenghtJson",
+            "mashIndex",
+            "actualRemovedSequences"
+        ],
+        "nb_outputs": 7,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"Running MASHix\"}",
+            "publishDir \"results/MASHix/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "samtoolsIndex": {
+        "name_process": "samtoolsIndex",
+        "string_process": "\nprocess samtoolsIndex{\n\n    tag {\"Creating samtools index\"}\n\n    publishDir \"results/samtools_indexes/\"\n\n    input:\n    file masterFastaFile from masterFasta_samtools\n\n    output:\n    file \"*.fai\" into samtoolsIndexChannel\n\n    \"\"\"\n    echo \"Creating samtools index\"\n    samtools faidx ${masterFastaFile}\n    \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    echo \"Creating samtools index\"\n    samtools faidx ${masterFastaFile}\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "masterFasta_samtools"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "samtoolsIndexChannel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"Creating samtools index\"}",
+            "publishDir \"results/samtools_indexes/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "abricate": {
+        "name_process": "abricate",
+        "string_process": "\nprocess abricate {\n\n    tag {\"running abricate\"}\n\n    input:\n    file masterFastaFile from masterFasta_abricate\n    each db from params.abricateDatabases\n\n    output:\n    file \"*.tsv\" into abricateOutputs\n\n    \"\"\"\n    abricate --db ${db} ${masterFastaFile} > abr_${db}.tsv\n    \"\"\"\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    abricate --db ${db} ${masterFastaFile} > abr_${db}.tsv\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "ABRicate"
+        ],
+        "tools_url": [
+            "https://bio.tools/ABRicate"
+        ],
+        "tools_dico": [
+            {
+                "name": "ABRicate",
+                "uri": "https://bio.tools/ABRicate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3482",
+                                    "term": "Antimicrobial resistance prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1234",
+                                "term": "Sequence set (nucleic acid)"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0916",
+                                "term": "Gene report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Mass screening of contigs for antimicrobial resistance or virulence genes.",
+                "homepage": "https://github.com/tseemann/abricate"
+            }
+        ],
+        "inputs": [
+            "masterFasta_abricate",
+            "params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "abricateOutputs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"running abricate\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "abricate_plasmidfinder_db": {
+        "name_process": "abricate_plasmidfinder_db",
+        "string_process": "\nprocess abricate_plasmidfinder_db {\n\n    tag {\"updating plasmidfinder database and running abricate\"}\n\n    input:\n    file masterFastaFile from masterFasta_abricatepf\n\n    output:\n    file \"*.tsv\" into abricateOutputsPlasmidFinder\n\n    \"\"\"\n    git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db/\n    cd plasmidfinder_db/ && cat *.fsa >> sequences\n    makeblastdb -in sequences -title tinyamr -dbtype nucl -parse_seqids -hash_index\n    cd ..\n    abricate --db plasmidfinder_db --datadir ./ ${masterFastaFile} > abr_plasmidfinder_db.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    git clone https://bitbucket.org/genomicepidemiology/plasmidfinder_db/\n    cd plasmidfinder_db/ && cat *.fsa >> sequences\n    makeblastdb -in sequences -title tinyamr -dbtype nucl -parse_seqids -hash_index\n    cd ..\n    abricate --db plasmidfinder_db --datadir ./ ${masterFastaFile} > abr_plasmidfinder_db.tsv\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "trimsequences",
+            "ABRicate"
+        ],
+        "tools_url": [
+            "https://bio.tools/trimsequences",
+            "https://bio.tools/ABRicate"
+        ],
+        "tools_dico": [
+            {
+                "name": "trimsequences",
+                "uri": "https://bio.tools/trimsequences",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Remove the 5' and/or 3' adaptors of a list of reads.",
+                "homepage": "https://urgi.versailles.inra.fr/Tools/REPET"
+            },
+            {
+                "name": "ABRicate",
+                "uri": "https://bio.tools/ABRicate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3482",
+                                    "term": "Antimicrobial resistance prediction"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1234",
+                                "term": "Sequence set (nucleic acid)"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0916",
+                                "term": "Gene report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Mass screening of contigs for antimicrobial resistance or virulence genes.",
+                "homepage": "https://github.com/tseemann/abricate"
+            }
+        ],
+        "inputs": [
+            "masterFasta_abricatepf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "abricateOutputsPlasmidFinder"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"updating plasmidfinder database and running abricate\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "diamond": {
+        "name_process": "diamond",
+        "string_process": "\nprocess diamond {\n\n    tag {\"running diamond\"}\n\n    input:\n    file masterFastaFile from masterFasta_diamond\n    each db from params.diamondDatabases\n\n    output:\n    file \"*.txt\" into diamondOutputs\n\n    \"\"\"\n    diamond blastx -d /ngstools/bin/bacmet/bacmet -q ${masterFastaFile} \\\n    -o ${db}.txt -e 1E-20 -p ${task.cpus} \\\n    -f 6 qseqid sseqid pident length mismatch gapopen qstart qend slen sstart send evalue bitscore\n    \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    diamond blastx -d /ngstools/bin/bacmet/bacmet -q ${masterFastaFile} \\\n    -o ${db}.txt -e 1E-20 -p ${task.cpus} \\\n    -f 6 qseqid sseqid pident length mismatch gapopen qstart qend slen sstart send evalue bitscore\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "Diamond"
+        ],
+        "tools_url": [
+            "https://bio.tools/diamond"
+        ],
+        "tools_dico": [
+            {
+                "name": "Diamond",
+                "uri": "https://bio.tools/diamond",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0258",
+                                    "term": "Sequence alignment analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Sequence aligner for protein and translated DNA searches and functions as a drop-in replacement for the NCBI BLAST software tools. It is suitable for protein-protein search as well as DNA-protein search on short reads and longer sequences including contigs and assemblies, providing a speedup of BLAST ranging up to x20,000.",
+                "homepage": "https://github.com/bbuchfink/diamond"
+            }
+        ],
+        "inputs": [
+            "masterFasta_diamond",
+            "params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "diamondOutputs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"running diamond\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "abricate2db": {
+        "name_process": "abricate2db",
+        "string_process": "\nprocess abricate2db {\n\n    tag {\"sending abricate to database\"}\n\n    publishDir \"results/sql_file/\"\n\n    input:\n    file abricate from abricateOutputs.collect()\n    file diamond from diamondOutputs.collect()\n    file abricatePlasmidFinder from abricateOutputsPlasmidFinder\n    file sqlFile from sqlFileMashix\n    val db_name_var from IN_db_name\n\n    output:\n    file \"*final.sql\" into FinalDbSql\n    file \"*.json\" into dropdownJsons\n\n    \"\"\"\n    echo ${abricate}\n    echo \"Configuring psql and creating $db_name_var\"\n    service postgresql start\n    service postgresql status\n    sudo -u postgres createuser -w -s root\n    createdb $db_name_var\n    psql -d ${db_name_var} -f ${db_name_var}.sql\n    echo \"Dumping into database - resistance\"\n    abricate2db.py -i abr_card.tsv abr_resfinder.tsv -db resistance \\\n    -id ${params.abricateId} -cov ${params.abricateCov} -csv ${params.cardCsv} \\\n    -db_psql ${db_name_var}\n    echo \"Dumping into database - plasmidfinder_db latest\"\n    abricate2db.py -i abr_plasmidfinder_db.tsv -db plasmidfinder \\\n    -id ${params.abricateId} -cov ${params.abricateCov} -csv ${params.cardCsv} \\\n    -db_psql ${db_name_var}\n    echo \"Dumping into database - virulence\"\n    abricate2db.py -i abr_vfdb.tsv -db virulence \\\n    -id ${params.abricateId} -cov ${params.abricateCov} -csv ${params.cardCsv} \\\n    -db_psql ${db_name_var}\n    echo \"Dumping into database - bacmet\"\n    diamond2db.py -db metal -i bacmet.txt -db_psql ${db_name_var}\n    echo \"Writing to sql file\"\n    pg_dump ${db_name_var} > ${db_name_var}_final.sql\n    \"\"\"\n\n}",
+        "nb_lignes_process": 43,
+        "string_script": "\"\"\"\n    echo ${abricate}\n    echo \"Configuring psql and creating $db_name_var\"\n    service postgresql start\n    service postgresql status\n    sudo -u postgres createuser -w -s root\n    createdb $db_name_var\n    psql -d ${db_name_var} -f ${db_name_var}.sql\n    echo \"Dumping into database - resistance\"\n    abricate2db.py -i abr_card.tsv abr_resfinder.tsv -db resistance \\\n    -id ${params.abricateId} -cov ${params.abricateCov} -csv ${params.cardCsv} \\\n    -db_psql ${db_name_var}\n    echo \"Dumping into database - plasmidfinder_db latest\"\n    abricate2db.py -i abr_plasmidfinder_db.tsv -db plasmidfinder \\\n    -id ${params.abricateId} -cov ${params.abricateCov} -csv ${params.cardCsv} \\\n    -db_psql ${db_name_var}\n    echo \"Dumping into database - virulence\"\n    abricate2db.py -i abr_vfdb.tsv -db virulence \\\n    -id ${params.abricateId} -cov ${params.abricateCov} -csv ${params.cardCsv} \\\n    -db_psql ${db_name_var}\n    echo \"Dumping into database - bacmet\"\n    diamond2db.py -db metal -i bacmet.txt -db_psql ${db_name_var}\n    echo \"Writing to sql file\"\n    pg_dump ${db_name_var} > ${db_name_var}_final.sql\n    \"\"\"",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [
+            "Bioservices"
+        ],
+        "tools_url": [
+            "https://bio.tools/bioservices"
+        ],
+        "tools_dico": [
+            {
+                "name": "Bioservices",
+                "uri": "https://bio.tools/bioservices",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3070",
+                            "term": "Biology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3070",
+                            "term": "Biological science"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BioServices is a Python package that provides programmatic access to many Bioinformatics Web Services (e.g., UniProt, EUtils, ENA, UniChem, etc) and a framework to easily implement new Web Service wrappers (based on WSDL/SOAP or REST protocols).",
+                "homepage": "https://bioservices.readthedocs.io/"
+            }
+        ],
+        "inputs": [
+            "abricateOutputs",
+            "diamondOutputs",
+            "abricateOutputsPlasmidFinder",
+            "sqlFileMashix",
+            "IN_db_name"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "FinalDbSql",
+            "dropdownJsons"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"sending abricate to database\"}",
+            "publishDir \"results/sql_file/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bowtieIndex": {
+        "name_process": "bowtieIndex",
+        "string_process": "\nprocess bowtieIndex {\n\n    tag {\"creating bowtie2 index\"}\n\n    publishDir \"results/bowtie_indexes/\"\n\n    input:\n    file masterFastaFile from masterFasta_bowtie2\n\n    output:\n    file \"*bowtie2_index.*\" into bowtieIndexChannel\n                                            \n\n    \"\"\"\n    echo \"Creating bowtie2 index\"\n    bowtie2-build -q ${masterFastaFile} --threads ${task.cpus} \\\n    patlas_bowtie2_index\n    \"\"\"\n\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n    echo \"Creating bowtie2 index\"\n    bowtie2-build -q ${masterFastaFile} --threads ${task.cpus} \\\n    patlas_bowtie2_index\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "masterFasta_bowtie2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bowtieIndexChannel"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "tiagofilipe12__pATLAS-db-creation",
+        "directive": [
+            "tag {\"creating bowtie2 index\"}",
+            "publishDir \"results/bowtie_indexes/\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

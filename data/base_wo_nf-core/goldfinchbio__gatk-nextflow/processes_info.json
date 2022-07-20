@@ -1,0 +1,1042 @@
+{
+    "CreateSequenceGroupingTSV": {
+        "name_process": "CreateSequenceGroupingTSV",
+        "string_process": "\nprocess CreateSequenceGroupingTSV {\n\n    input:\n    file ref_dict\n\n    output:\n    file 'sequence_grouping.txt' into sequence_grouping\n    file 'sequence_grouping_with_unmapped.txt' into sequence_grouping_with_unmapped\n\n    container \"job-definition://gatk-sequencegrouping\"\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\nwith open(\"${ref_dict}\", \"r\") as ref_dict_file:\n    sequence_tuple_list = []\n    longest_sequence = 0\n    for line in ref_dict_file:\n        if line.startswith(\"@SQ\"):\n            line_split = line.split(\"\\t\")\n            # (Sequence_Name, Sequence_Length)\n            sequence_tuple_list.append((line_split[1].split(\"SN:\")[1], int(line_split[2].split(\"LN:\")[1])))\n    longest_sequence = sorted(sequence_tuple_list, key=lambda x: x[1], reverse=True)[0][1]\n\n# We are adding this to the intervals because hg38 has contigs named with embedded colons (:) and a bug in\n# some versions of GATK strips off the last element after a colon, so we add this as a sacrificial element.\nhg38_protection_tag = \":1+\"\n\n# initialize the tsv string with the first sequence\ntsv_string = sequence_tuple_list[0][0] + hg38_protection_tag\ntemp_size = sequence_tuple_list[0][1]\nfor sequence_tuple in sequence_tuple_list[1:]:\n    if temp_size + sequence_tuple[1] <= longest_sequence:\n        temp_size += sequence_tuple[1]\n        tsv_string += \"\\\\t\" + sequence_tuple[0] + hg38_protection_tag\n    else:\n        tsv_string += \"\\\\n\" + sequence_tuple[0] + hg38_protection_tag\n        temp_size = sequence_tuple[1]\n\n# add the unmapped sequences as a separate line to ensure that they are recalibrated as well\nwith open(\"sequence_grouping.txt\",\"w\") as tsv_file:\n  tsv_file.write(tsv_string)\n  tsv_file.close()\n\ntsv_string += '\\\\n' + \"unmapped\"\n\nwith open(\"sequence_grouping_with_unmapped.txt\",\"w\") as tsv_file_with_unmapped:\n  tsv_file_with_unmapped.write(tsv_string)\n  tsv_file_with_unmapped.close()\n    \"\"\"\n}",
+        "nb_lignes_process": 50,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\nwith open(\"${ref_dict}\", \"r\") as ref_dict_file:\n    sequence_tuple_list = []\n    longest_sequence = 0\n    for line in ref_dict_file:\n        if line.startswith(\"@SQ\"):\n            line_split = line.split(\"\\t\")\n            # (Sequence_Name, Sequence_Length)\n            sequence_tuple_list.append((line_split[1].split(\"SN:\")[1], int(line_split[2].split(\"LN:\")[1])))\n    longest_sequence = sorted(sequence_tuple_list, key=lambda x: x[1], reverse=True)[0][1]\n\n# We are adding this to the intervals because hg38 has contigs named with embedded colons (:) and a bug in\n# some versions of GATK strips off the last element after a colon, so we add this as a sacrificial element.\nhg38_protection_tag = \":1+\"\n\n# initialize the tsv string with the first sequence\ntsv_string = sequence_tuple_list[0][0] + hg38_protection_tag\ntemp_size = sequence_tuple_list[0][1]\nfor sequence_tuple in sequence_tuple_list[1:]:\n    if temp_size + sequence_tuple[1] <= longest_sequence:\n        temp_size += sequence_tuple[1]\n        tsv_string += \"\\\\t\" + sequence_tuple[0] + hg38_protection_tag\n    else:\n        tsv_string += \"\\\\n\" + sequence_tuple[0] + hg38_protection_tag\n        temp_size = sequence_tuple[1]\n\n# add the unmapped sequences as a separate line to ensure that they are recalibrated as well\nwith open(\"sequence_grouping.txt\",\"w\") as tsv_file:\n  tsv_file.write(tsv_string)\n  tsv_file.close()\n\ntsv_string += '\\\\n' + \"unmapped\"\n\nwith open(\"sequence_grouping_with_unmapped.txt\",\"w\") as tsv_file_with_unmapped:\n  tsv_file_with_unmapped.write(tsv_string)\n  tsv_file_with_unmapped.close()\n    \"\"\"",
+        "nb_lignes_script": 37,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ref_dict"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sequence_grouping",
+            "sequence_grouping_with_unmapped"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "SplitSequenceGroupingTSV": {
+        "name_process": "SplitSequenceGroupingTSV",
+        "string_process": "\nprocess SplitSequenceGroupingTSV {\n    input:\n    file input_grouping from sequence_grouping\n\n    output:\n    file \"sequence_grouping_*.interval_list\"\n    file \"sequence_group_list.txt\"\n\n    container \"job-definition://gatk-sequencegrouping\"\n    publishDir \"${outpath}/sequence_groups/\", mode: 'copy', overwrite: false\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\nwith open(\"${input_grouping}\", \"r\") as handle:\n    with open(\"sequence_group_list.txt\",\"w\") as index_file:\n        count = 0\n        for tsv_string in handle:\n            with open(\"sequence_grouping_%d.interval_list\" % count,\"w\") as tsv_file:\n                for line_part in tsv_string.split('\\\\t'):\n                    tsv_file.write(line_part + \"\\\\n\")\n                tsv_file.close()\n                index_file.write(\"${outpath}/sequence_groups/sequence_grouping_%d.interval_list\\\\n\" % count)\n                count += 1\n        index_file.close()\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\nwith open(\"${input_grouping}\", \"r\") as handle:\n    with open(\"sequence_group_list.txt\",\"w\") as index_file:\n        count = 0\n        for tsv_string in handle:\n            with open(\"sequence_grouping_%d.interval_list\" % count,\"w\") as tsv_file:\n                for line_part in tsv_string.split('\\\\t'):\n                    tsv_file.write(line_part + \"\\\\n\")\n                tsv_file.close()\n                index_file.write(\"${outpath}/sequence_groups/sequence_grouping_%d.interval_list\\\\n\" % count)\n                count += 1\n        index_file.close()\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sequence_grouping"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "SplitSequenceGroupingUnmappedTSV": {
+        "name_process": "SplitSequenceGroupingUnmappedTSV",
+        "string_process": "\nprocess SplitSequenceGroupingUnmappedTSV {\n    input:\n    file input_grouping from sequence_grouping_with_unmapped\n\n    output:\n    file \"sequence_grouping_with_unmapped_*.interval_list\"\n    file \"sequence_grouping_with_unmapped_list.txt\"\n\n    container \"job-definition://gatk-sequencegrouping\"\n    publishDir \"${outpath}/sequence_groups_unmapped/\", mode: 'copy', overwrite: false\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python3\nwith open(\"${input_grouping}\", \"r\") as handle:\n    with open(\"sequence_grouping_with_unmapped_list.txt\",\"w\") as index_file:\n        count = 0\n        for tsv_string in handle:\n            with open(\"sequence_grouping_with_unmapped_%d.interval_list\" % count,\"w\") as tsv_file:\n                for line_part in tsv_string.split('\\\\t'):\n                    tsv_file.write(line_part + \"\\\\n\")\n                tsv_file.close()\n                index_file.write(\"${outpath}/sequence_groups_unmapped/sequence_grouping_with_unmapped_%d.interval_list\\\\n\" % count)\n                count += 1\n        index_file.close()\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python3\nwith open(\"${input_grouping}\", \"r\") as handle:\n    with open(\"sequence_grouping_with_unmapped_list.txt\",\"w\") as index_file:\n        count = 0\n        for tsv_string in handle:\n            with open(\"sequence_grouping_with_unmapped_%d.interval_list\" % count,\"w\") as tsv_file:\n                for line_part in tsv_string.split('\\\\t'):\n                    tsv_file.write(line_part + \"\\\\n\")\n                tsv_file.close()\n                index_file.write(\"${outpath}/sequence_groups_unmapped/sequence_grouping_with_unmapped_%d.interval_list\\\\n\" % count)\n                count += 1\n        index_file.close()\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sequence_grouping_with_unmapped"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "GetBwaVersion": {
+        "name_process": "GetBwaVersion",
+        "string_process": "\nprocess GetBwaVersion {\n\n    output:\n    stdout channel into outputs_bwa_version\n\n    container \"job-definition://gatk-bwaversion\"\n\n    \"\"\"\n    ${bwa_path}bwa 2>&1 | grep -e '^Version' | sed 's/Version: //' | tr -d '\\n'\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "\"\"\"\n    ${bwa_path}bwa 2>&1 | grep -e '^Version' | sed 's/Version: //' | tr -d '\\n'\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "outputs_bwa_version"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "SplitFlowcellAndLaneR1": {
+        "name_process": "SplitFlowcellAndLaneR1",
+        "string_process": "\nprocess SplitFlowcellAndLaneR1 {\n\n    input:\n    file fastq_1\n\n    output:\n    file \"*_R1.fq\" into outputs_lane_r1\n\n    container \"job-definition://gatk-splitflowcellandlane\"\n\n    \"\"\"\n    zcat ${fastq_1} | awk  -v sample_name=\"$sample_name\" 'BEGIN {FS = \":\"} {flowcell=\\$3; lane=\\$4; print > sample_name\"_\"flowcell\".\"lane\"_R1.fq\"; for (i = 1; i <= 3; i++) {getline; print > sample_name\"_\"flowcell\".\"lane\"_R1.fq\"}}'\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    zcat ${fastq_1} | awk  -v sample_name=\"$sample_name\" 'BEGIN {FS = \":\"} {flowcell=\\$3; lane=\\$4; print > sample_name\"_\"flowcell\".\"lane\"_R1.fq\"; for (i = 1; i <= 3; i++) {getline; print > sample_name\"_\"flowcell\".\"lane\"_R1.fq\"}}'\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastq_1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "outputs_lane_r1"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "SplitFlowcellAndLaneR2": {
+        "name_process": "SplitFlowcellAndLaneR2",
+        "string_process": "\nprocess SplitFlowcellAndLaneR2 {\n\n    input:\n    file fastq_2\n\n    output:\n    file \"*_R2.fq\" into outputs_lane_r2\n\n    container \"job-definition://gatk-splitflowcellandlane\"\n\n    \"\"\"\n    zcat ${fastq_2} | awk  -v sample_name=\"$sample_name\" 'BEGIN {FS = \":\"} {flowcell=\\$3; lane=\\$4; print > sample_name\"_\"flowcell\".\"lane\"_R2.fq\"; for (i = 1; i <= 3; i++) {getline; print > sample_name\"_\"flowcell\".\"lane\"_R2.fq\"}}'\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    zcat ${fastq_2} | awk  -v sample_name=\"$sample_name\" 'BEGIN {FS = \":\"} {flowcell=\\$3; lane=\\$4; print > sample_name\"_\"flowcell\".\"lane\"_R2.fq\"; for (i = 1; i <= 3; i++) {getline; print > sample_name\"_\"flowcell\".\"lane\"_R2.fq\"}}'\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fastq_2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "outputs_lane_r2"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "ConvertToUbams": {
+        "name_process": "ConvertToUbams",
+        "string_process": "\nprocess ConvertToUbams {\n\n    input:\n    file read1 from outputs_lane_r1.flatten()\n    file read2 from outputs_lane_r2.flatten()\n\n    output:\n    stdout into readgroup_name\n    file \"${sample_name}_${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")}.unmapped.bam\" into outputs_unmapped_bam\n\n    container \"job-definition://gatk-convertunmappedbams\"\n\n    script:\n    \"\"\"\n    RGN=\"${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")}\"\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_convertubams}\" \\\n      FastqToSam \\\n      --FASTQ ${read1} \\\n      --FASTQ2 ${read2} \\\n      --OUTPUT ${sample_name}_${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")}.unmapped.bam \\\n      --READ_GROUP_NAME ${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")} \\\n      --SAMPLE_NAME ${sample_name} \\\n      --LIBRARY_NAME ${library_name} \\\n      --PLATFORM Illumina\n    printf ${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")}\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    RGN=\"${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")}\"\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_convertubams}\" \\\n      FastqToSam \\\n      --FASTQ ${read1} \\\n      --FASTQ2 ${read2} \\\n      --OUTPUT ${sample_name}_${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")}.unmapped.bam \\\n      --READ_GROUP_NAME ${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")} \\\n      --SAMPLE_NAME ${sample_name} \\\n      --LIBRARY_NAME ${library_name} \\\n      --PLATFORM Illumina\n    printf ${read1.baseName.replaceAll(/${sample_name}_/, \"\").replaceAll(/_R1/, \"\")}\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "outputs_lane_r1",
+            "outputs_lane_r2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "readgroup_name",
+            "outputs_unmapped_bam"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "UBamIndex": {
+        "name_process": "UBamIndex",
+        "string_process": "\nprocess UBamIndex {\n\n    input:\n    file umapped_bam from outputs_unmapped_bam\n\n    output:\n    file \"${umapped_bam}.bai\" into umapped_bam_index\n    file \"${umapped_bam}\" into outputs_unmapped_bam_indexed\n\n    container \"job-definition://gatk-unmappedbamsindex\"\n\n    \"\"\"\n    samtools index -b ${umapped_bam} ${umapped_bam}.bai\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    samtools index -b ${umapped_bam} ${umapped_bam}.bai\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "outputs_unmapped_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "umapped_bam_index",
+            "outputs_unmapped_bam_indexed"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "SamToFastqAndBwaMem": {
+        "name_process": "SamToFastqAndBwaMem",
+        "string_process": "\nprocess SamToFastqAndBwaMem {\n\n    input:\n    file input_bam from outputs_unmapped_bam_indexed\n    file input_bam_index from umapped_bam_index\n    file ref_fasta\n    file ref_fasta_index\n    file ref_dict\n    file ref_alt\n    file ref_amb\n    file ref_ann\n    file ref_bwt\n    file ref_pac\n    file ref_sa\n\n    output:\n    file \"${sample_name}.unmerged.bam\" into output_unmerged_bam\n    file \"${sample_name}.bwa.stderr.log\" into bwa_stderr_log\n    file input_bam into output_unmapped_single_bam\n\n    container \"job-definition://gatk-bwa\"\n\n    script:\n    \"\"\"\n    set -o pipefail\n    set -e\n\n    ls -la\n\tjava -Dsamjdk.compression_level=${compression_level} ${java_opt_bwamem} -jar ${gotc_path}picard.jar \\\n      SamToFastq \\\n\t\t\tINPUT=${input_bam} \\\n\t\t\tFASTQ=/dev/stdout \\\n\t\t\tINTERLEAVE=true \\\n\t\t\tNON_PF=true \\\n    | \\\n\t\t${bwa_path}bwa mem -K 100000000 -p -v 3 -t 16 -Y ${ref_fasta} /dev/stdin -  2> >(tee ${sample_name}.bwa.stderr.log >&2) \\\n    | \\\n\t\tsamtools view -1 - > ${sample_name}.unmerged.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    \"\"\"\n    set -o pipefail\n    set -e\n\n    ls -la\n\tjava -Dsamjdk.compression_level=${compression_level} ${java_opt_bwamem} -jar ${gotc_path}picard.jar \\\n      SamToFastq \\\n\t\t\tINPUT=${input_bam} \\\n\t\t\tFASTQ=/dev/stdout \\\n\t\t\tINTERLEAVE=true \\\n\t\t\tNON_PF=true \\\n    | \\\n\t\t${bwa_path}bwa mem -K 100000000 -p -v 3 -t 16 -Y ${ref_fasta} /dev/stdin -  2> >(tee ${sample_name}.bwa.stderr.log >&2) \\\n    | \\\n\t\tsamtools view -1 - > ${sample_name}.unmerged.bam\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "outputs_unmapped_bam_indexed",
+            "umapped_bam_index",
+            "ref_fasta",
+            "ref_fasta_index",
+            "ref_dict",
+            "ref_alt",
+            "ref_amb",
+            "ref_ann",
+            "ref_bwt",
+            "ref_pac",
+            "ref_sa"
+        ],
+        "nb_inputs": 11,
+        "outputs": [
+            "output_unmerged_bam",
+            "bwa_stderr_log",
+            "output_unmapped_single_bam"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "MergeBamAlignment": {
+        "name_process": "MergeBamAlignment",
+        "string_process": "\nprocess MergeBamAlignment {\n\n    input:\n    file unmapped_bam from output_unmapped_single_bam\n    val bwa_version from outputs_bwa_version\n    file aligned_bam from output_unmerged_bam\n    file ref_fasta\n    file ref_fasta_index\n    file ref_dict\n    val fileid from bamidgen\n\n    output:\n    file \"${sample_name}_${fileid}.aligned.unsorted.bam\" into output_aligned_unsorted_bam\n\n    container \"job-definition://gatk-mergebam\"\n\n    script:\n    \"\"\"\n    bash_fasta_ref=${ref_fasta}\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_mergebams}\" \\\n      MergeBamAlignment \\\n      --VALIDATION_STRINGENCY SILENT \\\n      --EXPECTED_ORIENTATIONS FR \\\n      --ATTRIBUTES_TO_RETAIN X0 \\\n      --ALIGNED_BAM ${aligned_bam} \\\n      --UNMAPPED_BAM ${unmapped_bam} \\\n      --OUTPUT ${sample_name}_${fileid}.aligned.unsorted.bam \\\n      --REFERENCE_SEQUENCE ${ref_fasta} \\\n      --PAIRED_RUN true \\\n      --SORT_ORDER \"unsorted\" \\\n      --IS_BISULFITE_SEQUENCE false \\\n      --ALIGNED_READS_ONLY false \\\n      --CLIP_ADAPTERS false \\\n      --MAX_RECORDS_IN_RAM 2000000 \\\n      --ADD_MATE_CIGAR true \\\n      --MAX_INSERTIONS_OR_DELETIONS -1 \\\n      --PRIMARY_ALIGNMENT_STRATEGY MostDistant \\\n      --PROGRAM_RECORD_ID \"bwamem\" \\\n      --PROGRAM_GROUP_VERSION \"${bwa_version}\" \\\n      --PROGRAM_GROUP_COMMAND_LINE \"bwa mem -K 100000000 -p -v 3 -t 16 -Y ${ref_fasta}\" \\\n      --PROGRAM_GROUP_NAME \"bwamem\" \\\n      --UNMAPPED_READ_STRATEGY COPY_TO_TAG \\\n      --ALIGNER_PROPER_PAIR_FLAGS true \\\n      --UNMAP_CONTAMINANT_READS true\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    \"\"\"\n    bash_fasta_ref=${ref_fasta}\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_mergebams}\" \\\n      MergeBamAlignment \\\n      --VALIDATION_STRINGENCY SILENT \\\n      --EXPECTED_ORIENTATIONS FR \\\n      --ATTRIBUTES_TO_RETAIN X0 \\\n      --ALIGNED_BAM ${aligned_bam} \\\n      --UNMAPPED_BAM ${unmapped_bam} \\\n      --OUTPUT ${sample_name}_${fileid}.aligned.unsorted.bam \\\n      --REFERENCE_SEQUENCE ${ref_fasta} \\\n      --PAIRED_RUN true \\\n      --SORT_ORDER \"unsorted\" \\\n      --IS_BISULFITE_SEQUENCE false \\\n      --ALIGNED_READS_ONLY false \\\n      --CLIP_ADAPTERS false \\\n      --MAX_RECORDS_IN_RAM 2000000 \\\n      --ADD_MATE_CIGAR true \\\n      --MAX_INSERTIONS_OR_DELETIONS -1 \\\n      --PRIMARY_ALIGNMENT_STRATEGY MostDistant \\\n      --PROGRAM_RECORD_ID \"bwamem\" \\\n      --PROGRAM_GROUP_VERSION \"${bwa_version}\" \\\n      --PROGRAM_GROUP_COMMAND_LINE \"bwa mem -K 100000000 -p -v 3 -t 16 -Y ${ref_fasta}\" \\\n      --PROGRAM_GROUP_NAME \"bwamem\" \\\n      --UNMAPPED_READ_STRATEGY COPY_TO_TAG \\\n      --ALIGNER_PROPER_PAIR_FLAGS true \\\n      --UNMAP_CONTAMINANT_READS true\n    \"\"\"",
+        "nb_lignes_script": 28,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "output_unmapped_single_bam",
+            "outputs_bwa_version",
+            "output_unmerged_bam",
+            "ref_fasta",
+            "ref_fasta_index",
+            "ref_dict",
+            "bamidgen"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "output_aligned_unsorted_bam"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "MarkDuplicates": {
+        "name_process": "MarkDuplicates",
+        "string_process": "\nprocess MarkDuplicates {\n\n    input:\n    file input_bams from output_aligned_unsorted_bam.collect(sort:true)\n\n    output:\n    file \"${sample_name}_merged.bam\" into output_bam_markeddups\n    file \"${sample_name}_merged_metrics.txt\" into duplicate_metrics\n\n    container \"job-definition://gatk-markduplicates\"\n\n    script:\n    \"\"\"\n    VARLIST=\\$(echo \"${input_bams}\"|tr \" \" \"\\\\n\"|sort|tr \"\\\\n\" \" \"| sed -e 's/[[:space:]]*\\$//')\n    FILES=\\${VARLIST//\" \"/\" --INPUT \"}\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_markdups}\" \\\n      MarkDuplicates \\\n      --INPUT \\$FILES \\\n      --OUTPUT ${sample_name}_merged.bam \\\n      --METRICS_FILE ${sample_name}_merged_metrics.txt \\\n      --VALIDATION_STRINGENCY SILENT \\\n      --OPTICAL_DUPLICATE_PIXEL_DISTANCE 2500 \\\n      --ASSUME_SORT_ORDER \"queryname\" \\\n      --CREATE_MD5_FILE true\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    VARLIST=\\$(echo \"${input_bams}\"|tr \" \" \"\\\\n\"|sort|tr \"\\\\n\" \" \"| sed -e 's/[[:space:]]*\\$//')\n    FILES=\\${VARLIST//\" \"/\" --INPUT \"}\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_markdups}\" \\\n      MarkDuplicates \\\n      --INPUT \\$FILES \\\n      --OUTPUT ${sample_name}_merged.bam \\\n      --METRICS_FILE ${sample_name}_merged_metrics.txt \\\n      --VALIDATION_STRINGENCY SILENT \\\n      --OPTICAL_DUPLICATE_PIXEL_DISTANCE 2500 \\\n      --ASSUME_SORT_ORDER \"queryname\" \\\n      --CREATE_MD5_FILE true\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "MarkDuplicates (IP)"
+        ],
+        "tools_url": [
+            "https://bio.tools/markduplicates_ip"
+        ],
+        "tools_dico": [
+            {
+                "name": "MarkDuplicates (IP)",
+                "uri": "https://bio.tools/markduplicates_ip",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature prediction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Marks all duplicate reads in a provided SAM or BAM file and either removes them or flags them.",
+                "homepage": "https://galaxy.pasteur.fr/tool_runner?tool_id=toolshed.pasteur.fr/repos/fmareuil/picard_pasteur_wrapper/rgPicardMarkDups/1.56.0"
+            }
+        ],
+        "inputs": [
+            "output_aligned_unsorted_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "output_bam_markeddups",
+            "duplicate_metrics"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "Sort": {
+        "name_process": "Sort",
+        "string_process": "\nprocess Sort {\n\n    input:\n    file input_bam from output_bam_markeddups\n    file ref_dict\n    file ref_fasta\n    file ref_fasta_index\n\n    output:\n    file \"${sample_name}_sorted.bam\" into output_bam_sorted\n    file \"${sample_name}_sorted.bai\" into output_bam_sorted_index\n    file \"${sample_name}_sorted.bam.md5\" into output_bam_sorted_md5\n\n    container \"job-definition://gatk-sortandfixtags\"\n\n    script:\n    \"\"\"\n    set -o pipefail\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_sort}\" \\\n      SortSam \\\n      --INPUT ${input_bam} \\\n      --OUTPUT ${sample_name}_sorted.bam \\\n      --SORT_ORDER \"coordinate\" \\\n      --CREATE_INDEX true \\\n      --CREATE_MD5_FILE true\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    set -o pipefail\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_sort}\" \\\n      SortSam \\\n      --INPUT ${input_bam} \\\n      --OUTPUT ${sample_name}_sorted.bam \\\n      --SORT_ORDER \"coordinate\" \\\n      --CREATE_INDEX true \\\n      --CREATE_MD5_FILE true\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "output_bam_markeddups",
+            "ref_dict",
+            "ref_fasta",
+            "ref_fasta_index"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "output_bam_sorted",
+            "output_bam_sorted_index",
+            "output_bam_sorted_md5"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "FixTags": {
+        "name_process": "FixTags",
+        "string_process": "\nprocess FixTags {\n\n    input:\n    file input_bam from output_bam_sorted\n    file input_bam_index from output_bam_sorted_index\n    file input_bam_md5 from output_bam_sorted_md5\n    file ref_dict\n    file ref_fasta\n    file ref_fasta_index\n\n    output:\n    file \"${sample_name}_sorted_tagged.bam\" into output_bam_sorted_tagged\n    file \"${sample_name}_sorted_tagged.bai\" into output_bam_sorted_tagged_index\n    file \"${sample_name}_sorted_tagged.bam.md5\" into output_bam_sorted_tagged_md5\n\n    container \"job-definition://gatk-sortandfixtags\"\n\n    \"\"\"\n    set -o pipefail\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_fix}\" \\\n      SetNmAndUqTags \\\n      --INPUT ${input_bam} \\\n      --OUTPUT ${sample_name}_sorted_tagged.bam \\\n      --CREATE_INDEX true \\\n      --CREATE_MD5_FILE true \\\n      --REFERENCE_SEQUENCE ${ref_fasta}\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "\"\"\"\n    set -o pipefail\n\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_fix}\" \\\n      SetNmAndUqTags \\\n      --INPUT ${input_bam} \\\n      --OUTPUT ${sample_name}_sorted_tagged.bam \\\n      --CREATE_INDEX true \\\n      --CREATE_MD5_FILE true \\\n      --REFERENCE_SEQUENCE ${ref_fasta}\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "output_bam_sorted",
+            "output_bam_sorted_index",
+            "output_bam_sorted_md5",
+            "ref_dict",
+            "ref_fasta",
+            "ref_fasta_index"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "output_bam_sorted_tagged",
+            "output_bam_sorted_tagged_index",
+            "output_bam_sorted_tagged_md5"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "BaseRecalibrator": {
+        "name_process": "BaseRecalibrator",
+        "string_process": "\nprocess BaseRecalibrator {\n\n    input:\n    file input_bam from output_bam_sorted_tagged\n    file input_bam_index from output_bam_sorted_tagged_index\n    file dbSNP_vcf\n    file dbSNP_vcf_index\n    file indels_mills_vcf\n    file indels_mills_vcf_index\n    file indels_humans_vcf\n    file indels_humans_vcf_index\n    file ref_dict\n    file ref_fasta\n    file ref_fasta_index\n    file sequence_group_interval from Channel.fromPath(sequence_grouping.splitText())\n    val fileid from idgen\n\n    output:\n    file \"${sample_name}_recalibration_report_${fileid.toString().padLeft(2, '0')}\" into recalibration_report\n\n    container \"job-definition://gatk-baserecalibrator\"\n\n    \"\"\"\n    ls -l\n    ${gatk_path} --java-options \"${java_opt_baserecal}\" \\\n      BaseRecalibrator \\\n      -R ${ref_fasta} \\\n      -I ${input_bam} \\\n      --use-original-qualities \\\n      -O \"${sample_name}_recalibration_report_${fileid.toString().padLeft(2, '0')}\" \\\n      --known-sites ${dbSNP_vcf} \\\n      --known-sites ${indels_mills_vcf} \\\n      --known-sites ${indels_humans_vcf} \\\n      -L ${sequence_group_interval}\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "\"\"\"\n    ls -l\n    ${gatk_path} --java-options \"${java_opt_baserecal}\" \\\n      BaseRecalibrator \\\n      -R ${ref_fasta} \\\n      -I ${input_bam} \\\n      --use-original-qualities \\\n      -O \"${sample_name}_recalibration_report_${fileid.toString().padLeft(2, '0')}\" \\\n      --known-sites ${dbSNP_vcf} \\\n      --known-sites ${indels_mills_vcf} \\\n      --known-sites ${indels_humans_vcf} \\\n      -L ${sequence_group_interval}\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "output_bam_sorted_tagged",
+            "output_bam_sorted_tagged_index",
+            "dbSNP_vcf",
+            "dbSNP_vcf_index",
+            "indels_mills_vcf",
+            "indels_mills_vcf_index",
+            "indels_humans_vcf",
+            "indels_humans_vcf_index",
+            "ref_dict",
+            "ref_fasta",
+            "ref_fasta_index",
+            "idgen"
+        ],
+        "nb_inputs": 12,
+        "outputs": [
+            "recalibration_report"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "GatherBqsrReports": {
+        "name_process": "GatherBqsrReports",
+        "string_process": "\nprocess GatherBqsrReports {\n\n    input:\n    file input_bqsr_reports from recalibration_report.collect(sort:true)\n\n    output:\n    file \"${sample_name}_bqsr_report\" into output_bqsr_report\n\n    container \"job-definition://gatk-gatherbqsr\"\n    publishDir \"${outpath}/BaseRecalibrator/\", mode: 'copy', overwrite: true\n\n    \"\"\"\n    ${gatk_path} --java-options \"${java_opt_bqsrreport}\" \\\n      GatherBQSRReports \\\n      -I ${input_bqsr_reports.join(\" -I \")} \\\n      -O ${sample_name}_bqsr_report\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    ${gatk_path} --java-options \"${java_opt_bqsrreport}\" \\\n      GatherBQSRReports \\\n      -I ${input_bqsr_reports.join(\" -I \")} \\\n      -O ${sample_name}_bqsr_report\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "recalibration_report"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "output_bqsr_report"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "ApplyBQSR": {
+        "name_process": "ApplyBQSR",
+        "string_process": "\nprocess ApplyBQSR {\n\n    input:\n    file input_bam from output_bam_sorted_tagged\n    file input_bam_index from output_bam_sorted_tagged_index\n    file recalibration_report from output_bqsr_report\n    file sequence_group_interval from Channel.fromPath(sequence_grouping_with_unmapped.splitText())\n    file ref_dict\n    file ref_fasta\n    file ref_fasta_index\n    val fileid from idgen2\n\n    output:\n    file \"${sample_name}_${fileid.toString().padLeft(2, '0')}.bam\" into recalibrated_bam\n\n    container \"job-definition://gatk-applybqsr\"\n\n    \"\"\"\n    ls -l\n    df -h\n    pwd\n    ${gatk_path} --java-options \"${java_opt_applybqsr}\" \\\n      ApplyBQSR \\\n      -R ${ref_fasta} \\\n      -I ${input_bam} \\\n      -O ${sample_name}_${fileid.toString().padLeft(2, '0')}.bam \\\n      -bqsr ${recalibration_report} \\\n      --static-quantized-quals 10 --static-quantized-quals 20 --static-quantized-quals 30 \\\n      --add-output-sam-program-record \\\n      --create-output-bam-md5 \\\n      --use-original-qualities \\\n      -L ${sequence_group_interval}\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "\"\"\"\n    ls -l\n    df -h\n    pwd\n    ${gatk_path} --java-options \"${java_opt_applybqsr}\" \\\n      ApplyBQSR \\\n      -R ${ref_fasta} \\\n      -I ${input_bam} \\\n      -O ${sample_name}_${fileid.toString().padLeft(2, '0')}.bam \\\n      -bqsr ${recalibration_report} \\\n      --static-quantized-quals 10 --static-quantized-quals 20 --static-quantized-quals 30 \\\n      --add-output-sam-program-record \\\n      --create-output-bam-md5 \\\n      --use-original-qualities \\\n      -L ${sequence_group_interval}\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "DFP"
+        ],
+        "tools_url": [
+            "https://bio.tools/dfp"
+        ],
+        "tools_dico": [
+            {
+                "name": "DFP",
+                "uri": "https://bio.tools/dfp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential gene expression profiling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential gene analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differentially expressed gene identification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3223",
+                                    "term": "Differential gene expression analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This package provides a supervised technique able to identify differentially expressed genes, based on the construction of \\emph{Fuzzy Patterns} (FPs). The Fuzzy Patterns are built by means of applying 3 Membership Functions to discretized gene expression values.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/DFP.html"
+            }
+        ],
+        "inputs": [
+            "output_bam_sorted_tagged",
+            "output_bam_sorted_tagged_index",
+            "output_bqsr_report",
+            "ref_dict",
+            "ref_fasta",
+            "ref_fasta_index",
+            "idgen2"
+        ],
+        "nb_inputs": 7,
+        "outputs": [
+            "recalibrated_bam"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "GatherBamFiles": {
+        "name_process": "GatherBamFiles",
+        "string_process": "\nprocess GatherBamFiles {\n\n    input:\n    file input_bams from recalibrated_bam.collect(sort:true)\n\n    output:\n    file \"${sample_name}.bam\" into output_bam\n    file \"${sample_name}.bai\" into output_bam_index\n    file \"${sample_name}.bam.md5\" into output_bam_md5\n\n    container \"job-definition://gatk-gatherbams\"\n    publishDir \"${outpath}/bam/\", mode: 'copy', overwrite: true\n\n    \"\"\"\n    VARLIST=\\$(echo \"${input_bams}\"|tr \" \" \"\\\\n\"|sort|tr \"\\\\n\" \" \"| sed -e 's/[[:space:]]*\\$//')\n    FILES=\\${VARLIST//\" \"/\" --INPUT \"}\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_gatherbams}\" \\\n      GatherBamFiles \\\n      --INPUT \\$FILES \\\n      --OUTPUT ${sample_name}.bam \\\n      --CREATE_INDEX true \\\n      --CREATE_MD5_FILE true\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n    VARLIST=\\$(echo \"${input_bams}\"|tr \" \" \"\\\\n\"|sort|tr \"\\\\n\" \" \"| sed -e 's/[[:space:]]*\\$//')\n    FILES=\\${VARLIST//\" \"/\" --INPUT \"}\n    ${gatk_path} --java-options \"-Dsamjdk.compression_level=${compression_level} ${java_opt_gatherbams}\" \\\n      GatherBamFiles \\\n      --INPUT \\$FILES \\\n      --OUTPUT ${sample_name}.bam \\\n      --CREATE_INDEX true \\\n      --CREATE_MD5_FILE true\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "recalibrated_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "output_bam",
+            "output_bam_index",
+            "output_bam_md5"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "HaplotypeCaller": {
+        "name_process": "HaplotypeCaller",
+        "string_process": "\nprocess HaplotypeCaller {\n\n    input:\n    file input_bam from output_bam\n    file input_bam_index from output_bam_index\n    file ref_fasta\n    file ref_fasta_index\n    file ref_dict\n    file interval_list from Channel.fromPath(scattered_calling_intervals_list.splitText())\n    val fileid from idgen3\n\n    output:\n    file \"${sample_name}_${fileid.toString().padLeft(2, '0')}.g.vcf\" into output_vcf\n    file \"${sample_name}_${fileid.toString().padLeft(2, '0')}.g.vcf.idx\" into output_vcf_index\n\n    container \"job-definition://gatk-haplotype\"\n\n    \"\"\"\n    set -e\n\n    ${gatk_path} --java-options \"${java_opt_haplotype}\" \\\n      HaplotypeCaller \\\n      -R ${ref_fasta} \\\n      -I ${input_bam} \\\n      --output ${sample_name}_${fileid.toString().padLeft(2, '0')}.g.vcf \\\n      -contamination 0 \\\n      -ERC GVCF \\\n      -L ${interval_list}\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "\"\"\"\n    set -e\n\n    ${gatk_path} --java-options \"${java_opt_haplotype}\" \\\n      HaplotypeCaller \\\n      -R ${ref_fasta} \\\n      -I ${input_bam} \\\n      --output ${sample_name}_${fileid.toString().padLeft(2, '0')}.g.vcf \\\n      -contamination 0 \\\n      -ERC GVCF \\\n      -L ${interval_list}\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "output_bam",
+            "output_bam_index",
+            "ref_fasta",
+            "ref_fasta_index",
+            "ref_dict",
+            "idgen3"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "output_vcf",
+            "output_vcf_index"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "MergeGVCFs": {
+        "name_process": "MergeGVCFs",
+        "string_process": "\nprocess MergeGVCFs {\n\n    input:\n    file input_vcfs from output_vcf.collect(sort:true)\n    file input_vcfs_indexes from output_vcf_index.collect(sort:true)\n\n    output:\n    file \"${sample_name}.g.vcf\" into output_final_vcf\n    file \"${sample_name}.g.vcf.idx\" into output_final_vcf_index\n\n    container \"job-definition://gatk-mergegvcfs\"\n    publishDir \"${outpath}/gVCF/\", mode: 'copy', overwrite: true\n\n    \"\"\"\n    set -e\n\n    VARLIST=\\$(echo \"${input_vcfs}\"|tr \" \" \"\\\\n\"|sort|tr \"\\\\n\" \" \"| sed -e 's/[[:space:]]*\\$//')\n    FILES=\\${VARLIST//\" \"/\" --INPUT \"}\n    ${gatk_path} --java-options \"${java_opt_mergegvcfs}\"  \\\n      MergeVcfs \\\n      --INPUT \\$FILES \\\n      --OUTPUT ${sample_name}.g.vcf\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n    set -e\n\n    VARLIST=\\$(echo \"${input_vcfs}\"|tr \" \" \"\\\\n\"|sort|tr \"\\\\n\" \" \"| sed -e 's/[[:space:]]*\\$//')\n    FILES=\\${VARLIST//\" \"/\" --INPUT \"}\n    ${gatk_path} --java-options \"${java_opt_mergegvcfs}\"  \\\n      MergeVcfs \\\n      --INPUT \\$FILES \\\n      --OUTPUT ${sample_name}.g.vcf\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "output_vcf",
+            "output_vcf_index"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "output_final_vcf",
+            "output_final_vcf_index"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "BwaMem": {
+        "name_process": "BwaMem",
+        "string_process": "\nprocess BwaMem {\n\n    input:\n    file fastq_1\n    file fastq_2\n    file ref_fasta\n    file ref_fasta_index\n    file ref_dict\n    file ref_alt\n    file ref_amb\n    file ref_ann\n    file ref_bwt\n    file ref_pac\n    file ref_sa\n\n    output:\n    file \"${sample_name}.unmerged.bam\" into output_aligned_unsorted_bam\n    file \"${sample_name}.bwa.stderr.log\" into bwa_stderr_log\n\n    container \"job-definition://gatk-bwa\"\n\n    script:\n    \"\"\"\n    set -o pipefail\n    set -e\n\n\t${bwa_path}bwa mem -R \"@RG\\\\tID:${sample_name}\\\\tSM:${sample_name}\\\\tPL:Illumina\" -K 100000000 -v 3 -t 16 -Y ${ref_fasta} ${fastq_1} ${fastq_2}  2> >(tee ${sample_name}.bwa.stderr.log >&2) | \\\n\tsamtools view -1 - > ${sample_name}.unmerged.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    set -o pipefail\n    set -e\n\n\t${bwa_path}bwa mem -R \"@RG\\\\tID:${sample_name}\\\\tSM:${sample_name}\\\\tPL:Illumina\" -K 100000000 -v 3 -t 16 -Y ${ref_fasta} ${fastq_1} ${fastq_2}  2> >(tee ${sample_name}.bwa.stderr.log >&2) | \\\n\tsamtools view -1 - > ${sample_name}.unmerged.bam\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "fastq_1",
+            "fastq_2",
+            "ref_fasta",
+            "ref_fasta_index",
+            "ref_dict",
+            "ref_alt",
+            "ref_amb",
+            "ref_ann",
+            "ref_bwt",
+            "ref_pac",
+            "ref_sa"
+        ],
+        "nb_inputs": 11,
+        "outputs": [
+            "output_aligned_unsorted_bam",
+            "bwa_stderr_log"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "goldfinchbio__gatk-nextflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

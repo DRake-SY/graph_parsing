@@ -1,0 +1,374 @@
+{
+    "demux": {
+        "name_process": "demux",
+        "string_process": "\nprocess demux {\n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else null\n            }\n\n    input:\n    path manifest from params.manifest\n\n    output:\n    path \"paired-end-demux.qza\" into demux_art\n    path \"paired-end-demux.qzv\" into demux_viz\n\n    script:\n    \"\"\"\n    export MPLCONFIGDIR=${workDir}\n    $qiime tools import \\\n        --type 'SampleData[PairedEndSequencesWithQuality]' \\\n        --input-path $manifest \\\n        --output-path paired-end-demux.qza \\\n        --input-format PairedEndFastqManifestPhred33\n\n    $qiime demux summarize \\\n        --i-data paired-end-demux.qza \\\n        --o-visualization paired-end-demux.qzv\n    \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "    \"\"\"\n    export MPLCONFIGDIR=${workDir}\n    $qiime tools import \\\n        --type 'SampleData[PairedEndSequencesWithQuality]' \\\n        --input-path $manifest \\\n        --output-path paired-end-demux.qza \\\n        --input-format PairedEndFastqManifestPhred33\n\n    $qiime demux summarize \\\n        --i-data paired-end-demux.qza \\\n        --o-visualization paired-end-demux.qzv\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "demux_art",
+            "demux_viz"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else null }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cutadapt": {
+        "name_process": "cutadapt",
+        "string_process": "\nprocess cutadapt {\n                                                                    \n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else if (fn.indexOf(\"demux-s-primers.qza\") > 0) null\n            else \"Demux/$fn\"\n        }\n\n    input:\n    path input_qza from demux_art\n\n    output:\n    path \"paired-end-demux-s-primers.qza\" into cutadapt_art\n    path \"paired-end-demux-s-primers.qzv\" into cutadapt_viz\n\n    script:\n    \"\"\"\n    \n    $qiime cutadapt trim-paired \\\n        --i-demultiplexed-sequences  $input_qza \\\n        --p-cores ${params.cpus} \\\n        --p-front-f ${FRONT_F} \\\n        --p-adapter-f ${ADAPTER_F} \\\n        --p-front-r ${FRONT_R} \\\n        --p-adapter-r ${ADAPTER_R} \\\n        --p-no-indels \\\n        --p-times 1 \\\n        --o-trimmed-sequences paired-end-demux-s-primers.qza \\\n        --p-discard-untrimmed \\\n        --verbose\n\n    # Cutadapt result visualization\n    $qiime demux summarize \\\n        --i-data paired-end-demux-s-primers.qza \\\n        --o-visualization paired-end-demux-s-primers.qzv\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    \"\"\"\n    \n    $qiime cutadapt trim-paired \\\n        --i-demultiplexed-sequences  $input_qza \\\n        --p-cores ${params.cpus} \\\n        --p-front-f ${FRONT_F} \\\n        --p-adapter-f ${ADAPTER_F} \\\n        --p-front-r ${FRONT_R} \\\n        --p-adapter-r ${ADAPTER_R} \\\n        --p-no-indels \\\n        --p-times 1 \\\n        --o-trimmed-sequences paired-end-demux-s-primers.qza \\\n        --p-discard-untrimmed \\\n        --verbose\n\n    # Cutadapt result visualization\n    $qiime demux summarize \\\n        --i-data paired-end-demux-s-primers.qza \\\n        --o-visualization paired-end-demux-s-primers.qzv\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "demux_art"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "cutadapt_art",
+            "cutadapt_viz"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else if (fn.indexOf(\"demux-s-primers.qza\") > 0) null else \"Demux/$fn\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "dada2": {
+        "name_process": "dada2",
+        "string_process": "\nprocess dada2 {\n                                                                    \n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else \"Dada2/$fn\"\n        }\n\n    input:\n    path input_qza from cutadapt_art\n\n    output:\n    path \"representative_sequences.qza\" into dada2_repseqs_art, dada2_repseqs_art_biom, dada2_repseq_art_phylo\n    path \"representative_sequences.qzv\" into dada2_repseq_viz\n    path \"dada2_feature_table.qza\" optional true into dada2_feature_table_art\n    path \"table.qza\" into dada2_table_art, \\\n                        dada2_table_art_forBiom, \\\n                        dada2_table_art_forConsolidate, \\\n                        dada2_table_art_forDiversity, \\\n                        dada2_table_for_citation\n    path \"Denoising_stats.qza\" into denoising_stats_art\n    path \"table.qzv\" into dada2_table_viz\n    path \"dna-sequences.fasta\" optional true into dada2_dna_seq_ch\n    path \"accepted.seq.lengths\" optional true into dada2_acc_seqlength_ch\n\n    shell:\n    if( params.marker == '16S_V4_bacteria' )\n    \"\"\"\n    $qiime dada2 denoise-paired \\\n        --i-demultiplexed-seqs !{input_qza} \\\n        --p-trunc-len-f 0 \\\n        --p-trunc-len-r 0 \\\n        --p-max-ee-f 2 \\\n        --p-max-ee-r 2 \\\n        --p-n-threads !{params.cpus} \\\n        --p-chimera-method consensus \\\n        --o-table dada2_feature_table.qza \\\n        --output-dir Dada2 \\\n        --o-representative-sequences representative_sequences.qza \\\n        --o-denoising-stats Denoising_stats.qza \\\n        --verbose\n\n    mv representative_sequences.qza original_representative_sequences.qza\n    #mv dada2_feature_table.qza original_table.qza\n\n    # export sequence data\n    $qiime tools export \\\n        --input-path original_representative_sequences.qza \\\n        --output-path ./dada2_tmp\n\n    # create set of sequences with desired length range\n    cat dada2_tmp/dna-sequences.fasta |\\\n    sed '/^>.*\\$/N; s/\\\\n/\\\\t/' |\\\n    awk '{\n            if(length(\\$2)>=249 && length(\\$2)<=257) print \">\"\\$1\"\\\\n\"\\$2\n    }' | sed 's/>//' >  dna-sequences.fasta\n\n    rm -fr dada2_tmp\n\n    cat dna-sequences.fasta | grep '>' | sed 's/>//' |\\\n        awk 'BEGIN{print \"feature-id\"}{print \\$1}' > accepted.seq.lengths\n\n    $qiime tools import --type FeatureData[Sequence] \\\n        --input-path dna-sequences.fasta \\\n        --output-path representative_sequences.qza\n\n\n    # With the list of seqids with correct seq lengths, trim table\n    $qiime feature-table filter-features \\\n        --i-table dada2_feature_table.qza \\\n        --m-metadata-file accepted.seq.lengths \\\n        --o-filtered-table table.qza\n\n    $qiime feature-table summarize \\\n        --i-table table.qza \\\n        --m-sample-metadata-file !{params.metadata} \\\n        --o-visualization table.qzv\n        \n    $qiime feature-table tabulate-seqs \\\n        --i-data representative_sequences.qza \\\n        --o-visualization representative_sequences.qzv\n    \"\"\"\n                                                                 \n    else\n    \"\"\"\n    $qiime dada2 denoise-paired \\\n        --i-demultiplexed-seqs !{input_qza} \\\n        --p-trunc-len-f 0 \\\n        --p-trunc-len-r 0 \\\n        --p-max-ee-f 2 \\\n        --p-max-ee-r 2 \\\n        --p-n-threads !{params.cpus} \\\n        --p-chimera-method consensus \\\n        --o-table table.qza \\\n        --output-dir Dada2 \\\n        --o-representative-sequences representative_sequences.qza \\\n        --o-denoising-stats Denoising_stats.qza \\\n        --verbose\n\n    $qiime feature-table summarize \\\n        --i-table table.qza \\\n        --m-sample-metadata-file !{params.metadata} \\\n        --o-visualization table.qzv\n\n    $qiime feature-table tabulate-seqs \\\n        --i-data representative_sequences.qza \\\n        --o-visualization representative_sequences.qzv\n    \"\"\"\n}",
+        "nb_lignes_process": 109,
+        "string_script": "    if( params.marker == '16S_V4_bacteria' )\n    \"\"\"\n    $qiime dada2 denoise-paired \\\n        --i-demultiplexed-seqs !{input_qza} \\\n        --p-trunc-len-f 0 \\\n        --p-trunc-len-r 0 \\\n        --p-max-ee-f 2 \\\n        --p-max-ee-r 2 \\\n        --p-n-threads !{params.cpus} \\\n        --p-chimera-method consensus \\\n        --o-table dada2_feature_table.qza \\\n        --output-dir Dada2 \\\n        --o-representative-sequences representative_sequences.qza \\\n        --o-denoising-stats Denoising_stats.qza \\\n        --verbose\n\n    mv representative_sequences.qza original_representative_sequences.qza\n    #mv dada2_feature_table.qza original_table.qza\n\n    # export sequence data\n    $qiime tools export \\\n        --input-path original_representative_sequences.qza \\\n        --output-path ./dada2_tmp\n\n    # create set of sequences with desired length range\n    cat dada2_tmp/dna-sequences.fasta |\\\n    sed '/^>.*\\$/N; s/\\\\n/\\\\t/' |\\\n    awk '{\n            if(length(\\$2)>=249 && length(\\$2)<=257) print \">\"\\$1\"\\\\n\"\\$2\n    }' | sed 's/>//' >  dna-sequences.fasta\n\n    rm -fr dada2_tmp\n\n    cat dna-sequences.fasta | grep '>' | sed 's/>//' |\\\n        awk 'BEGIN{print \"feature-id\"}{print \\$1}' > accepted.seq.lengths\n\n    $qiime tools import --type FeatureData[Sequence] \\\n        --input-path dna-sequences.fasta \\\n        --output-path representative_sequences.qza\n\n\n    # With the list of seqids with correct seq lengths, trim table\n    $qiime feature-table filter-features \\\n        --i-table dada2_feature_table.qza \\\n        --m-metadata-file accepted.seq.lengths \\\n        --o-filtered-table table.qza\n\n    $qiime feature-table summarize \\\n        --i-table table.qza \\\n        --m-sample-metadata-file !{params.metadata} \\\n        --o-visualization table.qzv\n        \n    $qiime feature-table tabulate-seqs \\\n        --i-data representative_sequences.qza \\\n        --o-visualization representative_sequences.qzv\n    \"\"\"\n                                                                 \n    else\n    \"\"\"\n    $qiime dada2 denoise-paired \\\n        --i-demultiplexed-seqs !{input_qza} \\\n        --p-trunc-len-f 0 \\\n        --p-trunc-len-r 0 \\\n        --p-max-ee-f 2 \\\n        --p-max-ee-r 2 \\\n        --p-n-threads !{params.cpus} \\\n        --p-chimera-method consensus \\\n        --o-table table.qza \\\n        --output-dir Dada2 \\\n        --o-representative-sequences representative_sequences.qza \\\n        --o-denoising-stats Denoising_stats.qza \\\n        --verbose\n\n    $qiime feature-table summarize \\\n        --i-table table.qza \\\n        --m-sample-metadata-file !{params.metadata} \\\n        --o-visualization table.qzv\n\n    $qiime feature-table tabulate-seqs \\\n        --i-data representative_sequences.qza \\\n        --o-visualization representative_sequences.qzv\n    \"\"\"",
+        "nb_lignes_script": 81,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cutadapt_art"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "dada2_repseqs_art",
+            "dada2_repseqs_art_biom",
+            "dada2_repseq_art_phylo",
+            "dada2_repseq_viz",
+            "dada2_feature_table_art",
+            "dada2_table_art",
+            "dada2_table_art_forBiom",
+            "dada2_table_art_forConsolidate",
+            "dada2_table_art_forDiversity",
+            "dada2_table_for_citation",
+            "denoising_stats_art",
+            "dada2_table_viz",
+            "dada2_dna_seq_ch",
+            "dada2_acc_seqlength_ch"
+        ],
+        "nb_outputs": 14,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else \"Dada2/$fn\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "classify_and_plot": {
+        "name_process": "classify_and_plot",
+        "string_process": "\nprocess classify_and_plot {\n                                                              \n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else \"Classification/$fn\"\n        }\n    \n    input:\n    path input_repseq_qza from dada2_repseqs_art\n    path input_table_qza from dada2_table_art\n\n    output:\n    path \"Classifier_output.qza\" into classifier_output_art,classifier_cite\n    path \"taxa-bar-plots.qzv\" into taxa_barplot_viz\n\n    script:\n    \"\"\"\n    $qiime feature-classifier classify-sklearn \\\n        --i-reads ${input_repseq_qza} \\\n        --i-classifier $CLASSIFIER \\\n        --p-n-jobs ${params.cpus} \\\n        --o-classification Classifier_output.qza \\\n        --verbose\n\n    $qiime taxa barplot \\\n        --i-table ${input_table_qza} \\\n        --i-taxonomy Classifier_output.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization taxa-bar-plots.qzv\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    \"\"\"\n    $qiime feature-classifier classify-sklearn \\\n        --i-reads ${input_repseq_qza} \\\n        --i-classifier $CLASSIFIER \\\n        --p-n-jobs ${params.cpus} \\\n        --o-classification Classifier_output.qza \\\n        --verbose\n\n    $qiime taxa barplot \\\n        --i-table ${input_table_qza} \\\n        --i-taxonomy Classifier_output.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization taxa-bar-plots.qzv\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dada2_repseqs_art",
+            "dada2_table_art"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "classifier_output_art",
+            "classifier_cite",
+            "taxa_barplot_viz"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else \"Classification/$fn\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "biom_collate": {
+        "name_process": "biom_collate",
+        "string_process": "\nprocess biom_collate {\n    publishDir \"${baseDir}/${params.poolname}/\", mode: 'copy'\n\n    input:\n    path table_qza from dada2_table_art_forBiom\n    path classifier_output from classifier_output_art\n    path repseq_qza from dada2_repseqs_art_biom\n    path paired_end_demux_qzv from demux_viz\n    path denoising_stats_art from denoising_stats_art\n\n    output:\n    path \"Biom_dir\" into biom_dir,biom_dir_rare,biom_dir_alpha,biom_make_csv\n\n    script:\n    \"\"\"\n    $qiime tools export --input-path ${table_qza} --output-path Biom_dir\n    $qiime tools export --input-path ${classifier_output} --output-path Biom_dir\n\n    $biom add-metadata \\\n        -i Biom_dir/feature-table.biom \\\n        -o Biom_dir/table_with_obs_metadata.biom \\\n        --observation-metadata-fp Biom_dir/taxonomy.tsv \\\n        --observation-header \"Feature ID,Taxon\" \\\n        --sc-separated taxonomy\n    \n    $biom convert -i Biom_dir/table_with_obs_metadata.biom \\\n        -o Biom_dir/annotated_table.csv \\\n        --to-tsv \\\n        --output-metadata-id=Taxon \\\n        --tsv-metadata-formatter=naive \\\n        --header-key=Taxon\n\n    $biom summarize-table \\\n        -i Biom_dir/table_with_obs_metadata.biom \\\n        -o Biom_dir/Sample.summary.csv\n    sed -i 's/\\\\:/\\\\t/' Biom_dir/Sample.summary.csv\n\n    $biom summarize-table \\\n        -i Biom_dir/table_with_obs_metadata.biom \\\n        -o Biom_dir/ASV.summary.csv \\\n        --observations\n    sed -i 's/\\\\:/\\\\t/' Biom_dir/ASV.summary.csv\n\n    $qiime tools export --input-path ${repseq_qza} --output-path Biom_dir/rep-seqs\n    \n    cat Biom_dir/rep-seqs/dna-sequences.fasta |\\\n        awk '{if(\\$1~/>/){\n            if(NR>1)print ID,LEN\"\\\\n\"SEQ; \n            ID=\\$1;\n            LEN=0\n            }\n            else{\n            LEN=length();\n            SEQ=\\$0\n            }\n        }END{print ID,LEN\"\\\\n\"SEQ}' >  Biom_dir/rep-seqs.csv\n    \n    rm -fr Biom_dir/rep-seqs\n\n    $qiime tools export --input-path ${paired_end_demux_qzv} --output-path junk\n    cat junk/per-sample-fastq-counts.tsv | \\\n        sed '1d;s/,/\\\\t/' | \\\n        sort -k1,1  > Biom_dir/raw-per-sample-fastq-counts.txt\n    rm -fr junk\n\n    cat Biom_dir/raw-per-sample-fastq-counts.txt |\\\n        awk 'BEGIN{print \"sample-id\\\\tRawInput\\\\n#q2:types\\\\tnumeric\"}{print \\$0}' > Biom_dir/raw_cnts\n\n    $qiime tools export --input-path ${denoising_stats_art} --output-path Denoising_stats\n    mv Denoising_stats/stats.tsv Denoising_stats/stats.csv\n    #dos2unix Denoising_stats/stats.csv\n\n    cat  Biom_dir/Sample.summary.csv | \\\n    sed '1,/sample detail/d' | sort -k1,1 | sed 's/ //g' | \\\n        awk 'BEGIN{print \"sample-id\\\\tLength_filtered:Counts\\\\n#q2:types\\\\tnumeric\"}{\n            print \\$0\n        }' | sed 's/,//g; s/\\\\.000\\$//' > Biom_dir/Sample.summary.cnts\n\n    # For Denoising_stats/stats.csv, Biom_dir/raw_cnts, and Biom_dir/Sample.summary.cnts\n    # Capture the first two header lines, then sort the rest\n    head -n2  Denoising_stats/stats.csv            > Denoising_stats/sorted_stats.csv\n    tail -n+3 Denoising_stats/stats.csv    | sort >> Denoising_stats/sorted_stats.csv\n    head -n2  Biom_dir/raw_cnts                    > Biom_dir/sorted_raw_cnts\n    tail -n+3 Biom_dir/raw_cnts            | sort >> Biom_dir/sorted_raw_cnts\n    head -n2  Biom_dir/Sample.summary.cnts         > Biom_dir/sorted_Sample.summary.cnts\n    tail -n+3 Biom_dir/Sample.summary.cnts | sort >> Biom_dir/sorted_Sample.summary.cnts\n\n    join -t \\$'\\\\t' Biom_dir/sorted_raw_cnts  Denoising_stats/sorted_stats.csv | \\\n    sed '1s/input/From_Cutadapt/' | sed '1s/filtered/Dada2:filtered/' | \\\n    join -t \\$'\\\\t' - Biom_dir/sorted_Sample.summary.cnts > Biom_dir/stats.csv\n    #rm Biom_dir/Sample.summary.cnts Biom_dir/raw-per-sample-fastq-counts.txt Biom_dir/raw_cnts    \n    \"\"\"\n}",
+        "nb_lignes_process": 92,
+        "string_script": "    \"\"\"\n    $qiime tools export --input-path ${table_qza} --output-path Biom_dir\n    $qiime tools export --input-path ${classifier_output} --output-path Biom_dir\n\n    $biom add-metadata \\\n        -i Biom_dir/feature-table.biom \\\n        -o Biom_dir/table_with_obs_metadata.biom \\\n        --observation-metadata-fp Biom_dir/taxonomy.tsv \\\n        --observation-header \"Feature ID,Taxon\" \\\n        --sc-separated taxonomy\n    \n    $biom convert -i Biom_dir/table_with_obs_metadata.biom \\\n        -o Biom_dir/annotated_table.csv \\\n        --to-tsv \\\n        --output-metadata-id=Taxon \\\n        --tsv-metadata-formatter=naive \\\n        --header-key=Taxon\n\n    $biom summarize-table \\\n        -i Biom_dir/table_with_obs_metadata.biom \\\n        -o Biom_dir/Sample.summary.csv\n    sed -i 's/\\\\:/\\\\t/' Biom_dir/Sample.summary.csv\n\n    $biom summarize-table \\\n        -i Biom_dir/table_with_obs_metadata.biom \\\n        -o Biom_dir/ASV.summary.csv \\\n        --observations\n    sed -i 's/\\\\:/\\\\t/' Biom_dir/ASV.summary.csv\n\n    $qiime tools export --input-path ${repseq_qza} --output-path Biom_dir/rep-seqs\n    \n    cat Biom_dir/rep-seqs/dna-sequences.fasta |\\\n        awk '{if(\\$1~/>/){\n            if(NR>1)print ID,LEN\"\\\\n\"SEQ; \n            ID=\\$1;\n            LEN=0\n            }\n            else{\n            LEN=length();\n            SEQ=\\$0\n            }\n        }END{print ID,LEN\"\\\\n\"SEQ}' >  Biom_dir/rep-seqs.csv\n    \n    rm -fr Biom_dir/rep-seqs\n\n    $qiime tools export --input-path ${paired_end_demux_qzv} --output-path junk\n    cat junk/per-sample-fastq-counts.tsv | \\\n        sed '1d;s/,/\\\\t/' | \\\n        sort -k1,1  > Biom_dir/raw-per-sample-fastq-counts.txt\n    rm -fr junk\n\n    cat Biom_dir/raw-per-sample-fastq-counts.txt |\\\n        awk 'BEGIN{print \"sample-id\\\\tRawInput\\\\n#q2:types\\\\tnumeric\"}{print \\$0}' > Biom_dir/raw_cnts\n\n    $qiime tools export --input-path ${denoising_stats_art} --output-path Denoising_stats\n    mv Denoising_stats/stats.tsv Denoising_stats/stats.csv\n    #dos2unix Denoising_stats/stats.csv\n\n    cat  Biom_dir/Sample.summary.csv | \\\n    sed '1,/sample detail/d' | sort -k1,1 | sed 's/ //g' | \\\n        awk 'BEGIN{print \"sample-id\\\\tLength_filtered:Counts\\\\n#q2:types\\\\tnumeric\"}{\n            print \\$0\n        }' | sed 's/,//g; s/\\\\.000\\$//' > Biom_dir/Sample.summary.cnts\n\n    # For Denoising_stats/stats.csv, Biom_dir/raw_cnts, and Biom_dir/Sample.summary.cnts\n    # Capture the first two header lines, then sort the rest\n    head -n2  Denoising_stats/stats.csv            > Denoising_stats/sorted_stats.csv\n    tail -n+3 Denoising_stats/stats.csv    | sort >> Denoising_stats/sorted_stats.csv\n    head -n2  Biom_dir/raw_cnts                    > Biom_dir/sorted_raw_cnts\n    tail -n+3 Biom_dir/raw_cnts            | sort >> Biom_dir/sorted_raw_cnts\n    head -n2  Biom_dir/Sample.summary.cnts         > Biom_dir/sorted_Sample.summary.cnts\n    tail -n+3 Biom_dir/Sample.summary.cnts | sort >> Biom_dir/sorted_Sample.summary.cnts\n\n    join -t \\$'\\\\t' Biom_dir/sorted_raw_cnts  Denoising_stats/sorted_stats.csv | \\\n    sed '1s/input/From_Cutadapt/' | sed '1s/filtered/Dada2:filtered/' | \\\n    join -t \\$'\\\\t' - Biom_dir/sorted_Sample.summary.cnts > Biom_dir/stats.csv\n    #rm Biom_dir/Sample.summary.cnts Biom_dir/raw-per-sample-fastq-counts.txt Biom_dir/raw_cnts    \n    \"\"\"",
+        "nb_lignes_script": 77,
+        "language_script": "bash",
+        "tools": [
+            "joineRML"
+        ],
+        "tools_url": [
+            "https://bio.tools/joinerml"
+        ],
+        "tools_dico": [
+            {
+                "name": "joineRML",
+                "uri": "https://bio.tools/joinerml",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3569",
+                            "term": "Applied mathematics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Joint Modelling of Multivariate Longitudinal Data and Time-to-Event Outcomes.",
+                "homepage": "https://cran.r-project.org/web/packages/joineRML/"
+            }
+        ],
+        "inputs": [
+            "dada2_table_art_forBiom",
+            "classifier_output_art",
+            "dada2_repseqs_art_biom",
+            "demux_viz",
+            "denoising_stats_art"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "biom_dir",
+            "biom_dir_rare",
+            "biom_dir_alpha",
+            "biom_make_csv"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "feature_grouping": {
+        "name_process": "feature_grouping",
+        "string_process": "\nprocess feature_grouping {\n                                                              \n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else \"Grouped_by_Taxa/$fn\"\n        }\n\n    input:\n    path biom_dir from biom_dir\n    path table_qza from dada2_table_art_forConsolidate\n\n    output:\n    path \"grouped_by_taxa.qza\" into grouped_by_taxa_art\n\n                                                                        \n    script:\n    \"\"\"\n    $qiime feature-table group \\\n        --i-table ${table_qza}  \\\n        --p-mode sum \\\n        --m-metadata-column Taxon \\\n        --m-metadata-file ${biom_dir}/taxonomy.tsv \\\n        --p-axis feature \\\n        --o-grouped-table grouped_by_taxa.qza\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    \"\"\"\n    $qiime feature-table group \\\n        --i-table ${table_qza}  \\\n        --p-mode sum \\\n        --m-metadata-column Taxon \\\n        --m-metadata-file ${biom_dir}/taxonomy.tsv \\\n        --p-axis feature \\\n        --o-grouped-table grouped_by_taxa.qza\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "biom_dir",
+            "dada2_table_art_forConsolidate"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "grouped_by_taxa_art"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else \"Grouped_by_Taxa/$fn\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "rarefaction": {
+        "name_process": "rarefaction",
+        "string_process": "\nprocess rarefaction {\n                                                                          \n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else if(fn.indexOf(\".errors\") > 0) \"$fn\"\n            else \"Rarefaction/$fn\"\n        }\n\n    input:\n    path biom_dir from biom_dir_rare\n    path grouped_taxa_qza from grouped_by_taxa_art\n\n    output:\n    path \"rarefied-table.low.csv\" into rare_low_depth_csv\n    path \"rarefied-table.high.csv\" into rare_hi_depth_csv\n    path \"rarefaction.errors\" optional true into rarefaction_errors\n\n                                                                    \n    script:\n    \"\"\"\n    \n    DEPTH1K=`cat ${biom_dir}/stats.csv | \\\n        awk 'BEGIN{THRESH=1000;RARE_DEPTH=1000000000}\\\n        NR>2{if(\\$NF>THRESH && \\$NF<RARE_DEPTH)RARE_DEPTH=\\$NF}\\\n        END{print RARE_DEPTH-1}'`\n    echo \\$DEPTH1K\n\n    $qiime feature-table rarefy \\\n        --i-table ${grouped_taxa_qza} \\\n        --p-sampling-depth \\$DEPTH1K \\\n        --o-rarefied-table my-rarefied-table.1K.qza || echo \"Failed to create low sampled rarefied table\" >> rarefied-table.low.csv\n    $qiime tools export --input-path my-rarefied-table.1K.qza --output-path . || echo \"Creation of rarefied biom failed, probably failed to make low-sampled rarefied qza\" >> rarefaction.errors\n    $biom convert -i feature-table.biom -o rarefied-table.low.csv --to-tsv || echo \"Creation of rarefied csv failed, probably failed to make low-sampled rarefied qza\" >> rarefaction.errors\n\n    DEPTH10K=`cat ${biom_dir}/stats.csv | \\\n\t    awk 'BEGIN{THRESH=10000;RARE_DEPTH=1000000000}\\\n        NR>2{if(\\$NF>THRESH && \\$NF<RARE_DEPTH)RARE_DEPTH=\\$NF}\\\n        END{print RARE_DEPTH-1}'`\n    echo \\$DEPTH10K\n\n    $qiime feature-table rarefy \\\n            --i-table ${grouped_taxa_qza} \\\n            --p-sampling-depth \\$DEPTH10K \\\n            --o-rarefied-table my-rarefied-table.10K.qza || echo \"Failed to create high sampled rarefied table\" >> rarefied-table.high.csv\n    $qiime tools export --input-path my-rarefied-table.10K.qza --output-path . || echo \"Creation of rarefied biom failed, probably failed to make high-sampled rarefied qza\" >> rarefaction.errors\n    $biom convert -i feature-table.biom -o rarefied-table.high.csv --to-tsv || echo \"Creation of rarefied csv failed, probably failed to make high-sampled rarefied qza\" >> rarefaction.errors\n    \"\"\"\n}",
+        "nb_lignes_process": 49,
+        "string_script": "    \"\"\"\n    \n    DEPTH1K=`cat ${biom_dir}/stats.csv | \\\n        awk 'BEGIN{THRESH=1000;RARE_DEPTH=1000000000}\\\n        NR>2{if(\\$NF>THRESH && \\$NF<RARE_DEPTH)RARE_DEPTH=\\$NF}\\\n        END{print RARE_DEPTH-1}'`\n    echo \\$DEPTH1K\n\n    $qiime feature-table rarefy \\\n        --i-table ${grouped_taxa_qza} \\\n        --p-sampling-depth \\$DEPTH1K \\\n        --o-rarefied-table my-rarefied-table.1K.qza || echo \"Failed to create low sampled rarefied table\" >> rarefied-table.low.csv\n    $qiime tools export --input-path my-rarefied-table.1K.qza --output-path . || echo \"Creation of rarefied biom failed, probably failed to make low-sampled rarefied qza\" >> rarefaction.errors\n    $biom convert -i feature-table.biom -o rarefied-table.low.csv --to-tsv || echo \"Creation of rarefied csv failed, probably failed to make low-sampled rarefied qza\" >> rarefaction.errors\n\n    DEPTH10K=`cat ${biom_dir}/stats.csv | \\\n\t    awk 'BEGIN{THRESH=10000;RARE_DEPTH=1000000000}\\\n        NR>2{if(\\$NF>THRESH && \\$NF<RARE_DEPTH)RARE_DEPTH=\\$NF}\\\n        END{print RARE_DEPTH-1}'`\n    echo \\$DEPTH10K\n\n    $qiime feature-table rarefy \\\n            --i-table ${grouped_taxa_qza} \\\n            --p-sampling-depth \\$DEPTH10K \\\n            --o-rarefied-table my-rarefied-table.10K.qza || echo \"Failed to create high sampled rarefied table\" >> rarefied-table.high.csv\n    $qiime tools export --input-path my-rarefied-table.10K.qza --output-path . || echo \"Creation of rarefied biom failed, probably failed to make high-sampled rarefied qza\" >> rarefaction.errors\n    $biom convert -i feature-table.biom -o rarefied-table.high.csv --to-tsv || echo \"Creation of rarefied csv failed, probably failed to make high-sampled rarefied qza\" >> rarefaction.errors\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "biom_dir_rare",
+            "grouped_by_taxa_art"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "rare_low_depth_csv",
+            "rare_hi_depth_csv",
+            "rarefaction_errors"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else if(fn.indexOf(\".errors\") > 0) \"$fn\" else \"Rarefaction/$fn\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "phylogeny": {
+        "name_process": "phylogeny",
+        "string_process": "\nprocess phylogeny {\n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else \"Tree/$fn\"\n        }\n\n    input:\n    path repseq_qza from dada2_repseq_art_phylo\n\n    output:\n                                                          \n                                                                       \n                                                     \n    path \"rooted-tree.qza\" into rooted_tree_art\n\n    script:\n    \"\"\"\n    $qiime alignment mafft \\\n        --p-n-threads ${params.cpus} \\\n        --i-sequences ${repseq_qza} \\\n        --o-alignment aligned-rep-seqs.qza\n\n    #Filter the alignment to remove positions that are highly variable.\n    $qiime alignment mask \\\n        --i-alignment aligned-rep-seqs.qza \\\n        --o-masked-alignment masked-aligned-rep-seqs.qza\n\n    #Generate an un-rooted phylogenetic tree from the masked alignment\n    $qiime phylogeny fasttree \\\n        --p-n-threads ${params.cpus} \\\n        --i-alignment masked-aligned-rep-seqs.qza \\\n        --o-tree unrooted-tree.qza\n\n    #Place the root of the tree at the midpoint of the longest tip-to-tip distance in the unrooted tree\n    $qiime phylogeny midpoint-root \\\n        --i-tree unrooted-tree.qza \\\n        --o-rooted-tree rooted-tree.qza\n    \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    \"\"\"\n    $qiime alignment mafft \\\n        --p-n-threads ${params.cpus} \\\n        --i-sequences ${repseq_qza} \\\n        --o-alignment aligned-rep-seqs.qza\n\n    #Filter the alignment to remove positions that are highly variable.\n    $qiime alignment mask \\\n        --i-alignment aligned-rep-seqs.qza \\\n        --o-masked-alignment masked-aligned-rep-seqs.qza\n\n    #Generate an un-rooted phylogenetic tree from the masked alignment\n    $qiime phylogeny fasttree \\\n        --p-n-threads ${params.cpus} \\\n        --i-alignment masked-aligned-rep-seqs.qza \\\n        --o-tree unrooted-tree.qza\n\n    #Place the root of the tree at the midpoint of the longest tip-to-tip distance in the unrooted tree\n    $qiime phylogeny midpoint-root \\\n        --i-tree unrooted-tree.qza \\\n        --o-rooted-tree rooted-tree.qza\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dada2_repseq_art_phylo"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "rooted_tree_art"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else \"Tree/$fn\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alpha_diversity": {
+        "name_process": "alpha_diversity",
+        "string_process": "\nprocess alpha_diversity {\n                                                              \n    publishDir \"${baseDir}/${params.poolname}/\",\n        mode: 'copy',\n            saveAs: {fn ->\n            if (fn.indexOf(\".qzv\") > 0) \"$fn\"\n            else if (fn.indexOf(\".errors\") >0) \"$fn\"\n            else \"$fn\"\n        }\n\n    input:\n    path biom_dir from biom_dir_alpha\n    path rooted_tree from rooted_tree_art\n    path table_qza from dada2_table_art_forDiversity\n\n    output:\n    path \"alpha-rarefaction.qzv\" into alpha_rarefaction_viz\n    path \"core-metrics-results\" into core_metrics_outdir\n    path \"qiime_diversity.errors\" into diversity_error_ch\n    val 1 into completed_alpha_div\n\n    script:\n    \"\"\"\n    MAX_SMPL_CNT=`tail -n1 ${biom_dir}/Sample.summary.csv | cut -f2 | \\\n    sed 's/,//g' | cut -f1 -d '.'`    # Remove all commas\n\n    $qiime diversity alpha-rarefaction \\\n        --i-table ${table_qza} \\\n        --i-phylogeny ${rooted_tree} \\\n        --p-max-depth \\$MAX_SMPL_CNT \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization alpha-rarefaction.qzv\n\n    $qiime diversity core-metrics-phylogenetic \\\n        --i-table ${table_qza}  \\\n        --i-phylogeny ${rooted_tree}  \\\n        --p-n-jobs-or-threads ${params.cpus} \\\n        --p-sampling-depth 1000 \\\n        --m-metadata-file ${params.metadata} \\\n        --output-dir core-metrics-results\n\n    $qiime diversity alpha-group-significance \\\n        --i-alpha-diversity core-metrics-results/faith_pd_vector.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization core-metrics-results/faith-pd-group-significance.qzv 2>> qiime_diversity.errors ||\\\n            echo \"Could not run alpha-group-significance on faith_pd_vector.qza, probably due to lack of categorical metadata column that meets visualizer's requirements.\" >> qiime_diversity.errors\n\n    $qiime diversity alpha-group-significance \\\n        --i-alpha-diversity core-metrics-results/evenness_vector.qza \\\n        --m-metadata-file ${params.metadata}\\\n        --o-visualization core-metrics-results/evenness-group-significance.qzv 2>> qiime_diversity.errors ||\\\n            echo \"Could not run alpha-group-significance on evenness_vector.qza, probably due to a lack of categorical metadata column that meets visualizer's requirements.\" >> qiime_diversity.errors   \n\n    $qiime diversity alpha-group-significance \\\n        --i-alpha-diversity core-metrics-results/shannon_vector.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization core-metrics-results/shannon_group-significance.qzv 2>> qiime_diversity.errors ||\\\n            echo \"BAC COMMENT: Could not run alpha-group-significance on shannon_vector.qza, probably due to a lack of categorical metadata column that meets visualizer's requirements.\" >> qiime_diversity.errors\n\n    # This does not work if a group has only 1 member.\n    # Options are to remove the group(s) with only 1 member and run the rest.\n    # If not wanting default of 'permanova' then include \n    # --p-method TEXT Choices('permanova', 'anosim', 'permdisp')\n\n    $qiime diversity beta-group-significance \\\n        --i-distance-matrix core-metrics-results/unweighted_unifrac_distance_matrix.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --m-metadata-column Treatment \\\n        --o-visualization core-metrics-results/unweighted-unifrac-subject-group-significance.qzv \\\n        --p-pairwise 2>> qiime_diversity.errors ||\\\n            echo \"Could not run beta-group-significance on unweighted_unifrac_distance_matrixs.qza, probably due to a lack of categorical metadata column \"Treatment\" that meets visualizer's requirements.\" >> qiime_diversity.errors\n\n    \"\"\"\n}",
+        "nb_lignes_process": 73,
+        "string_script": "    \"\"\"\n    MAX_SMPL_CNT=`tail -n1 ${biom_dir}/Sample.summary.csv | cut -f2 | \\\n    sed 's/,//g' | cut -f1 -d '.'`    # Remove all commas\n\n    $qiime diversity alpha-rarefaction \\\n        --i-table ${table_qza} \\\n        --i-phylogeny ${rooted_tree} \\\n        --p-max-depth \\$MAX_SMPL_CNT \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization alpha-rarefaction.qzv\n\n    $qiime diversity core-metrics-phylogenetic \\\n        --i-table ${table_qza}  \\\n        --i-phylogeny ${rooted_tree}  \\\n        --p-n-jobs-or-threads ${params.cpus} \\\n        --p-sampling-depth 1000 \\\n        --m-metadata-file ${params.metadata} \\\n        --output-dir core-metrics-results\n\n    $qiime diversity alpha-group-significance \\\n        --i-alpha-diversity core-metrics-results/faith_pd_vector.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization core-metrics-results/faith-pd-group-significance.qzv 2>> qiime_diversity.errors ||\\\n            echo \"Could not run alpha-group-significance on faith_pd_vector.qza, probably due to lack of categorical metadata column that meets visualizer's requirements.\" >> qiime_diversity.errors\n\n    $qiime diversity alpha-group-significance \\\n        --i-alpha-diversity core-metrics-results/evenness_vector.qza \\\n        --m-metadata-file ${params.metadata}\\\n        --o-visualization core-metrics-results/evenness-group-significance.qzv 2>> qiime_diversity.errors ||\\\n            echo \"Could not run alpha-group-significance on evenness_vector.qza, probably due to a lack of categorical metadata column that meets visualizer's requirements.\" >> qiime_diversity.errors   \n\n    $qiime diversity alpha-group-significance \\\n        --i-alpha-diversity core-metrics-results/shannon_vector.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --o-visualization core-metrics-results/shannon_group-significance.qzv 2>> qiime_diversity.errors ||\\\n            echo \"BAC COMMENT: Could not run alpha-group-significance on shannon_vector.qza, probably due to a lack of categorical metadata column that meets visualizer's requirements.\" >> qiime_diversity.errors\n\n    # This does not work if a group has only 1 member.\n    # Options are to remove the group(s) with only 1 member and run the rest.\n    # If not wanting default of 'permanova' then include \n    # --p-method TEXT Choices('permanova', 'anosim', 'permdisp')\n\n    $qiime diversity beta-group-significance \\\n        --i-distance-matrix core-metrics-results/unweighted_unifrac_distance_matrix.qza \\\n        --m-metadata-file ${params.metadata} \\\n        --m-metadata-column Treatment \\\n        --o-visualization core-metrics-results/unweighted-unifrac-subject-group-significance.qzv \\\n        --p-pairwise 2>> qiime_diversity.errors ||\\\n            echo \"Could not run beta-group-significance on unweighted_unifrac_distance_matrixs.qza, probably due to a lack of categorical metadata column \"Treatment\" that meets visualizer's requirements.\" >> qiime_diversity.errors\n\n    \"\"\"",
+        "nb_lignes_script": 50,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "biom_dir_alpha",
+            "rooted_tree_art",
+            "dada2_table_art_forDiversity"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "alpha_rarefaction_viz",
+            "core_metrics_outdir",
+            "diversity_error_ch",
+            "completed_alpha_div"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\" , mode: 'copy' , saveAs: {fn -> if (fn.indexOf(\".qzv\") > 0) \"$fn\" else if (fn.indexOf(\".errors\") >0) \"$fn\" else \"$fn\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "get_references": {
+        "name_process": "get_references",
+        "string_process": "\nprocess get_references {\n    publishDir \"${baseDir}/${params.poolname}/References\", mode:'copy'\n\n    input:\n    path table_art from dada2_table_for_citation\n    path classifier_art from classifier_cite\n\n    output:\n    path \"Software_Versions.txt\"\n    path \"Dada2.cite\"\n    path \"Classifier.cite\"\n    val 1 into completed_refs\n\n    script:\n    \"\"\"\n    $qiime info | awk 'NR<=5' >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    $qiime cutadapt --version >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    echo \"Dada2 version used: \" >> Software_Versions.txt\n    PATH=/cluster/software/qiime2-2021.8/bin:$PATH Rscript -e \"packageDescription(\\\\\"dada2\\\\\",fields=\\\\\"Version\\\\\")\" | cut -d \" \" -f2 >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    $biom --version >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    echo \"Classifier Info: $CLASSIFIER_INFO\" >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    #use this all through qiime2\n    $qiime tools citations $table_art > Dada2.cite\n    $qiime tools citations $classifier_art  > Classifier.cite\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    $qiime info | awk 'NR<=5' >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    $qiime cutadapt --version >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    echo \"Dada2 version used: \" >> Software_Versions.txt\n    PATH=/cluster/software/qiime2-2021.8/bin:$PATH Rscript -e \"packageDescription(\\\\\"dada2\\\\\",fields=\\\\\"Version\\\\\")\" | cut -d \" \" -f2 >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    $biom --version >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    echo \"Classifier Info: $CLASSIFIER_INFO\" >> Software_Versions.txt\n    echo \"\" >> Software_Versions.txt\n\n    #use this all through qiime2\n    $qiime tools citations $table_art > Dada2.cite\n    $qiime tools citations $classifier_art  > Classifier.cite\n    \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "dada2_table_for_citation",
+            "classifier_cite"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "completed_refs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/References\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "write_csv": {
+        "name_process": "write_csv",
+        "string_process": "\nprocess write_csv {\n    publishDir \"${baseDir}/${params.poolname}/\", mode: 'copy'\n\n    input:\n    path rarefied_lo from rare_low_depth_csv\n    path rarefied_hi from rare_hi_depth_csv\n    path biom_dir from biom_make_csv\n\n    output:\n    path \"results.xlsx\" into results_xlsx\n\n    script:\n    \"\"\"\n    if [[ -f rarefied-table.high.csv ]]\n    then\n        tail -n +2 ${biom_dir}/annotated_table.csv > temp_ann_table.csv\n        csv2xlsx_go -colsep '\\\\t' -overwrite --infile temp_ann_table.csv --outfile results.xlsx --append --sheet \"Annotated_table\" --headerlines 1\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/ASV.summary.csv --outfile results.xlsx --append --sheet \"ASV_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/rep-seqs.csv --outfile results.xlsx --append --sheet \"Rep_Seqs\" --headerlines 0\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/Sample.summary.csv --outfile results.xlsx --append --sheet \"Sample_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/stats.csv --outfile results.xlsx --append --sheet \"Stats\" --headerlines 2\n        tail -n +2 rarefied-table.high.csv > hi_table.csv\n        csv2xlsx_go -colsep '\\\\t' --infile hi_table.csv --outfile results.xlsx --append --sheet \"Rarefied-table-high\" --headerlines 1\n        tail -n +2 rarefied-table.low.csv > low_table.csv\n        csv2xlsx_go -colsep '\\\\t' --infile low_table.csv --outfile results.xlsx --append --sheet \"Rarefied-table-low\" --headerlines 1\n    elif [[ -f rarefied-table.low.csv ]]\n    then\n        tail -n +2 ${biom_dir}/annotated_table.csv > temp_ann_table.csv\n        csv2xlsx_go -colsep '\\\\t' -overwrite --infile temp_ann_table.csv --outfile results.xlsx --append --sheet \"Annotated_table\" --headerlines 1\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/ASV.summary.csv --outfile results.xlsx --append --sheet \"ASV_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/rep-seqs.csv --outfile results.xlsx --append --sheet \"Rep_Seqs\" --headerlines 0\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/Sample.summary.csv --outfile results.xlsx --append --sheet \"Sample_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/stats.csv --outfile results.xlsx --append --sheet \"Stats\" --headerlines 2\n        tail -n +2 rarefied-table.low.csv > low_table.csv\n        csv2xlsx_go -colsep '\\\\t' --infile low_table.csv --outfile results.xlsx --append --sheet \"Rarefied-table-low\" --headerlines 1\n    else\n        tail -n +2 ${biom_dir}/annotated_table.csv > temp_ann_table.csv\n        csv2xlsx_go -colsep '\\\\t' -overwrite --infile temp_ann_table.csv --outfile results.xlsx --append --sheet \"Annotated_table\" --headerlines 1\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/ASV.summary.csv --outfile results.xlsx --append --sheet \"ASV_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/rep-seqs.csv --outfile results.xlsx --append --sheet \"Rep_Seqs\" --headerlines 0\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/Sample.summary.csv --outfile results.xlsx --append --sheet \"Sample_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/stats.csv --outfile results.xlsx --append --sheet \"Stats\" --headerlines 2\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 44,
+        "string_script": "    \"\"\"\n    if [[ -f rarefied-table.high.csv ]]\n    then\n        tail -n +2 ${biom_dir}/annotated_table.csv > temp_ann_table.csv\n        csv2xlsx_go -colsep '\\\\t' -overwrite --infile temp_ann_table.csv --outfile results.xlsx --append --sheet \"Annotated_table\" --headerlines 1\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/ASV.summary.csv --outfile results.xlsx --append --sheet \"ASV_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/rep-seqs.csv --outfile results.xlsx --append --sheet \"Rep_Seqs\" --headerlines 0\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/Sample.summary.csv --outfile results.xlsx --append --sheet \"Sample_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/stats.csv --outfile results.xlsx --append --sheet \"Stats\" --headerlines 2\n        tail -n +2 rarefied-table.high.csv > hi_table.csv\n        csv2xlsx_go -colsep '\\\\t' --infile hi_table.csv --outfile results.xlsx --append --sheet \"Rarefied-table-high\" --headerlines 1\n        tail -n +2 rarefied-table.low.csv > low_table.csv\n        csv2xlsx_go -colsep '\\\\t' --infile low_table.csv --outfile results.xlsx --append --sheet \"Rarefied-table-low\" --headerlines 1\n    elif [[ -f rarefied-table.low.csv ]]\n    then\n        tail -n +2 ${biom_dir}/annotated_table.csv > temp_ann_table.csv\n        csv2xlsx_go -colsep '\\\\t' -overwrite --infile temp_ann_table.csv --outfile results.xlsx --append --sheet \"Annotated_table\" --headerlines 1\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/ASV.summary.csv --outfile results.xlsx --append --sheet \"ASV_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/rep-seqs.csv --outfile results.xlsx --append --sheet \"Rep_Seqs\" --headerlines 0\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/Sample.summary.csv --outfile results.xlsx --append --sheet \"Sample_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/stats.csv --outfile results.xlsx --append --sheet \"Stats\" --headerlines 2\n        tail -n +2 rarefied-table.low.csv > low_table.csv\n        csv2xlsx_go -colsep '\\\\t' --infile low_table.csv --outfile results.xlsx --append --sheet \"Rarefied-table-low\" --headerlines 1\n    else\n        tail -n +2 ${biom_dir}/annotated_table.csv > temp_ann_table.csv\n        csv2xlsx_go -colsep '\\\\t' -overwrite --infile temp_ann_table.csv --outfile results.xlsx --append --sheet \"Annotated_table\" --headerlines 1\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/ASV.summary.csv --outfile results.xlsx --append --sheet \"ASV_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/rep-seqs.csv --outfile results.xlsx --append --sheet \"Rep_Seqs\" --headerlines 0\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/Sample.summary.csv --outfile results.xlsx --append --sheet \"Sample_Summary\"\n        csv2xlsx_go -colsep '\\\\t' --infile ${biom_dir}/stats.csv --outfile results.xlsx --append --sheet \"Stats\" --headerlines 2\n    fi\n    \"\"\"",
+        "nb_lignes_script": 31,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "rare_low_depth_csv",
+            "rare_hi_depth_csv",
+            "biom_make_csv"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "results_xlsx"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mubioinformatics__nf-qimme2",
+        "directive": [
+            "publishDir \"${baseDir}/${params.poolname}/\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

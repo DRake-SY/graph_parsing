@@ -1,0 +1,673 @@
+{
+    "PEAKCALLING": {
+        "name_process": "PEAKCALLING",
+        "string_process": "\nprocess PEAKCALLING {\n    publishDir \"${params.outdir}/${sample_id}/peaks\", mode: 'copy', pattern: '*_sort_peaks.narrowPeak'\n\n    input:\n    set val(sample_id), path(bam1), path(bam1_ctrl), path(bam2), path(bam2_ctrl) from ch_samples_split_macs\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_rep1_sort_peaks.narrowPeak\"), path(\"${sample_id}_rep2_sort_peaks.narrowPeak\")  into ch_peak_reps_true, ch_peak_reps_self_pseudo\n\n\n    script:\n    \"\"\"\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam1} -c ${bam1_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_rep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep1_macs2.log\n    macs2 callpeak -t ${bam2} -c ${bam2_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_rep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_rep1_peaks.narrowPeak > ${sample_id}_rep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_rep2_peaks.narrowPeak > ${sample_id}_rep2_sort_peaks.narrowPeak\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam1} -c ${bam1_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_rep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep1_macs2.log\n    macs2 callpeak -t ${bam2} -c ${bam2_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_rep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_rep1_peaks.narrowPeak > ${sample_id}_rep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_rep2_peaks.narrowPeak > ${sample_id}_rep2_sort_peaks.narrowPeak\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_samples_split_macs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_peak_reps_true",
+            "ch_peak_reps_self_pseudo"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [
+            "publishDir \"${params.outdir}/${sample_id}/peaks\", mode: 'copy', pattern: '*_sort_peaks.narrowPeak'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "CREATE_SELF_PSEUDOREPS": {
+        "name_process": "CREATE_SELF_PSEUDOREPS",
+        "string_process": "\nprocess CREATE_SELF_PSEUDOREPS {\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(bam1), path(bam1_ctrl), path(bam2), path(bam2_ctrl) from ch_samples_split_self_pseudo\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_rep1_self_pseudorep1.bam\"), path(\"${sample_id}_ctrl_rep1_self_pseudorep1.bam\"), path(\"${sample_id}_rep1_self_pseudorep2.bam\"),path(\"${sample_id}_ctrl_rep1_self_pseudorep2.bam\"), path(\"${sample_id}_rep2_self_pseudorep1.bam\"), path(\"${sample_id}_ctrl_rep2_self_pseudorep1.bam\"), path(\"${sample_id}_rep2_self_pseudorep2.bam\"),path(\"${sample_id}_ctrl_rep2_self_pseudorep2.bam\")  into ch_bam_self_pseudoreps\n\n    script:\n    \"\"\"\n    ## Rep1\n    samtools view -H ${bam1} > ${sample_id}_rep1_header.sam\n\n    # Split merged treatments\n    nlines=\\$(samtools view ${bam1} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam1} | shuf - | split -d -l \\${nlines} - \"${sample_id}_rep1\" # Shuffle lines in file and split into two SAM files\n    cat ${sample_id}_rep1_header.sam ${sample_id}_rep100 | samtools view -bS - > ${sample_id}_rep1_self_pseudorep1.bam\n    cat ${sample_id}_rep1_header.sam ${sample_id}_rep101 | samtools view -bS - > ${sample_id}_rep1_self_pseudorep2.bam\n\n    #Split merged treatment BAM\n    nlines=\\$(samtools view ${bam1_ctrl} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam1_ctrl} | shuf - | split -d -l \\${nlines} - \"${sample_id}_ctrl_rep1\" # This will shuffle the lines in the file and split in two\n    cat ${sample_id}_rep1_header.sam ${sample_id}_ctrl_rep100 | samtools view -bS - > ${sample_id}_ctrl_rep1_self_pseudorep1.bam\n    cat ${sample_id}_rep1_header.sam ${sample_id}_ctrl_rep101 | samtools view -bS - > ${sample_id}_ctrl_rep1_self_pseudorep2.bam\n\n\n    ## Rep2\n    samtools view -H ${bam2} > ${sample_id}_rep2_header.sam\n\n    # Split merged treatments\n    nlines=\\$(samtools view ${bam2} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam2} | shuf - | split -d -l \\${nlines} - \"${sample_id}_rep2\" # Shuffle lines in file and split into two SAM files\n    cat ${sample_id}_rep2_header.sam ${sample_id}_rep200 | samtools view -bS - > ${sample_id}_rep2_self_pseudorep1.bam\n    cat ${sample_id}_rep2_header.sam ${sample_id}_rep201 | samtools view -bS - > ${sample_id}_rep2_self_pseudorep2.bam\n\n    #Split merged treatment BAM\n    nlines=\\$(samtools view ${bam2_ctrl} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam2_ctrl} | shuf - | split -d -l \\${nlines} - \"${sample_id}_ctrl_rep2\" # This will shuffle the lines in the file and split in two\n    cat ${sample_id}_rep2_header.sam ${sample_id}_ctrl_rep200 | samtools view -bS - > ${sample_id}_ctrl_rep2_self_pseudorep1.bam\n    cat ${sample_id}_rep2_header.sam ${sample_id}_ctrl_rep201 | samtools view -bS - > ${sample_id}_ctrl_rep2_self_pseudorep2.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    \"\"\"\n    ## Rep1\n    samtools view -H ${bam1} > ${sample_id}_rep1_header.sam\n\n    # Split merged treatments\n    nlines=\\$(samtools view ${bam1} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam1} | shuf - | split -d -l \\${nlines} - \"${sample_id}_rep1\" # Shuffle lines in file and split into two SAM files\n    cat ${sample_id}_rep1_header.sam ${sample_id}_rep100 | samtools view -bS - > ${sample_id}_rep1_self_pseudorep1.bam\n    cat ${sample_id}_rep1_header.sam ${sample_id}_rep101 | samtools view -bS - > ${sample_id}_rep1_self_pseudorep2.bam\n\n    #Split merged treatment BAM\n    nlines=\\$(samtools view ${bam1_ctrl} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam1_ctrl} | shuf - | split -d -l \\${nlines} - \"${sample_id}_ctrl_rep1\" # This will shuffle the lines in the file and split in two\n    cat ${sample_id}_rep1_header.sam ${sample_id}_ctrl_rep100 | samtools view -bS - > ${sample_id}_ctrl_rep1_self_pseudorep1.bam\n    cat ${sample_id}_rep1_header.sam ${sample_id}_ctrl_rep101 | samtools view -bS - > ${sample_id}_ctrl_rep1_self_pseudorep2.bam\n\n\n    ## Rep2\n    samtools view -H ${bam2} > ${sample_id}_rep2_header.sam\n\n    # Split merged treatments\n    nlines=\\$(samtools view ${bam2} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam2} | shuf - | split -d -l \\${nlines} - \"${sample_id}_rep2\" # Shuffle lines in file and split into two SAM files\n    cat ${sample_id}_rep2_header.sam ${sample_id}_rep200 | samtools view -bS - > ${sample_id}_rep2_self_pseudorep1.bam\n    cat ${sample_id}_rep2_header.sam ${sample_id}_rep201 | samtools view -bS - > ${sample_id}_rep2_self_pseudorep2.bam\n\n    #Split merged treatment BAM\n    nlines=\\$(samtools view ${bam2_ctrl} | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${bam2_ctrl} | shuf - | split -d -l \\${nlines} - \"${sample_id}_ctrl_rep2\" # This will shuffle the lines in the file and split in two\n    cat ${sample_id}_rep2_header.sam ${sample_id}_ctrl_rep200 | samtools view -bS - > ${sample_id}_ctrl_rep2_self_pseudorep1.bam\n    cat ${sample_id}_rep2_header.sam ${sample_id}_ctrl_rep201 | samtools view -bS - > ${sample_id}_ctrl_rep2_self_pseudorep2.bam\n    \"\"\"",
+        "nb_lignes_script": 35,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "ch_samples_split_self_pseudo"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_bam_self_pseudoreps"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "CREATE_POOLED_PSEUDOREPS": {
+        "name_process": "CREATE_POOLED_PSEUDOREPS",
+        "string_process": "\nprocess CREATE_POOLED_PSEUDOREPS {\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(bam1), path(bam1_ctrl), path(bam2), path(bam2_ctrl) from ch_samples_split_pooled_pseudo\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_pooled_merged.bam\"), path(\"${sample_id}_pooled_ctrl_merged.bam\") into ch_bam_pooled_reps\n    tuple val(sample_id), path(\"${sample_id}_pooled_pseudorep1.bam\"), path(\"${sample_id}_ctrl_pooled_pseudorep1.bam\"), path(\"${sample_id}_pooled_pseudorep2.bam\"),path(\"${sample_id}_ctrl_pooled_pseudorep2.bam\")  into ch_bam_pooled_pseudoreps\n\n    script:\n    \"\"\"\n    # Merge bam\n    samtools merge -u ${sample_id}_pooled_merged.bam ${bam1} ${bam2}\n    samtools view -H ${sample_id}_pooled_merged.bam > ${sample_id}_header.sam\n\n    #Split merged treatments\n    nlines=\\$(samtools view ${sample_id}_pooled_merged.bam | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${sample_id}_pooled_merged.bam | shuf - | split -d -l \\${nlines} - \"${sample_id}\" # Shuffle lines in file and split into two SAM files\n    cat ${sample_id}_header.sam ${sample_id}00 | samtools view -bS - > ${sample_id}_pooled_pseudorep1.bam\n    cat ${sample_id}_header.sam ${sample_id}01 | samtools view -bS - > ${sample_id}_pooled_pseudorep2.bam\n\n    # Merge ctrl bams\n    samtools merge -u ${sample_id}_pooled_ctrl_merged.bam ${bam1_ctrl} ${bam2_ctrl}\n\n    #Split merged treatment BAM\n    nlines=\\$(samtools view ${sample_id}_pooled_ctrl_merged.bam | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${sample_id}_pooled_ctrl_merged.bam | shuf - | split -d -l \\${nlines} - \"${sample_id}_ctrl\" # This will shuffle the lines in the file and split in two\n    cat ${sample_id}_header.sam ${sample_id}_ctrl00 | samtools view -bS - > ${sample_id}_ctrl_pooled_pseudorep1.bam\n    cat ${sample_id}_header.sam ${sample_id}_ctrl01 | samtools view -bS - > ${sample_id}_ctrl_pooled_pseudorep2.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    \"\"\"\n    # Merge bam\n    samtools merge -u ${sample_id}_pooled_merged.bam ${bam1} ${bam2}\n    samtools view -H ${sample_id}_pooled_merged.bam > ${sample_id}_header.sam\n\n    #Split merged treatments\n    nlines=\\$(samtools view ${sample_id}_pooled_merged.bam | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${sample_id}_pooled_merged.bam | shuf - | split -d -l \\${nlines} - \"${sample_id}\" # Shuffle lines in file and split into two SAM files\n    cat ${sample_id}_header.sam ${sample_id}00 | samtools view -bS - > ${sample_id}_pooled_pseudorep1.bam\n    cat ${sample_id}_header.sam ${sample_id}01 | samtools view -bS - > ${sample_id}_pooled_pseudorep2.bam\n\n    # Merge ctrl bams\n    samtools merge -u ${sample_id}_pooled_ctrl_merged.bam ${bam1_ctrl} ${bam2_ctrl}\n\n    #Split merged treatment BAM\n    nlines=\\$(samtools view ${sample_id}_pooled_ctrl_merged.bam | wc -l ) # Number of reads in the BAM file\n    nlines=\\$(( (nlines + 1) / 2 )) # half that number\n    samtools view ${sample_id}_pooled_ctrl_merged.bam | shuf - | split -d -l \\${nlines} - \"${sample_id}_ctrl\" # This will shuffle the lines in the file and split in two\n    cat ${sample_id}_header.sam ${sample_id}_ctrl00 | samtools view -bS - > ${sample_id}_ctrl_pooled_pseudorep1.bam\n    cat ${sample_id}_header.sam ${sample_id}_ctrl01 | samtools view -bS - > ${sample_id}_ctrl_pooled_pseudorep2.bam\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "ch_samples_split_pooled_pseudo"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_bam_pooled_reps",
+            "ch_bam_pooled_pseudoreps"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "PEAKCALLING_POOLED_REPS": {
+        "name_process": "PEAKCALLING_POOLED_REPS",
+        "string_process": "\nprocess PEAKCALLING_POOLED_REPS {\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(bam_pr), path(bam_pr_ctrl)  from ch_bam_pooled_reps\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_pooled_sort_peaks.narrowPeak\")  into ch_peak_pooled_true, ch_peak_pooled_pseudo\n\n    script:\n    \"\"\"\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_pr} -c ${bam_pr_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_pooled -B -q ${params.macs_q} --broad 2> ${sample_id}_pooled_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_pooled_peaks.narrowPeak > ${sample_id}_pooled_sort_peaks.narrowPeak\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\"\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_pr} -c ${bam_pr_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_pooled -B -q ${params.macs_q} --broad 2> ${sample_id}_pooled_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_pooled_peaks.narrowPeak > ${sample_id}_pooled_sort_peaks.narrowPeak\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bam_pooled_reps"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_peak_pooled_true",
+            "ch_peak_pooled_pseudo"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "PEAKCALLING_SELF_PSEUDOREPS": {
+        "name_process": "PEAKCALLING_SELF_PSEUDOREPS",
+        "string_process": "\nprocess PEAKCALLING_SELF_PSEUDOREPS {\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(bam_rep1_pr1), path(bam_ctrl_rep1_pr1), path(bam_rep1_pr2), path(bam_ctrl_rep1_pr2), path(bam_rep2_pr1), path(bam_ctrl_rep2_pr1), path(bam_rep2_pr2), path(bam_ctrl_rep2_pr2)  from ch_bam_self_pseudoreps\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_rep1_self_pseudorep1_sort_peaks.narrowPeak\"), path(\"${sample_id}_rep1_self_pseudorep2_sort_peaks.narrowPeak\"), path(\"${sample_id}_rep2_self_pseudorep1_sort_peaks.narrowPeak\"), path(\"${sample_id}_rep2_self_pseudorep2_sort_peaks.narrowPeak\")  into ch_peak_self_pseudoreps\n\n    script:\n    \"\"\"\n    ## Rep1\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_rep1_pr1} -c ${bam_ctrl_rep1_pr1} -f BAM -g ${params.genome_size} -n ${sample_id}_rep1_self_pseudorep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep1_self_pseudorep1_macs2.log\n    macs2 callpeak -t ${bam_rep1_pr2} -c ${bam_ctrl_rep1_pr2} -f BAM -g ${params.genome_size} -n ${sample_id}_rep1_self_pseudorep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep1_self_pseudorep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_rep1_self_pseudorep1_peaks.narrowPeak > ${sample_id}_rep1_self_pseudorep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_rep1_self_pseudorep2_peaks.narrowPeak > ${sample_id}_rep1_self_pseudorep2_sort_peaks.narrowPeak\n\n    ## Rep2\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_rep2_pr1} -c ${bam_ctrl_rep2_pr1} -f BAM -g ${params.genome_size} -n ${sample_id}_rep2_self_pseudorep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep2_self_pseudorep1_macs2.log\n    macs2 callpeak -t ${bam_rep2_pr2} -c ${bam_ctrl_rep2_pr2} -f BAM -g ${params.genome_size} -n ${sample_id}_rep2_self_pseudorep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep2_self_pseudorep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_rep2_self_pseudorep1_peaks.narrowPeak > ${sample_id}_rep2_self_pseudorep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_rep2_self_pseudorep2_peaks.narrowPeak > ${sample_id}_rep2_self_pseudorep2_sort_peaks.narrowPeak\n    \"\"\"\n\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    \"\"\"\n    ## Rep1\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_rep1_pr1} -c ${bam_ctrl_rep1_pr1} -f BAM -g ${params.genome_size} -n ${sample_id}_rep1_self_pseudorep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep1_self_pseudorep1_macs2.log\n    macs2 callpeak -t ${bam_rep1_pr2} -c ${bam_ctrl_rep1_pr2} -f BAM -g ${params.genome_size} -n ${sample_id}_rep1_self_pseudorep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep1_self_pseudorep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_rep1_self_pseudorep1_peaks.narrowPeak > ${sample_id}_rep1_self_pseudorep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_rep1_self_pseudorep2_peaks.narrowPeak > ${sample_id}_rep1_self_pseudorep2_sort_peaks.narrowPeak\n\n    ## Rep2\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_rep2_pr1} -c ${bam_ctrl_rep2_pr1} -f BAM -g ${params.genome_size} -n ${sample_id}_rep2_self_pseudorep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep2_self_pseudorep1_macs2.log\n    macs2 callpeak -t ${bam_rep2_pr2} -c ${bam_ctrl_rep2_pr2} -f BAM -g ${params.genome_size} -n ${sample_id}_rep2_self_pseudorep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_rep2_self_pseudorep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_rep2_self_pseudorep1_peaks.narrowPeak > ${sample_id}_rep2_self_pseudorep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_rep2_self_pseudorep2_peaks.narrowPeak > ${sample_id}_rep2_self_pseudorep2_sort_peaks.narrowPeak\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bam_self_pseudoreps"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_peak_self_pseudoreps"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "PEALCALLING_POOLED_PSEUDOREPS": {
+        "name_process": "PEALCALLING_POOLED_PSEUDOREPS",
+        "string_process": "\nprocess PEALCALLING_POOLED_PSEUDOREPS {\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(bam_ppr1), path(bam_ppr1_ctrl), path(bam_ppr2),path(bam_ppr2_ctrl)  from ch_bam_pooled_pseudoreps\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_pooled_pseudorep1_sort_peaks.narrowPeak\"), path(\"${sample_id}_pooled_pseudorep2_sort_peaks.narrowPeak\")  into ch_peak_pooled_pseudoreps\n\n\n    script:\n    \"\"\"\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_ppr1} -c ${bam_ppr1_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_pooled_pseudorep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_pooled_pseudorep1_macs2.log\n    macs2 callpeak -t ${bam_ppr2} -c ${bam_ppr2_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_pooled_pseudorep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_pooled_pseudorep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_pooled_pseudorep1_peaks.narrowPeak > ${sample_id}_pooled_pseudorep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_pooled_pseudorep2_peaks.narrowPeak > ${sample_id}_pooled_pseudorep2_sort_peaks.narrowPeak\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    # Peal calling for replicates\n    macs2 callpeak -t ${bam_ppr1} -c ${bam_ppr1_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_pooled_pseudorep1 -B -q ${params.macs_q} --broad 2> ${sample_id}_pooled_pseudorep1_macs2.log\n    macs2 callpeak -t ${bam_ppr2} -c ${bam_ppr2_ctrl} -f BAM -g ${params.genome_size} -n ${sample_id}_pooled_pseudorep2 -B -q ${params.macs_q} --broad 2> ${sample_id}_pooled_pseudorep2_macs2.log\n\n    #Sort peak by -log10(p-value)\n    sort -k8,8nr ${sample_id}_pooled_pseudorep1_peaks.narrowPeak > ${sample_id}_pooled_pseudorep1_sort_peaks.narrowPeak\n    sort -k8,8nr ${sample_id}_pooled_pseudorep2_peaks.narrowPeak > ${sample_id}_pooled_pseudorep2_sort_peaks.narrowPeak\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bam_pooled_pseudoreps"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_peak_pooled_pseudoreps"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "IDR_TRUE_REPS": {
+        "name_process": "IDR_TRUE_REPS",
+        "string_process": "\nprocess IDR_TRUE_REPS {\n    publishDir \"${params.outdir}/${sample_id}/idr/true_reps\", mode: 'copy', pattern: '*.narrowPeak.gz'\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(peaks_rep1), path(peaks_rep2) from ch_peak_reps_true\n    set val(sample_id), path(peaks_pooled)  from ch_peak_pooled_true\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_true_reps.IDR0.05.narrowPeak.gz\")  into ch_idr_truereps\n\n\n    script:\n    \"\"\"\n    idr --samples ${peaks_rep1} ${peaks_rep1} \\\n    --peak-list ${peaks_pooled} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_true_reps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_true_reps.idr.log\n\n    idr_treshold_transformed=\\$(awk -v p=${params.idr_threshold} 'BEGIN{print -log(p)/log(10)}')\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_true_reps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_true_reps.IDR0.05.narrowPeak.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    idr --samples ${peaks_rep1} ${peaks_rep1} \\\n    --peak-list ${peaks_pooled} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_true_reps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_true_reps.idr.log\n\n    idr_treshold_transformed=\\$(awk -v p=${params.idr_threshold} 'BEGIN{print -log(p)/log(10)}')\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_true_reps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_true_reps.IDR0.05.narrowPeak.gz\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "SIDR"
+        ],
+        "tools_url": [
+            "https://bio.tools/sidr"
+        ],
+        "tools_dico": [
+            {
+                "name": "SIDR",
+                "uri": "https://bio.tools/sidr",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tool to filter Next Generation Sequencing (NGS) data based on a chosen target organism. It uses data fron BLAST (or similar classifiers) to train a Decision Tree model to classify sequence data as either belonging to the target organism, or belonging to something else. This classification can be used to filter the data for later assembly.",
+                "homepage": "https://sidr.readthedocs.io/en/latest/"
+            }
+        ],
+        "inputs": [
+            "ch_peak_reps_true",
+            "ch_peak_pooled_true"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_idr_truereps"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [
+            "publishDir \"${params.outdir}/${sample_id}/idr/true_reps\", mode: 'copy', pattern: '*.narrowPeak.gz'"
+        ],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "IDR_SELF_PSEUDOREPS": {
+        "name_process": "IDR_SELF_PSEUDOREPS",
+        "string_process": "\nprocess IDR_SELF_PSEUDOREPS {\n    publishDir \"${params.outdir}/${sample_id}/idr/self_pseudoreps\", mode: 'copy', pattern: '*.narrowPeak.gz'\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id),  path(peaks_rep1_spr1), path(peaks_rep1_spr1),path(peaks_rep2_spr1), path(peaks_rep2_spr2) from ch_peak_self_pseudoreps\n    set val(sample_id), path(peaks_rep1), path(peaks_rep2) from ch_peak_reps_self_pseudo\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_rep1_self_pseudoreps.IDR0.05.narrowPeak.gz\"), path(\"${sample_id}_rep2_self_pseudoreps.IDR0.05.narrowPeak.gz\")  into ch_idr_self_pseudoreps\n\n\n    script:\n    \"\"\"\n    ## Rep1\n    idr --samples ${peaks_rep1_spr1} ${peaks_rep1_spr1} \\\n    --peak-list ${peaks_rep1} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_rep1_self_pseudoreps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_rep1_self_pseudoreps.idr.log\n\n    idr_treshold_transformed=\\$(awk -v p=${params.idr_threshold} 'BEGIN{print -log(p)/log(10)}')\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_rep1_self_pseudoreps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_rep1_self_pseudoreps.IDR0.05.narrowPeak.gz\n\n\n    ## Rep1\n    idr --samples ${peaks_rep2_spr1} ${peaks_rep2_spr1} \\\n    --peak-list ${peaks_rep2} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_rep2_self_pseudoreps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_rep2_self_pseudoreps.idr.log\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_rep2_self_pseudoreps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_rep2_self_pseudoreps.IDR0.05.narrowPeak.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "    \"\"\"\n    ## Rep1\n    idr --samples ${peaks_rep1_spr1} ${peaks_rep1_spr1} \\\n    --peak-list ${peaks_rep1} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_rep1_self_pseudoreps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_rep1_self_pseudoreps.idr.log\n\n    idr_treshold_transformed=\\$(awk -v p=${params.idr_threshold} 'BEGIN{print -log(p)/log(10)}')\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_rep1_self_pseudoreps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_rep1_self_pseudoreps.IDR0.05.narrowPeak.gz\n\n\n    ## Rep1\n    idr --samples ${peaks_rep2_spr1} ${peaks_rep2_spr1} \\\n    --peak-list ${peaks_rep2} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_rep2_self_pseudoreps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_rep2_self_pseudoreps.idr.log\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_rep2_self_pseudoreps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_rep2_self_pseudoreps.IDR0.05.narrowPeak.gz\n    \"\"\"",
+        "nb_lignes_script": 29,
+        "language_script": "bash",
+        "tools": [
+            "SIDR"
+        ],
+        "tools_url": [
+            "https://bio.tools/sidr"
+        ],
+        "tools_dico": [
+            {
+                "name": "SIDR",
+                "uri": "https://bio.tools/sidr",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tool to filter Next Generation Sequencing (NGS) data based on a chosen target organism. It uses data fron BLAST (or similar classifiers) to train a Decision Tree model to classify sequence data as either belonging to the target organism, or belonging to something else. This classification can be used to filter the data for later assembly.",
+                "homepage": "https://sidr.readthedocs.io/en/latest/"
+            }
+        ],
+        "inputs": [
+            "ch_peak_self_pseudoreps",
+            "ch_peak_reps_self_pseudo"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_idr_self_pseudoreps"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [
+            "publishDir \"${params.outdir}/${sample_id}/idr/self_pseudoreps\", mode: 'copy', pattern: '*.narrowPeak.gz'"
+        ],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "IDR_POOLED_PSEUDOREPS": {
+        "name_process": "IDR_POOLED_PSEUDOREPS",
+        "string_process": "\nprocess IDR_POOLED_PSEUDOREPS {\n    publishDir \"${params.outdir}/${sample_id}/idr/pooled_pseudoreps\", mode: 'copy', pattern: '*.narrowPeak.gz'\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(peaks_ppr1), path(peaks_ppr2) from ch_peak_pooled_pseudoreps\n    set val(sample_id), path(peaks_pooled)  from ch_peak_pooled_pseudo\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_pooled_pseudoreps.IDR0.05.narrowPeak.gz\")  into ch_idr_pooled_pseudoreps\n\n\n    script:\n    \"\"\"\n    idr --samples ${peaks_ppr1} ${peaks_ppr2} \\\n    --peak-list ${peaks_pooled} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_pooled_pseudoreps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_pooled_pseudoreps.idr.log\n\n    idr_treshold_transformed=\\$(awk -v p=${params.idr_threshold} 'BEGIN{print -log(p)/log(10)}')\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_pooled_pseudoreps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_pooled_pseudoreps.IDR0.05.narrowPeak.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    idr --samples ${peaks_ppr1} ${peaks_ppr2} \\\n    --peak-list ${peaks_pooled} \\\n    --input-file-type narrowPeak \\\n    --rank p.value \\\n    --output-file ${sample_id}_pooled_pseudoreps_idr \\\n    --plot \\\n    --soft-idr-threshold ${params.idr_threshold} \\\n    --use-best-multisummit-IDR \\\n    --log-output-file ${sample_id}_pooled_pseudoreps.idr.log\n\n    idr_treshold_transformed=\\$(awk -v p=${params.idr_threshold} 'BEGIN{print -log(p)/log(10)}')\n\n    awk 'BEGIN{OFS=\"\\t\"} \\$12>='\"\\${idr_treshold_transformed}\"' {print \\$1,\\$2,\\$3,\\$4,\\$5,\\$6,\\$7,\\$8,\\$9,\\$10}' ${sample_id}_pooled_pseudoreps_idr | sort | uniq | sort -k7n,7n | gzip -nc > ${sample_id}_pooled_pseudoreps.IDR0.05.narrowPeak.gz\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "SIDR"
+        ],
+        "tools_url": [
+            "https://bio.tools/sidr"
+        ],
+        "tools_dico": [
+            {
+                "name": "SIDR",
+                "uri": "https://bio.tools/sidr",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tool to filter Next Generation Sequencing (NGS) data based on a chosen target organism. It uses data fron BLAST (or similar classifiers) to train a Decision Tree model to classify sequence data as either belonging to the target organism, or belonging to something else. This classification can be used to filter the data for later assembly.",
+                "homepage": "https://sidr.readthedocs.io/en/latest/"
+            }
+        ],
+        "inputs": [
+            "ch_peak_pooled_pseudoreps",
+            "ch_peak_pooled_pseudo"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_idr_pooled_pseudoreps"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [
+            "publishDir \"${params.outdir}/${sample_id}/idr/pooled_pseudoreps\", mode: 'copy', pattern: '*.narrowPeak.gz'"
+        ],
+        "when": "!params.skip_idr",
+        "stub": ""
+    },
+    "QC": {
+        "name_process": "QC",
+        "string_process": "\nprocess QC {\n    publishDir \"${params.outdir}/${sample_id}/idr/optimal_set\", mode: 'copy', pattern: '*.narrowPeak.gz'\n    publishDir \"${params.outdir}/${sample_id}/idr/QC\", mode: 'copy', pattern: '*.txt'\n\n    when:\n    !params.skip_idr\n\n    input:\n    set val(sample_id), path(idr_tr) from ch_idr_truereps\n    set val(sample_id), path(idr_ppr) from ch_idr_pooled_pseudoreps\n    set val(sample_id), path(idr_spr1),path(idr_spr2) from ch_idr_self_pseudoreps\n\n\n    output:\n    tuple val(sample_id), path(\"${sample_id}_optimal_set.IDR0.05.narrowPeak.gz\")  into ch_optimal_set\n    path(\"${sample_id}_idr_QC.txt\")  into ch_qc\n\n\n    script:\n    \"\"\"\n    #!/usr/bin/env python\n\n    import pandas as pd\n\n    # Read peak files\n    idr_tr = pd.read_csv('${idr_tr}', compression='gzip', header=None,sep='\\t')\n    idr_ppr = pd.read_csv('${idr_ppr}', compression='gzip', header=None,sep='\\t')\n    idr_spr1 = pd.read_csv('${idr_spr1}', compression='gzip', header=None,sep='\\t')\n    idr_spr2 = pd.read_csv('${idr_spr2}', compression='gzip', header=None,sep='\\t')\n\n    # Number of peaks\n    Nt = idr_tr.shape[0]\n    Np = idr_ppr.shape[0]\n    N1 = idr_spr1.shape[0]\n    N2 = idr_spr2.shape[0]\n\n    # QC\n    Rescue_ratio = max(Np,Nt) / min(Np,Nt)\n    Self_consistency_ratio = max(N1,N2) / min(N1,N2)\n    qc = pd.DataFrame([['Nt', round(Nt)], ['Np', Np], ['N1', N1], ['N2', N2],['Rescue Ratio', Rescue_ratio], ['Self-consistency Ratio', Self_consistency_ratio]] )\n    qc.to_csv(\"${sample_id}_idr_QC.txt\", index=False, sep='\\t',header=False )\n\n    if Nt > Np:\n        Optimal_set = idr_tr\n    else:\n        Optimal_set = idr_ppr\n\n    Optimal_set.to_csv(\"${sample_id}_optimal_set.IDR0.05.narrowPeak.gz\", index=False, sep='\\t', header=False, compression='gzip')\n    \"\"\"\n}",
+        "nb_lignes_process": 49,
+        "string_script": "    \"\"\"\n    #!/usr/bin/env python\n\n    import pandas as pd\n\n    # Read peak files\n    idr_tr = pd.read_csv('${idr_tr}', compression='gzip', header=None,sep='\\t')\n    idr_ppr = pd.read_csv('${idr_ppr}', compression='gzip', header=None,sep='\\t')\n    idr_spr1 = pd.read_csv('${idr_spr1}', compression='gzip', header=None,sep='\\t')\n    idr_spr2 = pd.read_csv('${idr_spr2}', compression='gzip', header=None,sep='\\t')\n\n    # Number of peaks\n    Nt = idr_tr.shape[0]\n    Np = idr_ppr.shape[0]\n    N1 = idr_spr1.shape[0]\n    N2 = idr_spr2.shape[0]\n\n    # QC\n    Rescue_ratio = max(Np,Nt) / min(Np,Nt)\n    Self_consistency_ratio = max(N1,N2) / min(N1,N2)\n    qc = pd.DataFrame([['Nt', round(Nt)], ['Np', Np], ['N1', N1], ['N2', N2],['Rescue Ratio', Rescue_ratio], ['Self-consistency Ratio', Self_consistency_ratio]] )\n    qc.to_csv(\"${sample_id}_idr_QC.txt\", index=False, sep='\\t',header=False )\n\n    if Nt > Np:\n        Optimal_set = idr_tr\n    else:\n        Optimal_set = idr_ppr\n\n    Optimal_set.to_csv(\"${sample_id}_optimal_set.IDR0.05.narrowPeak.gz\", index=False, sep='\\t', header=False, compression='gzip')\n    \"\"\"",
+        "nb_lignes_script": 29,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_idr_truereps",
+            "ch_idr_pooled_pseudoreps",
+            "ch_idr_self_pseudoreps"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_optimal_set",
+            "ch_qc"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "Tingvall__macs2_idr",
+        "directive": [
+            "publishDir \"${params.outdir}/${sample_id}/idr/optimal_set\", mode: 'copy', pattern: '*.narrowPeak.gz'",
+            "publishDir \"${params.outdir}/${sample_id}/idr/QC\", mode: 'copy', pattern: '*.txt'"
+        ],
+        "when": "!params.skip_idr",
+        "stub": ""
+    }
+}

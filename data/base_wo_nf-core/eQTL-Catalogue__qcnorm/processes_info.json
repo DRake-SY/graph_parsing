@@ -1,0 +1,536 @@
+{
+    "build_qc_report": {
+        "name_process": "build_qc_report",
+        "string_process": "\nprocess build_qc_report{\n    publishDir \"${params.outdir}/${params.study_name}/QC\", mode: 'copy'\n    \n    container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'\n    \n    input:\n    path script_path\n    path ge_count_matrix\n    path sample_metadata\n    path pheno_metadata\n    path pop_assign_projections\n    \n    output:\n    path \"*.html\"\n    path \"*.rds\"\n    path \"*matrix.tsv\"\n\n    script:\n    mbv_path = params.is_microarray || !params.mbv_path ? \"\" : \"mbv_files_dir = \\\"${params.mbv_path}\\\",\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"eqtl_utils_path = \\\"${params.eqtl_utils_path}\\\",\" : \"\"\n    \"\"\"\n    #!/usr/bin/env Rscript\n\n    work_dir = getwd()\n\n    rmarkdown::render(\n    input = \"$script_path\", \n    output_dir = work_dir,\n    output_file = \"${params.study_name}_QC_report.html\",\n    params = list(\n        work_dir = work_dir,\n        set_title = \"${params.study_name} QC report\", \n        set_author = \"${params.author_name}\",\n        count_matrix_path = \"$ge_count_matrix\",\n        sample_meta_path = \"$sample_metadata\",\n        phenotype_meta_path = \"$pheno_metadata\", $mbv_path $eqtl_utils_path\n        projections = \"$pop_assign_projections\"))\n    \"\"\"\n    \n}",
+        "nb_lignes_process": 39,
+        "string_script": "    mbv_path = params.is_microarray || !params.mbv_path ? \"\" : \"mbv_files_dir = \\\"${params.mbv_path}\\\",\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"eqtl_utils_path = \\\"${params.eqtl_utils_path}\\\",\" : \"\"\n    \"\"\"\n    #!/usr/bin/env Rscript\n\n    work_dir = getwd()\n\n    rmarkdown::render(\n    input = \"$script_path\", \n    output_dir = work_dir,\n    output_file = \"${params.study_name}_QC_report.html\",\n    params = list(\n        work_dir = work_dir,\n        set_title = \"${params.study_name} QC report\", \n        set_author = \"${params.author_name}\",\n        count_matrix_path = \"$ge_count_matrix\",\n        sample_meta_path = \"$sample_metadata\",\n        phenotype_meta_path = \"$pheno_metadata\", $mbv_path $eqtl_utils_path\n        projections = \"$pop_assign_projections\"))\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "script_path",
+            "ge_count_matrix",
+            "sample_metadata",
+            "pheno_metadata",
+            "pop_assign_projections"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.study_name}/QC\", mode: 'copy'",
+            "container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "refVCFtoBED": {
+        "name_process": "refVCFtoBED",
+        "string_process": "\nprocess refVCFtoBED{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n    \n    input:\n    path \"ref.vcf.gz\"\n\n    output:\n    tuple path('ref.bed'), path('ref.bim'), path('ref.fam')\n\n    script:\n    \"\"\"\n    # do ld pruning and save resulted snps in file  \n    plink2 --vcf ref.vcf.gz --vcf-half-call h --indep-pairwise 50000 200 0.05 --out ref_pruned_varaints_list --threads ${task.cpus}\n\n    # make bfiles for pruned 1000 genome proj \n    plink2 --vcf ref.vcf.gz --vcf-half-call h --extract ref_pruned_varaints_list.prune.in --make-bed --out ref\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    # do ld pruning and save resulted snps in file  \n    plink2 --vcf ref.vcf.gz --vcf-half-call h --indep-pairwise 50000 200 0.05 --out ref_pruned_varaints_list --threads ${task.cpus}\n\n    # make bfiles for pruned 1000 genome proj \n    plink2 --vcf ref.vcf.gz --vcf-half-call h --extract ref_pruned_varaints_list.prune.in --make-bed --out ref\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "removeFamilyFromRef": {
+        "name_process": "removeFamilyFromRef",
+        "string_process": "\nprocess removeFamilyFromRef{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n\n    input:\n    tuple path('ref.bed'), path('ref.bim'), path('ref.fam')\n    path 'ids_to_remove.txt' \n\n    output:\n    tuple path('ref_no_dubl.bed'), path('ref_no_dubl.bim'), path('ref_no_dubl.fam')\n\n    script:\n    \"\"\"\n    plink2 --bfile ref --remove-fam ids_to_remove.txt --make-bed --out ref_clean\n\n    # finds dublicate vars\n    plink2 --bfile ref_clean --list-duplicate-vars --out dubl\n\n    # delete dublicate vars\n    plink2 --bfile ref_clean --exclude dubl.dupvar --snps-only --make-bed --out ref_no_dubl\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    plink2 --bfile ref --remove-fam ids_to_remove.txt --make-bed --out ref_clean\n\n    # finds dublicate vars\n    plink2 --bfile ref_clean --list-duplicate-vars --out dubl\n\n    # delete dublicate vars\n    plink2 --bfile ref_clean --exclude dubl.dupvar --snps-only --make-bed --out ref_no_dubl\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "removeDublFromRef": {
+        "name_process": "removeDublFromRef",
+        "string_process": "\nprocess removeDublFromRef{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n\n    input:\n    tuple path('ref.bed'), path('ref.bim'), path('ref.fam')\n  \n    output:\n    tuple path('ref_no_dubl.bed'), path('ref_no_dubl.bim'), path('ref_no_dubl.fam')\n\n    script:\n    \"\"\"\n    # finds dublicate vars\n    plink2 --bfile ref --list-duplicate-vars --out dubl\n    \n    # delete dublicate vars\n    plink2 --bfile ref --exclude dubl.dupvar --snps-only --make-bed --out ref_no_dubl\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    # finds dublicate vars\n    plink2 --bfile ref --list-duplicate-vars --out dubl\n    \n    # delete dublicate vars\n    plink2 --bfile ref --exclude dubl.dupvar --snps-only --make-bed --out ref_no_dubl\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "getSNPsFromRef": {
+        "name_process": "getSNPsFromRef",
+        "string_process": "\nprocess getSNPsFromRef{\n    storeDir \"$baseDir/reference_vcf_cache/\"\n\n    input: \n    tuple path('ref_no_dubl.bed'), path('ref_no_dubl.bim'), path('ref_no_dubl.fam')\n\n    output:\n    path 'ref_snps_list.snplist', emit: ref_snps_list\n\n    script:\n    \"\"\"\n    plink2 --bfile ref_no_dubl --write-snplist --out ref_snps_list --snps-only\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    plink2 --bfile ref_no_dubl --write-snplist --out ref_snps_list --snps-only\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "storeDir \"$baseDir/reference_vcf_cache/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sampleVCftoBED": {
+        "name_process": "sampleVCftoBED",
+        "string_process": "\nprocess sampleVCftoBED{\n    input:\n    path 'sample.vcf.gz'\n\n    output:\n    tuple path('sample_genotype.bed'), path('sample_genotype.bim'), path('sample_genotype.fam'), emit: sample_bed\n    path 'sample_list.txt', emit: relatedness_sample_list\n\n    script:\n    \"\"\"\n    #Convert VCF to plink\n    plink2 --vcf sample.vcf.gz --out sample_genotype --threads ${task.cpus} --const-fid --vcf-half-call missing\n    plink2 --bfile sample_genotype --list-duplicate-vars --out list_dubl\n    plink2 --bfile sample_genotype --exclude list_dubl.dupvar --snps-only --make-bed --out sample_genotype\n\n    #Extract sample ids\n    bcftools query -l sample.vcf.gz > sample_list.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    #Convert VCF to plink\n    plink2 --vcf sample.vcf.gz --out sample_genotype --threads ${task.cpus} --const-fid --vcf-half-call missing\n    plink2 --bfile sample_genotype --list-duplicate-vars --out list_dubl\n    plink2 --bfile sample_genotype --exclude list_dubl.dupvar --snps-only --make-bed --out sample_genotype\n\n    #Extract sample ids\n    bcftools query -l sample.vcf.gz > sample_list.txt\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calculateRelatednessMatrix": {
+        "name_process": "calculateRelatednessMatrix",
+        "string_process": "\nprocess calculateRelatednessMatrix{\n    publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'\n\n    input:\n    tuple path('sample_genotype.bed'), path('sample_genotype.bim'), path('sample_genotype.fam')\n    path 'sample_list.txt'\n\n    output:\n    path \"relatedness_matrix.tsv\"\n\n    script:\n    \"\"\"\n    #Filter low MAF and low HWE snps\n    plink2 --bfile sample_genotype --maf 0.05 --hwe 1e-6 --hwe-all --make-bed --out binary_filtered\n\n    #Perform LD pruning\n    plink2 --bfile binary_filtered --indep-pairwise 250 50 0.2 --out pruned_genotypes\n\n    #Make pruned plink file \n    plink2 --bfile binary_filtered --extract pruned_genotypes.prune.in --make-bed --out binary_pruned\n\n    #Calculate relatedness\n    plink2 --make-rel square --bfile binary_pruned\n\n    #Format relatedness matrix\n    Rscript $baseDir/bin/pop_assign/format_kinship.R \\\\\n        --kinship plink.rel \\\\\n        --fam sample_list.txt \\\\\n        --out relatedness_matrix.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    \"\"\"\n    #Filter low MAF and low HWE snps\n    plink2 --bfile sample_genotype --maf 0.05 --hwe 1e-6 --hwe-all --make-bed --out binary_filtered\n\n    #Perform LD pruning\n    plink2 --bfile binary_filtered --indep-pairwise 250 50 0.2 --out pruned_genotypes\n\n    #Make pruned plink file \n    plink2 --bfile binary_filtered --extract pruned_genotypes.prune.in --make-bed --out binary_pruned\n\n    #Calculate relatedness\n    plink2 --make-rel square --bfile binary_pruned\n\n    #Format relatedness matrix\n    Rscript $baseDir/bin/pop_assign/format_kinship.R \\\\\n        --kinship plink.rel \\\\\n        --fam sample_list.txt \\\\\n        --out relatedness_matrix.tsv\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extractSharedSNPsFromSampleGen": {
+        "name_process": "extractSharedSNPsFromSampleGen",
+        "string_process": "\nprocess extractSharedSNPsFromSampleGen{\n    input:\n    tuple path ('sample_genotype.bed'), path('sample_genotype.bim'), path('sample_genotype.fam')\n    path 'ref_snps_list.snplist'\n\n    output:\n    tuple path('sample_gen_overlapped.bed'), path('sample_gen_overlapped.bim'), path('sample_gen_overlapped.fam'), emit: sample_gen_overlapped\n    path 'overlapped_snps.snplist', emit: sample_gen_overlapped_snplist\n\n                                                           \n                                            \n    script:\n    \"\"\"\n    plink2 --bfile sample_genotype --extract ref_snps_list.snplist --make-bed --out sample_gen_overlapped\n    plink2 --bfile sample_gen_overlapped --write-snplist --out overlapped_snps\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    plink2 --bfile sample_genotype --extract ref_snps_list.snplist --make-bed --out sample_gen_overlapped\n    plink2 --bfile sample_gen_overlapped --write-snplist --out overlapped_snps\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "extractSharedSNPsFromRefGen": {
+        "name_process": "extractSharedSNPsFromRefGen",
+        "string_process": "\nprocess extractSharedSNPsFromRefGen {\n    input:\n    tuple path('ref.bed'), path('ref.bim'), path('ref.fam')\n    path 'overlapped_snps.snplist'\n\n    output:\n    tuple path('ref_overlapped.bed'), path('ref_overlapped.bim'), path('ref_overlapped.fam'), emit: ref_overlapped\n\n    script:\n    \"\"\"\n    plink2 --bfile ref --extract overlapped_snps.snplist --make-bed --out ref_overlapped\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "    \"\"\"\n    plink2 --bfile ref --extract overlapped_snps.snplist --make-bed --out ref_overlapped\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calcKinsMatrices": {
+        "name_process": "calcKinsMatrices",
+        "string_process": "\nprocess calcKinsMatrices{\n    input:\n    tuple path('ref_overlapped.bed'), path('ref_overlapped.bim'), path('ref_overlapped.fam')\n\n    output:\n    tuple path(\"ref_overlapped_kins.grm.bin\"), path(\"ref_overlapped_kins.grm.id\"), path(\"ref_overlapped_kins.grm.adjust\"), path(\"ref_overlapped_kins.grm.details\"), emit: ref_overlapped_kins\n    \n    script:\n    \"\"\"\n    ldak --calc-kins-direct ref_overlapped_kins --bfile ref_overlapped --ignore-weights YES --power -0.25\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "    \"\"\"\n    ldak --calc-kins-direct ref_overlapped_kins --bfile ref_overlapped --ignore-weights YES --power -0.25\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "calcRefPcaAndLoads": {
+        "name_process": "calcRefPcaAndLoads",
+        "string_process": "\nprocess calcRefPcaAndLoads{\n    publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'\n\n    input:\n    tuple path(\"ref_overlapped_kins.grm.bin\"), path(\"ref_overlapped_kins.grm.id\"), path(\"ref_overlapped_kins.grm.adjust\"), path(\"ref_overlapped_kins.grm.details\")\n    tuple path('ref_overlapped.bed'), path('ref_overlapped.bim'), path('ref_overlapped.fam')\n\n    output:\n    path 'ref_overlapped_loads.load', emit: ref_overlapped_loads\n    path 'ref_overlapped_pca.vect', emit: ref_overlapped_pca\n     \n    script: \n    \"\"\"\n    ldak --pca ref_overlapped_pca --grm ref_overlapped_kins --axes ${params.num_pc}\n    ldak --calc-pca-loads ref_overlapped_loads --grm ref_overlapped_kins --pcastem ref_overlapped_pca --bfile ref_overlapped\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    ldak --pca ref_overlapped_pca --grm ref_overlapped_kins --axes ${params.num_pc}\n    ldak --calc-pca-loads ref_overlapped_loads --grm ref_overlapped_kins --pcastem ref_overlapped_pca --bfile ref_overlapped\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mapSampleGenToRef": {
+        "name_process": "mapSampleGenToRef",
+        "string_process": "\nprocess mapSampleGenToRef{\n    publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'\n    \n    input:\n    tuple path('sample_gen_overlapped.bed'), path('sample_gen_overlapped.bim'), path('sample_gen_overlapped.fam')\n    path 'ref_overlapped_loads.load'\n\n    output:\n    path 'sample_gen_scores.profile.adj', emit: sample_gen_scores\n\n    script:\n    \"\"\"\n    ldak --calc-scores sample_gen_scores --bfile sample_gen_overlapped --scorefile ref_overlapped_loads.load --power 0\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    ldak --calc-scores sample_gen_scores --bfile sample_gen_overlapped --scorefile ref_overlapped_loads.load --power 0\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "plotPCA": {
+        "name_process": "plotPCA",
+        "string_process": "\nprocess plotPCA{\n    publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'\n    \n    input:\n    path 'sample_gen_scores.profile.adj'\n    path 'ref_overlapped_pca.vect'\n    path 'samples_data.tsv'\n\n    output:\n    path 'plots/*'\n    path 'populations.tsv'\n    path 'projections_comb.tsv', emit: pop_assign_projections_ch\n    path \"pop_assigned_abs_*\"\n\n    script:\n    \"\"\"\n    Rscript $baseDir/bin/pop_assign/plot_pca.R ref_overlapped_pca.vect sample_gen_scores.profile.adj samples_data.tsv ${params.study_name}\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    Rscript $baseDir/bin/pop_assign/plot_pca.R ref_overlapped_pca.vect sample_gen_scores.profile.adj samples_data.tsv ${params.study_name}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.outdir}/${params.study_name}/pop_assign\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalise_microarray": {
+        "name_process": "normalise_microarray",
+        "string_process": "\nprocess normalise_microarray{\n    publishDir \"${params.publishDir}/microarray\", mode: 'copy'\n    \n    label 'process_medium'\n    container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'\n    \n    input:\n    path count_matrix\n    path sample_metadata\n    path pheno_metadata\n    \n    output:\n    path \"qtl_group_split_norm/*\", emit: qtlmap_tsv_input_ch\n\n    script:\n    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q HumanHT-12_V4\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q HumanHT-12_V4\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_matrix",
+            "sample_metadata",
+            "pheno_metadata"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.publishDir}/microarray\", mode: 'copy'",
+            "label 'process_medium'",
+            "container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalise_RNAseq_ge": {
+        "name_process": "normalise_RNAseq_ge",
+        "string_process": "\nprocess normalise_RNAseq_ge{\n    publishDir \"${params.publishDir}/ge\", mode: 'copy',\n        saveAs: {filename -> filename.indexOf(\"_tpm.tsv.gz\") > 0 ? \"../$filename\" : \"$filename\"}\n\n    container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'\n    \n    input:\n    path count_matrix\n    path sample_metadata\n    path pheno_metadata\n    \n    output:\n    path \"norm_not_filtered/*\"\n    path \"*_95quantile_tpm.tsv.gz\", emit: quantile_tpm_file\n    path \"*_median_tpm.tsv.gz\", emit: median_tpm_file\n    path \"qtl_group_split_norm/*\", emit: qtlmap_tsv_input_ch\n    path \"qtl_group_split_norm_anonym/*\"\n\n    script:\n    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q gene_counts\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q gene_counts\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_matrix",
+            "sample_metadata",
+            "pheno_metadata"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.publishDir}/ge\", mode: 'copy' , saveAs: {filename -> filename.indexOf(\"_tpm.tsv.gz\") > 0 ? \"../$filename\" : \"$filename\"}",
+            "container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalise_RNAseq_exon": {
+        "name_process": "normalise_RNAseq_exon",
+        "string_process": "\nprocess normalise_RNAseq_exon{\n    publishDir \"${params.publishDir}/exon\", mode: 'copy'\n    \n    container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'\n    \n    input:\n    path count_matrix\n    path sample_metadata\n    path pheno_metadata\n    path tpm_quantile\n    \n    output:\n    path \"norm_not_filtered/*\"\n    path \"qtl_group_split_norm/*\", emit: qtlmap_tsv_input_ch\n\n    script:\n    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q exon_counts\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q exon_counts\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_matrix",
+            "sample_metadata",
+            "pheno_metadata",
+            "tpm_quantile"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.publishDir}/exon\", mode: 'copy'",
+            "container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalise_RNAseq_tx": {
+        "name_process": "normalise_RNAseq_tx",
+        "string_process": "\nprocess normalise_RNAseq_tx{\n    publishDir \"${params.publishDir}/tx\", mode: 'copy'\n    \n    container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'\n    \n    input:\n    path count_matrix\n    path sample_metadata\n    path pheno_metadata\n    path tpm_quantile\n    \n    output:\n    path \"norm_not_filtered/*\"\n    path \"qtl_group_split_norm/*\", emit: qtlmap_tsv_input_ch\n\n    script:\n    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q transcript_usage\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q transcript_usage\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_matrix",
+            "sample_metadata",
+            "pheno_metadata",
+            "tpm_quantile"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.publishDir}/tx\", mode: 'copy'",
+            "container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalise_RNAseq_txrev": {
+        "name_process": "normalise_RNAseq_txrev",
+        "string_process": "\nprocess normalise_RNAseq_txrev{\n    publishDir \"${params.publishDir}/txrev\", mode: 'copy'\n    \n    container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'\n    \n    input:\n    path count_matrix\n    path sample_metadata\n    path pheno_metadata\n    path tpm_quantile\n    \n    output:\n    path \"norm_not_filtered/*\"\n    path \"qtl_group_split_norm/*\", emit: qtlmap_tsv_input_ch\n\n    script:\n    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q txrevise\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p $pheno_metadata\\\n      -o .\\\n      -q txrevise\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_matrix",
+            "sample_metadata",
+            "pheno_metadata",
+            "tpm_quantile"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.publishDir}/txrev\", mode: 'copy'",
+            "container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalise_RNAseq_leafcutter": {
+        "name_process": "normalise_RNAseq_leafcutter",
+        "string_process": "\nprocess normalise_RNAseq_leafcutter{\n    publishDir \"${params.publishDir}/leafcutter\", mode: 'copy'\n    \n    label 'process_medium'\n    container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'\n    \n    input:\n    path count_matrix\n    path sample_metadata\n    path transcript_meta\n    path intron_annotation\n    path tpm_quantile\n    \n    output:\n    path \"norm_not_filtered/*\"\n    path \"qtl_group_split_norm/*\", emit: qtlmap_tsv_input_ch\n    path \"leafcutter_metadata.txt.gz\"\n\n    script:\n    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    # Make leafcutter phenotype metadata file\n    Rscript $baseDir/bin/normalisation/makeLeafcutterMetadata.R\\\n      -c $count_matrix\\\n      -t $transcript_meta\\\n      -i $intron_annotation\\\n      -o leafcutter_metadata.txt.gz\\\n      $eqtl_utils_path\n\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p leafcutter_metadata.txt.gz\\\n      -o .\\\n      -q leafcutter\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"\n}",
+        "nb_lignes_process": 43,
+        "string_script": "    filter_qc = params.norm_filter_qc ? \"--filter_qc TRUE\" : \"\"\n    keep_XY = params.norm_keep_XY ? \"--keep_XY TRUE\" : \"\"\n    eqtl_utils_path = params.eqtl_utils_path ? \"--eqtlutils ${params.eqtl_utils_path}\" : \"\"\n    \"\"\"\n    # Make leafcutter phenotype metadata file\n    Rscript $baseDir/bin/normalisation/makeLeafcutterMetadata.R\\\n      -c $count_matrix\\\n      -t $transcript_meta\\\n      -i $intron_annotation\\\n      -o leafcutter_metadata.txt.gz\\\n      $eqtl_utils_path\n\n    Rscript $baseDir/bin/normalisation/normaliseCountMatrix.R\\\n      -c $count_matrix\\\n      -s $sample_metadata\\\n      -p leafcutter_metadata.txt.gz\\\n      -o .\\\n      -q leafcutter\\\n      -t $tpm_quantile\\\n      $filter_qc\\\n      $keep_XY\\\n      $eqtl_utils_path\n\n    \"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "count_matrix",
+            "sample_metadata",
+            "transcript_meta",
+            "intron_annotation",
+            "tpm_quantile"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "eQTL-Catalogue__qcnorm",
+        "directive": [
+            "publishDir \"${params.publishDir}/leafcutter\", mode: 'copy'",
+            "label 'process_medium'",
+            "container = 'quay.io/eqtlcatalogue/eqtlutils:v20.04.1'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

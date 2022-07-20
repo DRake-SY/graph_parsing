@@ -1,0 +1,946 @@
+{
+    "build_star_index": {
+        "name_process": "build_star_index",
+        "string_process": "\nprocess build_star_index {\n    tag \"star-index\"\n    label 'load_medium'\n                       \n\n    publishDir params.outdir, mode: 'copy'\n\n    input:\n        file(fasta) from ch_fasta\n        file(gtf) from ch_gtf\n\n    output:\n        file(\"star-index\") into star_index\n\n    when: !(params.star_index)\n\n    script:\n                                                             \n    def opt_test = params.debug ? \"--genomeSAindexNbases 8\" : ''\n    if(params.debug){\n      \"\"\"\n      mkdir star-index\n      \"\"\"\n    }else{\n    \"\"\"\n    mkdir star-index\n    STAR \\\\\n        --runMode genomeGenerate \\\\\n        --runThreadN ${task.cpus} \\\\\n        --sjdbGTFfile ${gtf} \\\\\n        --sjdbOverhang ${params.read_length - 1} \\\\\n        --genomeDir star-index/ \\\\\n        --genomeFastaFiles ${fasta} \\\\\n        ${opt_test}\n    \"\"\"\n  }\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    def opt_test = params.debug ? \"--genomeSAindexNbases 8\" : ''\n    if(params.debug){\n      \"\"\"\n      mkdir star-index\n      \"\"\"\n    }else{\n    \"\"\"\n    mkdir star-index\n    STAR \\\\\n        --runMode genomeGenerate \\\\\n        --runThreadN ${task.cpus} \\\\\n        --sjdbGTFfile ${gtf} \\\\\n        --sjdbOverhang ${params.read_length - 1} \\\\\n        --genomeDir star-index/ \\\\\n        --genomeFastaFiles ${fasta} \\\\\n        ${opt_test}\n    \"\"\"\n  }",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "ch_fasta",
+            "ch_gtf"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "star_index"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__nf-gene-fusions",
+        "directive": [
+            "tag \"star-index\"",
+            "label 'load_medium'",
+            "publishDir params.outdir, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "star_mapping": {
+        "name_process": "star_mapping",
+        "string_process": "\nprocess star_mapping{\n  tag \"${sample}\"\n  label 'load_low2'\n                     \n                                                  \n  publishDir \"${params.outdir}/star_mapping\", mode: 'copy', pattern: \"${sample}.{Log.final.out,ReadsPerGene.out.tab}\"\n                                                                         \n\n  input:\n      set val(sample), file(reads) from read_files_star\n      file(star_index) from ch_star_index\n  output:\n                      \n      set val(sample), file(\"${sample}_STAR.bam\") into star_bam , star_bam_sv , arriba_viz\n                                                      \n      set val(sample), file(\"${sample}.{Log.final.out,ReadsPerGene.out.tab,fastq.log}\") optional true into star_output\n                        \n\n  script:\n  if(params.debug){\n    \"\"\"\n    touch ${sample}_STAR.bam\n    touch ${sample}.Log.final.out\n    touch ${sample}.ReadsPerGene.out.tab\n    \"\"\"\n                           \n  }else if(mode==\"BAM\"){\n  \"\"\"\n  #we map the reads by picking pairs from input BAM\n  samtools collate -un 10 -o paired_${sample}.bam ${reads} tmp_${sample}\n  samtools fastq -1 paired1.fq.gz -2 paired2.fq.gz -0 /dev/null -s /dev/null paired_${sample}.bam > ${sample}.fastq.log\n  rm -f paired_${sample}.bam\n\n  STAR \\\\\n   --runThreadN ${task.cpus} \\\\\n   --genomeDir ${star_index} \\\\\n   --genomeLoad NoSharedMemory \\\\\n   --readFilesIn  paired1.fq.gz paired2.fq.gz\\\\\n   --readFilesCommand zcat \\\\\n   --outSAMtype BAM Unsorted --outSAMunmapped Within \\\\\n   --outFilterMultimapNmax 1 --outFilterMismatchNmax 3 \\\\\n   --chimSegmentMin 10 --chimOutType WithinBAM SoftClip \\\\\n   --chimJunctionOverhangMin 10 \\\\\n   --chimScoreMin 1 --chimScoreDropMax 30 \\\\\n   --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 \\\\\n   --alignSJstitchMismatchNmax 5 -1 5 5 --chimSegmentReadGapMax 3 \\\\\n   --quantMode GeneCounts \\\\\n   --outFileNamePrefix ${sample}.\n\n  #we rename the defaul star output\n  mv ${sample}.Aligned.out.bam ${sample}_STAR.bam\n  #we delete the paired reads\n  rm -f paired1.fq.gz paired2.fq.gz\n  \"\"\"\n                                   \n  }else{\n  \"\"\"\n  STAR \\\\\n   --runThreadN ${task.cpus} \\\\\n   --genomeDir ${star_index} \\\\\n   --genomeLoad NoSharedMemory \\\\\n   --readFilesIn ${reads} \\\\\n   --readFilesCommand zcat \\\\\n   --outSAMtype BAM Unsorted --outSAMunmapped Within \\\\\n   --outFilterMultimapNmax 1 --outFilterMismatchNmax 3 \\\\\n   --chimSegmentMin 10 --chimOutType WithinBAM SoftClip \\\\\n   --chimJunctionOverhangMin 10 \\\\\n   --chimScoreMin 1 --chimScoreDropMax 30 \\\\\n   --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 \\\\\n   --alignSJstitchMismatchNmax 5 -1 5 5 --chimSegmentReadGapMax 3 \\\\\n   --quantMode GeneCounts \\\\\n   --outFileNamePrefix ${sample}.\n\n  #we rename the defaul star output\n  mv ${sample}.Aligned.out.bam ${sample}_STAR.bam\n  \"\"\"\n }\n    \n                                                                                            \n                       \n                    \n                                          \n                                                                                        \n                                                                                           \n    \n}",
+        "nb_lignes_process": 85,
+        "string_script": "  if(params.debug){\n    \"\"\"\n    touch ${sample}_STAR.bam\n    touch ${sample}.Log.final.out\n    touch ${sample}.ReadsPerGene.out.tab\n    \"\"\"\n                           \n  }else if(mode==\"BAM\"){\n  \"\"\"\n  #we map the reads by picking pairs from input BAM\n  samtools collate -un 10 -o paired_${sample}.bam ${reads} tmp_${sample}\n  samtools fastq -1 paired1.fq.gz -2 paired2.fq.gz -0 /dev/null -s /dev/null paired_${sample}.bam > ${sample}.fastq.log\n  rm -f paired_${sample}.bam\n\n  STAR \\\\\n   --runThreadN ${task.cpus} \\\\\n   --genomeDir ${star_index} \\\\\n   --genomeLoad NoSharedMemory \\\\\n   --readFilesIn  paired1.fq.gz paired2.fq.gz\\\\\n   --readFilesCommand zcat \\\\\n   --outSAMtype BAM Unsorted --outSAMunmapped Within \\\\\n   --outFilterMultimapNmax 1 --outFilterMismatchNmax 3 \\\\\n   --chimSegmentMin 10 --chimOutType WithinBAM SoftClip \\\\\n   --chimJunctionOverhangMin 10 \\\\\n   --chimScoreMin 1 --chimScoreDropMax 30 \\\\\n   --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 \\\\\n   --alignSJstitchMismatchNmax 5 -1 5 5 --chimSegmentReadGapMax 3 \\\\\n   --quantMode GeneCounts \\\\\n   --outFileNamePrefix ${sample}.\n\n  #we rename the defaul star output\n  mv ${sample}.Aligned.out.bam ${sample}_STAR.bam\n  #we delete the paired reads\n  rm -f paired1.fq.gz paired2.fq.gz\n  \"\"\"\n                                   \n  }else{\n  \"\"\"\n  STAR \\\\\n   --runThreadN ${task.cpus} \\\\\n   --genomeDir ${star_index} \\\\\n   --genomeLoad NoSharedMemory \\\\\n   --readFilesIn ${reads} \\\\\n   --readFilesCommand zcat \\\\\n   --outSAMtype BAM Unsorted --outSAMunmapped Within \\\\\n   --outFilterMultimapNmax 1 --outFilterMismatchNmax 3 \\\\\n   --chimSegmentMin 10 --chimOutType WithinBAM SoftClip \\\\\n   --chimJunctionOverhangMin 10 \\\\\n   --chimScoreMin 1 --chimScoreDropMax 30 \\\\\n   --chimScoreJunctionNonGTAG 0 --chimScoreSeparation 1 \\\\\n   --alignSJstitchMismatchNmax 5 -1 5 5 --chimSegmentReadGapMax 3 \\\\\n   --quantMode GeneCounts \\\\\n   --outFileNamePrefix ${sample}.\n\n  #we rename the defaul star output\n  mv ${sample}.Aligned.out.bam ${sample}_STAR.bam\n  \"\"\"\n }",
+        "nb_lignes_script": 57,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools",
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools",
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "read_files_star",
+            "ch_star_index"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "star_bam",
+            "star_bam_sv",
+            "arriba_viz",
+            "star_output"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "IARCbioinfo__nf-gene-fusions",
+        "directive": [
+            "tag \"${sample}\"",
+            "label 'load_low2'",
+            "publishDir \"${params.outdir}/star_mapping\", mode: 'copy', pattern: \"${sample}.{Log.final.out,ReadsPerGene.out.tab}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "arriba_sv": {
+        "name_process": "arriba_sv",
+        "string_process": "\nprocess arriba_sv {\n    tag \"${sample}-arriba_sv\"\n    label 'load_low1'\n\n    publishDir \"${params.outdir}/arriba/\", mode: 'copy'\n\n    input:\n        set sample, file(bam), file(vcf) from star_bam_sv\n        file(arriba_lib) from arriba.lib\n        file(fasta) from ch_fasta\n        file(gtf) from ch_gtf\n\n    output:\n        set val(sample), file(\"${sample}_arriba_sv.tsv\") optional true into arriba_tsv_sv\n        file(\"*.{tsv,txt,log}\") into arriba_output_sv\n                                               \n    when: params.svs != null\n\n    script:\n    def extra_params = params.arriba_opt ? params.arriba_opt : ''\n    if(params.debug){\n      \"\"\"\n      echo arriba \\\\\n          -x ${bam} \\\\\n          -a ${fasta} \\\\\n          -g ${gtf} \\\\\n          -d ${vcf} \\\\\n          -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n          -o ${sample}_arriba_sv.tsv -O ${sample}_discarded_arriba.tsv \\\\\n          ${extra_params}\n          touch ${sample}_arriba_sv.tsv\n      \"\"\"\n    }else{\n    \"\"\"\n    arriba \\\\\n        -x ${bam} \\\\\n        -a ${fasta} \\\\\n        -g ${gtf} \\\\\n        -d ${vcf} \\\\\n        -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n        -o ${sample}_arriba_sv.tsv -O ${sample}_discarded_arriba.tsv \\\\\n        ${extra_params}  > ${sample}_arriba.log\n    \"\"\"\n  }\n}",
+        "nb_lignes_process": 44,
+        "string_script": "    def extra_params = params.arriba_opt ? params.arriba_opt : ''\n    if(params.debug){\n      \"\"\"\n      echo arriba \\\\\n          -x ${bam} \\\\\n          -a ${fasta} \\\\\n          -g ${gtf} \\\\\n          -d ${vcf} \\\\\n          -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n          -o ${sample}_arriba_sv.tsv -O ${sample}_discarded_arriba.tsv \\\\\n          ${extra_params}\n          touch ${sample}_arriba_sv.tsv\n      \"\"\"\n    }else{\n    \"\"\"\n    arriba \\\\\n        -x ${bam} \\\\\n        -a ${fasta} \\\\\n        -g ${gtf} \\\\\n        -d ${vcf} \\\\\n        -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n        -o ${sample}_arriba_sv.tsv -O ${sample}_discarded_arriba.tsv \\\\\n        ${extra_params}  > ${sample}_arriba.log\n    \"\"\"\n  }",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [
+            "Arriba"
+        ],
+        "tools_url": [
+            "https://bio.tools/Arriba"
+        ],
+        "tools_dico": [
+            {
+                "name": "Arriba",
+                "uri": "https://bio.tools/Arriba",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3320",
+                            "term": "RNA splicing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Genomic structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "DNA structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3320",
+                            "term": "Alternative splicing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3199",
+                                    "term": "Split read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3199",
+                                    "term": "Split-read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation discovery"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3495",
+                                "term": "RNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Arriba is a command-line tool to detect gene fusions from RNA-Seq data based on the STAR aligner. In addition to fusions, it can detect exon duplications/inversions and truncations of genes (i.e., breakpoints in introns and intergenic regions). Arriba is the winner of the DREAM SMC-RNA Challenge.",
+                "homepage": "https://github.com/suhrig/arriba/"
+            }
+        ],
+        "inputs": [
+            "star_bam_sv",
+            "arriba",
+            "ch_fasta",
+            "ch_gtf"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "arriba_tsv_sv",
+            "arriba_output_sv"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__nf-gene-fusions",
+        "directive": [
+            "tag \"${sample}-arriba_sv\"",
+            "label 'load_low1'",
+            "publishDir \"${params.outdir}/arriba/\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "arriba": {
+        "name_process": "arriba",
+        "string_process": "\nprocess arriba {\n    tag \"${sample}-arriba\"\n    label 'load_low1'\n\n    publishDir \"${params.outdir}/arriba/\", mode: 'copy'\n\n    input:\n        set sample, file(bam) from star_bam\n        file(arriba_lib) from arriba.lib\n        file(fasta) from ch_fasta\n        file(gtf) from ch_gtf\n\n    output:\n        set val(sample), file(\"${sample}_arriba.tsv\") optional true into arriba_tsv\n        file(\"*.{tsv,txt,log}\") into arriba_output\n                                               \n    when: params.svs == null\n\n    script:\n    def extra_params = params.arriba_opt ? params.arriba_opt : ''\n\n    if(params.debug){\n    \"\"\"\n    echo arriba \\\\\n        -x ${bam} \\\\\n        -a ${fasta} \\\\\n        -g ${gtf} \\\\\n        -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n        -o ${sample}_arriba.tsv -O ${sample}_discarded_arriba.tsv \\\\\n        ${extra_params}\n      touch ${sample}_arriba.tsv\n    \"\"\"\n   }else{\n     \"\"\"\n     arriba \\\\\n         -x ${bam} \\\\\n         -a ${fasta} \\\\\n         -g ${gtf} \\\\\n         -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n         -o ${sample}_arriba.tsv -O ${sample}_discarded_arriba.tsv \\\\\n         ${extra_params}  > ${sample}_arriba.log\n    \"\"\"\n   }\n}",
+        "nb_lignes_process": 43,
+        "string_script": "    def extra_params = params.arriba_opt ? params.arriba_opt : ''\n\n    if(params.debug){\n    \"\"\"\n    echo arriba \\\\\n        -x ${bam} \\\\\n        -a ${fasta} \\\\\n        -g ${gtf} \\\\\n        -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n        -o ${sample}_arriba.tsv -O ${sample}_discarded_arriba.tsv \\\\\n        ${extra_params}\n      touch ${sample}_arriba.tsv\n    \"\"\"\n   }else{\n     \"\"\"\n     arriba \\\\\n         -x ${bam} \\\\\n         -a ${fasta} \\\\\n         -g ${gtf} \\\\\n         -b ${arriba_lib}/blacklist_hg38_GRCh38_v2.1.0.tsv.gz \\\\\n         -o ${sample}_arriba.tsv -O ${sample}_discarded_arriba.tsv \\\\\n         ${extra_params}  > ${sample}_arriba.log\n    \"\"\"\n   }",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [
+            "Arriba"
+        ],
+        "tools_url": [
+            "https://bio.tools/Arriba"
+        ],
+        "tools_dico": [
+            {
+                "name": "Arriba",
+                "uri": "https://bio.tools/Arriba",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3320",
+                            "term": "RNA splicing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Genomic structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "DNA structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3320",
+                            "term": "Alternative splicing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3199",
+                                    "term": "Split read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3199",
+                                    "term": "Split-read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation discovery"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3495",
+                                "term": "RNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Arriba is a command-line tool to detect gene fusions from RNA-Seq data based on the STAR aligner. In addition to fusions, it can detect exon duplications/inversions and truncations of genes (i.e., breakpoints in introns and intergenic regions). Arriba is the winner of the DREAM SMC-RNA Challenge.",
+                "homepage": "https://github.com/suhrig/arriba/"
+            }
+        ],
+        "inputs": [
+            "star_bam",
+            "arriba",
+            "ch_fasta",
+            "ch_gtf"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "arriba_tsv",
+            "arriba_output"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__nf-gene-fusions",
+        "directive": [
+            "tag \"${sample}-arriba\"",
+            "label 'load_low1'",
+            "publishDir \"${params.outdir}/arriba/\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "arriba_visualization": {
+        "name_process": "arriba_visualization",
+        "string_process": "\nprocess arriba_visualization {\n    tag \"${sample}-plot-fusion\"\n    label 'load_low1'\n\n    publishDir \"${params.outdir}/arriba/plot\", mode: 'copy'\n\n    input:\n        file(arriba_lib) from arriba.lib\n        file(gtf) from ch_gtf\n        set sample, file(bam), file(fusions) from plot_arriba\n    output:\n        file(\"${sample}.pdf\") optional true into arriba_visualization_output\n\n    when: params.arriba_plot\n\n    script:\n                                                                   \n    def opt_test = params.debug ? \"\" : \"--cytobands=${arriba_lib}/cytobands_hg38_GRCh38_v2.1.0.tsv --proteinDomains=${arriba_lib}/protein_domains_hg38_GRCh38_v2.1.0.gff3\"\n    if(params.debug){\n                                                          \n      \"\"\"\n      echo samtools sort -@ ${task.cpus} -O bam ${bam} > Aligned.sortedByCoord.out.bam\n      echo samtools index Aligned.sortedByCoord.out.bam\n      echo draw_fusions.R \\\\\n          --fusions=${fusions} \\\\\n          --alignments=Aligned.sortedByCoord.out.bam \\\\\n          --output=${sample}.pdf \\\\\n          --annotation=${gtf} \\\\\n          ${opt_test}\n        touch ${sample}.pdf\n\n      \"\"\"\n  }else{\n    \"\"\"\n    samtools sort -@ ${task.cpus} -O bam ${bam} > Aligned.sortedByCoord.out.bam\n    samtools index Aligned.sortedByCoord.out.bam\n    draw_fusions.R \\\\\n        --fusions=${fusions} \\\\\n        --alignments=Aligned.sortedByCoord.out.bam \\\\\n        --output=${sample}.pdf \\\\\n        --annotation=${gtf} \\\\\n        ${opt_test}\n    #we remove the tmp files\n    rm -f Aligned.sortedByCoord.out.bam\n    rm -f Aligned.sortedByCoord.out.bam.bai\n    \"\"\"\n  }\n}",
+        "nb_lignes_process": 47,
+        "string_script": "    def opt_test = params.debug ? \"\" : \"--cytobands=${arriba_lib}/cytobands_hg38_GRCh38_v2.1.0.tsv --proteinDomains=${arriba_lib}/protein_domains_hg38_GRCh38_v2.1.0.gff3\"\n    if(params.debug){\n                                                          \n      \"\"\"\n      echo samtools sort -@ ${task.cpus} -O bam ${bam} > Aligned.sortedByCoord.out.bam\n      echo samtools index Aligned.sortedByCoord.out.bam\n      echo draw_fusions.R \\\\\n          --fusions=${fusions} \\\\\n          --alignments=Aligned.sortedByCoord.out.bam \\\\\n          --output=${sample}.pdf \\\\\n          --annotation=${gtf} \\\\\n          ${opt_test}\n        touch ${sample}.pdf\n\n      \"\"\"\n  }else{\n    \"\"\"\n    samtools sort -@ ${task.cpus} -O bam ${bam} > Aligned.sortedByCoord.out.bam\n    samtools index Aligned.sortedByCoord.out.bam\n    draw_fusions.R \\\\\n        --fusions=${fusions} \\\\\n        --alignments=Aligned.sortedByCoord.out.bam \\\\\n        --output=${sample}.pdf \\\\\n        --annotation=${gtf} \\\\\n        ${opt_test}\n    #we remove the tmp files\n    rm -f Aligned.sortedByCoord.out.bam\n    rm -f Aligned.sortedByCoord.out.bam.bai\n    \"\"\"\n  }",
+        "nb_lignes_script": 29,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "arriba",
+            "ch_gtf",
+            "plot_arriba"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "arriba_visualization_output"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__nf-gene-fusions",
+        "directive": [
+            "tag \"${sample}-plot-fusion\"",
+            "label 'load_low1'",
+            "publishDir \"${params.outdir}/arriba/plot\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "splitSequences": {
+        "name_process": "splitSequences",
+        "string_process": "\nprocess splitSequences {\n\n    input:\n    path 'input.fa' from params.in\n\n    output:\n    path 'seq_*' into records\n\n    \"\"\"\n    awk '/^>/{f=\"seq_\"++d} {print > f}' < input.fa\n    arriba --version\n    star --version\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    awk '/^>/{f=\"seq_\"++d} {print > f}' < input.fa\n    arriba --version\n    star --version\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "Arriba",
+            "STAR"
+        ],
+        "tools_url": [
+            "https://bio.tools/Arriba",
+            "https://bio.tools/star"
+        ],
+        "tools_dico": [
+            {
+                "name": "Arriba",
+                "uri": "https://bio.tools/Arriba",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3320",
+                            "term": "RNA splicing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "Genomic structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3175",
+                            "term": "DNA structural variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3320",
+                            "term": "Alternative splicing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3199",
+                                    "term": "Split read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3199",
+                                    "term": "Split-read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3228",
+                                    "term": "Structural variation discovery"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3495",
+                                "term": "RNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Arriba is a command-line tool to detect gene fusions from RNA-Seq data based on the STAR aligner. In addition to fusions, it can detect exon duplications/inversions and truncations of genes (i.e., breakpoints in introns and intergenic regions). Arriba is the winner of the DREAM SMC-RNA Challenge.",
+                "homepage": "https://github.com/suhrig/arriba/"
+            },
+            {
+                "name": "STAR",
+                "uri": "https://bio.tools/star",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Ultrafast universal RNA-seq aligner",
+                "homepage": "http://code.google.com/p/rna-star/"
+            }
+        ],
+        "inputs": [
+            "params"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "records"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__nf-gene-fusions",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "reverse": {
+        "name_process": "reverse",
+        "string_process": "\nprocess reverse {\n\n    input:\n    path x from records\n\n    output:\n    stdout into result\n\n    \"\"\"\n    cat $x | rev\n    \"\"\"\n}",
+        "nb_lignes_process": 11,
+        "string_script": "\"\"\"\n    cat $x | rev\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "records"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "result"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__nf-gene-fusions",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

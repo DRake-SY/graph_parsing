@@ -1,0 +1,1884 @@
+{
+    "CONSENSUSID": {
+        "name_process": "CONSENSUSID",
+        "string_process": "process CONSENSUSID {\n    tag \"$meta.id\"\n    label 'process_medium'\n                                        \n    label 'process_single_thread'\n    label 'openms'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(id_file), val(qval_score)\n\n    output:\n    tuple val(meta), path(\"${meta.id}_consensus.idXML\"), emit: consensusids\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    ConsensusID \\\\\n        -in ${id_file} \\\\\n        -out ${meta.id}_consensus.idXML \\\\\n        -per_spectrum \\\\\n        -threads $task.cpus \\\\\n        -algorithm $params.consensusid_algorithm \\\\\n        -filter:min_support $params.min_consensus_support \\\\\n        -filter:considered_hits $params.consensusid_considered_top_hits \\\\\n        -debug $params.consensusid_debug \\\\\n        $args \\\\\n        |& tee ${meta.id}_consensusID.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ConsensusID: \\$(ConsensusID 2>&1  | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    ConsensusID \\\\\n        -in ${id_file} \\\\\n        -out ${meta.id}_consensus.idXML \\\\\n        -per_spectrum \\\\\n        -threads $task.cpus \\\\\n        -algorithm $params.consensusid_algorithm \\\\\n        -filter:min_support $params.min_consensus_support \\\\\n        -filter:considered_hits $params.consensusid_considered_top_hits \\\\\n        -debug $params.consensusid_debug \\\\\n        $args \\\\\n        |& tee ${meta.id}_consensusID.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ConsensusID: \\$(ConsensusID 2>&1  | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "qval_score",
+            "id_file"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "label 'process_single_thread'",
+            "label 'openms'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PROTEOMICSLFQ": {
+        "name_process": "PROTEOMICSLFQ",
+        "string_process": "process PROTEOMICSLFQ {\n    tag \"${expdes.baseName - ~/_design$/}\"\n    label 'process_high'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    path(mzmls)\n    path(id_files)\n    path(expdes)\n    path(fasta)\n\n    output:\n    path \"${expdes.baseName - ~/_design$/}.mzTab\", emit: out_mztab\n    path \"${expdes.baseName - ~/_design$/}.consensusXML\", emit: out_consensusXML\n    path \"*out_msstats.csv\", emit: out_msstats optional true\n    path \"*out_triqler.tsv\", emit: out_triqler optional true\n    path \"debug_mergedIDs.idXML\", emit: debug_mergedIDs optional true\n    path \"debug_mergedIDs_inference.idXML\", emit: debug_mergedIDs_inference optional true\n    path \"debug_mergedIDsGreedyResolved.idXML\", emit: debug_mergedIDsGreedyResolved optional true\n    path \"debug_mergedIDsGreedyResolvedFDR.idXML\", emit: debug_mergedIDsGreedyResolvedFDR optional true\n    path \"debug_mergedIDsGreedyResolvedFDRFiltered.idXML\", emit: debug_mergedIDsGreedyResolvedFDRFiltered optional true\n    path \"debug_mergedIDsFDRFilteredStrictlyUniqueResolved.idXML\", emit: debug_mergedIDsFDRFilteredStrictlyUniqueResolved optional true\n    path \"*.log\", emit: log\n    path \"versions.yml\", emit: version\n\n    script:\n    def args = task.ext.args ?: ''\n    def msstats_present = params.quantification_method == \"feature_intensity\" ? \"-out_msstats ${expdes.baseName - ~/_design$/}_msstats_in.csv\" : \"\"\n    def triqler_present = (params.quantification_method == \"feature_intensity\") && (params.add_triqler_output) ? \"-out_triqler ${expdes.baseName - ~/_design$/}_triqler_in.tsv\" : \"\"\n    def decoys_present = (params.quantify_decoys || ((params.quantification_method == \"feature_intensity\") && params.add_triqler_output)) ? '-PeptideQuantification:quantify_decoys' : ''\n\n    \"\"\"\n    ProteomicsLFQ \\\\\n        -threads ${task.cpus} \\\\\n        -in ${(mzmls as List).join(' ')} \\\\\n        -ids ${(id_files as List).join(' ')} \\\\\n        -design ${expdes} \\\\\n        -fasta ${fasta} \\\\\n        -protein_inference ${params.protein_inference_method} \\\\\n        -quantification_method ${params.quantification_method} \\\\\n        -targeted_only ${params.targeted_only} \\\\\n        -mass_recalibration ${params.mass_recalibration} \\\\\n        -transfer_ids ${params.transfer_ids} \\\\\n        -protein_quantification ${params.protein_quant} \\\\\n        -alignment_order ${params.alignment_order} \\\\\n        ${decoys_present} \\\\\n        -psmFDR ${params.psm_level_fdr_cutoff} \\\\\n        -proteinFDR ${params.protein_level_fdr_cutoff} \\\\\n        -picked_proteinFDR ${params.picked_fdr} \\\\\n        -out_cxml ${expdes.baseName - ~/_design$/}.consensusXML \\\\\n        -out ${expdes.baseName - ~/_design$/}.mzTab \\\\\n        ${msstats_present} \\\\\n        ${triqler_present} \\\\\n        $args \\\\\n        |& tee proteomicslfq.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ProteomicsLFQ: \\$(ProteomicsLFQ 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 64,
+        "string_script": "    def args = task.ext.args ?: ''\n    def msstats_present = params.quantification_method == \"feature_intensity\" ? \"-out_msstats ${expdes.baseName - ~/_design$/}_msstats_in.csv\" : \"\"\n    def triqler_present = (params.quantification_method == \"feature_intensity\") && (params.add_triqler_output) ? \"-out_triqler ${expdes.baseName - ~/_design$/}_triqler_in.tsv\" : \"\"\n    def decoys_present = (params.quantify_decoys || ((params.quantification_method == \"feature_intensity\") && params.add_triqler_output)) ? '-PeptideQuantification:quantify_decoys' : ''\n\n    \"\"\"\n    ProteomicsLFQ \\\\\n        -threads ${task.cpus} \\\\\n        -in ${(mzmls as List).join(' ')} \\\\\n        -ids ${(id_files as List).join(' ')} \\\\\n        -design ${expdes} \\\\\n        -fasta ${fasta} \\\\\n        -protein_inference ${params.protein_inference_method} \\\\\n        -quantification_method ${params.quantification_method} \\\\\n        -targeted_only ${params.targeted_only} \\\\\n        -mass_recalibration ${params.mass_recalibration} \\\\\n        -transfer_ids ${params.transfer_ids} \\\\\n        -protein_quantification ${params.protein_quant} \\\\\n        -alignment_order ${params.alignment_order} \\\\\n        ${decoys_present} \\\\\n        -psmFDR ${params.psm_level_fdr_cutoff} \\\\\n        -proteinFDR ${params.protein_level_fdr_cutoff} \\\\\n        -picked_proteinFDR ${params.picked_fdr} \\\\\n        -out_cxml ${expdes.baseName - ~/_design$/}.consensusXML \\\\\n        -out ${expdes.baseName - ~/_design$/}.mzTab \\\\\n        ${msstats_present} \\\\\n        ${triqler_present} \\\\\n        $args \\\\\n        |& tee proteomicslfq.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ProteomicsLFQ: \\$(ProteomicsLFQ 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "mzmls",
+            "id_files",
+            "expdes",
+            "fasta"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"${expdes.baseName - ~/_design$/}\"",
+            "label 'process_high'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PMULTIQC": {
+        "name_process": "PMULTIQC",
+        "string_process": "process PMULTIQC {\n    label 'process_high'\n\n    conda (params.enable_conda ? \"conda-forge::pandas_schema conda-forge::lzstring bioconda::pmultiqc=0.0.11\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/pmultiqc:0.0.11--pyhdfd78af_0\"\n    } else {\n        container \"quay.io/biocontainers/pmultiqc:0.0.11--pyhdfd78af_0\"\n    }\n\n    input:\n    path 'results/*'\n    path quantms_log\n\n    output:\n    path \"*.html\", emit: ch_pmultiqc_report\n    path \"*.db\", optional: true, emit: ch_pmultiqc_db\n    path \"versions.yml\", emit: versions\n    path \"*_data\", emit: data\n    path \"*_plots\", optional: true, emit: plots\n\n    script:\n    def args = task.ext.args ?: ''\n    def disable_pmultqic = params.enable_pmultiqc ? \"\" : \"--disable_plugin\"\n\n    \"\"\"\n    multiqc \\\\\n        -f \\\\\n        --config ./results/multiqc_config.yml \\\\\n        ${args} \\\\\n        ${disable_pmultqic} \\\\\n        ./results \\\\\n        -o .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        pmultiqc: \\$(multiqc --pmultiqc_version | sed -e \"s/pmultiqc, version //g\")\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    def args = task.ext.args ?: ''\n    def disable_pmultqic = params.enable_pmultiqc ? \"\" : \"--disable_plugin\"\n\n    \"\"\"\n    multiqc \\\\\n        -f \\\\\n        --config ./results/multiqc_config.yml \\\\\n        ${args} \\\\\n        ${disable_pmultqic} \\\\\n        ./results \\\\\n        -o .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        pmultiqc: \\$(multiqc --pmultiqc_version | sed -e \"s/pmultiqc, version //g\")\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC",
+            "RESULTS:MWMM"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc",
+            "https://bio.tools/RESULTSMWMM"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            },
+            {
+                "name": "RESULTS:MWMM",
+                "uri": "https://bio.tools/RESULTSMWMM",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0659",
+                            "term": "Functional, regulatory and non-coding RNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "Oncology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "Cancer biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "https://en.wikipedia.org/wiki/Oncology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3792",
+                                    "term": "miRNA expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "Weighted correlation network analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3432",
+                                    "term": "Clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3792",
+                                    "term": "miRNA expression profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "WGCNA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3766",
+                                    "term": "Weighted gene co-expression network analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> MEDIUM CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'MWMM', 'blossom' | Clustering analysis of microRNA and mRNA expression data from TCGA using maximum edge-weighted matching algorithms | maximum weighted merger method",
+                "homepage": "https://github.com/BaiLab/MWMM"
+            }
+        ],
+        "inputs": [
+            "quantms_log"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_high'",
+            "conda (params.enable_conda ? \"conda-forge::pandas_schema conda-forge::lzstring bioconda::pmultiqc=0.0.11\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/pmultiqc:0.0.11--pyhdfd78af_0\" } else { container \"quay.io/biocontainers/pmultiqc:0.0.11--pyhdfd78af_0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PROTEININFERENCE": {
+        "name_process": "PROTEININFERENCE",
+        "string_process": "process PROTEININFERENCE {\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(consus_file)\n\n    output:\n    tuple val(meta), path(\"${consus_file.baseName}_epi.consensusXML\"), emit: protein_inference\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    gg = params.protein_quant == 'shared_peptides' ? '-Algorithm:greedy_group_resolution' : ''\n    groups = params.protein_quant == 'strictly_unique_peptides' ? 'false' : 'true'\n\n    \"\"\"\n    ProteinInference \\\\\n        -in ${consus_file} \\\\\n        -threads $task.cpus \\\\\n        -picked_fdr $params.picked_fdr \\\\\n        -picked_decoy_string $params.decoy_string \\\\\n        -protein_fdr true \\\\\n        -Algorithm:use_shared_peptides $params.use_shared_peptides \\\\\n        -Algorithm:annotate_indistinguishable_groups $groups \\\\\n        $gg \\\\\n        -Algorithm:score_aggregation_method $params.protein_score \\\\\n        -Algorithm:min_peptides_per_protein $params.min_peptides_per_protein \\\\\n        -out ${consus_file.baseName}_epi.consensusXML \\\\\n        $args \\\\\n        |& tee ${consus_file.baseName}_inference.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ProteinInference: \\$(ProteinInference 2>&1 | grep -E '^Version(.*) ' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    def args = task.ext.args ?: ''\n    gg = params.protein_quant == 'shared_peptides' ? '-Algorithm:greedy_group_resolution' : ''\n    groups = params.protein_quant == 'strictly_unique_peptides' ? 'false' : 'true'\n\n    \"\"\"\n    ProteinInference \\\\\n        -in ${consus_file} \\\\\n        -threads $task.cpus \\\\\n        -picked_fdr $params.picked_fdr \\\\\n        -picked_decoy_string $params.decoy_string \\\\\n        -protein_fdr true \\\\\n        -Algorithm:use_shared_peptides $params.use_shared_peptides \\\\\n        -Algorithm:annotate_indistinguishable_groups $groups \\\\\n        $gg \\\\\n        -Algorithm:score_aggregation_method $params.protein_score \\\\\n        -Algorithm:min_peptides_per_protein $params.min_peptides_per_protein \\\\\n        -out ${consus_file.baseName}_epi.consensusXML \\\\\n        $args \\\\\n        |& tee ${consus_file.baseName}_inference.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ProteinInference: \\$(ProteinInference 2>&1 | grep -E '^Version(.*) ' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [
+            "qgg",
+            "ggroups"
+        ],
+        "tools_url": [
+            "https://bio.tools/qgg",
+            "https://bio.tools/ggroups"
+        ],
+        "tools_dico": [
+            {
+                "name": "qgg",
+                "uri": "https://bio.tools/qgg",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3055",
+                            "term": "Quantitative genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic map construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Linkage mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Functional mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic cartography"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic map generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "an R package for large-scale quantitative genetic analyses.\n\nStatistical tools for Quantitative Genetic Analyses.\n\nAn R package for Quantitative Genetic and Genomic analyses.\n\nProvides an infrastructure for efficient processing of large-scale genetic and phenotypic data including core functions for: 1) fitting linear mixed models, 2) constructing marker-based genomic relationship matrices, 3) estimating genetic parameters (heritability and correlation), 4) performing genomic prediction and genetic risk profiling, and 5) single or multi-marker association analyses. Rohde et al. (2019) <doi:10.1101/503631>.\n\nThe qgg package was developed based on the hypothesis that certain regions on the genome, so-called genomic features, may be enriched for causal variants affecting the trait. Several genomic feature classes can be formed based on previous studies and different sources of information such as genes, chromosomes or biological pathways",
+                "homepage": "http://psoerensen.github.io/qgg"
+            },
+            {
+                "name": "ggroups",
+                "uri": "https://bio.tools/ggroups",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Zoology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Metazoa"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animals"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3802",
+                                    "term": "Sorting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "An R package for pedigree and genetic groups data.\n\nCalculates additive and dominance genetic relationship matrices and their inverses, in matrix and tabular-sparse formats. It includes functions for checking and processing pedigree, as well as functions to calculate the matrix of genetic group contributions (Q), and adding those contributions to the genetic merit of animals (Quaas (1988) <doi:10.3168/jds.S0022-0302(88)79691-5>).",
+                "homepage": "https://cran.r-project.org/web/packages"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "consus_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SEARCHENGINEMSGF": {
+        "name_process": "SEARCHENGINEMSGF",
+        "string_process": "process SEARCHENGINEMSGF {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' :\n        'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\"\n\n    input:\n    tuple val(meta),  file(mzml_file), file(database)\n\n    output:\n    tuple val(meta), path(\"${mzml_file.baseName}_msgf.idXML\"),  emit: id_files_msgf\n    path \"versions.yml\",   emit: version\n    path \"*.log\",   emit: log\n\n    script:\n                                                                                                              \n    msgf_jar = ''\n    if (workflow.containerEngine || (task.executor == \"awsbatch\")) {\n        msgf_jar = \"-executable \\$(find /usr/local/share/msgf_plus-*/MSGFPlus.jar -maxdepth 0)\"\n    } else if (params.enable_conda) {\n        msgf_jar = \"-executable \\$(find \\$CONDA_PREFIX/share/msgf_plus-*/MSGFPlus.jar -maxdepth 0)\"\n    }\n\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    enzyme = meta.enzyme\n    if (meta.enzyme == 'Trypsin') enzyme = 'Trypsin/P'\n    else if (meta.enzyme == 'Arg-C') enzyme = 'Arg-C/P'\n    else if (meta.enzyme == 'Asp-N') enzyme = 'Asp-N/B'\n    else if (meta.enzyme == 'Chymotrypsin') enzyme = 'Chymotrypsin'\n    else if (meta.enzyme == 'Lys-C') enzyme = 'Lys-C/P'\n\n    if (enzyme.toLowerCase() == \"unspecific cleavage\") {\n        msgf_num_enzyme_termini = \"non\"\n    } else {\n        msgf_num_enzyme_termini = params.num_enzyme_termini\n    }\n\n    if ((meta.fragmentmasstolerance.toDouble() < 50 && meta.fragmentmasstoleranceunit == \"ppm\") || (meta.fragmentmasstolerance.toDouble() < 0.1 && meta.fragmentmasstoleranceunit == \"Da\"))\n    {\n        inst = params.instrument ?: \"high_res\"\n    } else {\n        inst = params.instrument ?: \"low_res\"\n    }\n\n    num_enzyme_termini = \"\"\n    if (meta.enzyme == \"unspecific cleavage\")\n    {\n        num_enzyme_termini = \"none\"\n    }\n    else if (params.num_enzyme_termini == \"fully\")\n    {\n        num_enzyme_termini = \"full\"\n    }\n\n    il_equiv = params.IL_equivalent ? \"-PeptideIndexing:IL_equivalent\" : \"\"\n\n    \"\"\"\n    MSGFPlusAdapter \\\\\n        -protocol $params.protocol \\\\\n        -in ${mzml_file} \\\\\n        -out ${mzml_file.baseName}_msgf.idXML \\\\\n        ${msgf_jar} \\\\\n        -threads $task.cpus \\\\\n        -java_memory ${task.memory.toMega()} \\\\\n        -database \"${database}\" \\\\\n        -instrument ${inst} \\\\\n        -matches_per_spec $params.num_hits \\\\\n        -min_precursor_charge $params.min_precursor_charge \\\\\n        -max_precursor_charge $params.max_precursor_charge \\\\\n        -min_peptide_length $params.min_peptide_length \\\\\n        -max_peptide_length $params.max_peptide_length \\\\\n        -isotope_error_range $params.isotope_error_range \\\\\n        -enzyme ${enzyme} \\\\\n        -tryptic ${msgf_num_enzyme_termini} \\\\\n        -precursor_mass_tolerance $meta.precursormasstolerance \\\\\n        -precursor_error_units $meta.precursormasstoleranceunit \\\\\n        -fixed_modifications ${meta.fixedmodifications.tokenize(',').collect() { \"'${it}'\" }.join(\" \") } \\\\\n        -variable_modifications ${meta.variablemodifications.tokenize(',').collect() { \"'${it}'\" }.join(\" \") } \\\\\n        -max_mods $params.max_mods \\\\\n        ${il_equiv} \\\\\n        -PeptideIndexing:unmatched_action ${params.unmatched_action} \\\\\n        -debug $params.db_debug \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_msgf.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        MSGFPlusAdapter: \\$(MSGFPlusAdapter 2>&1 | grep -E '^Version(.*)' | sed \"s/Version: //g\")\n        msgf_plus: \\$(msgf_plus 2>&1 | grep -E '^MS-GF\\\\+ Release.*')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 95,
+        "string_script": "    msgf_jar = ''\n    if (workflow.containerEngine || (task.executor == \"awsbatch\")) {\n        msgf_jar = \"-executable \\$(find /usr/local/share/msgf_plus-*/MSGFPlus.jar -maxdepth 0)\"\n    } else if (params.enable_conda) {\n        msgf_jar = \"-executable \\$(find \\$CONDA_PREFIX/share/msgf_plus-*/MSGFPlus.jar -maxdepth 0)\"\n    }\n\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    enzyme = meta.enzyme\n    if (meta.enzyme == 'Trypsin') enzyme = 'Trypsin/P'\n    else if (meta.enzyme == 'Arg-C') enzyme = 'Arg-C/P'\n    else if (meta.enzyme == 'Asp-N') enzyme = 'Asp-N/B'\n    else if (meta.enzyme == 'Chymotrypsin') enzyme = 'Chymotrypsin'\n    else if (meta.enzyme == 'Lys-C') enzyme = 'Lys-C/P'\n\n    if (enzyme.toLowerCase() == \"unspecific cleavage\") {\n        msgf_num_enzyme_termini = \"non\"\n    } else {\n        msgf_num_enzyme_termini = params.num_enzyme_termini\n    }\n\n    if ((meta.fragmentmasstolerance.toDouble() < 50 && meta.fragmentmasstoleranceunit == \"ppm\") || (meta.fragmentmasstolerance.toDouble() < 0.1 && meta.fragmentmasstoleranceunit == \"Da\"))\n    {\n        inst = params.instrument ?: \"high_res\"\n    } else {\n        inst = params.instrument ?: \"low_res\"\n    }\n\n    num_enzyme_termini = \"\"\n    if (meta.enzyme == \"unspecific cleavage\")\n    {\n        num_enzyme_termini = \"none\"\n    }\n    else if (params.num_enzyme_termini == \"fully\")\n    {\n        num_enzyme_termini = \"full\"\n    }\n\n    il_equiv = params.IL_equivalent ? \"-PeptideIndexing:IL_equivalent\" : \"\"\n\n    \"\"\"\n    MSGFPlusAdapter \\\\\n        -protocol $params.protocol \\\\\n        -in ${mzml_file} \\\\\n        -out ${mzml_file.baseName}_msgf.idXML \\\\\n        ${msgf_jar} \\\\\n        -threads $task.cpus \\\\\n        -java_memory ${task.memory.toMega()} \\\\\n        -database \"${database}\" \\\\\n        -instrument ${inst} \\\\\n        -matches_per_spec $params.num_hits \\\\\n        -min_precursor_charge $params.min_precursor_charge \\\\\n        -max_precursor_charge $params.max_precursor_charge \\\\\n        -min_peptide_length $params.min_peptide_length \\\\\n        -max_peptide_length $params.max_peptide_length \\\\\n        -isotope_error_range $params.isotope_error_range \\\\\n        -enzyme ${enzyme} \\\\\n        -tryptic ${msgf_num_enzyme_termini} \\\\\n        -precursor_mass_tolerance $meta.precursormasstolerance \\\\\n        -precursor_error_units $meta.precursormasstoleranceunit \\\\\n        -fixed_modifications ${meta.fixedmodifications.tokenize(',').collect() { \"'${it}'\" }.join(\" \") } \\\\\n        -variable_modifications ${meta.variablemodifications.tokenize(',').collect() { \"'${it}'\" }.join(\" \") } \\\\\n        -max_mods $params.max_mods \\\\\n        ${il_equiv} \\\\\n        -PeptideIndexing:unmatched_action ${params.unmatched_action} \\\\\n        -debug $params.db_debug \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_msgf.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        MSGFPlusAdapter: \\$(MSGFPlusAdapter 2>&1 | grep -E '^Version(.*)' | sed \"s/Version: //g\")\n        msgf_plus: \\$(msgf_plus 2>&1 | grep -E '^MS-GF\\\\+ Release.*')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 76,
+        "language_script": "bash",
+        "tools": [
+            "Selenzyme",
+            "InSTIL"
+        ],
+        "tools_url": [
+            "https://bio.tools/selenzyme",
+            "https://bio.tools/InSTIL"
+        ],
+        "tools_dico": [
+            {
+                "name": "Selenzyme",
+                "uri": "https://bio.tools/selenzyme",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3398",
+                            "term": "Bioengineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymes"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3297",
+                            "term": "Biotechnology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3398",
+                            "term": "Biological engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "Metabolic network modelling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "http://edamontology.org/Metabolic%20pathway%20modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Enzyme selection tool for pathway design.",
+                "homepage": "http://selenzyme.synbiochem.co.uk/"
+            },
+            {
+                "name": "InSTIL",
+                "uri": "https://bio.tools/InSTIL",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0610",
+                            "term": "Ecology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3419",
+                            "term": "Psychiatry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Biomarkers"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3419",
+                            "term": "https://en.wikipedia.org/wiki/Psychiatry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Diagnostic markers"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3283",
+                                    "term": "Anonymisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3283",
+                                    "term": "Data anonymisation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A Scalable and Governance-Aware Platform for Universal, Smartphone-Based Digital Phenotyping for Research and Clinical Applications.\n\nIn this viewpoint we describe the architecture of, and design rationale for, a new software platform designed to support the conduct of digital phenotyping research studies. These studies seek to collect passive and active sensor signals from participants' smartphones for the purposes of modelling and predicting health outcomes, with a specific focus on mental health. We also highlight features of the current research landscape that recommend the coordinated development of such platforms, including the significant technical and resource costs of development, and we identify specific considerations relevant to the design of platforms for digital phenotyping.\n\n||| HOMEPAGE MISSING!.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Intelligent Sensing Inform Learn'",
+                "homepage": "https://www.ncbi.nlm.nih.gov/pubmed/?term=31692450"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "mzml_file",
+            "database"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' : 'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "INDEXPEPTIDES": {
+        "name_process": "INDEXPEPTIDES",
+        "string_process": "process INDEXPEPTIDES {\n    tag \"$meta.id\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(id_file), path(database)\n\n\n    output:\n    tuple val(meta), path(\"${id_file.baseName}_idx.idXML\"), emit: id_files_idx\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    enzyme = meta.enzyme\n                                                                                                                             \n    if (params.search_engines.contains(\"msgf\"))\n    {\n        if (meta.enzyme == 'Trypsin') enzyme = 'Trypsin/P'\n        else if (meta.enzyme == 'Arg-C') enzyme = 'Arg-C/P'\n        else if (meta.enzyme == 'Asp-N') enzyme = 'Asp-N/B'\n        else if (meta.enzyme == 'Chymotrypsin') enzyme = 'Chymotrypsin/P'\n        else if (meta.enzyme == 'Lys-C') enzyme = 'Lys-C/P'\n    }\n    if (meta.enzyme == \"unspecific cleavage\")\n    {\n        params.num_enzyme_termini = \"none\"\n    }\n    num_enzyme_termini = params.num_enzyme_termini\n    if (params.num_enzyme_termini == \"fully\")\n    {\n        num_enzyme_termini = \"full\"\n    }\n    def il = params.IL_equivalent ? '-IL_equivalent' : ''\n    def allow_um = params.allow_unmatched ? '-allow_unmatched' : ''\n\n    \"\"\"\n    PeptideIndexer \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_idx.idXML \\\\\n        -threads $task.cpus \\\\\n        -fasta ${database} \\\\\n        -enzyme:name \"${enzyme}\" \\\\\n        -enzyme:specificity ${num_enzyme_termini} \\\\\n        ${il} \\\\\n        ${allow_um} \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_index_peptides.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        PeptideIndexer: \\$(PeptideIndexer 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 61,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    enzyme = meta.enzyme\n                                                                                                                             \n    if (params.search_engines.contains(\"msgf\"))\n    {\n        if (meta.enzyme == 'Trypsin') enzyme = 'Trypsin/P'\n        else if (meta.enzyme == 'Arg-C') enzyme = 'Arg-C/P'\n        else if (meta.enzyme == 'Asp-N') enzyme = 'Asp-N/B'\n        else if (meta.enzyme == 'Chymotrypsin') enzyme = 'Chymotrypsin/P'\n        else if (meta.enzyme == 'Lys-C') enzyme = 'Lys-C/P'\n    }\n    if (meta.enzyme == \"unspecific cleavage\")\n    {\n        params.num_enzyme_termini = \"none\"\n    }\n    num_enzyme_termini = params.num_enzyme_termini\n    if (params.num_enzyme_termini == \"fully\")\n    {\n        num_enzyme_termini = \"full\"\n    }\n    def il = params.IL_equivalent ? '-IL_equivalent' : ''\n    def allow_um = params.allow_unmatched ? '-allow_unmatched' : ''\n\n    \"\"\"\n    PeptideIndexer \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_idx.idXML \\\\\n        -threads $task.cpus \\\\\n        -fasta ${database} \\\\\n        -enzyme:name \"${enzyme}\" \\\\\n        -enzyme:specificity ${num_enzyme_termini} \\\\\n        ${il} \\\\\n        ${allow_um} \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_index_peptides.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        PeptideIndexer: \\$(PeptideIndexer 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 42,
+        "language_script": "bash",
+        "tools": [
+            "Selenzyme"
+        ],
+        "tools_url": [
+            "https://bio.tools/selenzyme"
+        ],
+        "tools_dico": [
+            {
+                "name": "Selenzyme",
+                "uri": "https://bio.tools/selenzyme",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3398",
+                            "term": "Bioengineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymes"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3297",
+                            "term": "Biotechnology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3398",
+                            "term": "Biological engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "Metabolic network modelling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "http://edamontology.org/Metabolic%20pathway%20modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Enzyme selection tool for pathway design.",
+                "homepage": "http://selenzyme.synbiochem.co.uk/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "id_file",
+            "database"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "IDFILTER": {
+        "name_process": "IDFILTER",
+        "string_process": "process IDFILTER {\n    tag {task.ext.suffix == \".idXML\" ? \"$meta.id\" : \"$id_file.baseName\"}\n    label 'process_very_low'\n    label 'process_single_thread'\n    label 'openms'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(id_file)\n\n    output:\n    tuple val(meta), path(\"${id_file.baseName}_filter$task.ext.suffix\"), emit: id_filtered\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def suffix = task.ext.suffix\n\n    \"\"\"\n    IDFilter \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_filter$suffix \\\\\n        -threads $task.cpus \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_idfilter.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDFilter: \\$(IDFilter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    def args = task.ext.args ?: ''\n    def suffix = task.ext.suffix\n\n    \"\"\"\n    IDFilter \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_filter$suffix \\\\\n        -threads $task.cpus \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_idfilter.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDFilter: \\$(IDFilter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "id_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag {task.ext.suffix == \".idXML\" ? \"$meta.id\" : \"$id_file.baseName\"}",
+            "label 'process_very_low'",
+            "label 'process_single_thread'",
+            "label 'openms'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FALSEDISCOVERYRATE": {
+        "name_process": "FALSEDISCOVERYRATE",
+        "string_process": "process FALSEDISCOVERYRATE {\n    tag \"$meta.id\"\n    label 'process_low'\n    label 'process_single_thread'\n    label 'openms'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(id_file)\n\n    output:\n    tuple val(meta), path(\"${id_file.baseName}_fdr.idXML\"), emit: id_files_idx_ForIDPEP_FDR\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    FalseDiscoveryRate \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_fdr.idXML \\\\\n        -threads $task.cpus \\\\\n        -algorithm:add_decoy_peptides \\\\\n        -algorithm:add_decoy_proteins \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_fdr.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        FalseDiscoveryRate: \\$(FalseDiscoveryRate 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    FalseDiscoveryRate \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_fdr.idXML \\\\\n        -threads $task.cpus \\\\\n        -algorithm:add_decoy_peptides \\\\\n        -algorithm:add_decoy_proteins \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_fdr.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        FalseDiscoveryRate: \\$(FalseDiscoveryRate 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "id_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "label 'process_single_thread'",
+            "label 'openms'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "CUSTOM_DUMPSOFTWAREVERSIONS": {
+        "name_process": "CUSTOM_DUMPSOFTWAREVERSIONS",
+        "string_process": "process CUSTOM_DUMPSOFTWAREVERSIONS {\n    label 'process_low'\n\n                                                                                                  \n    conda (params.enable_conda ? \"bioconda::multiqc=1.11\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/multiqc:1.11--pyhdfd78af_0' :\n        'quay.io/biocontainers/multiqc:1.11--pyhdfd78af_0' }\"\n\n    input:\n    path versions\n\n    output:\n    path \"software_versions.yml\"    , emit: yml\n    path \"software_versions_mqc.yml\", emit: mqc_yml\n    path \"versions.yml\"             , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    template 'dumpsoftwareversions.py'\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    def args = task.ext.args ?: ''\n    template 'dumpsoftwareversions.py'",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [
+            "docxtemplate"
+        ],
+        "tools_url": [
+            "https://bio.tools/docxtemplate"
+        ],
+        "tools_dico": [
+            {
+                "name": "docxtemplate",
+                "uri": "https://bio.tools/docxtemplate",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3314",
+                            "term": "Chemistry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0176",
+                            "term": "Molecular dynamics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0249",
+                                    "term": "Protein geometry calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0322",
+                                    "term": "Molecular model refinement"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "> VERY_LOW CONFIDENCE! | > CORRECT NAME OF TOOL COULD ALSO BE 'Phenix', 'restraints', 'Amber', 'refinement' | Improved chemistry restraints for crystallographic refinement by integrating the Amber force field into Phenix | Word templates and tools for Windows | The IUCr Word templates utilize the content management features and document styles of Word to format your manuscript and to store essential details for submission of your manuscript",
+                "homepage": "http://journals.iucr.org/services/docxtemplate/"
+            }
+        ],
+        "inputs": [
+            "versions"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::multiqc=1.11\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/multiqc:1.11--pyhdfd78af_0' : 'quay.io/biocontainers/multiqc:1.11--pyhdfd78af_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "PREPROCESS_EXPDESIGN": {
+        "name_process": "PREPROCESS_EXPDESIGN",
+        "string_process": "\nprocess PREPROCESS_EXPDESIGN {\n    label 'process_very_low'\n    label 'process_single_thread'\n    tag \"$design.Name\"\n\n    container \"frolvlad/alpine-bash\"\n\n    input:\n    path design\n\n    output:\n    path \"${design.baseName}_design.tsv\", emit: ch_expdesign\n    path \"${design.baseName}_config.tsv\", emit: ch_config\n\n    script:\n\n    \"\"\"\n    # since we know that we will need to convert from raw to mzML for all tools that need the design (i.e., OpenMS tools)\n    # we edit the design here and change the endings.\n    sed 's/.raw\\\\t/.mzML\\\\t/I' ${design} > ${design.baseName}_design.tsv\n\n    # here we extract the filenames and fake an empty config (since the config values will be deduced from the workflow params)\n    a=\\$(grep -n '^\\$' ${design} | head -n1| awk -F\":\" '{print \\$1}'); sed -e ''\"\\${a}\"',\\$d' ${design} > ${design.baseName}_config.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    \"\"\"\n    # since we know that we will need to convert from raw to mzML for all tools that need the design (i.e., OpenMS tools)\n    # we edit the design here and change the endings.\n    sed 's/.raw\\\\t/.mzML\\\\t/I' ${design} > ${design.baseName}_design.tsv\n\n    # here we extract the filenames and fake an empty config (since the config values will be deduced from the workflow params)\n    a=\\$(grep -n '^\\$' ${design} | head -n1| awk -F\":\" '{print \\$1}'); sed -e ''\"\\${a}\"',\\$d' ${design} > ${design.baseName}_config.tsv\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "design"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_very_low'",
+            "label 'process_single_thread'",
+            "tag \"$design.Name\"",
+            "container \"frolvlad/alpine-bash\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MSSTATSCONVERTER": {
+        "name_process": "MSSTATSCONVERTER",
+        "string_process": "process MSSTATSCONVERTER {\n    tag \"$exp_file.Name\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    path consensusXML\n    path exp_file\n    val quant_method\n\n    output:\n    path \"*.csv\", emit: out_msstats\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    MSstatsConverter \\\\\n        -in ${consensusXML} \\\\\n        -in_design ${exp_file} \\\\\n        -method ${quant_method} \\\\\n        -out ${exp_file.baseName}_out_msstats.csv \\\\\n        $args \\\\\n        |& tee MSstatsConverter.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        MSstatsConverter: \\$(MSstatsConverter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    MSstatsConverter \\\\\n        -in ${consensusXML} \\\\\n        -in_design ${exp_file} \\\\\n        -method ${quant_method} \\\\\n        -out ${exp_file.baseName}_out_msstats.csv \\\\\n        $args \\\\\n        |& tee MSstatsConverter.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        MSstatsConverter: \\$(MSstatsConverter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "consensusXML",
+            "exp_file",
+            "quant_method"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$exp_file.Name\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "EPIFANY": {
+        "name_process": "EPIFANY",
+        "string_process": "process EPIFANY {\n    label 'process_medium'\n    label 'openms'\n\n    publishDir \"${params.outdir}\"\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(consus_file)\n\n    output:\n    tuple val(meta), path(\"${consus_file.baseName}_epi.consensusXML\"), emit: epi_inference\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    gg = params.protein_quant == 'shared_peptides' ? 'remove_proteins_wo_evidence' : 'none'\n\n    \"\"\"\n    Epifany \\\\\n        -in ${consus_file} \\\\\n        -protein_fdr true \\\\\n        -threads $task.cpus \\\\\n        -algorithm:keep_best_PSM_only $params.keep_best_PSM_only \\\\\n        -algorithm:update_PSM_probabilities $params.update_PSM_probabilities \\\\\n        -greedy_group_resolution $gg \\\\\n        -algorithm:top_PSMs $params.top_PSMs \\\\\n        -out ${consus_file.baseName}_epi.consensusXML \\\\\n        $args \\\\\n        |& tee ${consus_file.baseName}_inference.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        Epifany: \\$(Epifany 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    def args = task.ext.args ?: ''\n    gg = params.protein_quant == 'shared_peptides' ? 'remove_proteins_wo_evidence' : 'none'\n\n    \"\"\"\n    Epifany \\\\\n        -in ${consus_file} \\\\\n        -protein_fdr true \\\\\n        -threads $task.cpus \\\\\n        -algorithm:keep_best_PSM_only $params.keep_best_PSM_only \\\\\n        -algorithm:update_PSM_probabilities $params.update_PSM_probabilities \\\\\n        -greedy_group_resolution $gg \\\\\n        -algorithm:top_PSMs $params.top_PSMs \\\\\n        -out ${consus_file.baseName}_epi.consensusXML \\\\\n        $args \\\\\n        |& tee ${consus_file.baseName}_inference.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        Epifany: \\$(Epifany 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [
+            "qgg"
+        ],
+        "tools_url": [
+            "https://bio.tools/qgg"
+        ],
+        "tools_dico": [
+            {
+                "name": "qgg",
+                "uri": "https://bio.tools/qgg",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3055",
+                            "term": "Quantitative genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic map construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Linkage mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Functional mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic cartography"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0282",
+                                    "term": "Genetic map generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "an R package for large-scale quantitative genetic analyses.\n\nStatistical tools for Quantitative Genetic Analyses.\n\nAn R package for Quantitative Genetic and Genomic analyses.\n\nProvides an infrastructure for efficient processing of large-scale genetic and phenotypic data including core functions for: 1) fitting linear mixed models, 2) constructing marker-based genomic relationship matrices, 3) estimating genetic parameters (heritability and correlation), 4) performing genomic prediction and genetic risk profiling, and 5) single or multi-marker association analyses. Rohde et al. (2019) <doi:10.1101/503631>.\n\nThe qgg package was developed based on the hypothesis that certain regions on the genome, so-called genomic features, may be enriched for causal variants affecting the trait. Several genomic feature classes can be formed based on previous studies and different sources of information such as genes, chromosomes or biological pathways",
+                "homepage": "http://psoerensen.github.io/qgg"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "consus_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_medium'",
+            "label 'openms'",
+            "publishDir \"${params.outdir}\"",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "IDMAPPER": {
+        "name_process": "IDMAPPER",
+        "string_process": "process IDMAPPER {\n    tag \"$meta.id\"\n\n    label 'process_medium'\n    label 'openms'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(id_file), path(map_file)\n\n    output:\n    path \"${id_file.baseName}_map.consensusXML\", emit: id_map\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    IDMapper \\\\\n        -id ${id_file} \\\\\n        -in ${map_file} \\\\\n        -threads $task.cpus \\\\\n        -out ${id_file.baseName}_map.consensusXML \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_map.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDMapper: \\$(IDMapper 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    IDMapper \\\\\n        -id ${id_file} \\\\\n        -in ${map_file} \\\\\n        -threads $task.cpus \\\\\n        -out ${id_file.baseName}_map.consensusXML \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_map.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDMapper: \\$(IDMapper 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "BioIDMapper"
+        ],
+        "tools_url": [
+            "https://bio.tools/bioidmapper"
+        ],
+        "tools_dico": [
+            {
+                "name": "BioIDMapper",
+                "uri": "https://bio.tools/bioidmapper",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BioIDMapper is a Cross-referencing and Managing Platform for Biological IDs in R.",
+                "homepage": "http://genome.sdau.edu.cn/research/software/BioIDMapper.html"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "id_file",
+            "map_file"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "label 'openms'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SDRFPARSING": {
+        "name_process": "SDRFPARSING",
+        "string_process": "process SDRFPARSING {\n    tag \"$sdrf.Name\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"conda-forge::pandas_schema bioconda::sdrf-pipelines=0.0.21\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/sdrf-pipelines:0.0.21--pyhdfd78af_0' :\n        'quay.io/biocontainers/sdrf-pipelines:0.0.21--pyhdfd78af_0' }\"\n\n    input:\n    path sdrf\n\n    output:\n    path \"${sdrf.baseName}_design.tsv\", optional: true, emit: ch_expdesign\n    path \"${sdrf.baseName}_config.tsv\", optional: true, emit: ch_sdrf_config_file\n    path \"*.xml\", optional: true, emit: mqpar\n    path \"*.log\", emit: log\n    path \"versions.yml\", emit: version\n\n    script:\n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    ## -t2 since the one-table format parser is broken in OpenMS2.5\n    ## -l for legacy behavior to always add sample columns\n    ## TODO Update the sdrf-pipelines to dynamic print versions\n\n    parse_sdrf convert-openms -t2 -l -s ${sdrf} |& tee ${sdrf.baseName}_parsing.log\n    mv openms.tsv ${sdrf.baseName}_config.tsv\n    mv experimental_design.tsv ${sdrf.baseName}_design.tsv\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        sdrf-pipelines: \\$(echo \"0.0.21\")\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    ## -t2 since the one-table format parser is broken in OpenMS2.5\n    ## -l for legacy behavior to always add sample columns\n    ## TODO Update the sdrf-pipelines to dynamic print versions\n\n    parse_sdrf convert-openms -t2 -l -s ${sdrf} |& tee ${sdrf.baseName}_parsing.log\n    mv openms.tsv ${sdrf.baseName}_config.tsv\n    mv experimental_design.tsv ${sdrf.baseName}_design.tsv\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        sdrf-pipelines: \\$(echo \"0.0.21\")\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sdrf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$sdrf.Name\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"conda-forge::pandas_schema bioconda::sdrf-pipelines=0.0.21\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/sdrf-pipelines:0.0.21--pyhdfd78af_0' : 'quay.io/biocontainers/sdrf-pipelines:0.0.21--pyhdfd78af_0' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PROTEINQUANTIFIER": {
+        "name_process": "PROTEINQUANTIFIER",
+        "string_process": "process PROTEINQUANTIFIER {\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    path epi_filt_resolve\n    path pro_quant_exp\n\n    output:\n    path \"protein_out.csv\", emit: protein_out\n    path \"peptide_out.csv\", emit: peptide_out\n    path \"*.mzTab\", emit: out_mztab\n    path \"*.log\"\n    path \"versions.yml\", emit: version\n\n    script:\n    def args = task.ext.args ?: ''\n\n    include_all = params.include_all ? \"-include_all\" : \"\"\n    fix_peptides = params.fix_peptides ? \"-fix_peptides\" : \"\"\n    normalize = params.normalize ? \"-consensus:normalize\" : \"\"\n\n    \"\"\"\n    ProteinQuantifier \\\\\n        -in ${epi_filt_resolve} \\\\\n        -design ${pro_quant_exp} \\\\\n        -out protein_out.csv \\\\\n        -mztab out.mzTab \\\\\n        -peptide_out peptide_out.csv \\\\\n        -top $params.top \\\\\n        -average $params.average \\\\\n        ${include_all} \\\\\n        ${fix_peptides} \\\\\n        -ratios \\\\\n        -threads $task.cpus \\\\\n        ${normalize} \\\\\n        $args \\\\\n        |& tee pro_quant.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ProteinQuantifier: \\$(ProteinQuantifier 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    include_all = params.include_all ? \"-include_all\" : \"\"\n    fix_peptides = params.fix_peptides ? \"-fix_peptides\" : \"\"\n    normalize = params.normalize ? \"-consensus:normalize\" : \"\"\n\n    \"\"\"\n    ProteinQuantifier \\\\\n        -in ${epi_filt_resolve} \\\\\n        -design ${pro_quant_exp} \\\\\n        -out protein_out.csv \\\\\n        -mztab out.mzTab \\\\\n        -peptide_out peptide_out.csv \\\\\n        -top $params.top \\\\\n        -average $params.average \\\\\n        ${include_all} \\\\\n        ${fix_peptides} \\\\\n        -ratios \\\\\n        -threads $task.cpus \\\\\n        ${normalize} \\\\\n        $args \\\\\n        |& tee pro_quant.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ProteinQuantifier: \\$(ProteinQuantifier 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [
+            "RUVnormalize"
+        ],
+        "tools_url": [
+            "https://bio.tools/ruvnormalize"
+        ],
+        "tools_dico": [
+            {
+                "name": "RUVnormalize",
+                "uri": "https://bio.tools/ruvnormalize",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Removes unwanted variation from gene expression data when the factor of interest is not defined, e.g., to clean up a dataset for general use or to do any kind of unsupervised analysis.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/RUVnormalize.html"
+            }
+        ],
+        "inputs": [
+            "epi_filt_resolve",
+            "pro_quant_exp"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PERCOLATOR": {
+        "name_process": "PERCOLATOR",
+        "string_process": "process PERCOLATOR {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' :\n        'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\"\n\n    input:\n    tuple val(meta), path(id_file)\n\n    output:\n    tuple val(meta), path(\"${id_file.baseName}_perc.idXML\"), val(\"MS:1001491\"), emit: id_files_perc\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    OMP_NUM_THREADS=$task.cpus PercolatorAdapter \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_perc.idXML \\\\\n        -threads $task.cpus \\\\\n        -subset_max_train $params.subset_max_train \\\\\n        -decoy_pattern $params.decoy_string \\\\\n        -post_processing_tdc \\\\\n        -score_type pep \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_percolator.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        PercolatorAdapter: \\$(PercolatorAdapter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n        percolator: \\$(percolator -h 2>&1 | grep -E '^Percolator version(.*)' | sed 's/Percolator version //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    OMP_NUM_THREADS=$task.cpus PercolatorAdapter \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_perc.idXML \\\\\n        -threads $task.cpus \\\\\n        -subset_max_train $params.subset_max_train \\\\\n        -decoy_pattern $params.decoy_string \\\\\n        -post_processing_tdc \\\\\n        -score_type pep \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_percolator.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        PercolatorAdapter: \\$(PercolatorAdapter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n        percolator: \\$(percolator -h 2>&1 | grep -E '^Percolator version(.*)' | sed 's/Percolator version //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "id_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' : 'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "LUCIPHORADAPTER": {
+        "name_process": "LUCIPHORADAPTER",
+        "string_process": "process LUCIPHORADAPTER {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' :\n        'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\"\n\n    input:\n    tuple val(meta), path(mzml_file), path(id_file)\n\n\n    output:\n    tuple val(meta), path(\"${id_file.baseName}_luciphor.idXML\"), emit: ptm_in_id_luciphor\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n                                                                                                              \n    luciphor_jar = ''\n    if (workflow.containerEngine || (task.executor == \"awsbatch\")) {\n        luciphor_jar = \"-executable \\$(find /usr/local/share/luciphor2-*/luciphor2.jar -maxdepth 0)\"\n    } else if (params.enable_conda) {\n        luciphor_jar = \"-executable \\$(find \\$CONDA_PREFIX/share/luciphor2-*/luciphor2.jar -maxdepth 0)\"\n    }\n\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    def losses = params.luciphor_neutral_losses ? \"-neutral_losses ${params.luciphor_neutral_losses}\" : \"\"\n    def dec_mass = params.luciphor_decoy_mass ? \"-decoy_mass ${params.luciphor_decoy_mass}\" : \"\"\n    def dec_losses = params.luciphor_decoy_neutral_losses ? \"-decoy_neutral_losses ${params.luciphor_decoy_neutral_losses}\" : \"\"\n\n    \"\"\"\n    LuciphorAdapter \\\\\n        -id ${id_file} \\\\\n        -in ${mzml_file} \\\\\n        ${luciphor_jar} \\\\\n        -out ${id_file.baseName}_luciphor.idXML \\\\\n        -threads $task.cpus \\\\\n        -num_threads $task.cpus \\\\\n        -target_modifications ${params.mod_localization.tokenize(',').collect { \"'${it}'\" }.join(\" \") } \\\\\n        -fragment_method $meta.dissociationmethod \\\\\n        ${losses} \\\\\n        ${dec_mass} \\\\\n        ${dec_losses} \\\\\n        -max_charge_state $params.max_precursor_charge \\\\\n        -max_peptide_length $params.max_peptide_length \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_luciphor.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        LuciphorAdapter: \\$(LuciphorAdapter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n        Luciphor: \\$(luciphor2 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 57,
+        "string_script": "    luciphor_jar = ''\n    if (workflow.containerEngine || (task.executor == \"awsbatch\")) {\n        luciphor_jar = \"-executable \\$(find /usr/local/share/luciphor2-*/luciphor2.jar -maxdepth 0)\"\n    } else if (params.enable_conda) {\n        luciphor_jar = \"-executable \\$(find \\$CONDA_PREFIX/share/luciphor2-*/luciphor2.jar -maxdepth 0)\"\n    }\n\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    def losses = params.luciphor_neutral_losses ? \"-neutral_losses ${params.luciphor_neutral_losses}\" : \"\"\n    def dec_mass = params.luciphor_decoy_mass ? \"-decoy_mass ${params.luciphor_decoy_mass}\" : \"\"\n    def dec_losses = params.luciphor_decoy_neutral_losses ? \"-decoy_neutral_losses ${params.luciphor_decoy_neutral_losses}\" : \"\"\n\n    \"\"\"\n    LuciphorAdapter \\\\\n        -id ${id_file} \\\\\n        -in ${mzml_file} \\\\\n        ${luciphor_jar} \\\\\n        -out ${id_file.baseName}_luciphor.idXML \\\\\n        -threads $task.cpus \\\\\n        -num_threads $task.cpus \\\\\n        -target_modifications ${params.mod_localization.tokenize(',').collect { \"'${it}'\" }.join(\" \") } \\\\\n        -fragment_method $meta.dissociationmethod \\\\\n        ${losses} \\\\\n        ${dec_mass} \\\\\n        ${dec_losses} \\\\\n        -max_charge_state $params.max_precursor_charge \\\\\n        -max_peptide_length $params.max_peptide_length \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_luciphor.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        LuciphorAdapter: \\$(LuciphorAdapter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n        Luciphor: \\$(luciphor2 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 37,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "mzml_file",
+            "id_file"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' : 'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SEARCHENGINECOMET": {
+        "name_process": "SEARCHENGINECOMET",
+        "string_process": "process SEARCHENGINECOMET {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' :\n        'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\"\n\n    input:\n    tuple val(meta), file(mzml_file), file(database)\n\n    output:\n    tuple val(meta), path(\"${mzml_file.baseName}_comet.idXML\"),  emit: id_files_comet\n    path \"versions.yml\",   emit: version\n    path \"*.log\",   emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    if (meta.fragmentmasstoleranceunit == \"ppm\") {\n                                                                                  \n                                                                                            \n        if (meta.fragmentmasstolerance.toDouble() < 50) {\n            bin_tol = 0.015\n            bin_offset = 0.0\n            inst = params.instrument ?: \"high_res\"\n        } else {\n            bin_tol = 0.50025\n            bin_offset = 0.4\n            inst = params.instrument ?: \"low_res\"\n        }\n        log.warn \"The chosen search engine Comet does not support ppm fragment tolerances. We guessed a \" + inst +\n            \" instrument and set the fragment_bin_tolerance to \" + bin_tol\n    } else {\n                                                                 \n        bin_tol = meta.fragmentmasstolerance.toDouble()\n        bin_offset = bin_tol <= 0.05 ? 0.0 : 0.4\n        if (!params.instrument)\n        {\n            inst = bin_tol <= 0.05 ? \"high_res\" : \"low_res\"\n        } else {\n            inst = params.instrument\n        }\n    }\n\n    def isoSlashComet = \"0/1\"\n    if (params.isotope_error_range) {\n        def isoRangeComet = params.isotope_error_range.split(\",\")\n        isoSlashComet = \"\"\n        for (c in isoRangeComet[0].toInteger()..isoRangeComet[1].toInteger()-1) {\n            isoSlashComet += c + \"/\"\n        }\n        isoSlashComet += isoRangeComet[1]\n    }\n                                                                                                        \n                                                                                                 \n                                                                                                  \n                              \n    enzyme = meta.enzyme\n    if (params.search_engines.contains(\"msgf\")){\n        if (meta.enzyme == \"Trypsin\") enzyme = \"Trypsin/P\"\n        else if (meta.enzyme == \"Arg-C\") enzyme = \"Arg-C/P\"\n        else if (meta.enzyme == \"Asp-N\") enzyme = \"Arg-N/B\"\n        else if (meta.enzyme == \"Chymotrypsin\") enzyme = \"Chymotrypsin/P\"\n        else if (meta.enzyme == \"Lys-C\") enzyme = \"Lys-C/P\"\n    }\n\n    num_enzyme_termini = \"\"\n    if (meta.enzyme == \"unspecific cleavage\")\n    {\n        num_enzyme_termini = \"none\"\n    }\n    else if (params.num_enzyme_termini == \"fully\")\n    {\n        num_enzyme_termini = \"full\"\n    }\n\n    il_equiv = params.IL_equivalent ? \"-PeptideIndexing:IL_equivalent\" : \"\"\n\n    \"\"\"\n    CometAdapter \\\\\n        -in ${mzml_file} \\\\\n        -out ${mzml_file.baseName}_comet.idXML \\\\\n        -threads $task.cpus \\\\\n        -database \"${database}\" \\\\\n        -instrument ${inst} \\\\\n        -missed_cleavages $params.allowed_missed_cleavages \\\\\n        -min_peptide_length $params.min_peptide_length \\\\\n        -max_peptide_length $params.max_peptide_length \\\\\n        -num_hits $params.num_hits \\\\\n        -num_enzyme_termini $params.num_enzyme_termini \\\\\n        -enzyme \"${enzyme}\" \\\\\n        -isotope_error ${isoSlashComet} \\\\\n        -precursor_charge $params.min_precursor_charge:$params.max_precursor_charge \\\\\n        -fixed_modifications ${meta.fixedmodifications.tokenize(',').collect { \"'$it'\" }.join(\" \") } \\\\\n        -variable_modifications ${meta.variablemodifications.tokenize(',').collect { \"'$it'\" }.join(\" \") } \\\\\n        -max_variable_mods_in_peptide $params.max_mods \\\\\n        -precursor_mass_tolerance $meta.precursormasstolerance \\\\\n        -precursor_error_units $meta.precursormasstoleranceunit \\\\\n        -fragment_mass_tolerance ${bin_tol} \\\\\n        -fragment_bin_offset ${bin_offset} \\\\\n        ${il_equiv} \\\\\n        -PeptideIndexing:unmatched_action ${params.unmatched_action} \\\\\n        -debug $params.db_debug \\\\\n        -force \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_comet.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        CometAdapter: \\$(CometAdapter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n        Comet: \\$(comet 2>&1 | grep -E \"Comet version.*\" | sed 's/Comet version //g' | sed 's/\"//g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 115,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    if (meta.fragmentmasstoleranceunit == \"ppm\") {\n                                                                                  \n                                                                                            \n        if (meta.fragmentmasstolerance.toDouble() < 50) {\n            bin_tol = 0.015\n            bin_offset = 0.0\n            inst = params.instrument ?: \"high_res\"\n        } else {\n            bin_tol = 0.50025\n            bin_offset = 0.4\n            inst = params.instrument ?: \"low_res\"\n        }\n        log.warn \"The chosen search engine Comet does not support ppm fragment tolerances. We guessed a \" + inst +\n            \" instrument and set the fragment_bin_tolerance to \" + bin_tol\n    } else {\n                                                                 \n        bin_tol = meta.fragmentmasstolerance.toDouble()\n        bin_offset = bin_tol <= 0.05 ? 0.0 : 0.4\n        if (!params.instrument)\n        {\n            inst = bin_tol <= 0.05 ? \"high_res\" : \"low_res\"\n        } else {\n            inst = params.instrument\n        }\n    }\n\n    def isoSlashComet = \"0/1\"\n    if (params.isotope_error_range) {\n        def isoRangeComet = params.isotope_error_range.split(\",\")\n        isoSlashComet = \"\"\n        for (c in isoRangeComet[0].toInteger()..isoRangeComet[1].toInteger()-1) {\n            isoSlashComet += c + \"/\"\n        }\n        isoSlashComet += isoRangeComet[1]\n    }\n                                                                                                        \n                                                                                                 \n                                                                                                  \n                              \n    enzyme = meta.enzyme\n    if (params.search_engines.contains(\"msgf\")){\n        if (meta.enzyme == \"Trypsin\") enzyme = \"Trypsin/P\"\n        else if (meta.enzyme == \"Arg-C\") enzyme = \"Arg-C/P\"\n        else if (meta.enzyme == \"Asp-N\") enzyme = \"Arg-N/B\"\n        else if (meta.enzyme == \"Chymotrypsin\") enzyme = \"Chymotrypsin/P\"\n        else if (meta.enzyme == \"Lys-C\") enzyme = \"Lys-C/P\"\n    }\n\n    num_enzyme_termini = \"\"\n    if (meta.enzyme == \"unspecific cleavage\")\n    {\n        num_enzyme_termini = \"none\"\n    }\n    else if (params.num_enzyme_termini == \"fully\")\n    {\n        num_enzyme_termini = \"full\"\n    }\n\n    il_equiv = params.IL_equivalent ? \"-PeptideIndexing:IL_equivalent\" : \"\"\n\n    \"\"\"\n    CometAdapter \\\\\n        -in ${mzml_file} \\\\\n        -out ${mzml_file.baseName}_comet.idXML \\\\\n        -threads $task.cpus \\\\\n        -database \"${database}\" \\\\\n        -instrument ${inst} \\\\\n        -missed_cleavages $params.allowed_missed_cleavages \\\\\n        -min_peptide_length $params.min_peptide_length \\\\\n        -max_peptide_length $params.max_peptide_length \\\\\n        -num_hits $params.num_hits \\\\\n        -num_enzyme_termini $params.num_enzyme_termini \\\\\n        -enzyme \"${enzyme}\" \\\\\n        -isotope_error ${isoSlashComet} \\\\\n        -precursor_charge $params.min_precursor_charge:$params.max_precursor_charge \\\\\n        -fixed_modifications ${meta.fixedmodifications.tokenize(',').collect { \"'$it'\" }.join(\" \") } \\\\\n        -variable_modifications ${meta.variablemodifications.tokenize(',').collect { \"'$it'\" }.join(\" \") } \\\\\n        -max_variable_mods_in_peptide $params.max_mods \\\\\n        -precursor_mass_tolerance $meta.precursormasstolerance \\\\\n        -precursor_error_units $meta.precursormasstoleranceunit \\\\\n        -fragment_mass_tolerance ${bin_tol} \\\\\n        -fragment_bin_offset ${bin_offset} \\\\\n        ${il_equiv} \\\\\n        -PeptideIndexing:unmatched_action ${params.unmatched_action} \\\\\n        -debug $params.db_debug \\\\\n        -force \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_comet.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        CometAdapter: \\$(CometAdapter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n        Comet: \\$(comet 2>&1 | grep -E \"Comet version.*\" | sed 's/Comet version //g' | sed 's/\"//g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 97,
+        "language_script": "bash",
+        "tools": [
+            "InSTIL",
+            "Selenzyme"
+        ],
+        "tools_url": [
+            "https://bio.tools/InSTIL",
+            "https://bio.tools/selenzyme"
+        ],
+        "tools_dico": [
+            {
+                "name": "InSTIL",
+                "uri": "https://bio.tools/InSTIL",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0610",
+                            "term": "Ecology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3419",
+                            "term": "Psychiatry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Biomarkers"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3419",
+                            "term": "https://en.wikipedia.org/wiki/Psychiatry"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3360",
+                            "term": "Diagnostic markers"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3283",
+                                    "term": "Anonymisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3283",
+                                    "term": "Data anonymisation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A Scalable and Governance-Aware Platform for Universal, Smartphone-Based Digital Phenotyping for Research and Clinical Applications.\n\nIn this viewpoint we describe the architecture of, and design rationale for, a new software platform designed to support the conduct of digital phenotyping research studies. These studies seek to collect passive and active sensor signals from participants' smartphones for the purposes of modelling and predicting health outcomes, with a specific focus on mental health. We also highlight features of the current research landscape that recommend the coordinated development of such platforms, including the significant technical and resource costs of development, and we identify specific considerations relevant to the design of platforms for digital phenotyping.\n\n||| HOMEPAGE MISSING!.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Intelligent Sensing Inform Learn'",
+                "homepage": "https://www.ncbi.nlm.nih.gov/pubmed/?term=31692450"
+            },
+            {
+                "name": "Selenzyme",
+                "uri": "https://bio.tools/selenzyme",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3398",
+                            "term": "Bioengineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymes"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3297",
+                            "term": "Biotechnology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3398",
+                            "term": "Biological engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "Metabolic network modelling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "http://edamontology.org/Metabolic%20pathway%20modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Enzyme selection tool for pathway design.",
+                "homepage": "http://selenzyme.synbiochem.co.uk/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "mzml_file",
+            "database"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::openms-thirdparty=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms-thirdparty:2.8.0--h9ee0642_0' : 'quay.io/biocontainers/openms-thirdparty:2.8.0--h9ee0642_0' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "IDCONFLICTRESOLVER": {
+        "name_process": "IDCONFLICTRESOLVER",
+        "string_process": "process IDCONFLICTRESOLVER {\n    label 'process_low'\n    label 'openms'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    path consus_file\n\n    output:\n    path \"${consus_file.baseName}_resconf.consensusXML\", emit: pro_resconf\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    IDConflictResolver \\\\\n        -in ${consus_file} \\\\\n        -threads $task.cpus \\\\\n        -out ${consus_file.baseName}_resconf.consensusXML \\\\\n        $args \\\\\n        |& tee ${consus_file.baseName}_resconf.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDConflictResolver: \\$(IDConflictResolver 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    IDConflictResolver \\\\\n        -in ${consus_file} \\\\\n        -threads $task.cpus \\\\\n        -out ${consus_file.baseName}_resconf.consensusXML \\\\\n        $args \\\\\n        |& tee ${consus_file.baseName}_resconf.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDConflictResolver: \\$(IDConflictResolver 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "consus_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_low'",
+            "label 'openms'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MZMLINDEXING": {
+        "name_process": "MZMLINDEXING",
+        "string_process": "process MZMLINDEXING {\n    tag \"$meta.id\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(mzmlfile)\n\n    output:\n    tuple val(meta), path(\"out/*.mzML\"), emit: mzmls_indexed\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    mkdir out\n    FileConverter -in ${mzmlfile} -out out/${mzmlfile.baseName}.mzML |& tee ${mzmlfile.baseName}_mzmlindexing.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        FileConverter: \\$(FileConverter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    mkdir out\n    FileConverter -in ${mzmlfile} -out out/${mzmlfile.baseName}.mzML |& tee ${mzmlfile.baseName}_mzmlindexing.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        FileConverter: \\$(FileConverter 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "AgileFileConverter"
+        ],
+        "tools_url": [
+            "https://bio.tools/agilefileconverter"
+        ],
+        "tools_dico": [
+            {
+                "name": "AgileFileConverter",
+                "uri": "https://bio.tools/agilefileconverter",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "AgileFileConverter converts varaint data in tab delimited text files, typically supplied by commercial NGS service providers, into the format used by AgileGeneFilter, AgileVariantViewer and AgileFileViewer",
+                "homepage": "http://dna.leeds.ac.uk/agile/AgileFileConverter/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "mzmlfile"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "OPENMSPEAKPICKER": {
+        "name_process": "OPENMSPEAKPICKER",
+        "string_process": "process OPENMSPEAKPICKER {\n    tag \"$meta.id\"\n    label 'process_low'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(mzml_file)\n\n    output:\n    tuple val(meta), path(\"*.mzML\"), emit: mzmls_picked\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    in_mem = params.peakpicking_inmemory ? \"inmermory\" : \"lowmemory\"\n    lvls = params.peakpicking_ms_levels ? \"-algorithm:ms_levels ${params.peakpicking_ms_levels}\" : \"\"\n\n    \"\"\"\n    PeakPickerHiRes \\\\\n        -in ${mzml_file} \\\\\n        -out ${mzml_file.baseName}.mzML \\\\\n        -threads $task.cpus \\\\\n        -debug $params.pp_debug \\\\\n        -processOption ${in_mem} \\\\\n        ${lvls} \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_pp.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        PeakPickerHiRes: \\$(PeakPickerHiRes 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    in_mem = params.peakpicking_inmemory ? \"inmermory\" : \"lowmemory\"\n    lvls = params.peakpicking_ms_levels ? \"-algorithm:ms_levels ${params.peakpicking_ms_levels}\" : \"\"\n\n    \"\"\"\n    PeakPickerHiRes \\\\\n        -in ${mzml_file} \\\\\n        -out ${mzml_file.baseName}.mzML \\\\\n        -threads $task.cpus \\\\\n        -debug $params.pp_debug \\\\\n        -processOption ${in_mem} \\\\\n        ${lvls} \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_pp.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        PeakPickerHiRes: \\$(PeakPickerHiRes 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "mzml_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ISOBARICANALYZER": {
+        "name_process": "ISOBARICANALYZER",
+        "string_process": "process ISOBARICANALYZER {\n    tag \"$meta.id\"\n    label 'process_medium'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(mzml_file)\n\n    output:\n    tuple val(meta), path(\"${mzml_file.baseName}_iso.consensusXML\"),  emit: id_files_consensusXML\n    path \"versions.yml\",   emit: version\n    path \"*.log\",   emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    if (meta.dissociationmethod == \"HCD\" || meta.dissociationmethod == \"HCID\") diss_meth = \"auto\"\n    else if (meta.dissociationmethod == \"CID\") diss_meth = \"Collision-induced dissociation\"\n    else if (meta.dissociationmethod == \"ETD\") diss_meth = \"Electron transfer dissociation\"\n    else if (meta.dissociationmethod == \"ECD\") diss_meth = \"Electron capture dissociation\"\n\n    iso_normalization = params.iso_normalization ? \"-quantification:normalization\" : \"\"\n\n    \"\"\"\n    IsobaricAnalyzer \\\\\n        -type $meta.labelling_type \\\\\n        -in ${mzml_file} \\\\\n        -threads $task.cpus \\\\\n        -extraction:select_activation \"${diss_meth}\" \\\\\n        -extraction:reporter_mass_shift $params.reporter_mass_shift \\\\\n        -extraction:min_reporter_intensity $params.min_reporter_intensity \\\\\n        -extraction:min_precursor_purity $params.min_precursor_purity \\\\\n        -extraction:precursor_isotope_deviation $params.precursor_isotope_deviation \\\\\n        ${iso_normalization} \\\\\n        -${meta.labelling_type}:reference_channel $params.reference_channel \\\\\n        -out ${mzml_file.baseName}_iso.consensusXML \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_isob.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IsobaricAnalyzer: \\$(IsobaricAnalyzer --version 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    if (meta.dissociationmethod == \"HCD\" || meta.dissociationmethod == \"HCID\") diss_meth = \"auto\"\n    else if (meta.dissociationmethod == \"CID\") diss_meth = \"Collision-induced dissociation\"\n    else if (meta.dissociationmethod == \"ETD\") diss_meth = \"Electron transfer dissociation\"\n    else if (meta.dissociationmethod == \"ECD\") diss_meth = \"Electron capture dissociation\"\n\n    iso_normalization = params.iso_normalization ? \"-quantification:normalization\" : \"\"\n\n    \"\"\"\n    IsobaricAnalyzer \\\\\n        -type $meta.labelling_type \\\\\n        -in ${mzml_file} \\\\\n        -threads $task.cpus \\\\\n        -extraction:select_activation \"${diss_meth}\" \\\\\n        -extraction:reporter_mass_shift $params.reporter_mass_shift \\\\\n        -extraction:min_reporter_intensity $params.min_reporter_intensity \\\\\n        -extraction:min_precursor_purity $params.min_precursor_purity \\\\\n        -extraction:precursor_isotope_deviation $params.precursor_isotope_deviation \\\\\n        ${iso_normalization} \\\\\n        -${meta.labelling_type}:reference_channel $params.reference_channel \\\\\n        -out ${mzml_file.baseName}_iso.consensusXML \\\\\n        $args \\\\\n        |& tee ${mzml_file.baseName}_isob.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IsobaricAnalyzer: \\$(IsobaricAnalyzer --version 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "mzml_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FILEMERGE": {
+        "name_process": "FILEMERGE",
+        "string_process": "process FILEMERGE {\n    label 'process_medium'\n    label 'process_single_thread'\n    label 'openms'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    file(id_map)\n\n    output:\n    tuple val([:]), path(\"ID_mapper_merge.consensusXML\"), emit: id_merge\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    FileMerger \\\\\n        -in ${(id_map as List).join(' ')} \\\\\n        -in_type consensusXML \\\\\n        -annotate_file_origin \\\\\n        -append_method 'append_cols' \\\\\n        -threads $task.cpus \\\\\n        -out ID_mapper_merge.consensusXML \\\\\n        $args \\\\\n        |& tee ID_mapper_merge.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        FileMerger: \\$(FileMerger 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    FileMerger \\\\\n        -in ${(id_map as List).join(' ')} \\\\\n        -in_type consensusXML \\\\\n        -annotate_file_origin \\\\\n        -append_method 'append_cols' \\\\\n        -threads $task.cpus \\\\\n        -out ID_mapper_merge.consensusXML \\\\\n        $args \\\\\n        |& tee ID_mapper_merge.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        FileMerger: \\$(FileMerger 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "PklFileMerger"
+        ],
+        "tools_url": [
+            "https://bio.tools/pklfilemerger"
+        ],
+        "tools_dico": [
+            {
+                "name": "PklFileMerger",
+                "uri": "https://bio.tools/pklfilemerger",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3366",
+                            "term": "Data integration and warehousing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2536",
+                                "term": "Mass spectrometry data"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2536",
+                                "term": "Mass spectrometry data"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Merges individual Q-TOF .pkl files into a single file for database searching.",
+                "homepage": "http://www.uib.no/en/rg/probe/66698/pklfilemerger"
+            }
+        ],
+        "inputs": [
+            "id_map"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_medium'",
+            "label 'process_single_thread'",
+            "label 'openms'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "DECOYDATABASE": {
+        "name_process": "DECOYDATABASE",
+        "string_process": "process DECOYDATABASE {\n    label 'process_very_low'\n    label 'openms'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    path(db_for_decoy)\n\n    output:\n    path \"*.fasta\",   emit: db_decoy\n    path \"versions.yml\", emit: version\n    path \"*.log\",   emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    DecoyDatabase \\\\\n        -in ${db_for_decoy} \\\\\n        -out ${db_for_decoy.baseName}_decoy.fasta \\\\\n        -decoy_string $params.decoy_string \\\\\n        -decoy_string_position $params.decoy_string_position \\\\\n        -method $params.decoy_method \\\\\n        -shuffle_max_attempts $params.shuffle_max_attempts \\\\\n        -shuffle_sequence_identity_threshold $params.shuffle_sequence_identity_threshold \\\\\n        -debug $params.decoydatabase_debug \\\\\n        $args \\\\\n        |& tee ${db_for_decoy.baseName}_decoy_database.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        DecoyDatabase: \\$(DecoyDatabase 2>&1  | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    DecoyDatabase \\\\\n        -in ${db_for_decoy} \\\\\n        -out ${db_for_decoy.baseName}_decoy.fasta \\\\\n        -decoy_string $params.decoy_string \\\\\n        -decoy_string_position $params.decoy_string_position \\\\\n        -method $params.decoy_method \\\\\n        -shuffle_max_attempts $params.shuffle_max_attempts \\\\\n        -shuffle_sequence_identity_threshold $params.shuffle_sequence_identity_threshold \\\\\n        -debug $params.decoydatabase_debug \\\\\n        $args \\\\\n        |& tee ${db_for_decoy.baseName}_decoy_database.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        DecoyDatabase: \\$(DecoyDatabase 2>&1  | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "db_for_decoy"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_very_low'",
+            "label 'openms'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "THERMORAWFILEPARSER": {
+        "name_process": "THERMORAWFILEPARSER",
+        "string_process": "process THERMORAWFILEPARSER {\n    tag \"$meta.id\"\n    label 'process_low'\n    label 'process_single_thread'\n    label 'error_retry'\n\n    conda (params.enable_conda ? \"conda-forge::mono bioconda::thermorawfileparser=1.3.4\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/thermorawfileparser:1.3.4--ha8f3691_0' :\n        'quay.io/biocontainers/thermorawfileparser:1.3.4--ha8f3691_0' }\"\n\n    stageInMode {\n        if (task.attempt == 1) {\n            if (executor == \"awsbatch\") {\n                'symlink'\n            } else {\n                'link'\n            }\n        } else if (task.attempt == 2) {\n            if (executor == \"awsbatch\") {\n                'copy'\n            } else {\n                'symlink'\n            }\n        } else {\n            'copy'\n        }\n    }\n\n    input:\n    tuple val(meta), path(rawfile)\n\n    output:\n    tuple val(meta), path(\"*.mzML\"), emit: mzmls_converted\n    path \"versions.yml\",   emit: version\n    path \"*.log\",   emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    ThermoRawFileParser.sh -i=${rawfile} -f=2 -o=./ |& tee ${rawfile.baseName}_conversion.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ThermoRawFileParser: \\$(ThermoRawFileParser.sh --version)\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    ThermoRawFileParser.sh -i=${rawfile} -f=2 -o=./ |& tee ${rawfile.baseName}_conversion.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        ThermoRawFileParser: \\$(ThermoRawFileParser.sh --version)\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "rawfile"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "label 'process_single_thread'",
+            "label 'error_retry'",
+            "conda (params.enable_conda ? \"conda-forge::mono bioconda::thermorawfileparser=1.3.4\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/thermorawfileparser:1.3.4--ha8f3691_0' : 'quay.io/biocontainers/thermorawfileparser:1.3.4--ha8f3691_0' }\"",
+            "stageInMode { if (task.attempt == 1) { if (executor == \"awsbatch\") { 'symlink' } else { 'link' } } else if (task.attempt == 2) { if (executor == \"awsbatch\") { 'copy' } else { 'symlink' } } else { 'copy' } }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "GENERATE_DIANN_CFG": {
+        "name_process": "GENERATE_DIANN_CFG",
+        "string_process": "process GENERATE_DIANN_CFG {\n    label 'process_low'\n\n    conda (params.enable_conda ? \"conda-forge::pandas_schema bioconda::sdrf-pipelines=0.0.21\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/sdrf-pipelines:0.0.21--pyhdfd78af_0\"\n    } else {\n        container \"quay.io/biocontainers/sdrf-pipelines:0.0.21--pyhdfd78af_0\"\n    }\n\n    input:\n    val(meta)\n\n    output:\n    path \"diann_config.cfg\", emit: diann_cfg\n    path \"versions.yml\", emit: version\n    path \"*.log\"\n\n    script:\n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    prepare_diann_parameters.py generate \\\\\n        --enzyme \"${meta.enzyme}\" \\\\\n        --fix_mod \"${meta.fixedmodifications}\" \\\\\n        --var_mod \"${meta.variablemodifications}\" \\\\\n        --precursor_tolerence ${meta.precursormasstolerance} \\\\\n        --precursor_tolerence_unit ${meta.precursormasstoleranceunit} \\\\\n        --fragment_tolerence ${meta.fragmentmasstolerance} \\\\\n        --fragment_tolerence_unit ${meta.fragmentmasstoleranceunit} \\\\\n        |& tee GENERATE_DIANN_CFG.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        sdrf-pipelines: \\$(echo \"0.0.21\")\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    prepare_diann_parameters.py generate \\\\\n        --enzyme \"${meta.enzyme}\" \\\\\n        --fix_mod \"${meta.fixedmodifications}\" \\\\\n        --var_mod \"${meta.variablemodifications}\" \\\\\n        --precursor_tolerence ${meta.precursormasstolerance} \\\\\n        --precursor_tolerence_unit ${meta.precursormasstoleranceunit} \\\\\n        --fragment_tolerence ${meta.fragmentmasstolerance} \\\\\n        --fragment_tolerence_unit ${meta.fragmentmasstoleranceunit} \\\\\n        |& tee GENERATE_DIANN_CFG.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        sdrf-pipelines: \\$(echo \"0.0.21\")\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_low'",
+            "conda (params.enable_conda ? \"conda-forge::pandas_schema bioconda::sdrf-pipelines=0.0.21\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/sdrf-pipelines:0.0.21--pyhdfd78af_0\" } else { container \"quay.io/biocontainers/sdrf-pipelines:0.0.21--pyhdfd78af_0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SAMPLESHEET_CHECK": {
+        "name_process": "SAMPLESHEET_CHECK",
+        "string_process": "process SAMPLESHEET_CHECK {\n\n    conda (params.enable_conda ? \"conda-forge::pandas_schema bioconda::sdrf-pipelines=0.0.21\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/sdrf-pipelines:0.0.21--pyhdfd78af_0' :\n        'quay.io/biocontainers/sdrf-pipelines:0.0.21--pyhdfd78af_0' }\"\n\n    input:\n    path input_file\n    val is_sdrf\n\n    output:\n    path \"*.log\", emit: log\n    path \"${input_file}\", emit: checked_file\n    path \"versions.yml\", emit: versions\n\n    script:                                                                     \n                                             \n    def args = task.ext.args ?: ''\n\n    \"\"\"\n    check_samplesheet.py \"${input_file}\" ${is_sdrf} --CHECK_MS |& tee input_check.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        sdrf-pipelines: \\$(echo \"0.0.21\")\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    def args = task.ext.args ?: ''\n\n    \"\"\"\n    check_samplesheet.py \"${input_file}\" ${is_sdrf} --CHECK_MS |& tee input_check.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        sdrf-pipelines: \\$(echo \"0.0.21\")\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "input_file",
+            "is_sdrf"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "conda (params.enable_conda ? \"conda-forge::pandas_schema bioconda::sdrf-pipelines=0.0.21\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/sdrf-pipelines:0.0.21--pyhdfd78af_0' : 'quay.io/biocontainers/sdrf-pipelines:0.0.21--pyhdfd78af_0' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MULTIQC": {
+        "name_process": "MULTIQC",
+        "string_process": "process MULTIQC {\n    label 'process_medium'\n\n    conda (params.enable_conda ? 'bioconda::multiqc=1.12' : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/multiqc:1.12--pyhdfd78af_0' :\n        'quay.io/biocontainers/multiqc:1.12--pyhdfd78af_0' }\"\n\n    input:\n    path multiqc_files\n\n    output:\n    path \"*multiqc_report.html\", emit: report\n    path \"*_data\"              , emit: data\n    path \"*_plots\"             , optional:true, emit: plots\n    path \"versions.yml\"        , emit: versions\n\n    when:\n    task.ext.when == null || task.ext.when\n\n    script:\n    def args = task.ext.args ?: ''\n    \"\"\"\n    multiqc -f $args .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        multiqc: \\$( multiqc --version | sed -e \"s/multiqc, version //g\" )\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    def args = task.ext.args ?: ''\n    \"\"\"\n    multiqc -f $args .\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        multiqc: \\$( multiqc --version | sed -e \"s/multiqc, version //g\" )\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "multiqc_files"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "label 'process_medium'",
+            "conda (params.enable_conda ? 'bioconda::multiqc=1.12' : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/multiqc:1.12--pyhdfd78af_0' : 'quay.io/biocontainers/multiqc:1.12--pyhdfd78af_0' }\""
+        ],
+        "when": "task.ext.when == null || task.ext.when",
+        "stub": ""
+    },
+    "IDPEP": {
+        "name_process": "IDPEP",
+        "string_process": "process IDPEP {\n    tag \"$meta.id\"\n    label 'process_very_low'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(id_file)\n\n    output:\n    tuple val(meta), path(\"${id_file.baseName}_idpep.idXML\"), val(\"q-value_score\"), emit: id_files_ForIDPEP\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    IDPosteriorErrorProbability \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_idpep.idXML \\\\\n        -fit_algorithm:outlier_handling $params.outlier_handling \\\\\n        -threads ${task.cpus} \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_idpep.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDPosteriorErrorProbability: \\$(IDPosteriorErrorProbability 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    IDPosteriorErrorProbability \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_idpep.idXML \\\\\n        -fit_algorithm:outlier_handling $params.outlier_handling \\\\\n        -threads ${task.cpus} \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_idpep.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDPosteriorErrorProbability: \\$(IDPosteriorErrorProbability 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "id_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_very_low'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "IDSCORESWITCHER": {
+        "name_process": "IDSCORESWITCHER",
+        "string_process": "process IDSCORESWITCHER {\n    tag \"$meta.id\"\n    label 'process_very_low'\n    label 'process_single_thread'\n\n    conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)\n    container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?\n        'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' :\n        'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\"\n\n    input:\n    tuple val(meta), path(id_file), val(new_score)\n\n    output:\n    tuple val(meta), path(\"${id_file.baseName}_pep.idXML\"), emit: id_score_switcher\n    path \"versions.yml\", emit: version\n    path \"*.log\", emit: log\n\n    script:\n    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    IDScoreSwitcher \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_pep.idXML \\\\\n        -threads $task.cpus \\\\\n        -new_score ${new_score} \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_switch.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDScoreSwitcher: \\$(IDScoreSwitcher 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "    def args = task.ext.args ?: ''\n    def prefix = task.ext.prefix ?: \"${meta.id}\"\n\n    \"\"\"\n    IDScoreSwitcher \\\\\n        -in ${id_file} \\\\\n        -out ${id_file.baseName}_pep.idXML \\\\\n        -threads $task.cpus \\\\\n        -new_score ${new_score} \\\\\n        $args \\\\\n        |& tee ${id_file.baseName}_switch.log\n\n    cat <<-END_VERSIONS > versions.yml\n    \"${task.process}\":\n        IDScoreSwitcher: \\$(IDScoreSwitcher 2>&1 | grep -E '^Version(.*)' | sed 's/Version: //g')\n    END_VERSIONS\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "meta",
+            "new_score",
+            "id_file"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "bigbio__quantms",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_very_low'",
+            "label 'process_single_thread'",
+            "conda (params.enable_conda ? \"bioconda::openms=2.8.0\" : null)",
+            "container \"${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ? 'https://depot.galaxyproject.org/singularity/openms:2.8.0--h7ca0330_1' : 'quay.io/biocontainers/openms:2.8.0--h7ca0330_1' }\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

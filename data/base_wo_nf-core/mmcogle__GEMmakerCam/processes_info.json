@@ -1,0 +1,2660 @@
+{
+    "retrieve_sra_metadata": {
+        "name_process": "retrieve_sra_metadata",
+        "string_process": "\nprocess retrieve_sra_metadata {\n  publishDir params.output.dir, mode: params.output.publish_mode, pattern: \"*.GEMmaker.meta.*\", saveAs: { \"${it.tokenize(\".\")[0]}/${it}\" }\n  label \"python3\"\n\n  input:\n    file srr_file from SRR_FILE\n\n  output:\n    stdout REMOTE_SAMPLES_LIST\n    file \"*.GEMmaker.meta.*\"\n\n  script:\n    \"\"\"\n    retrieve_sra_metadata.py ${srr_file}\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    retrieve_sra_metadata.py ${srr_file}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "SRR_FILE"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "REMOTE_SAMPLES_LIST"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.dir, mode: params.output.publish_mode, pattern: \"*.GEMmaker.meta.*\", saveAs: { \"${it.tokenize(\".\")[0]}/${it}\" }",
+            "label \"python3\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "process_sample": {
+        "name_process": "process_sample",
+        "string_process": "\nprocess process_sample {\n  tag { sample_id }\n  label \"gemmaker\"\n  label \"multithreaded\"\n  label \"retry_ignore\"\n  publishDir params.output.sample_dir, mode: params.output.publish_mode\n\n  input:\n    set val(sample_id), val(type), val(remote_ids), val(local_files) from ALL_SAMPLES\n    file fasta_adapter from FASTA_ADAPTER\n    file indexes from INDEXES\n    file gtf_file from GTF_FILE\n\n  output:\n    val(sample_id) into COMPLETED_SAMPLES\n    file(\"*.sra\") optional true into SRA_FILES\n    file(\"*.fastq\") optional true into FASTQ_FILES\n    file(\"*fastqc.*\") optional true into FASTQC_FILES\n    file(\"*.log\") optional true into LOG_FILES\n    file(\"*.sam\") optional true into SAM_FILES\n    file(\"*.bam\") optional true into BAM_FILES\n    file(\"*.bam.bai\") optional true into BAI_FILES\n    file(\"*.ga\") optional true into GA_FILES\n    file(\"*.gtf\") optional true into GTF_FILES\n    file(\"*.raw\") optional true into RAW_FILES\n    file(\"*.fpkm\") optional true into FPKM_FILES\n    file(\"*.tpm\") optional true into TPM_FILES\n\n  script:\n  \"\"\"\n  # for remote samples, prepare FASTQ files from NCBI\n  if [[ \"${type}\" == \"remote\" ]]; then\n    # download SRA files from NCBI\n    SRR_IDS=\"${remote_ids.join(' ')}\"\n\n    for id in \\$SRR_IDS; do\n      ascp_path=`which ascp`\n      prefetch -v --max-size 50G --output-directory . --ascp-path \"\\$ascp_path|\\$ASPERA_KEY\" --ascp-options \"-k 1 -T -l 1000m\" \\$id\n    done\n\n    # extract FASTQ files from SRA files\n    SRA_FILES=\\$(ls *.sra)\n\n    for sra_file in \\$SRA_FILES; do\n      fastq-dump --split-files \\$sra_file\n    done\n\n    # remove SRA files if they will not be published\n    if [[ ${params.output.publish_sra} == false ]]; then\n      rm -f \\$SRA_FILES\n    fi\n\n    # merge the FASTQ files from each run in the experiment\n    DOWNLOADED_FASTQ_FILES=\\$(ls *.fastq)\n\n    if ls *_1.fastq >/dev/null 2>&1; then\n      cat *_1.fastq >> \"${sample_id}_1.fastq\"\n    fi\n\n    if ls *_2.fastq >/dev/null 2>&1; then\n      cat *_2.fastq >> \"${sample_id}_2.fastq\"\n    fi\n\n    # remove downloaded FASTQ files if they will not be published\n    if [[ ${params.output.publish_downloaded_fastq} == false ]]; then\n      rm -f \\$DOWNLOADED_FASTQ_FILES\n    fi\n\n  # for local samples, fetch FASTQ files from filesystem\n  elif [[ \"${type}\" == \"local\" ]]; then\n    cp ${local_files.join(' ')} .\n  fi\n\n  # perform fastqc on raw FASTQ files\n  MERGED_FASTQ_FILES=\\$(ls ${sample_id}_?.fastq)\n\n  fastqc \\$MERGED_FASTQ_FILES\n\n  # use hisat2 for alignment\n  if [[ ${params.input.hisat2.enable} == \"true\" ]]; then\n    # perform trimmomatic on all fastq files\n    # This script calculates average length of fastq files.\n    total=0\n\n    # This if statement checks if the data is single or paired data, and checks length accordingly\n    # This script returns 1 number, which can be used for the minlen in trimmomatic\n    if [ -e ${sample_id}_1.fastq ] && [ -e ${sample_id}_2.fastq ]; then\n      for fastq in ${sample_id}_1.fastq ${sample_id}_2.fastq; do\n        a=`awk 'NR%4 == 2 {lengths[length(\\$0)]++} END {for (l in lengths) {print l, lengths[l]}}' \\$fastq \\\n        | sort \\\n        | awk '{ print \\$0, \\$1*\\$2}' \\\n        | awk '{ SUM += \\$3 } { SUM2 += \\$2 } END { printf(\"%.0f\", SUM / SUM2 * ${params.software.trimmomatic.MINLEN})} '`\n      total=(\\$a + \\$total)\n      done\n      total=( \\$total / 2 )\n      minlen=\\$total\n\n    elif [ -e ${sample_id}_1.fastq ]; then\n      minlen=`awk 'NR%4 == 2 {lengths[length(\\$0)]++} END {for (l in lengths) {print l, lengths[l]}}' ${sample_id}_1.fastq \\\n        | sort \\\n        | awk '{ print \\$0, \\$1*\\$2}' \\\n        | awk '{ SUM += \\$3 } { SUM2 += \\$2 } END { printf(\"%.0f\", SUM / SUM2 * ${params.software.trimmomatic.MINLEN})} '`\n    fi\n\n    if [ -e ${sample_id}_1.fastq ] && [ -e ${sample_id}_2.fastq ]; then\n      java -Xmx512m org.usadellab.trimmomatic.Trimmomatic \\\n        PE \\\n        -threads ${task.cpus} \\\n        ${params.software.trimmomatic.quality} \\\n        ${sample_id}_1.fastq \\\n        ${sample_id}_2.fastq \\\n        ${sample_id}_1p_trim.fastq \\\n        ${sample_id}_1u_trim.fastq \\\n        ${sample_id}_2p_trim.fastq \\\n        ${sample_id}_2u_trim.fastq \\\n        ILLUMINACLIP:${params.software.trimmomatic.clip_path}:2:40:15 \\\n        LEADING:${params.software.trimmomatic.LEADING} \\\n        TRAILING:${params.software.trimmomatic.TRAILING} \\\n        SLIDINGWINDOW:${params.software.trimmomatic.SLIDINGWINDOW} \\\n        MINLEN:\"\\$minlen\" > ${sample_id}.trim.log 2>&1\n    else\n      # For ease of the next steps, rename the reverse file to the forward.\n      # since these are non-paired it really shouldn't matter.\n      if [ -e ${sample_id}_2.fastq ]; then\n        mv ${sample_id}_2.fastq ${sample_id}_1.fastq\n      fi\n      # Now run trimmomatic\n      java -Xmx512m org.usadellab.trimmomatic.Trimmomatic \\\n        SE \\\n        -threads ${task.cpus} \\\n        ${params.software.trimmomatic.quality} \\\n        ${sample_id}_1.fastq \\\n        ${sample_id}_1u_trim.fastq \\\n        ILLUMINACLIP:${fasta_adapter}:2:40:15 \\\n        LEADING:${params.software.trimmomatic.LEADING} \\\n        TRAILING:${params.software.trimmomatic.TRAILING} \\\n        SLIDINGWINDOW:${params.software.trimmomatic.SLIDINGWINDOW} \\\n        MINLEN:\"\\$minlen\" > ${sample_id}.trim.log 2>&1\n    fi\n\n    # remove merged fastq files if they will not be published\n    if [[ ${params.output.publish_downloaded_fastq} == false ]]; then\n      rm -f \\$MERGED_FASTQ_FILES\n    fi\n\n    # perform fastqc on all trimmed fastq files\n    TRIMMED_FASTQ_FILES=\\$(ls ${sample_id}_*trim.fastq)\n\n    fastqc \\$TRIMMED_FASTQ_FILES\n\n    # perform hisat2 alignment of fastq files to a genome reference\n    if [ -e ${sample_id}_2p_trim.fastq ]; then\n      hisat2 \\\n        -x ${params.input.reference_name} \\\n        --no-spliced-alignment \\\n        -q \\\n        -1 ${sample_id}_1p_trim.fastq \\\n        -2 ${sample_id}_2p_trim.fastq \\\n        -U ${sample_id}_1u_trim.fastq,${sample_id}_2u_trim.fastq \\\n        -S ${sample_id}_vs_${params.input.reference_name}.sam \\\n        -t \\\n        -p ${task.cpus} \\\n        --un ${sample_id}_un.fastq \\\n        --dta-cufflinks \\\n        --new-summary \\\n        --summary-file ${sample_id}_vs_${params.input.reference_name}.sam.log\n    else\n      hisat2 \\\n        -x ${params.input.reference_name} \\\n        --no-spliced-alignment \\\n        -q \\\n        -U ${sample_id}_1u_trim.fastq \\\n        -S ${sample_id}_vs_${params.input.reference_name}.sam \\\n        -t \\\n        -p ${task.cpus} \\\n        --un ${sample_id}_un.fastq \\\n        --dta-cufflinks \\\n        --new-summary \\\n        --summary-file ${sample_id}_vs_${params.input.reference_name}.sam.log\n    fi\n\n    rm -f ${sample_id}_un.fastq\n\n    # remove trimmed fastq files if they will not be published\n    if [[ ${params.output.publish_trimmed_fastq} == false ]]; then\n      rm -f \\$TRIMMED_FASTQ_FILES\n    fi\n\n    # sort the SAM alignment file and convert it to BAM\n    samtools sort \\\n      -o ${sample_id}_vs_${params.input.reference_name}.bam \\\n      -O bam \\\n      -T temp \\\n      ${sample_id}_vs_${params.input.reference_name}.sam\n\n    # remove SAM file as it will not be published\n    rm -f *.sam\n\n    # index BAM alignment file\n    samtools index ${sample_id}_vs_${params.input.reference_name}.bam\n    samtools stats ${sample_id}_vs_${params.input.reference_name}.bam > ${sample_id}_vs_${params.input.reference_name}.bam.log\n\n    # generate expression-level transcript abundance\n    stringtie \\\n      -v \\\n      -p ${task.cpus} \\\n      -e \\\n      -o ${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf \\\n      -G ${gtf_file} \\\n      -A ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga \\\n      -l ${sample_id} ${sample_id}_vs_${params.input.reference_name}.bam\n\n    # remove BAM file if it will not be published\n    if [[ ${params.output.publish_bam} == false ]]; then\n      rm -f *.bam\n      rm -f *.bam.bai\n    fi\n\n    # generate raw counts from hisat2/stringtie\n    # Run the prepDE.py script provided by stringtie to get the raw counts.\n    echo \"${sample_id}\\t./${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf\" > gtf_files\n    prepDE.py -i gtf_files -g ${sample_id}_vs_${params.input.reference_name}.raw.pre\n\n    # Reformat the raw file to be the same as the TPM/FKPM files.\n    cat ${sample_id}_vs_${params.input.reference_name}.raw.pre | \\\n      grep -v gene_id | \\\n      perl -pi -e \"s/,/\\\\t/g\" > ${sample_id}_vs_${params.input.reference_name}.Hisat2.raw\n\n    # generate the final FPKM and TPM files\n    if [[ ${params.output.publish_fpkm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$8}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga > ${sample_id}_vs_${params.input.reference_name}.Hisat2.fpkm\n    fi\n\n    if [[ ${params.output.publish_tpm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$9}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga > ${sample_id}_vs_${params.input.reference_name}.Hisat2.tpm\n    fi\n\n    if [[ ${params.output.publish_stringtie_gtf_and_ga} == false ]]; then\n      rm -rf *.ga\n      rm -rf *.gtf\n    fi\n\n  # or use kallisto\n  elif [[ ${params.input.kallisto.enable} == \"true\" ]]; then\n    # perform Kallisto alignment of fastq files\n    if [ -e ${sample_id}_2.fastq ]; then\n      kallisto quant \\\n        -i  ${indexes} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga \\\n        ${sample_id}_1.fastq \\\n        ${sample_id}_2.fastq > ${sample_id}.kallisto.log 2>&1\n    else\n      kallisto quant \\\n        --single \\\n        -l 70 \\\n        -s .0000001 \\\n        -i ${indexes} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga \\\n        ${sample_id}_1.fastq > ${sample_id}.kallisto.log 2>&1\n    fi\n\n    # generate TPM and raw count files\n    if [[ ${params.output.publish_tpm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$5}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga/abundance.tsv > ${sample_id}_vs_${params.input.reference_name}.Kallisto.tpm\n    fi\n\n    if [[ ${params.output.publish_raw} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$4}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga/abundance.tsv > ${sample_id}_vs_${params.input.reference_name}.Kallisto.raw\n    fi\n\n    if [[ ${params.output.publish_gene_abundance} == false ]]; then\n      rm -rf *.ga\n    fi\n\n  # or use salmon\n  elif [[ ${params.input.salmon.enable} == \"true\" ]]; then\n    # perform SALMON alignment of fastq files\n    if [ -e ${sample_id}_2.fastq ]; then\n      salmon quant \\\n        -i . \\\n        -l A \\\n        -1 ${sample_id}_1.fastq \\\n        -2 ${sample_id}_2.fastq \\\n        -p ${task.cpus} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Salmon.ga \\\n        --minAssignedFrags 1 > ${sample_id}.salmon.log 2>&1\n    else\n      salmon quant \\\n        -i . \\\n        -l A \\\n        -r ${sample_id}_1.fastq \\\n        -p ${task.cpus} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Salmon.ga \\\n        --minAssignedFrags 1 > ${sample_id}.salmon.log 2>&1\n    fi\n\n    # generate final TPM and raw count files\n    if [[ ${params.output.publish_tpm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$4}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Salmon.ga/quant.sf > ${sample_id}_vs_${params.input.reference_name}.Salmon.tpm\n    fi\n\n    if [[ ${params.output.publish_raw} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$5}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Salmon.ga/quant.sf > ${sample_id}_vs_${params.input.reference_name}.Salmon.raw\n    fi\n\n    if [[ ${params.output.publish_gene_abundance} == false ]]; then\n      rm -rf `find *.ga -type f | egrep -v \"aux_info/meta_info.json|/libParams/flenDist.txt\"`\n    fi\n  fi\n  \"\"\"\n}",
+        "nb_lignes_process": 310,
+        "string_script": "  \"\"\"\n  # for remote samples, prepare FASTQ files from NCBI\n  if [[ \"${type}\" == \"remote\" ]]; then\n    # download SRA files from NCBI\n    SRR_IDS=\"${remote_ids.join(' ')}\"\n\n    for id in \\$SRR_IDS; do\n      ascp_path=`which ascp`\n      prefetch -v --max-size 50G --output-directory . --ascp-path \"\\$ascp_path|\\$ASPERA_KEY\" --ascp-options \"-k 1 -T -l 1000m\" \\$id\n    done\n\n    # extract FASTQ files from SRA files\n    SRA_FILES=\\$(ls *.sra)\n\n    for sra_file in \\$SRA_FILES; do\n      fastq-dump --split-files \\$sra_file\n    done\n\n    # remove SRA files if they will not be published\n    if [[ ${params.output.publish_sra} == false ]]; then\n      rm -f \\$SRA_FILES\n    fi\n\n    # merge the FASTQ files from each run in the experiment\n    DOWNLOADED_FASTQ_FILES=\\$(ls *.fastq)\n\n    if ls *_1.fastq >/dev/null 2>&1; then\n      cat *_1.fastq >> \"${sample_id}_1.fastq\"\n    fi\n\n    if ls *_2.fastq >/dev/null 2>&1; then\n      cat *_2.fastq >> \"${sample_id}_2.fastq\"\n    fi\n\n    # remove downloaded FASTQ files if they will not be published\n    if [[ ${params.output.publish_downloaded_fastq} == false ]]; then\n      rm -f \\$DOWNLOADED_FASTQ_FILES\n    fi\n\n  # for local samples, fetch FASTQ files from filesystem\n  elif [[ \"${type}\" == \"local\" ]]; then\n    cp ${local_files.join(' ')} .\n  fi\n\n  # perform fastqc on raw FASTQ files\n  MERGED_FASTQ_FILES=\\$(ls ${sample_id}_?.fastq)\n\n  fastqc \\$MERGED_FASTQ_FILES\n\n  # use hisat2 for alignment\n  if [[ ${params.input.hisat2.enable} == \"true\" ]]; then\n    # perform trimmomatic on all fastq files\n    # This script calculates average length of fastq files.\n    total=0\n\n    # This if statement checks if the data is single or paired data, and checks length accordingly\n    # This script returns 1 number, which can be used for the minlen in trimmomatic\n    if [ -e ${sample_id}_1.fastq ] && [ -e ${sample_id}_2.fastq ]; then\n      for fastq in ${sample_id}_1.fastq ${sample_id}_2.fastq; do\n        a=`awk 'NR%4 == 2 {lengths[length(\\$0)]++} END {for (l in lengths) {print l, lengths[l]}}' \\$fastq \\\n        | sort \\\n        | awk '{ print \\$0, \\$1*\\$2}' \\\n        | awk '{ SUM += \\$3 } { SUM2 += \\$2 } END { printf(\"%.0f\", SUM / SUM2 * ${params.software.trimmomatic.MINLEN})} '`\n      total=(\\$a + \\$total)\n      done\n      total=( \\$total / 2 )\n      minlen=\\$total\n\n    elif [ -e ${sample_id}_1.fastq ]; then\n      minlen=`awk 'NR%4 == 2 {lengths[length(\\$0)]++} END {for (l in lengths) {print l, lengths[l]}}' ${sample_id}_1.fastq \\\n        | sort \\\n        | awk '{ print \\$0, \\$1*\\$2}' \\\n        | awk '{ SUM += \\$3 } { SUM2 += \\$2 } END { printf(\"%.0f\", SUM / SUM2 * ${params.software.trimmomatic.MINLEN})} '`\n    fi\n\n    if [ -e ${sample_id}_1.fastq ] && [ -e ${sample_id}_2.fastq ]; then\n      java -Xmx512m org.usadellab.trimmomatic.Trimmomatic \\\n        PE \\\n        -threads ${task.cpus} \\\n        ${params.software.trimmomatic.quality} \\\n        ${sample_id}_1.fastq \\\n        ${sample_id}_2.fastq \\\n        ${sample_id}_1p_trim.fastq \\\n        ${sample_id}_1u_trim.fastq \\\n        ${sample_id}_2p_trim.fastq \\\n        ${sample_id}_2u_trim.fastq \\\n        ILLUMINACLIP:${params.software.trimmomatic.clip_path}:2:40:15 \\\n        LEADING:${params.software.trimmomatic.LEADING} \\\n        TRAILING:${params.software.trimmomatic.TRAILING} \\\n        SLIDINGWINDOW:${params.software.trimmomatic.SLIDINGWINDOW} \\\n        MINLEN:\"\\$minlen\" > ${sample_id}.trim.log 2>&1\n    else\n      # For ease of the next steps, rename the reverse file to the forward.\n      # since these are non-paired it really shouldn't matter.\n      if [ -e ${sample_id}_2.fastq ]; then\n        mv ${sample_id}_2.fastq ${sample_id}_1.fastq\n      fi\n      # Now run trimmomatic\n      java -Xmx512m org.usadellab.trimmomatic.Trimmomatic \\\n        SE \\\n        -threads ${task.cpus} \\\n        ${params.software.trimmomatic.quality} \\\n        ${sample_id}_1.fastq \\\n        ${sample_id}_1u_trim.fastq \\\n        ILLUMINACLIP:${fasta_adapter}:2:40:15 \\\n        LEADING:${params.software.trimmomatic.LEADING} \\\n        TRAILING:${params.software.trimmomatic.TRAILING} \\\n        SLIDINGWINDOW:${params.software.trimmomatic.SLIDINGWINDOW} \\\n        MINLEN:\"\\$minlen\" > ${sample_id}.trim.log 2>&1\n    fi\n\n    # remove merged fastq files if they will not be published\n    if [[ ${params.output.publish_downloaded_fastq} == false ]]; then\n      rm -f \\$MERGED_FASTQ_FILES\n    fi\n\n    # perform fastqc on all trimmed fastq files\n    TRIMMED_FASTQ_FILES=\\$(ls ${sample_id}_*trim.fastq)\n\n    fastqc \\$TRIMMED_FASTQ_FILES\n\n    # perform hisat2 alignment of fastq files to a genome reference\n    if [ -e ${sample_id}_2p_trim.fastq ]; then\n      hisat2 \\\n        -x ${params.input.reference_name} \\\n        --no-spliced-alignment \\\n        -q \\\n        -1 ${sample_id}_1p_trim.fastq \\\n        -2 ${sample_id}_2p_trim.fastq \\\n        -U ${sample_id}_1u_trim.fastq,${sample_id}_2u_trim.fastq \\\n        -S ${sample_id}_vs_${params.input.reference_name}.sam \\\n        -t \\\n        -p ${task.cpus} \\\n        --un ${sample_id}_un.fastq \\\n        --dta-cufflinks \\\n        --new-summary \\\n        --summary-file ${sample_id}_vs_${params.input.reference_name}.sam.log\n    else\n      hisat2 \\\n        -x ${params.input.reference_name} \\\n        --no-spliced-alignment \\\n        -q \\\n        -U ${sample_id}_1u_trim.fastq \\\n        -S ${sample_id}_vs_${params.input.reference_name}.sam \\\n        -t \\\n        -p ${task.cpus} \\\n        --un ${sample_id}_un.fastq \\\n        --dta-cufflinks \\\n        --new-summary \\\n        --summary-file ${sample_id}_vs_${params.input.reference_name}.sam.log\n    fi\n\n    rm -f ${sample_id}_un.fastq\n\n    # remove trimmed fastq files if they will not be published\n    if [[ ${params.output.publish_trimmed_fastq} == false ]]; then\n      rm -f \\$TRIMMED_FASTQ_FILES\n    fi\n\n    # sort the SAM alignment file and convert it to BAM\n    samtools sort \\\n      -o ${sample_id}_vs_${params.input.reference_name}.bam \\\n      -O bam \\\n      -T temp \\\n      ${sample_id}_vs_${params.input.reference_name}.sam\n\n    # remove SAM file as it will not be published\n    rm -f *.sam\n\n    # index BAM alignment file\n    samtools index ${sample_id}_vs_${params.input.reference_name}.bam\n    samtools stats ${sample_id}_vs_${params.input.reference_name}.bam > ${sample_id}_vs_${params.input.reference_name}.bam.log\n\n    # generate expression-level transcript abundance\n    stringtie \\\n      -v \\\n      -p ${task.cpus} \\\n      -e \\\n      -o ${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf \\\n      -G ${gtf_file} \\\n      -A ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga \\\n      -l ${sample_id} ${sample_id}_vs_${params.input.reference_name}.bam\n\n    # remove BAM file if it will not be published\n    if [[ ${params.output.publish_bam} == false ]]; then\n      rm -f *.bam\n      rm -f *.bam.bai\n    fi\n\n    # generate raw counts from hisat2/stringtie\n    # Run the prepDE.py script provided by stringtie to get the raw counts.\n    echo \"${sample_id}\\t./${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf\" > gtf_files\n    prepDE.py -i gtf_files -g ${sample_id}_vs_${params.input.reference_name}.raw.pre\n\n    # Reformat the raw file to be the same as the TPM/FKPM files.\n    cat ${sample_id}_vs_${params.input.reference_name}.raw.pre | \\\n      grep -v gene_id | \\\n      perl -pi -e \"s/,/\\\\t/g\" > ${sample_id}_vs_${params.input.reference_name}.Hisat2.raw\n\n    # generate the final FPKM and TPM files\n    if [[ ${params.output.publish_fpkm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$8}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga > ${sample_id}_vs_${params.input.reference_name}.Hisat2.fpkm\n    fi\n\n    if [[ ${params.output.publish_tpm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$9}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga > ${sample_id}_vs_${params.input.reference_name}.Hisat2.tpm\n    fi\n\n    if [[ ${params.output.publish_stringtie_gtf_and_ga} == false ]]; then\n      rm -rf *.ga\n      rm -rf *.gtf\n    fi\n\n  # or use kallisto\n  elif [[ ${params.input.kallisto.enable} == \"true\" ]]; then\n    # perform Kallisto alignment of fastq files\n    if [ -e ${sample_id}_2.fastq ]; then\n      kallisto quant \\\n        -i  ${indexes} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga \\\n        ${sample_id}_1.fastq \\\n        ${sample_id}_2.fastq > ${sample_id}.kallisto.log 2>&1\n    else\n      kallisto quant \\\n        --single \\\n        -l 70 \\\n        -s .0000001 \\\n        -i ${indexes} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga \\\n        ${sample_id}_1.fastq > ${sample_id}.kallisto.log 2>&1\n    fi\n\n    # generate TPM and raw count files\n    if [[ ${params.output.publish_tpm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$5}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga/abundance.tsv > ${sample_id}_vs_${params.input.reference_name}.Kallisto.tpm\n    fi\n\n    if [[ ${params.output.publish_raw} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$4}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Kallisto.ga/abundance.tsv > ${sample_id}_vs_${params.input.reference_name}.Kallisto.raw\n    fi\n\n    if [[ ${params.output.publish_gene_abundance} == false ]]; then\n      rm -rf *.ga\n    fi\n\n  # or use salmon\n  elif [[ ${params.input.salmon.enable} == \"true\" ]]; then\n    # perform SALMON alignment of fastq files\n    if [ -e ${sample_id}_2.fastq ]; then\n      salmon quant \\\n        -i . \\\n        -l A \\\n        -1 ${sample_id}_1.fastq \\\n        -2 ${sample_id}_2.fastq \\\n        -p ${task.cpus} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Salmon.ga \\\n        --minAssignedFrags 1 > ${sample_id}.salmon.log 2>&1\n    else\n      salmon quant \\\n        -i . \\\n        -l A \\\n        -r ${sample_id}_1.fastq \\\n        -p ${task.cpus} \\\n        -o ${sample_id}_vs_${params.input.reference_name}.Salmon.ga \\\n        --minAssignedFrags 1 > ${sample_id}.salmon.log 2>&1\n    fi\n\n    # generate final TPM and raw count files\n    if [[ ${params.output.publish_tpm} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$4}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Salmon.ga/quant.sf > ${sample_id}_vs_${params.input.reference_name}.Salmon.tpm\n    fi\n\n    if [[ ${params.output.publish_raw} == true ]]; then\n      awk -F\"\\t\" '{if (NR!=1) {print \\$1, \\$5}}' OFS='\\t' ${sample_id}_vs_${params.input.reference_name}.Salmon.ga/quant.sf > ${sample_id}_vs_${params.input.reference_name}.Salmon.raw\n    fi\n\n    if [[ ${params.output.publish_gene_abundance} == false ]]; then\n      rm -rf `find *.ga -type f | egrep -v \"aux_info/meta_info.json|/libParams/flenDist.txt\"`\n    fi\n  fi\n  \"\"\"",
+        "nb_lignes_script": 280,
+        "language_script": "bash",
+        "tools": [
+            "NullSeq",
+            "FastQC",
+            "PEC",
+            "GSE",
+            "HISAT2",
+            "SAMtools",
+            "StringTie",
+            "kallisto",
+            "Salmon"
+        ],
+        "tools_url": [
+            "https://bio.tools/nullseq",
+            "https://bio.tools/fastqc",
+            "https://bio.tools/PEC",
+            "https://bio.tools/gse",
+            "https://bio.tools/hisat2",
+            "https://bio.tools/samtools",
+            "https://bio.tools/stringtie",
+            "https://bio.tools/kallisto",
+            "https://bio.tools/salmon"
+        ],
+        "tools_dico": [
+            {
+                "name": "NullSeq",
+                "uri": "https://bio.tools/nullseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0364",
+                                    "term": "Random sequence generation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Creates Random Coding Sequences with specified GC content and Amino Acid usage.",
+                "homepage": "https://github.com/amarallab/NullSeq"
+            },
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            },
+            {
+                "name": "PEC",
+                "uri": "https://bio.tools/PEC",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3384",
+                            "term": "Medical imaging"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Medicine"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Experimental medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Clinical medicine"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3303",
+                            "term": "Biomedical research"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A novel approach to the program evaluation committee.\n\nBACKGROUND:The Accreditation Council for Graduate Medical Education requires each residency program to have a Program Evaluation Committee (PEC) but does not specify how the PEC should be designed. We sought to develop a PEC that promotes resident leadership and provides actionable feedback. METHODS:Participants were residents and faculty in the Traditional Internal Medicine residency program at Yale School of Medicine (YSM). One resident and one faculty member facilitated a 1-h structured group discussion to obtain resident feedback on each rotation. PEC co-facilitators summarized the feedback in written form, then met with faculty Firm Chiefs overseeing each rotation and with residency program leadership to discuss feedback and generate action plans. This PEC process was implemented in all inpatient and outpatient rotations over a 4-year period.\n\n||| HOMEPAGE MISSING!",
+                "homepage": "https://www.ncbi.nlm.nih.gov/pubmed/?term=31842868"
+            },
+            {
+                "name": "GSE",
+                "uri": "https://bio.tools/gse",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3321",
+                            "term": "Molecular genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2421",
+                                    "term": "Database search"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2421",
+                                    "term": "Search"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Database for storing, visualizing, and analyzing ChIP-based transcription factor binding data and gene expression data.",
+                "homepage": "http://groups.csail.mit.edu/cgs/gse.html"
+            },
+            {
+                "name": "HISAT2",
+                "uri": "https://bio.tools/hisat2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Alignment program for mapping next-generation sequencing reads (both DNA and RNA) to a population of human genomes (as well as to a single reference genome).",
+                "homepage": "https://ccb.jhu.edu/software/hisat2/index.shtml"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "StringTie",
+                "uri": "https://bio.tools/stringtie",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3680",
+                                    "term": "RNA-Seq analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3258",
+                                    "term": "Transcriptome assembly"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast and highly efficient assembler of RNA-Seq alignments into potential transcripts. It uses a novel network flow algorithm as well as an optional de novo assembly step to assemble and quantitate full-length transcripts representing multiple splice variants for each gene locus.",
+                "homepage": "https://ccb.jhu.edu/software/stringtie/"
+            },
+            {
+                "name": "kallisto",
+                "uri": "https://bio.tools/kallisto",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profiling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Functional profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Feature expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene transcription profiling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0314",
+                                    "term": "Gene expression profile generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A program for quantifying abundances of transcripts from RNA-Seq data, or more generally of target sequences using high-throughput sequencing reads. It is based on the novel idea of pseudoalignment for rapidly determining the compatibility of reads with targets, without the need for alignment.",
+                "homepage": "https://pachterlab.github.io/kallisto/about.html"
+            },
+            {
+                "name": "Salmon",
+                "uri": "https://bio.tools/salmon",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3496",
+                                "term": "RNA sequence (raw)"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2093",
+                                "term": "Data reference"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for transcript expression quantification from RNA-seq data",
+                "homepage": "https://github.com/COMBINE-lab/salmon"
+            }
+        ],
+        "inputs": [
+            "ALL_SAMPLES",
+            "FASTA_ADAPTER",
+            "INDEXES",
+            "GTF_FILE"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "COMPLETED_SAMPLES",
+            "SRA_FILES",
+            "FASTQ_FILES",
+            "FASTQC_FILES",
+            "LOG_FILES",
+            "SAM_FILES",
+            "BAM_FILES",
+            "BAI_FILES",
+            "GA_FILES",
+            "GTF_FILES",
+            "RAW_FILES",
+            "FPKM_FILES",
+            "TPM_FILES"
+        ],
+        "nb_outputs": 13,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }",
+            "label \"gemmaker\"",
+            "label \"multithreaded\"",
+            "label \"retry_ignore\"",
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n  label \"multiqc\"\n  publishDir \"${params.output.dir}/reports\", mode: params.output.publish_mode\n\n  input:\n    val signal from MULTIQC_RUN.collect()\n\n  output:\n    file \"multiqc_data\" into MULTIQC_DATA\n    file \"multiqc_report.html\" into MULTIQC_REPORT\n\n  when:\n    params.output.multiqc == true\n\n  script:\n    \"\"\"\n    multiqc \\\n      --ignore ${workflow.launchDir}/${params.output.dir}/GEMs \\\n      --ignore ${workflow.launchDir}/${params.output.dir}/reports \\\n      ${workflow.launchDir}/${params.output.dir}\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    multiqc \\\n      --ignore ${workflow.launchDir}/${params.output.dir}/GEMs \\\n      --ignore ${workflow.launchDir}/${params.output.dir}/reports \\\n      ${workflow.launchDir}/${params.output.dir}\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "MULTIQC_RUN"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "MULTIQC_DATA",
+            "MULTIQC_REPORT"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "label \"multiqc\"",
+            "publishDir \"${params.output.dir}/reports\", mode: params.output.publish_mode"
+        ],
+        "when": "params.output.multiqc == true",
+        "stub": ""
+    },
+    "create_gem": {
+        "name_process": "create_gem",
+        "string_process": "\nprocess create_gem {\n  label \"python3\"\n  publishDir \"${params.output.dir}/GEMs\", mode: params.output.publish_mode\n\n  input:\n    val signal from CREATE_GEM_RUN.collect()\n\n  output:\n    file \"*.GEM.*.txt\" into GEM_FILES\n\n  when:\n    params.output.create_gem == true\n\n  script:\n  \"\"\"\n  create_gem.sh ${params.output.publish_fpkm} ${params.input.hisat2.enable} ${workflow.launchDir} ${params.output.dir} ${params.project.machine_name} ${params.output.publish_raw} ${params.output.publish_tpm}\n  \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  \"\"\"\n  create_gem.sh ${params.output.publish_fpkm} ${params.input.hisat2.enable} ${workflow.launchDir} ${params.output.dir} ${params.project.machine_name} ${params.output.publish_raw} ${params.output.publish_tpm}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "CREATE_GEM_RUN"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "GEM_FILES"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "label \"python3\"",
+            "publishDir \"${params.output.dir}/GEMs\", mode: params.output.publish_mode"
+        ],
+        "when": "params.output.create_gem == true",
+        "stub": ""
+    },
+    "write_stage_files": {
+        "name_process": "write_stage_files",
+        "string_process": "\nprocess write_stage_files {\n  executor \"local\"\n  tag {sample[0]}\n\n  input:\n    val sample from ALL_SAMPLES\n\n  output:\n    val (1) into SAMPLES_READY_SIGNAL\n\n  exec:\n                              \n    skip_samples = []\n    skip_file = file(\"${params.input.input_data_dir}/${params.input.skip_list_path}\")\n    if (skip_file.exists()) {\n      skip_file.eachLine { line ->\n        skip_samples << line.trim()\n      }\n    }\n\n                                                   \n    if (skip_samples.intersect([sample[0]]) == [])  {\n\n                                        \n      sample_file = file(\"${workflow.workDir}/GEMmaker/stage/\" + sample[0] + '.sample.csv')\n      sample_file.withWriter {\n\n                                                \n        type = sample[2]\n\n                                   \n        if (type.equals('local')) {\n          if (sample[1].size() > 1) {\n            files = sample[1]\n            files_str = files.join('::')\n            it.writeLine '\"' + sample[0] + '\",\"' + files_str + '\",\"' + type + '\"'\n          }\n          else {\n            it.writeLine '\"' + sample[0] + '\",\"' + sample[1].first().toString() + '\",\"' + type + '\"'\n          }\n        }\n                                    \n        else {\n          it.writeLine '\"' + sample[0] + '\",\"' + sample[1] + '\",\"' + type + '\"'\n        }\n      }\n    }\n}",
+        "nb_lignes_process": 47,
+        "string_script": "    skip_samples = []\n    skip_file = file(\"${params.input.input_data_dir}/${params.input.skip_list_path}\")\n    if (skip_file.exists()) {\n      skip_file.eachLine { line ->\n        skip_samples << line.trim()\n      }\n    }\n\n                                                   \n    if (skip_samples.intersect([sample[0]]) == [])  {\n\n                                        \n      sample_file = file(\"${workflow.workDir}/GEMmaker/stage/\" + sample[0] + '.sample.csv')\n      sample_file.withWriter {\n\n                                                \n        type = sample[2]\n\n                                   \n        if (type.equals('local')) {\n          if (sample[1].size() > 1) {\n            files = sample[1]\n            files_str = files.join('::')\n            it.writeLine '\"' + sample[0] + '\",\"' + files_str + '\",\"' + type + '\"'\n          }\n          else {\n            it.writeLine '\"' + sample[0] + '\",\"' + sample[1].first().toString() + '\",\"' + type + '\"'\n          }\n        }\n                                    \n        else {\n          it.writeLine '\"' + sample[0] + '\",\"' + sample[1] + '\",\"' + type + '\"'\n        }\n      }\n    }",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [
+            "ScType",
+            "goProfiles"
+        ],
+        "tools_url": [
+            "https://bio.tools/ScType",
+            "https://bio.tools/goprofiles"
+        ],
+        "tools_dico": [
+            {
+                "name": "ScType",
+                "uri": "https://bio.tools/ScType",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database management"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3489",
+                            "term": "Database administration"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3432",
+                                    "term": "Clustering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3435",
+                                    "term": "Standardisation and normalisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3680",
+                                    "term": "RNA-Seq analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "ScType is a tool for fully-automated cell type identification from single-cell RNA-seq data. ScType provides a complete pipeline for single-cell RNA-seq data analysis (including data processing, normalization and clustering) and cell-type annotation.",
+                "homepage": "http://session.asuscomm.com:8080/"
+            },
+            {
+                "name": "goProfiles",
+                "uri": "https://bio.tools/goprofiles",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0315",
+                                    "term": "Expression profile comparison"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The package implements methods to compare lists of genes based on comparing the corresponding 'functional profiles'.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/goProfiles.html"
+            }
+        ],
+        "inputs": [
+            "ALL_SAMPLES"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SAMPLES_READY_SIGNAL"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "executor \"local\"",
+            "tag {sample[0]}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "start_first_batch": {
+        "name_process": "start_first_batch",
+        "string_process": "\nprocess start_first_batch {\n  executor \"local\"\n  cache false\n\n  input:\n    val signal from FIRST_SAMPLE_START_SIGNAL\n\n  exec:\n                                                                      \n                                         \n    sample_files = file(\"${workflow.workDir}/GEMmaker/stage/*.sample.csv\");\n    start_samples = sample_files.sort().take(params.execution.queue_size)\n    if (sample_files.size() > 0 ) {\n      for (sample in start_samples) {\n        sample.moveTo(\"${workflow.workDir}/GEMmaker/process\")\n      }\n   }\n                                                  \n                                              \n   else {\n      NEXT_SAMPLE.close()\n      NEXT_SAMPLE_SIGNAL.close()\n      HISAT2_SAMPLE_COMPLETE_SIGNAL.close()\n      KALLISTO_SAMPLE_COMPLETE_SIGNAL.close()\n      SALMON_SAMPLE_COMPLETE_SIGNAL.close()\n      SAMPLE_COMPLETE_SIGNAL.close()\n      MULTIQC_BOOTSTRAP.close()\n      CREATE_GEM_BOOTSTRAP.close()\n      println \"There are no staged samples.  Moving on to post-processing\"\n   }\n}",
+        "nb_lignes_process": 30,
+        "string_script": "    sample_files = file(\"${workflow.workDir}/GEMmaker/stage/*.sample.csv\");\n    start_samples = sample_files.sort().take(params.execution.queue_size)\n    if (sample_files.size() > 0 ) {\n      for (sample in start_samples) {\n        sample.moveTo(\"${workflow.workDir}/GEMmaker/process\")\n      }\n   }\n                                                  \n                                              \n   else {\n      NEXT_SAMPLE.close()\n      NEXT_SAMPLE_SIGNAL.close()\n      HISAT2_SAMPLE_COMPLETE_SIGNAL.close()\n      KALLISTO_SAMPLE_COMPLETE_SIGNAL.close()\n      SALMON_SAMPLE_COMPLETE_SIGNAL.close()\n      SAMPLE_COMPLETE_SIGNAL.close()\n      MULTIQC_BOOTSTRAP.close()\n      CREATE_GEM_BOOTSTRAP.close()\n      println \"There are no staged samples.  Moving on to post-processing\"\n   }",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FIRST_SAMPLE_START_SIGNAL"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "executor \"local\"",
+            "cache false"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "read_sample_file": {
+        "name_process": "read_sample_file",
+        "string_process": "\nprocess read_sample_file {\n  executor \"local\"\n  cache false\n  tag { sample_file }\n\n  input:\n    file(sample_file) from NEXT_SAMPLE\n\n  output:\n    stdout SAMPLE_FILE_CONTENTS\n\n  script:\n    \"\"\"\n      cat $sample_file\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n      cat $sample_file\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "NEXT_SAMPLE"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SAMPLE_FILE_CONTENTS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "executor \"local\"",
+            "cache false",
+            "tag { sample_file }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "next_sample": {
+        "name_process": "next_sample",
+        "string_process": "\nprocess next_sample {\n  executor \"local\"\n\n  input:\n    val sample_id from NEXT_SAMPLE_SIGNAL\n\n  exec:\n\n                                                                                \n    File lockfile = null;\n    FileChannel channel = null;\n    FileLock lock = null;\n    success = false\n\n    try {\n      attempts = 0\n      while (!lock)  {\n                                                                             \n                                                                        \n                  \n        if (attempts < 6000) {\n          try {\n            lockfile = new File(\"${workflow.workDir}/GEMmaker/gemmaker.lock\")\n            channel = new RandomAccessFile(lockfile, \"rw\").getChannel()\n            lock = channel.lock()\n          }\n          catch (OverlappingFileLockException e) {\n                                                         \n          }\n          if (!lock) {\n            println \"Waiting on lock. attempt \" + attempts + \"...\"\n            sleep 1000\n            attempts = attempts + 1\n          }\n        }\n        else {\n          throw new Exception(\"Cannot obtain lock to proceed to next sample after 3 attempts\")\n        }\n      }\n      sample_file = file(\"${workflow.workDir}/GEMmaker/process/\" + sample_id + '.sample.csv')\n      sample_file.moveTo(\"${workflow.workDir}/GEMmaker/done\")\n\n                                                                \n                                                         \n      staged_files = file(\"${workflow.workDir}/GEMmaker/stage/*\")\n      if (staged_files.size() > 0) {\n        staged_files.first().moveTo(\"${workflow.workDir}/GEMmaker/process\")\n      }\n      else {\n        processing_files = file(\"${workflow.workDir}/GEMmaker/process/*.sample.csv\")\n        if (processing_files.size() == 0) {\n          NEXT_SAMPLE.close()\n          NEXT_SAMPLE_SIGNAL.close()\n          HISAT2_SAMPLE_COMPLETE_SIGNAL.close()\n          KALLISTO_SAMPLE_COMPLETE_SIGNAL.close()\n          SALMON_SAMPLE_COMPLETE_SIGNAL.close()\n          SAMPLE_COMPLETE_SIGNAL.close()\n          MULTIQC_BOOTSTRAP.close()\n          CREATE_GEM_BOOTSTRAP.close()\n        }\n      }\n      success = true\n    }\n    catch (Exception e) {\n      println \"Error: \" + e.getMessage()\n    }\n    finally {\n                                                                      \n      if (lock && lock.isValid()) {\n        lock.release();\n      }\n      if (channel) {\n        channel.close();\n      }\n                                                                              \n      if (!success) {\n        throw new Exception(\"Could not move to the next sample.\")\n      }\n    }\n}",
+        "nb_lignes_process": 79,
+        "string_script": "    File lockfile = null;\n    FileChannel channel = null;\n    FileLock lock = null;\n    success = false\n\n    try {\n      attempts = 0\n      while (!lock)  {\n                                                                             \n                                                                        \n                  \n        if (attempts < 6000) {\n          try {\n            lockfile = new File(\"${workflow.workDir}/GEMmaker/gemmaker.lock\")\n            channel = new RandomAccessFile(lockfile, \"rw\").getChannel()\n            lock = channel.lock()\n          }\n          catch (OverlappingFileLockException e) {\n                                                         \n          }\n          if (!lock) {\n            println \"Waiting on lock. attempt \" + attempts + \"...\"\n            sleep 1000\n            attempts = attempts + 1\n          }\n        }\n        else {\n          throw new Exception(\"Cannot obtain lock to proceed to next sample after 3 attempts\")\n        }\n      }\n      sample_file = file(\"${workflow.workDir}/GEMmaker/process/\" + sample_id + '.sample.csv')\n      sample_file.moveTo(\"${workflow.workDir}/GEMmaker/done\")\n\n                                                                \n                                                         \n      staged_files = file(\"${workflow.workDir}/GEMmaker/stage/*\")\n      if (staged_files.size() > 0) {\n        staged_files.first().moveTo(\"${workflow.workDir}/GEMmaker/process\")\n      }\n      else {\n        processing_files = file(\"${workflow.workDir}/GEMmaker/process/*.sample.csv\")\n        if (processing_files.size() == 0) {\n          NEXT_SAMPLE.close()\n          NEXT_SAMPLE_SIGNAL.close()\n          HISAT2_SAMPLE_COMPLETE_SIGNAL.close()\n          KALLISTO_SAMPLE_COMPLETE_SIGNAL.close()\n          SALMON_SAMPLE_COMPLETE_SIGNAL.close()\n          SAMPLE_COMPLETE_SIGNAL.close()\n          MULTIQC_BOOTSTRAP.close()\n          CREATE_GEM_BOOTSTRAP.close()\n        }\n      }\n      success = true\n    }\n    catch (Exception e) {\n      println \"Error: \" + e.getMessage()\n    }\n    finally {\n                                                                      \n      if (lock && lock.isValid()) {\n        lock.release();\n      }\n      if (channel) {\n        channel.close();\n      }\n                                                                              \n      if (!success) {\n        throw new Exception(\"Could not move to the next sample.\")\n      }\n    }",
+        "nb_lignes_script": 69,
+        "language_script": "bash",
+        "tools": [
+            "mrcfile",
+            "PhosTryp",
+            "ChannelsDB",
+            "LOCK",
+            "CATCH"
+        ],
+        "tools_url": [
+            "https://bio.tools/mrcfile",
+            "https://bio.tools/phostryp",
+            "https://bio.tools/channelsdb",
+            "https://bio.tools/lock",
+            "https://bio.tools/catch"
+        ],
+        "tools_dico": [
+            {
+                "name": "mrcfile",
+                "uri": "https://bio.tools/mrcfile",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_1317",
+                            "term": "Structural biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0611",
+                            "term": "Electron microscopy"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "mrcfile is a Python implementation of the MRC2014 file format, which is used in structural biology to store image and volume data.\n\nIt allows MRC files to be created and opened easily using a very simple API, which exposes the file\u2019s header and data as numpy arrays. The code runs in Python 2 and 3 and is fully unit-tested.\n\nThis library aims to allow users and developers to read and write standard-compliant MRC files in Python as easily as possible, and with no dependencies on any compiled libraries except numpy. You can use it interactively to inspect files, correct headers and so on, or in scripts and larger software packages to provide basic MRC file I/O functions.",
+                "homepage": "https://mrcfile.readthedocs.io/en/latest/readme.html"
+            },
+            {
+                "name": "PhosTryp",
+                "uri": "https://bio.tools/phostryp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3092",
+                                    "term": "Protein feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3092",
+                                    "term": "Protein feature prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3092",
+                                    "term": "Protein feature recognition"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A phosphorylation site predictor specific for parasitic protozoa of the family trypanosomatidae.",
+                "homepage": "http://phostryp.bio.uniroma2.it"
+            },
+            {
+                "name": "ChannelsDB",
+                "uri": "https://bio.tools/channelsdb",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0154",
+                            "term": "Small molecules"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymes"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0820",
+                            "term": "Membrane and lipoproteins"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_1317",
+                            "term": "Structural biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3306",
+                            "term": "Biophysics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0123",
+                            "term": "Protein properties"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0123",
+                            "term": "Protein physicochemistry"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0245",
+                                    "term": "Structural motif discovery"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0570",
+                                    "term": "Structure visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0250",
+                                    "term": "Protein property calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0245",
+                                    "term": "Protein structural motif recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0245",
+                                    "term": "Protein structural feature identification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0570",
+                                    "term": "Structure rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Database submission"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3431",
+                                    "term": "Data deposition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0250",
+                                    "term": "Protein property rendering"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0968",
+                                "term": "Keyword"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1127",
+                                "term": "PDB ID"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2878",
+                                "term": "Protein structural motif"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2080",
+                                "term": "Database search results"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A comprehensive resource of channels, pores and tunnels found in biomacromolecular structures deposited in the Protein Data Bank.",
+                "homepage": "http://ncbr.muni.cz/ChannelsDB/"
+            },
+            {
+                "name": "LOCK",
+                "uri": "https://bio.tools/lock",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0166",
+                            "term": "Protein structural motifs and surfaces"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0166",
+                            "term": "Protein 3D motifs"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0295",
+                                    "term": "Structure alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0295",
+                                    "term": "Structural alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Vector based protein structure superposition algorithm capable of recognizing distant structural similarities. Statistical significance values for alignments are provided.",
+                "homepage": "http://motif.stanford.edu/distributions/lock/"
+            },
+            {
+                "name": "CATCH",
+                "uri": "https://bio.tools/catch",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3179",
+                            "term": "ChIP-on-chip"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "ChIP-sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3169",
+                            "term": "Chip sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3179",
+                            "term": "ChIP-chip"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3432",
+                                    "term": "Clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A tool for exploring patterns in ChIP profiling data.",
+                "homepage": "http://catch.cmbi.ru.nl"
+            }
+        ],
+        "inputs": [
+            "NEXT_SAMPLE_SIGNAL"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "executor \"local\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "download_runs": {
+        "name_process": "download_runs",
+        "string_process": "\nprocess download_runs {\n  \n  tag { sample_id }\n  label \"sratoolkit\"\n\n  input:\n    set val(sample_id), val(run_ids), val(type) from REMOTE_SAMPLES\n\n  output:\n    set val(sample_id), file(\"*.sra\") into SRA_TO_EXTRACT\n    set val(sample_id), file(\"*.sra\") into SRA_TO_CLEAN\n\n  script:\n  \"\"\"\n    ids=`echo $run_ids | perl -p -e 's/[\\\\[,\\\\]]//g' | perl -p -e 's/\\\\s*\\$//' | perl -p -e 's/\\\\s+/,/g'`\n    retrieve_sra.py \\$ids\n  \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  \"\"\"\n    ids=`echo $run_ids | perl -p -e 's/[\\\\[,\\\\]]//g' | perl -p -e 's/\\\\s*\\$//' | perl -p -e 's/\\\\s+/,/g'`\n    retrieve_sra.py \\$ids\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "REMOTE_SAMPLES"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SRA_TO_EXTRACT",
+            "SRA_TO_CLEAN"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }",
+            "label \"sratoolkit\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ndn_pull_data": {
+        "name_process": "ndn_pull_data",
+        "string_process": "\nprocess ndn_pull_data{\n  label \"ndn\"\n\n  input:\n  file test_file from TEST_FILE\n\n  output:\n  file(\"*.fastq\") into DOWNLOADED_FASTQ_FOR_MERGING\n  set val(sample_id), file(\"*.fastq\") into DOWNLOADED_FASTQ_FOR_CLEANING\n  set val(sample_id), val(1) into CLEAN_SRA_SIGNAL\n\n  script:\n  \"\"\"\n  /usr/local/bin/nfd -c /usr/local/etc/ndn/nfd.conf > /logs/nfd.log 2>&1 & /bin/bash\n  ndn_pull.py ${test_file}\n  \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  \"\"\"\n  /usr/local/bin/nfd -c /usr/local/etc/ndn/nfd.conf > /logs/nfd.log 2>&1 & /bin/bash\n  ndn_pull.py ${test_file}\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "TEST_FILE"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "DOWNLOADED_FASTQ_FOR_MERGING",
+            "DOWNLOADED_FASTQ_FOR_CLEANING",
+            "CLEAN_SRA_SIGNAL"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "label \"ndn\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastq_merge": {
+        "name_process": "fastq_merge",
+        "string_process": "\nprocess fastq_merge {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), file(grouped) from DOWNLOADED_FASTQ_FOR_MERGING\n\n  output:\n    set val(sample_id), file(\"${sample_id}_?.fastq\") into MERGED_SAMPLES_FOR_COUNTING\n    set val(sample_id), file(\"${sample_id}_?.fastq\") into MERGED_SAMPLES_FOR_FASTQC_1\n    set val(sample_id), file(\"${sample_id}_?.fastq\") into MERGED_FASTQ_FOR_CLEANING\n\n     \n                                                                    \n                                                                     \n                                                                        \n     \n  script:\n  \"\"\"\n  fastq_merge.sh ${sample_id} ${params.input.publish_downloaded_fastq}\n  \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  fastq_merge.sh ${sample_id} ${params.input.publish_downloaded_fastq}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "DOWNLOADED_FASTQ_FOR_MERGING"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "MERGED_SAMPLES_FOR_COUNTING",
+            "MERGED_SAMPLES_FOR_FASTQC_1",
+            "MERGED_FASTQ_FOR_CLEANING"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc_1": {
+        "name_process": "fastqc_1",
+        "string_process": "\nprocess fastqc_1 {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: \"*_fastqc.*\"\n  tag { sample_id }\n  label \"fastqc\"\n\n  input:\n    set val(sample_id), file(pass_files) from COMBINED_SAMPLES_FOR_FASTQC_1\n\n  output:\n    set file(\"${sample_id}_?_fastqc.html\") , file(\"${sample_id}_?_fastqc.zip\") optional true into FASTQC_1_OUTPUT\n    set val(sample_id), val(1) into CLEAN_MERGED_FASTQ_FASTQC_SIGNAL\n\n  script:\n  \"\"\"\n  fastqc $pass_files\n  \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "  \"\"\"\n  fastqc $pass_files\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "COMBINED_SAMPLES_FOR_FASTQC_1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "FASTQC_1_OUTPUT",
+            "CLEAN_MERGED_FASTQ_FASTQC_SIGNAL"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: \"*_fastqc.*\"",
+            "tag { sample_id }",
+            "label \"fastqc\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kallisto": {
+        "name_process": "kallisto",
+        "string_process": "\nprocess kallisto {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_Kallisto_GA\n  tag { sample_id }\n  label \"kallisto\"\n\n  input:\n    set val(sample_id), file(pass_files) from KALLISTO_CHANNEL\n    file kallisto_index from KALLISTO_INDEX\n\n  output:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Kallisto.ga\") into KALLISTO_GA\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Kallisto.ga\") into KALLISTO_GA_TO_CLEAN\n    set val(sample_id), val(1) into CLEAN_MERGED_FASTQ_KALLISTO_SIGNAL\n    file \"*kallisto.log\" into KALLISTO_LOG\n\n  script:\n  \"\"\"\n  kallisto.sh ${sample_id} ${kallisto_index} ${params.input.reference_name}\n  \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "  \"\"\"\n  kallisto.sh ${sample_id} ${kallisto_index} ${params.input.reference_name}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "KALLISTO_CHANNEL",
+            "KALLISTO_INDEX"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "KALLISTO_GA",
+            "KALLISTO_GA_TO_CLEAN",
+            "CLEAN_MERGED_FASTQ_KALLISTO_SIGNAL",
+            "KALLISTO_LOG"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_Kallisto_GA",
+            "tag { sample_id }",
+            "label \"kallisto\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kallisto_tpm": {
+        "name_process": "kallisto_tpm",
+        "string_process": "\nprocess kallisto_tpm {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode\n  tag { sample_id }\n\n  input:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Kallisto.ga\") from KALLISTO_GA\n\n  output:\n    file \"${sample_id}_vs_${params.input.reference_name}.Kallisto.tpm\" optional true into KALLISTO_TPM\n    file \"${sample_id}_vs_${params.input.reference_name}.Kallisto.raw\" optional true into KALLISTO_RAW\n    set val(sample_id), val(1) into CLEAN_KALLISTO_GA_SIGNAL\n    val sample_id  into KALLISTO_SAMPLE_COMPLETE_SIGNAL\n\n  script:\n  \"\"\"\n  kallisto_tpm.sh ${sample_id} ${params.output.publish_tpm} ${params.output.publish_raw} ${params.input.reference_name}\n  \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  \"\"\"\n  kallisto_tpm.sh ${sample_id} ${params.output.publish_tpm} ${params.output.publish_raw} ${params.input.reference_name}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "KALLISTO_GA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "KALLISTO_TPM",
+            "KALLISTO_RAW",
+            "CLEAN_KALLISTO_GA_SIGNAL",
+            "KALLISTO_SAMPLE_COMPLETE_SIGNAL"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode",
+            "tag { sample_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "salmon": {
+        "name_process": "salmon",
+        "string_process": "\nprocess salmon {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_Salmon_GA\n  tag { sample_id }\n  label \"multithreaded\"\n  label \"salmon\"\n\n  input:\n    set val(sample_id), file(pass_files) from SALMON_CHANNEL\n    file salmon_index from SALMON_INDEXES\n\n  output:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Salmon.ga\") into SALMON_GA\n    set val(sample_id), file(\"*.ga/aux_info/meta_info.json\"), file(\"*.ga/libParams/flenDist.txt\") into SALMON_GA_LOG\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Salmon.ga/quant.sf\") into SALMON_GA_TO_CLEAN\n    set val(sample_id), val(1) into CLEAN_MERGED_FASTQ_SALMON_SIGNAL\n\n  script:\n  \"\"\"\n  salmon.sh ${sample_id} ${task.cpus} ${params.input.reference_name}\n  \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  salmon.sh ${sample_id} ${task.cpus} ${params.input.reference_name}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "SALMON_CHANNEL",
+            "SALMON_INDEXES"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "SALMON_GA",
+            "SALMON_GA_LOG",
+            "SALMON_GA_TO_CLEAN",
+            "CLEAN_MERGED_FASTQ_SALMON_SIGNAL"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_Salmon_GA",
+            "tag { sample_id }",
+            "label \"multithreaded\"",
+            "label \"salmon\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "salmon_tpm": {
+        "name_process": "salmon_tpm",
+        "string_process": "\nprocess salmon_tpm {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode\n  tag { sample_id }\n\n  input:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Salmon.ga\") from SALMON_GA\n\n  output:\n    file \"${sample_id}_vs_${params.input.reference_name}.Salmon.tpm\" optional true into SALMON_TPM\n    file \"${sample_id}_vs_${params.input.reference_name}.Salmon.raw\" optional true into SALMON_RAW\n    set val(sample_id), val(1) into CLEAN_SALMON_GA_SIGNAL\n    val sample_id  into SALMON_SAMPLE_COMPLETE_SIGNAL\n\n  script:\n  \"\"\"\n  salmon_tpm.sh ${params.output.publish_tpm} ${sample_id} \\\n  ${params.input.reference_name} ${params.output.publish_raw}\n  \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "  \"\"\"\n  salmon_tpm.sh ${params.output.publish_tpm} ${sample_id} \\\n  ${params.input.reference_name} ${params.output.publish_raw}\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "SALMON_GA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SALMON_TPM",
+            "SALMON_RAW",
+            "CLEAN_SALMON_GA_SIGNAL",
+            "SALMON_SAMPLE_COMPLETE_SIGNAL"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode",
+            "tag { sample_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trimmomatic": {
+        "name_process": "trimmomatic",
+        "string_process": "\nprocess trimmomatic {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_trimmomatic\n  tag { sample_id }\n  label \"multithreaded\"\n  label \"trimmomatic\"\n\n  input:\n    set val(sample_id), file(\"${sample_id}_?.fastq\") from HISAT2_CHANNEL\n    file fasta_adapter from FASTA_ADAPTER\n\n  output:\n    set val(sample_id), file(\"${sample_id}_*trim.fastq\") into TRIMMED_SAMPLES_FOR_FASTQC\n    set val(sample_id), file(\"${sample_id}_*trim.fastq\") into TRIMMED_SAMPLES_FOR_HISAT2\n    set val(sample_id), file(\"${sample_id}_*trim.fastq\") into TRIMMED_FASTQ_FOR_CLEANING\n    set val(sample_id), file(\"${sample_id}.trim.log\") into TRIMMED_SAMPLE_LOG\n\n  script:\n  \"\"\"\n  trimmomatic.sh ${sample_id} ${params.software.trimmomatic.MINLEN} ${task.cpus} ${fasta_adapter} ${params.software.trimmomatic.LEADING} ${params.software.trimmomatic.TRAILING} ${params.software.trimmomatic.SLIDINGWINDOW} ${params.software.trimmomatic.quality}\n  \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  trimmomatic.sh ${sample_id} ${params.software.trimmomatic.MINLEN} ${task.cpus} ${fasta_adapter} ${params.software.trimmomatic.LEADING} ${params.software.trimmomatic.TRAILING} ${params.software.trimmomatic.SLIDINGWINDOW} ${params.software.trimmomatic.quality}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "HISAT2_CHANNEL",
+            "FASTA_ADAPTER"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "TRIMMED_SAMPLES_FOR_FASTQC",
+            "TRIMMED_SAMPLES_FOR_HISAT2",
+            "TRIMMED_FASTQ_FOR_CLEANING",
+            "TRIMMED_SAMPLE_LOG"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_trimmomatic",
+            "tag { sample_id }",
+            "label \"multithreaded\"",
+            "label \"trimmomatic\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc_2": {
+        "name_process": "fastqc_2",
+        "string_process": "\nprocess fastqc_2 {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: \"*_fastqc.*\"\n  tag { sample_id }\n  label \"fastqc\"\n\n  input:\n    set val(sample_id), file(pass_files) from TRIMMED_SAMPLES_FOR_FASTQC\n\n  output:\n    set file(\"${sample_id}_??_trim_fastqc.html\"), file(\"${sample_id}_??_trim_fastqc.zip\") optional true into FASTQC_2_OUTPUT\n    set val(sample_id), val(1) into CLEAN_TRIMMED_FASTQ_FASTQC_SIGNAL\n\n  script:\n  \"\"\"\n  fastqc $pass_files\n  \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "  \"\"\"\n  fastqc $pass_files\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "TRIMMED_SAMPLES_FOR_FASTQC"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "FASTQC_2_OUTPUT",
+            "CLEAN_TRIMMED_FASTQ_FASTQC_SIGNAL"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: \"*_fastqc.*\"",
+            "tag { sample_id }",
+            "label \"fastqc\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hisat2": {
+        "name_process": "hisat2",
+        "string_process": "\nprocess hisat2 {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: \"*.log\"\n  tag { sample_id }\n  label \"multithreaded\"\n  label \"hisat2\"\n\n  input:\n    set val(sample_id), file(input_files) from TRIMMED_SAMPLES_FOR_HISAT2\n    file indexes from HISAT2_INDEXES\n\n  output:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.sam\") into INDEXED_SAMPLES\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.sam.log\") into INDEXED_SAMPLES_LOG\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.sam\") into SAM_FOR_CLEANING\n    set val(sample_id), val(1) into CLEAN_TRIMMED_FASTQ_HISAT_SIGNAL\n    set val(sample_id), val(1) into CLEAN_MERGED_FASTQ_HISAT_SIGNAL\n\n  script:\n  \"\"\"\n  hisat2.sh ${sample_id} ${params.input.reference_name} ${task.cpus}\n  \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "  \"\"\"\n  hisat2.sh ${sample_id} ${params.input.reference_name} ${task.cpus}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "TRIMMED_SAMPLES_FOR_HISAT2",
+            "HISAT2_INDEXES"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "INDEXED_SAMPLES",
+            "INDEXED_SAMPLES_LOG",
+            "SAM_FOR_CLEANING",
+            "CLEAN_TRIMMED_FASTQ_HISAT_SIGNAL",
+            "CLEAN_MERGED_FASTQ_HISAT_SIGNAL"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: \"*.log\"",
+            "tag { sample_id }",
+            "label \"multithreaded\"",
+            "label \"hisat2\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "samtools_sort": {
+        "name_process": "samtools_sort",
+        "string_process": "\nprocess samtools_sort {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_samtools_sort\n  tag { sample_id }\n  label \"samtools\"\n\n  input:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.sam\") from INDEXED_SAMPLES\n\n  output:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.bam\") into SORTED_FOR_INDEX\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.bam\") into BAM_FOR_CLEANING\n    set val(sample_id), val(1) into CLEAN_SAM_SIGNAL\n\n  script:\n    \"\"\"\n    samtools sort \\\n      -o ${sample_id}_vs_${params.input.reference_name}.bam \\\n      -O bam \\\n      -T temp \\\n      ${sample_id}_vs_${params.input.reference_name}.sam\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    samtools sort \\\n      -o ${sample_id}_vs_${params.input.reference_name}.bam \\\n      -O bam \\\n      -T temp \\\n      ${sample_id}_vs_${params.input.reference_name}.sam\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "INDEXED_SAMPLES"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SORTED_FOR_INDEX",
+            "BAM_FOR_CLEANING",
+            "CLEAN_SAM_SIGNAL"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_samtools_sort",
+            "tag { sample_id }",
+            "label \"samtools\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "samtools_index": {
+        "name_process": "samtools_index",
+        "string_process": "\nprocess samtools_index {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_samtools_index\n  tag { sample_id }\n  label \"samtools\"\n\n  input:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.bam\") from SORTED_FOR_INDEX\n\n  output:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.bam\") into BAM_INDEXED_FOR_STRINGTIE\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.bam.bai\") into BAI_INDEXED_FILE\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.bam.log\") into BAM_INDEXED_LOG\n\n  script:\n    \"\"\"\n    samtools index ${sample_id}_vs_${params.input.reference_name}.bam\n    samtools stats ${sample_id}_vs_${params.input.reference_name}.bam > ${sample_id}_vs_${params.input.reference_name}.bam.log\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    samtools index ${sample_id}_vs_${params.input.reference_name}.bam\n    samtools stats ${sample_id}_vs_${params.input.reference_name}.bam > ${sample_id}_vs_${params.input.reference_name}.bam.log\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "SORTED_FOR_INDEX"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "BAM_INDEXED_FOR_STRINGTIE",
+            "BAI_INDEXED_FILE",
+            "BAM_INDEXED_LOG"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_samtools_index",
+            "tag { sample_id }",
+            "label \"samtools\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "stringtie": {
+        "name_process": "stringtie",
+        "string_process": "\nprocess stringtie {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_stringtie_gtf_and_ga\n  tag { sample_id }\n  label \"multithreaded\"\n  label \"stringtie\"\n\n  input:\n                                                                \n                                                            \n                                   \n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.bam\") from BAM_INDEXED_FOR_STRINGTIE\n    file gtf_file from GTF_FILE\n\n  output:\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Hisat2.ga\"), file(\"${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf\") into STRINGTIE_GTF_FOR_FPKM\n    set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Hisat2.*\") into STRINGTIE_GTF_FOR_CLEANING\n    set val(sample_id), val(1) into CLEAN_BAM_SIGNAL\n\n  script:\n    \"\"\"\n    stringtie \\\n      -v \\\n      -p ${task.cpus} \\\n      -e \\\n      -o ${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf \\\n      -G ${gtf_file} \\\n      -A ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga \\\n      -l ${sample_id} ${sample_id}_vs_${params.input.reference_name}.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    stringtie \\\n      -v \\\n      -p ${task.cpus} \\\n      -e \\\n      -o ${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf \\\n      -G ${gtf_file} \\\n      -A ${sample_id}_vs_${params.input.reference_name}.Hisat2.ga \\\n      -l ${sample_id} ${sample_id}_vs_${params.input.reference_name}.bam\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "StringTie"
+        ],
+        "tools_url": [
+            "https://bio.tools/stringtie"
+        ],
+        "tools_dico": [
+            {
+                "name": "StringTie",
+                "uri": "https://bio.tools/stringtie",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3680",
+                                    "term": "RNA-Seq analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3258",
+                                    "term": "Transcriptome assembly"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fast and highly efficient assembler of RNA-Seq alignments into potential transcripts. It uses a novel network flow algorithm as well as an optional de novo assembly step to assemble and quantitate full-length transcripts representing multiple splice variants for each gene locus.",
+                "homepage": "https://ccb.jhu.edu/software/stringtie/"
+            }
+        ],
+        "inputs": [
+            "BAM_INDEXED_FOR_STRINGTIE",
+            "GTF_FILE"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "STRINGTIE_GTF_FOR_FPKM",
+            "STRINGTIE_GTF_FOR_CLEANING",
+            "CLEAN_BAM_SIGNAL"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode, pattern: publish_pattern_stringtie_gtf_and_ga",
+            "tag { sample_id }",
+            "label \"multithreaded\"",
+            "label \"stringtie\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "hisat2_fpkm_tpm": {
+        "name_process": "hisat2_fpkm_tpm",
+        "string_process": "\nprocess hisat2_fpkm_tpm {\n  publishDir params.output.sample_dir, mode: params.output.publish_mode\n  tag { sample_id }\n  label \"stringtie\"\n\n  input:\n  set val(sample_id), file(\"${sample_id}_vs_${params.input.reference_name}.Hisat2.ga\"), file(\"${sample_id}_vs_${params.input.reference_name}.Hisat2.gtf\") from STRINGTIE_GTF_FOR_FPKM\n\n\n  output:\n    file \"${sample_id}_vs_${params.input.reference_name}.Hisat2.fpkm\" optional true into FPKMS\n    file \"${sample_id}_vs_${params.input.reference_name}.Hisat2.tpm\" optional true into TPM\n    file \"${sample_id}_vs_${params.input.reference_name}.Hisat2.raw\" optional true into RAW_COUNTS\n    set val(sample_id), val(1) into CLEAN_STRINGTIE_SIGNAL\n    val sample_id into HISAT2_SAMPLE_COMPLETE_SIGNAL\n\n  script:\n  \"\"\"\n  hisat2_fpkm_tpm.sh ${params.output.publish_fpkm} ${sample_id} ${params.input.reference_name} ${params.output.publish_tpm} ${params.output.publish_raw}\n  \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  \"\"\"\n  hisat2_fpkm_tpm.sh ${params.output.publish_fpkm} ${sample_id} ${params.input.reference_name} ${params.output.publish_tpm} ${params.output.publish_raw}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "STRINGTIE_GTF_FOR_FPKM"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "FPKMS",
+            "TPM",
+            "RAW_COUNTS",
+            "CLEAN_STRINGTIE_SIGNAL",
+            "HISAT2_SAMPLE_COMPLETE_SIGNAL"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "publishDir params.output.sample_dir, mode: params.output.publish_mode",
+            "tag { sample_id }",
+            "label \"stringtie\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "clean_sra": {
+        "name_process": "clean_sra",
+        "string_process": "\nprocess clean_sra {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(files_list) from CLEAN_SRA_READY\n\n  when:\n    params.output.publish_sra == false\n\n  script:\n  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "CLEAN_SRA_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_sra == false",
+        "stub": ""
+    },
+    "clean_merged_fastq": {
+        "name_process": "clean_merged_fastq",
+        "string_process": "\nprocess clean_merged_fastq {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(files_list) from MERGED_FASTQ_CLEANUP_READY\n\n  when:\n    params.output.publish_downloaded_fastq == false\n\n  script:\n  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "MERGED_FASTQ_CLEANUP_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_downloaded_fastq == false",
+        "stub": ""
+    },
+    "clean_trimmed_fastq": {
+        "name_process": "clean_trimmed_fastq",
+        "string_process": "\nprocess clean_trimmed_fastq {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(files_list) from TRIMMED_FASTQ_CLEANUP_READY\n\n  when:\n    params.output.publish_trimmed_fastq == false\n\n  script:\n  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "TRIMMED_FASTQ_CLEANUP_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_trimmed_fastq == false",
+        "stub": ""
+    },
+    "clean_sam": {
+        "name_process": "clean_sam",
+        "string_process": "\nprocess clean_sam {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(files_list) from SAM_CLEANUP_READY\n\n  when:\n    params.output.publish_sam == false\n\n  script:\n  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "SAM_CLEANUP_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_sam == false",
+        "stub": ""
+    },
+    "clean_bam": {
+        "name_process": "clean_bam",
+        "string_process": "\nprocess clean_bam {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(files_list) from BAM_CLEANUP_READY\n\n  when:\n    params.output.publish_bam == false\n\n  script:\n  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "BAM_CLEANUP_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_bam == false",
+        "stub": ""
+    },
+    "clean_kallisto_ga": {
+        "name_process": "clean_kallisto_ga",
+        "string_process": "\nprocess clean_kallisto_ga {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(directory) from KALLISTO_GA_CLEANUP_READY\n\n  when:\n    params.output.publish_gene_abundance == false\n\n  script:\n  \"\"\"\n  clean_work_dirs.sh ${directory}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_dirs.sh ${directory}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "KALLISTO_GA_CLEANUP_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_gene_abundance == false",
+        "stub": ""
+    },
+    "clean_salmon_ga": {
+        "name_process": "clean_salmon_ga",
+        "string_process": "\nprocess clean_salmon_ga {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(files_list) from SALMON_GA_CLEANUP_READY\n\n  when:\n    params.output.publish_gene_abundance == false\n\n  script:\n  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "SALMON_GA_CLEANUP_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_gene_abundance == false",
+        "stub": ""
+    },
+    "clean_stringtie_ga": {
+        "name_process": "clean_stringtie_ga",
+        "string_process": "\nprocess clean_stringtie_ga {\n  tag { sample_id }\n\n  input:\n    set val(sample_id), val(files_list) from STRINGTIE_CLEANUP_READY\n\n  when:\n    params.output.publish_stringtie_gtf_and_ga == false\n\n  script:\n  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "  \"\"\"\n  clean_work_files.sh ${files_list}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "STRINGTIE_CLEANUP_READY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "mmcogle__GEMmakerCam",
+        "directive": [
+            "tag { sample_id }"
+        ],
+        "when": "params.output.publish_stringtie_gtf_and_ga == false",
+        "stub": ""
+    }
+}

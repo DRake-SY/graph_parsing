@@ -1,0 +1,542 @@
+{
+    "SAMPLESHEET_CHECK": {
+        "name_process": "SAMPLESHEET_CHECK",
+        "string_process": "\nprocess SAMPLESHEET_CHECK {\n    tag \"$samplesheet\"\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:'pipeline_info', publish_id:'') }\n\n    conda     (params.enable_conda ? \"conda-forge::python=3.8.3\" : null)\n    container \"quay.io/biocontainers/python:3.8.3\"\n\n    input:\n    path samplesheet\n    \n    output:\n    path '*.csv'\n\n\n    script:                                                                      \n    \"\"\"\n    check_samplesheet.py $samplesheet samplesheet.valid.csv\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    check_samplesheet.py $samplesheet samplesheet.valid.csv\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samplesheet"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "tag \"$samplesheet\"",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:'pipeline_info', publish_id:'') }",
+            "conda (params.enable_conda ? \"conda-forge::python=3.8.3\" : null)",
+            "container \"quay.io/biocontainers/python:3.8.3\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "GET_SOFTWARE_VERSIONS": {
+        "name_process": "GET_SOFTWARE_VERSIONS",
+        "string_process": "\nprocess GET_SOFTWARE_VERSIONS {\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:'pipeline_info', publish_id:'') }\n\n    conda     (params.enable_conda ? \"conda-forge::python=3.8.3\" : null)\n    container \"quay.io/biocontainers/python:3.8.3\"\n\n    cache false\n\n    input:\n    path versions\n    \n    output:\n    path \"software_versions.csv\"     , emit: csv\n    path 'software_versions_mqc.yaml', emit: yaml\n\n    script:\n    \"\"\"\n    echo $workflow.manifest.version > pipeline.version.txt\n    echo $workflow.nextflow.version > nextflow.version.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    echo $workflow.manifest.version > pipeline.version.txt\n    echo $workflow.nextflow.version > nextflow.version.txt\n    scrape_software_versions.py &> software_versions_mqc.yaml\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "versions"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:'pipeline_info', publish_id:'') }",
+            "conda (params.enable_conda ? \"conda-forge::python=3.8.3\" : null)",
+            "container \"quay.io/biocontainers/python:3.8.3\"",
+            "cache false"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "PROKKA": {
+        "name_process": "PROKKA",
+        "string_process": "\nprocess PROKKA {\n    tag \"$meta.id\"\n    label 'process_low'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }\n\n    conda (params.enable_conda ? \"bioconda::prokka=1.14.6\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/prokka:1.14.6--pl526_0\"\n    } else {\n        container \"quay.io/biocontainers/prokka:1.14.6--pl526_0\"\n    }\n\n    input:\n    tuple val(meta), path(fasta)\n    path proteins\n    path prodigal_tf\n\n    output:\n    tuple val(meta), path(\"${prefix}/*.gff\"), emit: gff\n    tuple val(meta), path(\"${prefix}/*.gbk\"), emit: gbk\n    tuple val(meta), path(\"${prefix}/*.fna\"), emit: fna\n    tuple val(meta), path(\"${prefix}/*.faa\"), emit: faa\n    tuple val(meta), path(\"${prefix}/*.ffn\"), emit: ffn\n    tuple val(meta), path(\"${prefix}/*.sqn\"), emit: sqn\n    tuple val(meta), path(\"${prefix}/*.fsa\"), emit: fsa\n    tuple val(meta), path(\"${prefix}/*.tbl\"), emit: tbl\n    tuple val(meta), path(\"${prefix}/*.err\"), emit: err\n    tuple val(meta), path(\"${prefix}/*.log\"), emit: log\n    tuple val(meta), path(\"${prefix}/*.txt\"), emit: txt\n    tuple val(meta), path(\"${prefix}/*.tsv\"), emit: tsv\n    path \"*.version.txt\", emit: version\n\n    script:\n    def software = getSoftwareName(task.process)\n    prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def proteins_opt = proteins ? \"--proteins ${proteins[0]}\" : \"\"\n    def prodigal_opt = prodigal_tf ? \"--prodigaltf ${prodigal_tf[0]}\" : \"\"\n    \"\"\"\n    prokka \\\\\n        $options.args \\\\\n        --cpus $task.cpus \\\\\n        --prefix $prefix \\\\\n        $proteins_opt \\\\\n        $prodigal_tf \\\\\n        $fasta\n\n    echo \\$(prokka --version 2>&1) | sed 's/^.*prokka //' > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 50,
+        "string_script": "    def software = getSoftwareName(task.process)\n    prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def proteins_opt = proteins ? \"--proteins ${proteins[0]}\" : \"\"\n    def prodigal_opt = prodigal_tf ? \"--prodigaltf ${prodigal_tf[0]}\" : \"\"\n    \"\"\"\n    prokka \\\\\n        $options.args \\\\\n        --cpus $task.cpus \\\\\n        --prefix $prefix \\\\\n        $proteins_opt \\\\\n        $prodigal_tf \\\\\n        $fasta\n\n    echo \\$(prokka --version 2>&1) | sed 's/^.*prokka //' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "Prokka"
+        ],
+        "tools_url": [
+            "https://bio.tools/prokka"
+        ],
+        "tools_dico": [
+            {
+                "name": "Prokka",
+                "uri": "https://bio.tools/prokka",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0781",
+                            "term": "Virology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0362",
+                                    "term": "Genome annotation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software tool to annotate bacterial, archaeal and viral genomes quickly and produce standards-compliant output files.",
+                "homepage": "https://github.com/tseemann/prokka"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "fasta",
+            "proteins",
+            "prodigal_tf"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_low'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }",
+            "conda (params.enable_conda ? \"bioconda::prokka=1.14.6\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/prokka:1.14.6--pl526_0\" } else { container \"quay.io/biocontainers/prokka:1.14.6--pl526_0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MULTIQC": {
+        "name_process": "MULTIQC",
+        "string_process": "\nprocess MULTIQC {\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:[:], publish_by_meta:[]) }\n\n    conda (params.enable_conda ? \"bioconda::multiqc=1.10.1\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/multiqc:1.10.1--py_0\"\n    } else {\n        container \"quay.io/biocontainers/multiqc:1.10.1--py_0\"\n    }\n\n    input:\n    path 'multiqc_config.yaml'\n    path multiqc_custom_config\n    path software_versions\n    path ('fastqc/*')\n    path ('fastp/*')\n    path ('quast/*')\n\n    output:\n    path \"*multiqc_report.html\", emit: report\n    path \"*_data\"              , emit: data\n    path \"*_plots\"             , optional:true, emit: plots\n    path \"*.version.txt\"       , emit: version\n\n    script:\n    def software = getSoftwareName(task.process)\n    \"\"\"\n    multiqc -f $options.args .\n    multiqc --version | sed -e \"s/multiqc, version //g\" > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    def software = getSoftwareName(task.process)\n    \"\"\"\n    multiqc -f $options.args .\n    multiqc --version | sed -e \"s/multiqc, version //g\" > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "multiqc_custom_config",
+            "software_versions"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:[:], publish_by_meta:[]) }",
+            "conda (params.enable_conda ? \"bioconda::multiqc=1.10.1\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/multiqc:1.10.1--py_0\" } else { container \"quay.io/biocontainers/multiqc:1.10.1--py_0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FASTQC": {
+        "name_process": "FASTQC",
+        "string_process": "\nprocess FASTQC {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }\n\n    conda (params.enable_conda ? \"bioconda::fastqc=0.11.9\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/fastqc:0.11.9--0\"\n    } else {\n        container \"quay.io/biocontainers/fastqc:0.11.9--0\"\n    }\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"*.html\"), emit: html\n    tuple val(meta), path(\"*.zip\") , emit: zip\n    path  \"*.version.txt\"          , emit: version\n\n    script:\n                                                                          \n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}.${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}.${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        fastqc $options.args --threads $task.cpus ${prefix}_1.fastq.gz ${prefix}_2.fastq.gz\n        fastqc --version | sed -e \"s/FastQC v//g\" > ${software}.version.txt\n        \"\"\"\n    }",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }",
+            "conda (params.enable_conda ? \"bioconda::fastqc=0.11.9\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/fastqc:0.11.9--0\" } else { container \"quay.io/biocontainers/fastqc:0.11.9--0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SHOVILL": {
+        "name_process": "SHOVILL",
+        "string_process": "\nprocess SHOVILL {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }\n\n    conda (params.enable_conda ? \"bioconda::shovill=1.1.0\" : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container \"https://depot.galaxyproject.org/singularity/shovill:1.1.0--0\"\n    } else {\n        container \"quay.io/biocontainers/shovill:1.1.0--0\"\n    }\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path(\"contigs.fa\")                         , emit: contigs\n    tuple val(meta), path(\"shovill.corrections\")                , emit: corrections\n    tuple val(meta), path(\"shovill.log\")                        , emit: log\n    tuple val(meta), path(\"{skesa,spades,megahit,velvet}.fasta\"), emit: raw_contigs\n    tuple val(meta), path(\"contigs.{fastg,gfa,LastGraph}\")      , optional:true, emit: gfa\n    path \"*.version.txt\"                                        , emit: version\n\n    script:\n    def software = getSoftwareName(task.process)\n    prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def memory = task.memory.toGiga()\n    \"\"\"\n    shovill \\\\\n        --R1 ${reads[0]} \\\\\n        --R2 ${reads[1]} \\\\\n        $options.args \\\\\n        --cpus $task.cpus \\\\\n        --ram $memory \\\\\n        --outdir $prefix \\\\\n        --force\n\n    echo \\$(shovill --version 2>&1) | sed 's/^.*shovill //'  > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    def software = getSoftwareName(task.process)\n    prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    def memory = task.memory.toGiga()\n    \"\"\"\n    shovill \\\\\n        --R1 ${reads[0]} \\\\\n        --R2 ${reads[1]} \\\\\n        $options.args \\\\\n        --cpus $task.cpus \\\\\n        --ram $memory \\\\\n        --outdir $prefix \\\\\n        --force\n\n    echo \\$(shovill --version 2>&1) | sed 's/^.*shovill //'  > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "shovill"
+        ],
+        "tools_url": [
+            "https://bio.tools/shovill"
+        ],
+        "tools_dico": [
+            {
+                "name": "shovill",
+                "uri": "https://bio.tools/shovill",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Shovill is a pipeline for assembly of bacterial isolate genomes from Illumina paired-end reads.  Shovill uses SPAdes at its core, but alters the steps before and after the primary assembly step to get similar results in less time. Shovill also supports other assemblers like SKESA, Velvet and Megahit, so you can take advantage of the pre- and post-processing the Shovill provides with those too.",
+                "homepage": "https://github.com/tseemann/shovill"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }",
+            "conda (params.enable_conda ? \"bioconda::shovill=1.1.0\" : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container \"https://depot.galaxyproject.org/singularity/shovill:1.1.0--0\" } else { container \"quay.io/biocontainers/shovill:1.1.0--0\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "FASTP": {
+        "name_process": "FASTP",
+        "string_process": "\nprocess FASTP {\n    tag \"$meta.id\"\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }\n\n    conda (params.enable_conda ? 'bioconda::fastp=0.20.1' : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container 'https://depot.galaxyproject.org/singularity/fastp:0.20.1--h8b12597_0'\n    } else {\n        container 'quay.io/biocontainers/fastp:0.20.1--h8b12597_0'\n    }\n\n    input:\n    tuple val(meta), path(reads)\n\n    output:\n    tuple val(meta), path('*.trim.fastq.gz'), emit: reads\n    tuple val(meta), path('*.json')         , emit: json\n    tuple val(meta), path('*.html')         , emit: html\n    tuple val(meta), path('*.log')          , emit: log\n    path '*.version.txt'                    , emit: version\n    tuple val(meta), path('*.fail.fastq.gz'), optional:true, emit: reads_fail\n\n    script:\n                                                                           \n    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        def fail_fastq = params.save_trimmed_fail ? \"--failed_out ${prefix}.fail.fastq.gz\" : ''\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastp \\\\\n            --in1 ${prefix}.fastq.gz \\\\\n            --out1 ${prefix}.trim.fastq.gz \\\\\n            --thread $task.cpus \\\\\n            --json ${prefix}.fastp.json \\\\\n            --html ${prefix}.fastp.html \\\\\n            $fail_fastq \\\\\n            $options.args \\\\\n            2> ${prefix}.fastp.log\n        echo \\$(fastp --version 2>&1) | sed -e \"s/fastp //g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        def fail_fastq = params.save_trimmed_fail ? \"--unpaired1 ${prefix}_1.fail.fastq.gz --unpaired2 ${prefix}_2.fail.fastq.gz\" : ''\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        fastp \\\\\n            --in1 ${prefix}_1.fastq.gz \\\\\n            --in2 ${prefix}_2.fastq.gz \\\\\n            --out1 ${prefix}_1.trim.fastq.gz \\\\\n            --out2 ${prefix}_2.trim.fastq.gz \\\\\n            --json ${prefix}.fastp.json \\\\\n            --html ${prefix}.fastp.html \\\\\n            $fail_fastq \\\\\n            --thread $task.cpus \\\\\n            --detect_adapter_for_pe \\\\\n            $options.args \\\\\n            2> ${prefix}.fastp.log\n\n        echo \\$(fastp --version 2>&1) | sed -e \"s/fastp //g\" > ${software}.version.txt\n        \"\"\"\n    }\n}",
+        "nb_lignes_process": 65,
+        "string_script": "    def software = getSoftwareName(task.process)\n    def prefix   = options.suffix ? \"${meta.id}${options.suffix}\" : \"${meta.id}\"\n    if (meta.single_end) {\n        def fail_fastq = params.save_trimmed_fail ? \"--failed_out ${prefix}.fail.fastq.gz\" : ''\n        \"\"\"\n        [ ! -f  ${prefix}.fastq.gz ] && ln -s $reads ${prefix}.fastq.gz\n        fastp \\\\\n            --in1 ${prefix}.fastq.gz \\\\\n            --out1 ${prefix}.trim.fastq.gz \\\\\n            --thread $task.cpus \\\\\n            --json ${prefix}.fastp.json \\\\\n            --html ${prefix}.fastp.html \\\\\n            $fail_fastq \\\\\n            $options.args \\\\\n            2> ${prefix}.fastp.log\n        echo \\$(fastp --version 2>&1) | sed -e \"s/fastp //g\" > ${software}.version.txt\n        \"\"\"\n    } else {\n        def fail_fastq = params.save_trimmed_fail ? \"--unpaired1 ${prefix}_1.fail.fastq.gz --unpaired2 ${prefix}_2.fail.fastq.gz\" : ''\n        \"\"\"\n        [ ! -f  ${prefix}_1.fastq.gz ] && ln -s ${reads[0]} ${prefix}_1.fastq.gz\n        [ ! -f  ${prefix}_2.fastq.gz ] && ln -s ${reads[1]} ${prefix}_2.fastq.gz\n        fastp \\\\\n            --in1 ${prefix}_1.fastq.gz \\\\\n            --in2 ${prefix}_2.fastq.gz \\\\\n            --out1 ${prefix}_1.trim.fastq.gz \\\\\n            --out2 ${prefix}_2.trim.fastq.gz \\\\\n            --json ${prefix}.fastp.json \\\\\n            --html ${prefix}.fastp.html \\\\\n            $fail_fastq \\\\\n            --thread $task.cpus \\\\\n            --detect_adapter_for_pe \\\\\n            $options.args \\\\\n            2> ${prefix}.fastp.log\n\n        echo \\$(fastp --version 2>&1) | sed -e \"s/fastp //g\" > ${software}.version.txt\n        \"\"\"\n    }",
+        "nb_lignes_script": 37,
+        "language_script": "bash",
+        "tools": [
+            "fastPHASE"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastphase"
+        ],
+        "tools_dico": [
+            {
+                "name": "fastPHASE",
+                "uri": "https://bio.tools/fastphase",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3454",
+                                    "term": "Phasing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Imputation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Data imputation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "fastPHASE is a program to estimate missing genotypes and unobserved haplotypes. It is an implementation of the model described in Scheet & Stephens (2006). This is a cluster-based model for haplotype variation, and gains its utility from implicitly modeling the genealogy of chromosomes in a random sample from a population as a tree but summarizing all haplotype variation in the \"tips\" of the trees.",
+                "homepage": "http://scheet.org/software.html"
+            }
+        ],
+        "inputs": [
+            "meta",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "tag \"$meta.id\"",
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }",
+            "conda (params.enable_conda ? 'bioconda::fastp=0.20.1' : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container 'https://depot.galaxyproject.org/singularity/fastp:0.20.1--h8b12597_0' } else { container 'quay.io/biocontainers/fastp:0.20.1--h8b12597_0' }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "QUAST": {
+        "name_process": "QUAST",
+        "string_process": "\nprocess QUAST {\n    label 'process_medium'\n    publishDir \"${params.outdir}\",\n        mode: params.publish_dir_mode,\n        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:[:], publish_by_meta:[]) }\n\n    conda (params.enable_conda ? 'bioconda::quast=5.0.2' : null)\n    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {\n        container 'https://depot.galaxyproject.org/singularity/quast:5.0.2--py37pl526hb5aa323_2'\n    } else {\n        container 'quay.io/biocontainers/quast:5.0.2--py37pl526hb5aa323_2'\n    }\n\n    input:\n    path consensus\n    path fasta\n    path gff\n    val use_fasta\n    val use_gff\n\n    output:\n    path \"${prefix}\"    , emit: results\n    path '*.tsv'        , emit: tsv\n    path '*.version.txt', emit: version\n\n    script:\n    def software  = getSoftwareName(task.process)\n    prefix        = options.suffix ?: software\n    def features  = use_gff ? \"--features $gff\" : ''\n    def reference = use_fasta ? \"-r $fasta\" : ''\n    \"\"\"\n    quast.py \\\\\n        --output-dir $prefix \\\\\n        $reference \\\\\n        $features \\\\\n        --threads $task.cpus \\\\\n        $options.args \\\\\n        ${consensus.join(' ')}\n    ln -s ${prefix}/report.tsv\n    echo \\$(quast.py --version 2>&1) | sed 's/^.*QUAST v//; s/ .*\\$//' > ${software}.version.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 41,
+        "string_script": "    def software  = getSoftwareName(task.process)\n    prefix        = options.suffix ?: software\n    def features  = use_gff ? \"--features $gff\" : ''\n    def reference = use_fasta ? \"-r $fasta\" : ''\n    \"\"\"\n    quast.py \\\\\n        --output-dir $prefix \\\\\n        $reference \\\\\n        $features \\\\\n        --threads $task.cpus \\\\\n        $options.args \\\\\n        ${consensus.join(' ')}\n    ln -s ${prefix}/report.tsv\n    echo \\$(quast.py --version 2>&1) | sed 's/^.*QUAST v//; s/ .*\\$//' > ${software}.version.txt\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "consensus",
+            "fasta",
+            "gff",
+            "use_fasta",
+            "use_gff"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "avantonder__assembleBAC",
+        "directive": [
+            "label 'process_medium'",
+            "publishDir \"${params.outdir}\" , mode: params.publish_dir_mode , saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:[:], publish_by_meta:[]) }",
+            "conda (params.enable_conda ? 'bioconda::quast=5.0.2' : null) if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) { container 'https://depot.galaxyproject.org/singularity/quast:5.0.2--py37pl526hb5aa323_2' } else { container 'quay.io/biocontainers/quast:5.0.2--py37pl526hb5aa323_2' }"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

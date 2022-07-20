@@ -1,0 +1,157 @@
+{
+    "create_design_row": {
+        "name_process": "create_design_row",
+        "string_process": " process create_design_row {\n    tag \"file:${name}\"\n\n    input:\n    set val(name), val(s3_file) from ch_files_and_indexes\n\n    output:\n    file \"${name}.csv\" into ch_rows\n    \"\"\"\n    echo \"${name},${s3_file.collect {\"$it\"}.join(',')}\" > ${name}.csv\n    cat ${name}.csv\n    \"\"\"\n    }",
+        "nb_lignes_process": 11,
+        "string_script": "\"\"\"\n    echo \"${name},${s3_file.collect {\"$it\"}.join(',')}\" > ${name}.csv\n    cat ${name}.csv\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_files_and_indexes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_rows"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__designfile",
+        "directive": [
+            "tag \"file:${name}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bind_design_rows": {
+        "name_process": "bind_design_rows",
+        "string_process": " process bind_design_rows {\n    publishDir 'results/s3_locations/', mode: 'copy'\n\n    input:\n    file(design_rows) from ch_rows.collect()\n\n    output:\n    file(\"${params.output_file}\") into ch_design_file\n    file(\"only_indices_${params.output_file}\") into ch_indices_only\n    file(\"only_main_files_${params.output_file}\") into ch_main_files_only\n    file(\"complete_file_sets_${params.output_file}\") into ch_complete_file_sets\n\n    \"\"\"\n    echo \"name,file,index\" > header.csv\n    for row in $design_rows; do cat \\$row >> body.csv; done\n    cat header.csv body.csv > ${params.output_file}\n\n    # Creating the lists of files that contain only files without indices, only indices, and only complete sets.\n\n    echo \"name,index\"      > only_indices_${params.output_file}\n    echo \"name,file\"       > only_main_files_${params.output_file}\n    echo \"name,file,index\" > complete_file_sets_${params.output_file}\n\n    # Mathcing the pattern. Logic:\n    # 1. In order to match extesion, we need to escape the dot with backsalsh in grep. In order to get backsalsh to grep from nextflow, we need to escape it again in nextflow, which leads to two backsalshes.\n    # 2. -v argument for grep allows inverted match, to find all lines that DON'T have eg the index to report as all files without indexes, and vice versa.\n    # 3. The comma ',' after search param in first and third line is important. Since often index files contain both file and index sufixes (like .bam.bai) inverted matching for\n    # just file suffix would still match cases .bam.bai for '.bam' even if only index is present and fail to report this one as index-ony.\n    # Comma after the file suffix allows to only look for files, because in the body.csv filenames are second column which are always followed by index column even if its empty.\n    # And since columns in csv are always separated by comma, looking for '.bam,' instead of '.bam' will never match index '.bam.bai'.\n    # 4. The '|| true' part is needed to avoid exit code 1 which grep gives if there are no matches. Without '|| true' nextflow porcess would immediately fail in case if all files have all indices.\n\n    cat body.csv | { grep -v '\\\\.${params.file_suffix},' || true; } | cut -f1,3 -d\",\" >> only_indices_${params.output_file}\n    cat body.csv | { grep -v '\\\\.${params.index_suffix}' || true; } | cut -f1,2 -d\",\" >> only_main_files_${params.output_file}\n    cat body.csv | { grep '\\\\.${params.file_suffix},' || true; } | { grep '\\\\.${params.index_suffix}' || true; } >> complete_file_sets_${params.output_file}\n    \"\"\"\n    }",
+        "nb_lignes_process": 35,
+        "string_script": "\"\"\"\n    echo \"name,file,index\" > header.csv\n    for row in $design_rows; do cat \\$row >> body.csv; done\n    cat header.csv body.csv > ${params.output_file}\n\n    # Creating the lists of files that contain only files without indices, only indices, and only complete sets.\n\n    echo \"name,index\"      > only_indices_${params.output_file}\n    echo \"name,file\"       > only_main_files_${params.output_file}\n    echo \"name,file,index\" > complete_file_sets_${params.output_file}\n\n    # Mathcing the pattern. Logic:\n    # 1. In order to match extesion, we need to escape the dot with backsalsh in grep. In order to get backsalsh to grep from nextflow, we need to escape it again in nextflow, which leads to two backsalshes.\n    # 2. -v argument for grep allows inverted match, to find all lines that DON'T have eg the index to report as all files without indexes, and vice versa.\n    # 3. The comma ',' after search param in first and third line is important. Since often index files contain both file and index sufixes (like .bam.bai) inverted matching for\n    # just file suffix would still match cases .bam.bai for '.bam' even if only index is present and fail to report this one as index-ony.\n    # Comma after the file suffix allows to only look for files, because in the body.csv filenames are second column which are always followed by index column even if its empty.\n    # And since columns in csv are always separated by comma, looking for '.bam,' instead of '.bam' will never match index '.bam.bai'.\n    # 4. The '|| true' part is needed to avoid exit code 1 which grep gives if there are no matches. Without '|| true' nextflow porcess would immediately fail in case if all files have all indices.\n\n    cat body.csv | { grep -v '\\\\.${params.file_suffix},' || true; } | cut -f1,3 -d\",\" >> only_indices_${params.output_file}\n    cat body.csv | { grep -v '\\\\.${params.index_suffix}' || true; } | cut -f1,2 -d\",\" >> only_main_files_${params.output_file}\n    cat body.csv | { grep '\\\\.${params.file_suffix},' || true; } | { grep '\\\\.${params.index_suffix}' || true; } >> complete_file_sets_${params.output_file}\n    \"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_rows"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_design_file",
+            "ch_indices_only",
+            "ch_main_files_only",
+            "ch_complete_file_sets"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "lifebit-ai__designfile",
+        "directive": [
+            "publishDir 'results/s3_locations/', mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "stage_main_files": {
+        "name_process": "stage_main_files",
+        "string_process": " process stage_main_files {\n    tag \"id:${name}\"\n    publishDir \"results/staged_files_checksums/main_files_only/\"\n\n    input:\n    set val(name), file(file_path) from ch_main_files\n\n    output:\n    file(\"${name}_main_files_only_md5sum.txt\") into ch_main_files_lists\n\n    script:\n    \"\"\"\n    md5sum *${params.file_suffix} > \"${name}\"_main_files_only_md5sum.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    md5sum *${params.file_suffix} > \"${name}\"_main_files_only_md5sum.txt\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_main_files"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_main_files_lists"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__designfile",
+        "directive": [
+            "tag \"id:${name}\"",
+            "publishDir \"results/staged_files_checksums/main_files_only/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "stage_index_files": {
+        "name_process": "stage_index_files",
+        "string_process": " process stage_index_files {\n    tag \"id:${name}\"\n    publishDir \"results/staged_files_checksums/indices_only/\"\n\n    input:\n    set val(name), file(file_path) from ch_indices\n\n    output:\n    file(\"${name}_indices_only_md5sum.txt\") into ch_indices_only_lists\n\n    script:\n    \"\"\"\n    md5sum *${params.index_suffix} > ${name}_indices_only_md5sum.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    md5sum *${params.index_suffix} > ${name}_indices_only_md5sum.txt\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_indices"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_indices_only_lists"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__designfile",
+        "directive": [
+            "tag \"id:${name}\"",
+            "publishDir \"results/staged_files_checksums/indices_only/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "stage_file_sets": {
+        "name_process": "stage_file_sets",
+        "string_process": " process stage_file_sets {\n    tag \"id:${name}\"\n    publishDir \"results/staged_files_checksums/completed_file_sets/\"\n\n    input:\n    set val(name), file(file_path), file(file_index) from ch_complete_sets\n\n    output:\n    file(\"${name}_completed_file_sets_md5sum.txt\") into ch_completed_file_sets_list\n\n    script:\n    \"\"\"\n    md5sum *${params.file_suffix}* > ${name}_completed_file_sets_md5sum.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    md5sum *${params.file_suffix}* > ${name}_completed_file_sets_md5sum.txt\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_complete_sets"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_completed_file_sets_list"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__designfile",
+        "directive": [
+            "tag \"id:${name}\"",
+            "publishDir \"results/staged_files_checksums/completed_file_sets/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "collect_checksums": {
+        "name_process": "collect_checksums",
+        "string_process": " process collect_checksums {\n    tag \"id:${name}\"\n    publishDir \"results/staged_files_checksums/\"\n\n    input:\n    file(checksums) from ch_checksums.collect()\n\n    output:\n    file(\"all_checksums.txt\")\n\n    script:\n    \"\"\"\n    cat *txt > all_checksums.txt\n    \"\"\"\n    }",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    cat *txt > all_checksums.txt\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_checksums"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "lifebit-ai__designfile",
+        "directive": [
+            "tag \"id:${name}\"",
+            "publishDir \"results/staged_files_checksums/\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

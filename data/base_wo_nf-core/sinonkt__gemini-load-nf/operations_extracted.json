@@ -1,0 +1,164 @@
+{
+    "OPERATION_1": {
+        "string": "BedBimFam = Channel.create()",
+        "origin": [],
+        "gives": [
+            [
+                "BedBimFam",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_2": {
+        "string": "Vcf = Channel.create()",
+        "origin": [],
+        "gives": [
+            [
+                "Vcf",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "Vcfgz = Channel.create()",
+        "origin": [],
+        "gives": [
+            [
+                "Vcfgz",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "Channel\n    .from(file(params.inputCSV).text)\n    .splitCsv(header: true)\n    .map(toDataSetInfo)\n    .choice (BedBimFam, Vcf, Vcfgz) { ChannelByFileType[it.datasetFileType].channelIdx }",
+        "origin": [],
+        "gives": [
+            [
+                "BedBimFam",
+                "P"
+            ],
+            [
+                "Vcf",
+                "P"
+            ],
+            [
+                "Vcfgz",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_5": {
+        "string": "SplittedVcfgz = Channel.create()",
+        "origin": [],
+        "gives": [
+            [
+                "SplittedVcfgz",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_6": {
+        "string": "NonSplittedVcfgz = Channel.create()",
+        "origin": [],
+        "gives": [
+            [
+                "NonSplittedVcfgz",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_7": {
+        "string": "files.collect({ it.replaceAll(/.bed|.bim|.fam|.vcf.gz|.vcf$/,'') }).unique()[0]",
+        "origin": [
+            [
+                "files",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_8": {
+        "string": "allVcfgzFiles\n    .collect({ file -> file =~ CHECK_CHROMOSOME_PATTERN })\n    .findAll({ matched -> matched.matches() })",
+        "origin": [
+            [
+                "allVcfgzFiles",
+                "P"
+            ]
+        ],
+        "gives": []
+    },
+    "OPERATION_9": {
+        "string": "chromosomes = allMatched.collect { it[0][1] }",
+        "origin": [
+            [
+                "allMatched",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "chromosomes",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_10": {
+        "string": "mixedVcfgz = Vcfgz.mix(\n  convertedVcfgzFromBedBimFam.map(updateProjectDir),\n  convertedVcfgzFromVcf.map(updateProjectDir)\n)",
+        "origin": [
+            [
+                "Vcfgz",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "mixedVcfgz",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_11": {
+        "string": "mixedVcfgz\n  .map(checkChromosomeSplittedThenAttachVcfgzFile)\n  .choice(SplittedVcfgz, NonSplittedVcfgz) { it.splittedChannelIdx }",
+        "origin": [
+            [
+                "mixedVcfgz",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "SplittedVcfgz",
+                "P"
+            ],
+            [
+                "NonSplittedVcfgz",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_12": {
+        "string": "SplittedVcfgz.map({ it.splittedVcfgzs = it.allVcfgzFiles; it }).mix(\n  SplittedVcfgzFromNonSplitted.map { it[0].splittedVcfgzs = it.tail().flatten(); it[0] }\n)\n  .flatMap(flattenDatasetAsVCFgzChunks)\n  .map({ tuple(it, file(it.vcfgzPath), file(it.ref)) })\n  .set { DatasetChunks }",
+        "origin": [
+            [
+                "SplittedVcfgz",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "DatasetChunks",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_13": {
+        "string": "DBChunks.subscribe {\n    chunk=it[0]\n    db=it[1]\n    println \"${chunk.project}_${chunk.chrIdx}\"\n}",
+        "origin": [
+            [
+                "DBChunks",
+                "P"
+            ]
+        ],
+        "gives": []
+    }
+}

@@ -1,0 +1,984 @@
+{
+    "TrimmedGalore": {
+        "name_process": "TrimmedGalore",
+        "string_process": "\nprocess TrimmedGalore {\n                                                                                       \n    container 'trim_galore_docker:v.01'\n\n    cpus 2\n    \n    publishDir \"${FastqDir}/TrimmedGalore/TrimmedReads\", pattern: '*_val_{1,2}.fq.gz'\n    publishDir \"${FastqDir}/TrimmedGalore/htmlfiles\", pattern: '*_fastqc.{zip,html}'\n    publishDir \"${FastqDir}/TrimmedGalore/txtfiles\" , pattern: '*_trimming_report.txt'\n\n    input:\n    tuple dataset_id, file(forward), file(reverse) from PairFilesChannel\n\n    output:\n    tuple dataset_id, file(\"*_val_1.fq.gz\"), file(\"*_val_2.fq.gz\") into TrimmedReads\n    file(\"*trimming_report.txt\") into txtfiles\n    file(\"*_fastqc.{zip,html}\") into htmlfiles\n\n    script:\n    \"\"\"\n    trim_galore --fastqc --paired ${forward} ${reverse}\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    trim_galore --fastqc --paired ${forward} ${reverse}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "PairFilesChannel"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "TrimmedReads",
+            "txtfiles",
+            "htmlfiles"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [
+            "container 'trim_galore_docker:v.01'",
+            "cpus 2",
+            "publishDir \"${FastqDir}/TrimmedGalore/TrimmedReads\", pattern: '*_val_{1,2}.fq.gz'",
+            "publishDir \"${FastqDir}/TrimmedGalore/htmlfiles\", pattern: '*_fastqc.{zip,html}'",
+            "publishDir \"${FastqDir}/TrimmedGalore/txtfiles\" , pattern: '*_trimming_report.txt'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "MultiQC": {
+        "name_process": "MultiQC",
+        "string_process": "\nprocess MultiQC {\n                                                                                    \n    container 'multiqc_docker:v.01'\n\n    publishDir \"${FastqDir}/TrimmedGalore/MultiQC\"\n\n    input:\n    file(\"*\") from txtfiles.collect().combine(htmlfiles.collect())\n\n    output:\n    file \"multiqc_report.html\"\n\n    script:\n     \"\"\"\n      multiqc -m cutadapt -m fastqc -n multiqc_report.html .\n     \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "     \"\"\"\n      multiqc -m cutadapt -m fastqc -n multiqc_report.html .\n     \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "txtfiles"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [
+            "container 'multiqc_docker:v.01'",
+            "publishDir \"${FastqDir}/TrimmedGalore/MultiQC\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "CleanHIVReads": {
+        "name_process": "CleanHIVReads",
+        "string_process": "\nprocess CleanHIVReads {\n    input:\n    tuple dataset_id, file(forward), file(reverse), file(ref) from TrimmedReads.combine(Ch_HIVComp)\n\n    output:\n    tuple dataset_id, file(\"${dataset_id}.clean_1.fq.gz\"), file(\"${dataset_id}.clean_2.fq.gz\") into HIVCleanReadsAssembly, HIVCleanReadsPolishing, HIVCleanReadsVariantCalling\n\n    script:\n    \"\"\"\n    minimap2 -x sr -a $ref $forward $reverse | samtools view -F 4 -b > clean.bam\n    picard SamToFastq VALIDATION_STRINGENCY=LENIENT I=clean.bam F=${dataset_id}.clean_1.fq.gz F2=${dataset_id}.clean_2.fq.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "    \"\"\"\n    minimap2 -x sr -a $ref $forward $reverse | samtools view -F 4 -b > clean.bam\n    picard SamToFastq VALIDATION_STRINGENCY=LENIENT I=clean.bam F=${dataset_id}.clean_1.fq.gz F2=${dataset_id}.clean_2.fq.gz\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2",
+            "SAMtools",
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2",
+            "https://bio.tools/samtools",
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "TrimmedReads",
+            "Ch_HIVComp"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "HIVCleanReadsAssembly",
+            "HIVCleanReadsPolishing",
+            "HIVCleanReadsVariantCalling"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "AssembleHIVReads": {
+        "name_process": "AssembleHIVReads",
+        "string_process": "\nprocess AssembleHIVReads {\n    input:\n    tuple dataset_id, file(forward), file(reverse) from HIVCleanReadsAssembly\n\n    output:\n    tuple dataset_id, file(\"${dataset_id}.iva.fa\") optional true into HIVIVAAssembly\n    file(\"*.log\")\n    script:\n    \"\"\"\n    if iva -v -f $forward -r $reverse iva_assembly 2>&1 > ${dataset_id}.iva.log ; then\n      mv iva_assembly/contigs.fasta ${dataset_id}.iva.fa\n    else\n      mv ${dataset_id}.iva.log ${dataset_id}.iva.fail.log\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    if iva -v -f $forward -r $reverse iva_assembly 2>&1 > ${dataset_id}.iva.log ; then\n      mv iva_assembly/contigs.fasta ${dataset_id}.iva.fa\n    else\n      mv ${dataset_id}.iva.log ${dataset_id}.iva.fail.log\n    fi\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "HIVCleanReadsAssembly"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "HIVIVAAssembly"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "ShiverInit": {
+        "name_process": "ShiverInit",
+        "string_process": "\nprocess ShiverInit {\n                                                                                   \n    container 'shiver_docker:v.01'\n\n    input:\n    file(dir) from ShiverInitDir\n    file(conf) from ShiverConf1\n\n    output:\n    file(\"MyInitDir/\") into ShiverInit\n\n    script:\n    \"\"\"\n    shiver_init.sh MyInitDir /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/config/config.sh \\\n    /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/ExistingRefAlignment.fasta \\\n    /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/adapters.fasta \\\n    /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/primers.fasta\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    shiver_init.sh MyInitDir /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/config/config.sh \\\n    /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/ExistingRefAlignment.fasta \\\n    /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/adapters.fasta \\\n    /home/centos/nextflow/HIV-Drug-Resistance/config/hiv/shiver_init_HIV/primers.fasta\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ShiverInitDir",
+            "ShiverConf1"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ShiverInit"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [
+            "container 'shiver_docker:v.01'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HIVShiver": {
+        "name_process": "HIVShiver",
+        "string_process": "\nprocess HIVShiver {\n    publishDir \"${FastqDir}/Shiver\", pattern: \"${dataset_id}.shiver.fa\", mode: 'copy'\n    publishDir \"${FastqDir}/Shiver\", pattern: \"${dataset_id}.shiverlog.txt\", mode: 'copy'   \n\n    input:\n    tuple dataset_id, file(assembly), file(forward), file(reverse), file(shiverconf), file(shiverinit) from HIVIVAAssembly.join(HIVCleanReadsPolishing, by: [0]).combine(ShiverConf).combine(ShiverInit)\n\n    output:\n    tuple dataset_id, file(\"${dataset_id}.shiver.fa\") optional true into HIVAssemblyBAM, HIVAssemblyVariants\n    file(\"${dataset_id}.shiver.txt\") optional true\n    file(\"${dataset_id}.shiverlog.txt\") optional true\n\n    script:\n     \"\"\"\n    if shiver_align_contigs.sh ${shiverinit} ${shiverconf} ${assembly} ${dataset_id}; then\n        if [ -f ${dataset_id}_cut_wRefs.fasta ]; then\n            shiver_map_reads.sh ${shiverinit} ${shiverconf} ${assembly} ${dataset_id} ${dataset_id}.blast ${dataset_id}_cut_wRefs.fasta ${forward} ${reverse}\n        else\n            shiver_map_reads.sh ${shiverinit} ${shiverconf} ${assembly} ${dataset_id} ${dataset_id}.blast ${dataset_id}_raw_wRefs.fasta ${forward} ${reverse}\n        fi\n        seqtk seq -l0 ${dataset_id}_remap_consensus_MinCov_15_30.fasta | head -n2 | sed '/>/!s/-//g' | sed 's/\\\\?/N/g' | sed 's/_remap_consensus//g' | seqtk seq -l80 > ${dataset_id}.shiver.fa\n    else\n        echo \"No HIV contigs found. This sample is likely to be purely contamination\" > ${dataset_id}.shiverlog.txt\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "     \"\"\"\n    if shiver_align_contigs.sh ${shiverinit} ${shiverconf} ${assembly} ${dataset_id}; then\n        if [ -f ${dataset_id}_cut_wRefs.fasta ]; then\n            shiver_map_reads.sh ${shiverinit} ${shiverconf} ${assembly} ${dataset_id} ${dataset_id}.blast ${dataset_id}_cut_wRefs.fasta ${forward} ${reverse}\n        else\n            shiver_map_reads.sh ${shiverinit} ${shiverconf} ${assembly} ${dataset_id} ${dataset_id}.blast ${dataset_id}_raw_wRefs.fasta ${forward} ${reverse}\n        fi\n        seqtk seq -l0 ${dataset_id}_remap_consensus_MinCov_15_30.fasta | head -n2 | sed '/>/!s/-//g' | sed 's/\\\\?/N/g' | sed 's/_remap_consensus//g' | seqtk seq -l80 > ${dataset_id}.shiver.fa\n    else\n        echo \"No HIV contigs found. This sample is likely to be purely contamination\" > ${dataset_id}.shiverlog.txt\n    fi\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "seqtk"
+        ],
+        "tools_url": [
+            "https://bio.tools/seqtk"
+        ],
+        "tools_dico": [
+            {
+                "name": "seqtk",
+                "uri": "https://bio.tools/seqtk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2121",
+                                    "term": "Sequence file editing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A tool for processing sequences in the FASTA or FASTQ format. It parses both FASTA and FASTQ files which can also be optionally compressed by gzip.",
+                "homepage": "https://github.com/lh3/seqtk"
+            }
+        ],
+        "inputs": [
+            "HIVIVAAssembly",
+            "ShiverConf",
+            "ShiverInit"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "HIVAssemblyBAM",
+            "HIVAssemblyVariants"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [
+            "publishDir \"${FastqDir}/Shiver\", pattern: \"${dataset_id}.shiver.fa\", mode: 'copy'",
+            "publishDir \"${FastqDir}/Shiver\", pattern: \"${dataset_id}.shiverlog.txt\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HIVMappingVariantCalling": {
+        "name_process": "HIVMappingVariantCalling",
+        "string_process": "\nprocess HIVMappingVariantCalling {\n    input:\n    tuple dataset_id, file(forward), file(reverse), file(assembly) from HIVCleanReadsVariantCalling.join(HIVAssemblyBAM, by: [0])\n\n    output:\n    tuple dataset_id, file(\"${dataset_id}.variants.bam\") into HIVMappingNoDupsBAM\n\n    script:\n    \"\"\"\n    samtools faidx $assembly\n    minimap2 -x sr -a $assembly $forward $reverse | samtools view -@ 2 -b | samtools sort -@ 2 -o ${dataset_id}.variants.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "    \"\"\"\n    samtools faidx $assembly\n    minimap2 -x sr -a $assembly $forward $reverse | samtools view -@ 2 -b | samtools sort -@ 2 -o ${dataset_id}.variants.bam\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools",
+            "Minimap2"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools",
+            "https://bio.tools/minimap2"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            }
+        ],
+        "inputs": [
+            "HIVCleanReadsVariantCalling"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "HIVMappingNoDupsBAM"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "HIVVariantCallingVarScan": {
+        "name_process": "HIVVariantCallingVarScan",
+        "string_process": "\nprocess HIVVariantCallingVarScan {\n    publishDir \"${FastqDir}/CallVariants/fasta/minor_variants\", pattern: \"${dataset_id}.${minvarfreq}.minor.fa\", mode: 'copy'\n    publishDir \"${FastqDir}/CallVariants/fasta/IUPAC\", pattern: \"${dataset_id}.${minvarfreq}.iupac.consensus.fa\", mode: 'copy'\n    publishDir \"${FastqDir}/CallVariants/vcf\", pattern: \"${dataset_id}.${minvarfreq}.consensus.vcf\", mode: 'copy'\n\n    input:\n    tuple dataset_id, file(bam), file(assembly), minvarfreq from HIVMappingNoDupsBAM.join(HIVAssemblyVariants, by: [0]).combine(MinVarFreq)\n\n    output:\n    tuple dataset_id, minvarfreq, file(\"*.${minvarfreq}.iupac.consensus.fa\") into HIVAssemblyWithVariants\n    file \"${dataset_id}.${minvarfreq}.minor.fa\"\n    file \"${dataset_id}.${minvarfreq}.consensus.vcf\"\n\n    script:\n    \"\"\"\n    samtools mpileup --max-depth 10000000 --redo-BAQ --min-MQ 17 --min-BQ 20 --output ${dataset_id}.mpileup --fasta-ref ${assembly} ${bam}\n    java -Xmx17G -jar /home/centos/miniconda3/envs/trialrun/share/varscan-2.4.4-0/VarScan.jar mpileup2cns ${dataset_id}.mpileup --min-var-freq ${minvarfreq} --p-value 95e-02 --min-coverage 100 --output-vcf 1 > ${dataset_id}.varscan.cns.vcf\n    bgzip ${dataset_id}.varscan.cns.vcf\n    tabix -p vcf ${dataset_id}.varscan.cns.vcf.gz\n    bcftools view -i'FILTER=\"PASS\"' -Oz -o ${dataset_id}.varscan.cns.filtered.vcf.gz ${dataset_id}.varscan.cns.vcf.gz\n    zcat ${dataset_id}.varscan.cns.filtered.vcf.gz > ${dataset_id}.${minvarfreq}.consensus.vcf\n    tabix -p vcf ${dataset_id}.varscan.cns.filtered.vcf.gz\n    bcftools consensus -f $assembly ${dataset_id}.varscan.cns.filtered.vcf.gz --output ${dataset_id}.${minvarfreq}.minor.fa\n    bcftools consensus -I -f $assembly ${dataset_id}.varscan.cns.filtered.vcf.gz --output ${dataset_id}.${minvarfreq}.iupac.consensus.fa\n    sed -i 's/polished/consensus-minor/g' ${dataset_id}.${minvarfreq}.minor.fa\n    sed -i 's/polished/consensus-iupac/g' ${dataset_id}.${minvarfreq}.iupac.consensus.fa\n    sed -i '/^>/ s/\\$/ [Variant caller: ${params.variantstrategy}] [Minor variant bases IUPAC] [Variant frequency: ${minvarfreq}] /' ${dataset_id}.${minvarfreq}.iupac.consensus.fa\n    sed -i '/^>/ s/\\$/ [Variant caller: ${params.variantstrategy}] [Minor variants bases ONLY] [Variant frequency: ${minvarfreq}] /' ${dataset_id}.${minvarfreq}.minor.fa\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "    \"\"\"\n    samtools mpileup --max-depth 10000000 --redo-BAQ --min-MQ 17 --min-BQ 20 --output ${dataset_id}.mpileup --fasta-ref ${assembly} ${bam}\n    java -Xmx17G -jar /home/centos/miniconda3/envs/trialrun/share/varscan-2.4.4-0/VarScan.jar mpileup2cns ${dataset_id}.mpileup --min-var-freq ${minvarfreq} --p-value 95e-02 --min-coverage 100 --output-vcf 1 > ${dataset_id}.varscan.cns.vcf\n    bgzip ${dataset_id}.varscan.cns.vcf\n    tabix -p vcf ${dataset_id}.varscan.cns.vcf.gz\n    bcftools view -i'FILTER=\"PASS\"' -Oz -o ${dataset_id}.varscan.cns.filtered.vcf.gz ${dataset_id}.varscan.cns.vcf.gz\n    zcat ${dataset_id}.varscan.cns.filtered.vcf.gz > ${dataset_id}.${minvarfreq}.consensus.vcf\n    tabix -p vcf ${dataset_id}.varscan.cns.filtered.vcf.gz\n    bcftools consensus -f $assembly ${dataset_id}.varscan.cns.filtered.vcf.gz --output ${dataset_id}.${minvarfreq}.minor.fa\n    bcftools consensus -I -f $assembly ${dataset_id}.varscan.cns.filtered.vcf.gz --output ${dataset_id}.${minvarfreq}.iupac.consensus.fa\n    sed -i 's/polished/consensus-minor/g' ${dataset_id}.${minvarfreq}.minor.fa\n    sed -i 's/polished/consensus-iupac/g' ${dataset_id}.${minvarfreq}.iupac.consensus.fa\n    sed -i '/^>/ s/\\$/ [Variant caller: ${params.variantstrategy}] [Minor variant bases IUPAC] [Variant frequency: ${minvarfreq}] /' ${dataset_id}.${minvarfreq}.iupac.consensus.fa\n    sed -i '/^>/ s/\\$/ [Variant caller: ${params.variantstrategy}] [Minor variants bases ONLY] [Variant frequency: ${minvarfreq}] /' ${dataset_id}.${minvarfreq}.minor.fa\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools",
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools",
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "HIVMappingNoDupsBAM",
+            "MinVarFreq"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "HIVAssemblyWithVariants"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [
+            "publishDir \"${FastqDir}/CallVariants/fasta/minor_variants\", pattern: \"${dataset_id}.${minvarfreq}.minor.fa\", mode: 'copy'",
+            "publishDir \"${FastqDir}/CallVariants/fasta/IUPAC\", pattern: \"${dataset_id}.${minvarfreq}.iupac.consensus.fa\", mode: 'copy'",
+            "publishDir \"${FastqDir}/CallVariants/vcf\", pattern: \"${dataset_id}.${minvarfreq}.consensus.vcf\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HIVMakeResistanceReport": {
+        "name_process": "HIVMakeResistanceReport",
+        "string_process": "\nprocess HIVMakeResistanceReport {\n\n    publishDir \"${FastqDir}/Resistance/analysis/04-call_resistance\", pattern: \"${dataset_id}.json\", mode: 'copy'\n    publishDir \"${FastqDir}/Resistance/analysis/05-generate_report\", pattern: \"${dataset_id}.rtf\", mode: 'copy'\n    publishDir \"${FastqDir}/Resistance/reports\", pattern: \"${dataset_id}.rtf\", mode: 'copy'\n\n    input:\n    tuple dataset_id, minvarfreq, file(variantassembly) from HIVAssemblyWithSelectedMinVarFreq\n\n    output:\n    file(\"${dataset_id}.json\")\n    file(\"${dataset_id}.rtf\")\n\n    script:\n    episodenumber = dataset_id.split('-').last()\n    \"\"\"\n    buildreport.pl -i ${variantassembly} -n ${dataset_id} -l PHW_Cardiff\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    episodenumber = dataset_id.split('-').last()\n    \"\"\"\n    buildreport.pl -i ${variantassembly} -n ${dataset_id} -l PHW_Cardiff\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "HIVAssemblyWithSelectedMinVarFreq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "npacc__HIV-Drug-Resistance",
+        "directive": [
+            "publishDir \"${FastqDir}/Resistance/analysis/04-call_resistance\", pattern: \"${dataset_id}.json\", mode: 'copy'",
+            "publishDir \"${FastqDir}/Resistance/analysis/05-generate_report\", pattern: \"${dataset_id}.rtf\", mode: 'copy'",
+            "publishDir \"${FastqDir}/Resistance/reports\", pattern: \"${dataset_id}.rtf\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,747 @@
+{
+    "merge_agg_vcfs": {
+        "name_process": "merge_agg_vcfs",
+        "string_process": " process merge_agg_vcfs {\n\n        input:\n        file vcf_file from ch_vcf_file\n        \n \n        output:\n        \n        file 'vcf_files.txt' into ch_updated_vcf_list\n\n        script:\n        \"\"\"\n        # iterate through urls in csv replacing s3 path with the local one\n        urls=\"\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}')\"\n        for url in \\$(echo \\$urls); do\n            vcf=\"\\${url##*/}\"\n            sed -i -e \"s~\\$url~\\$vcf~g\" $vcf_file\n        done\n        # bgzip uncompressed vcfs\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            if [ \\${vcf: -4} == \".vcf\" ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                    sed -i \"s/\\$vcf/\\${vcf}.gz/g\" $vcf_file \n            fi\n        done\n        tail -n+2 $vcf_file| awk -F',' '{print \\$2}' > vcf_files.txt\n        \"\"\"\n    }",
+        "nb_lignes_process": 26,
+        "string_script": "        \"\"\"\n        # iterate through urls in csv replacing s3 path with the local one\n        urls=\"\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}')\"\n        for url in \\$(echo \\$urls); do\n            vcf=\"\\${url##*/}\"\n            sed -i -e \"s~\\$url~\\$vcf~g\" $vcf_file\n        done\n        # bgzip uncompressed vcfs\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            if [ \\${vcf: -4} == \".vcf\" ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                    sed -i \"s/\\$vcf/\\${vcf}.gz/g\" $vcf_file \n            fi\n        done\n        tail -n+2 $vcf_file| awk -F',' '{print \\$2}' > vcf_files.txt\n        \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_vcf_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_updated_vcf_list"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "merge_ind_vcfs": {
+        "name_process": "merge_ind_vcfs",
+        "string_process": " process merge_ind_vcfs {\n\n        label 'file_preprocessing'\n\n        input:\n        file vcf_file from ch_vcf_file\n        file vcfs from ch_vcf_ind.collect()\n\n        output:\n        file 'vcf_files.txt' into ch_updated_vcf_list\n\n        script:\n        \"\"\"\n        # iterate through urls in csv replacing s3 path with the local one\n        urls=\"\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}')\"\n        for url in \\$(echo \\$urls); do\n            vcf=\"\\${url##*/}\"\n            sed -i -e \"s~\\$url~\\$vcf~g\" $vcf_file\n        done\n        # bgzip uncompressed vcfs\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            if [ \\${vcf: -4} == \".vcf\" ]; then\n                    sed -i \"s/\\$vcf/\\${vcf}.gz/g\" $vcf_file \n            fi\n        done\n        # remove any prexisting columns for sex \n        if grep -Fq \"SEX\" $vcf_file; then\n            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\\$i==\"SEX\"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf \"%s%s\",\\$i,i==m?ORS:OFS}' $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        fi\n        # determine sex of each individual from VCF file & add to csv file\n        echo 'SEX' > sex.txt\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            bcftools index -f \\$vcf\n            SEX=\"\\$(bcftools plugin vcf2sex \\$vcf)\"\n            if [[ \\$SEX == *M ]]; then\n                    echo \"1\" >> sex.txt\n            elif [ \\$SEX == *F ]]; then\n                    echo \"2\" >> sex.txt\n            fi\n        done\n        paste -d, sex.txt $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        tail -n+2 $vcf_file | awk -F',' '{print \\$3}' > vcf_files.txt\n        \"\"\"\n    }",
+        "nb_lignes_process": 42,
+        "string_script": "        \"\"\"\n        # iterate through urls in csv replacing s3 path with the local one\n        urls=\"\\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}')\"\n        for url in \\$(echo \\$urls); do\n            vcf=\"\\${url##*/}\"\n            sed -i -e \"s~\\$url~\\$vcf~g\" $vcf_file\n        done\n        # bgzip uncompressed vcfs\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            if [ \\${vcf: -4} == \".vcf\" ]; then\n                    sed -i \"s/\\$vcf/\\${vcf}.gz/g\" $vcf_file \n            fi\n        done\n        # remove any prexisting columns for sex \n        if grep -Fq \"SEX\" $vcf_file; then\n            awk -F, -v OFS=, 'NR==1{for (i=1;i<=NF;i++)if (\\$i==\"SEX\"){n=i-1;m=NF-(i==NF)}} {for(i=1;i<=NF;i+=1+(i==n))printf \"%s%s\",\\$i,i==m?ORS:OFS}' $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        fi\n        # determine sex of each individual from VCF file & add to csv file\n        echo 'SEX' > sex.txt\n        for vcf in \\$(tail -n+2 $vcf_file | awk -F',' '{print \\$2}'); do\n            bcftools index -f \\$vcf\n            SEX=\"\\$(bcftools plugin vcf2sex \\$vcf)\"\n            if [[ \\$SEX == *M ]]; then\n                    echo \"1\" >> sex.txt\n            elif [ \\$SEX == *F ]]; then\n                    echo \"2\" >> sex.txt\n            fi\n        done\n        paste -d, sex.txt $vcf_file > tmp.csv && mv tmp.csv $vcf_file\n        tail -n+2 $vcf_file | awk -F',' '{print \\$3}' > vcf_files.txt\n        \"\"\"",
+        "nb_lignes_script": 30,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "ch_vcf_file",
+            "ch_vcf_ind"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_updated_vcf_list"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "label 'file_preprocessing'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "combine_vcfs": {
+        "name_process": "combine_vcfs",
+        "string_process": " process combine_vcfs {\n        publishDir \"${params.outdir}/vcf\", mode: 'copy'\n\n        input:\n        file(vcfs) from ch_vcfs.collect()\n        file vcf_list from ch_updated_vcf_list\n        file sample_file from ch_samples_to_combine_vcfs\n\n        output:\n        file 'filtered_by_sample.vcf.gz' into ch_vcf_plink\n\n        script:\n        if ( params.concat_vcfs )\n            \"\"\"\n            for vcf in ${vcfs}; do\n                if [ \\${vcf} == *vcf ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                fi\n            done\n            for i in *.vcf.gz; do bcftools index \\${i}; done\n            vcfs_to_combine=\\$(find . -name '*.vcf.gz'| paste -sd \" \")\n            sed '1d' $sample_file | awk -F' ' '{print \\$1}' > sample_file.txt\n            bcftools concat \\${vcfs_to_combine} -Oz -o merged.vcf.gz\n            bcftools view -S sample_file.txt merged.vcf.gz --force-samples -Oz -o filtered_by_sample.vcf.gz\n            \"\"\"\n        else if ( !params.concat_vcfs )\n            \"\"\"\n            for vcf in ${vcfs}; do\n                if [ \\${vcf} == *vcf ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                fi\n            done\n            for i in *.vcf.gz; do bcftools index \\${i}; done\n            vcfs_to_combine=\\$(find . -name '*.vcf.gz'| paste -sd \" \")\n            bcftools merge --force-samples \\${vcfs_to_combine} -Oz -o merged.vcf.gz\n            sed '1d' $sample_file | awk -F' ' '{print \\$1}' > sample_file.txt\n            bcftools view -S sample_file.txt merged.vcf.gz --force-samples -Oz -o filtered_by_sample.vcf.gz\n            \"\"\"\n    }",
+        "nb_lignes_process": 37,
+        "string_script": "        if ( params.concat_vcfs )\n            \"\"\"\n            for vcf in ${vcfs}; do\n                if [ \\${vcf} == *vcf ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                fi\n            done\n            for i in *.vcf.gz; do bcftools index \\${i}; done\n            vcfs_to_combine=\\$(find . -name '*.vcf.gz'| paste -sd \" \")\n            sed '1d' $sample_file | awk -F' ' '{print \\$1}' > sample_file.txt\n            bcftools concat \\${vcfs_to_combine} -Oz -o merged.vcf.gz\n            bcftools view -S sample_file.txt merged.vcf.gz --force-samples -Oz -o filtered_by_sample.vcf.gz\n            \"\"\"\n        else if ( !params.concat_vcfs )\n            \"\"\"\n            for vcf in ${vcfs}; do\n                if [ \\${vcf} == *vcf ]; then\n                    bgzip -c \\$vcf > \\${vcf}.gz\n                fi\n            done\n            for i in *.vcf.gz; do bcftools index \\${i}; done\n            vcfs_to_combine=\\$(find . -name '*.vcf.gz'| paste -sd \" \")\n            bcftools merge --force-samples \\${vcfs_to_combine} -Oz -o merged.vcf.gz\n            sed '1d' $sample_file | awk -F' ' '{print \\$1}' > sample_file.txt\n            bcftools view -S sample_file.txt merged.vcf.gz --force-samples -Oz -o filtered_by_sample.vcf.gz\n            \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "ch_vcfs",
+            "ch_updated_vcf_list",
+            "ch_samples_to_combine_vcfs"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_vcf_plink"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "publishDir \"${params.outdir}/vcf\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "vcf_2_plink": {
+        "name_process": "vcf_2_plink",
+        "string_process": " process vcf_2_plink {\n        tag \"plink\"\n        \n\n        input:\n        file vcf from ch_vcf_plink\n\n        output:\n        set file('*.bed'), file('*.bim'), file('*.fam') into ch_plink, ch_plink2\n\n        script:\n        \"\"\"\n        # remove contigs eg GL000229.1 to prevent errors\n        gunzip $vcf -c > temp.vcf\n        sed -i '/^GL/ d' temp.vcf\n        plink --keep-allele-order \\\n        --vcf temp.vcf \\\n        --make-bed \\\n        --double-id \\\n        --vcf-half-call m\n        \"\"\"\n    }",
+        "nb_lignes_process": 20,
+        "string_script": "        \"\"\"\n        # remove contigs eg GL000229.1 to prevent errors\n        gunzip $vcf -c > temp.vcf\n        sed -i '/^GL/ d' temp.vcf\n        plink --keep-allele-order \\\n        --vcf temp.vcf \\\n        --make-bed \\\n        --double-id \\\n        --vcf-half-call m\n        \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "pLink"
+        ],
+        "tools_url": [
+            "https://bio.tools/pLink-2"
+        ],
+        "tools_dico": [
+            {
+                "name": "pLink",
+                "uri": "https://bio.tools/pLink-2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0154",
+                            "term": "Small molecules"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3649",
+                                    "term": "Target-Decoy"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fragment weight comparison"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "PMF"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Peptide mass fingerprinting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fingerprinting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A high-speed search engine pLink 2 with systematic evaluation for proteome-scale identification of cross-linked peptides.",
+                "homepage": "http://pfind.ict.ac.cn/software/pLink/index.html"
+            }
+        ],
+        "inputs": [
+            "ch_vcf_plink"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_plink",
+            "ch_plink2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "tag \"plink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "preprocess_plink": {
+        "name_process": "preprocess_plink",
+        "string_process": " process preprocess_plink {\n\n        input:\n        file bed from ch_bed\n        file bim from ch_bim\n        file fam from ch_fam\n\n        output:\n        set file('*.bed'), file('*.bim'), file('*.fam') into ch_plink, ch_plink2\n\n        script:\n        \"\"\"\n        sed '1d' $fam > tmpfile; mv tmpfile $fam\n        mv $fam plink.fam\n        mv $bed plink.bed\n        mv $bim plink.bim\n        \"\"\"\n    }",
+        "nb_lignes_process": 16,
+        "string_script": "        \"\"\"\n        sed '1d' $fam > tmpfile; mv tmpfile $fam\n        mv $fam plink.fam\n        mv $bed plink.bed\n        mv $bim plink.bim\n        \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_bed",
+            "ch_bim",
+            "ch_fam"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_plink",
+            "ch_plink2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "preprocess_plink_folder": {
+        "name_process": "preprocess_plink_folder",
+        "string_process": " process preprocess_plink_folder {\n\n        input:\n        set val(name), file(bed), file(bim), file(fam) from plinkCh\n\n        output:\n        set file('*.bed'), file('*.bim'), file('*.fam') into ch_plink, ch_plink2\n\n        script:\n        \"\"\"\n        sed '1d' $fam > tmpfile; mv tmpfile $fam\n        mv $fam plink.fam\n        mv $bed plink.bed\n        mv $bim plink.bim\n        \"\"\"\n    }",
+        "nb_lignes_process": 14,
+        "string_script": "        \"\"\"\n        sed '1d' $fam > tmpfile; mv tmpfile $fam\n        mv $fam plink.fam\n        mv $bed plink.bed\n        mv $bim plink.bim\n        \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "plinkCh"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_plink",
+            "ch_plink2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "get_snps": {
+        "name_process": "get_snps",
+        "string_process": " process get_snps {\n        tag \"plink\"\n\n        input:\n        set file(bed), file(bim), file(fam) from ch_plink\n        file pheno_file from ch_pheno_for_assoc_test\n\n        output:\n        file(\"snps.txt\") into ch_snps\n\n        script:\n        \"\"\"\n        plink --keep-allele-order \\\n        --bed $bed \\\n        --bim $bim \\\n        --fam $fam \\\n        --allow-no-sex \\\n        --pheno ${pheno_file} \\\n        --pheno-name PHE \\\n        --threads ${task.cpus} \\\n        --assoc \\\n        --out out \n        awk -F' ' '{if(\\$9<${params.snp_threshold}) print \\$2}' out.assoc > snps.txt\n        \"\"\"\n    }",
+        "nb_lignes_process": 23,
+        "string_script": "        \"\"\"\n        plink --keep-allele-order \\\n        --bed $bed \\\n        --bim $bim \\\n        --fam $fam \\\n        --allow-no-sex \\\n        --pheno ${pheno_file} \\\n        --pheno-name PHE \\\n        --threads ${task.cpus} \\\n        --assoc \\\n        --out out \n        awk -F' ' '{if(\\$9<${params.snp_threshold}) print \\$2}' out.assoc > snps.txt\n        \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "pLink"
+        ],
+        "tools_url": [
+            "https://bio.tools/pLink-2"
+        ],
+        "tools_dico": [
+            {
+                "name": "pLink",
+                "uri": "https://bio.tools/pLink-2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0154",
+                            "term": "Small molecules"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3649",
+                                    "term": "Target-Decoy"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fragment weight comparison"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "PMF"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Peptide mass fingerprinting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fingerprinting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A high-speed search engine pLink 2 with systematic evaluation for proteome-scale identification of cross-linked peptides.",
+                "homepage": "http://pfind.ict.ac.cn/software/pLink/index.html"
+            }
+        ],
+        "inputs": [
+            "ch_plink",
+            "ch_pheno_for_assoc_test"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_snps"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "tag \"plink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "recode": {
+        "name_process": "recode",
+        "string_process": "\nprocess recode {\ntag \"plink\"\n\ninput:\nset file(bed), file(bim), file(fam) from ch_plink2\nfile snps from ch_snps\n\noutput:\nfile('*.raw') into phewas\n\nscript:\n\"\"\"\nplink --keep-allele-order \\\n--recodeA \\\n--bfile ${bed.baseName} \\\n--out r_genotypes \\\n--extract $snps\n\"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\nplink --keep-allele-order \\\n--recodeA \\\n--bfile ${bed.baseName} \\\n--out r_genotypes \\\n--extract $snps\n\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "pLink"
+        ],
+        "tools_url": [
+            "https://bio.tools/pLink-2"
+        ],
+        "tools_dico": [
+            {
+                "name": "pLink",
+                "uri": "https://bio.tools/pLink-2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3520",
+                            "term": "Proteomics experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0154",
+                            "term": "Small molecules"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3649",
+                                    "term": "Target-Decoy"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fragment weight comparison"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "PMF"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Peptide mass fingerprinting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2929",
+                                    "term": "Protein fingerprinting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A high-speed search engine pLink 2 with systematic evaluation for proteome-scale identification of cross-linked peptides.",
+                "homepage": "http://pfind.ict.ac.cn/software/pLink/index.html"
+            }
+        ],
+        "inputs": [
+            "ch_plink2",
+            "ch_snps"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "phewas"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "tag \"plink\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "phewas": {
+        "name_process": "phewas",
+        "string_process": " process phewas {\n        cpus threads\n\n        input:\n        file genotypes from phewas\n        file pheno from ch_codes_pheno\n        file cov_file from ch_covariate_file\n        val add_exclusions from ch_add_exclusions\n        val firth_regression from ch_firth_regression\n\n        output:\n        file(\"*phewas_results.csv\") into results_chr\n\n        script:\n        \"\"\"\n        mkdir -p assets/\n        cp /assets/* assets/\n        phewas.R --pheno_file \"${pheno}\" \\\n        --geno_file \"${genotypes}\" \\\n        --cov_file \"${cov_file}\" \\\n        --n_cpus ${task.cpus} \\\n        --min_code_count ${params.min_code_count} \\\n        --add_exclusions ${add_exclusions} \\\n        --firth_regression ${firth_regression} \\\n        --pheno_codes \"$params.pheno_codes\"\n        \"\"\"\n    }",
+        "nb_lignes_process": 25,
+        "string_script": "        \"\"\"\n        mkdir -p assets/\n        cp /assets/* assets/\n        phewas.R --pheno_file \"${pheno}\" \\\n        --geno_file \"${genotypes}\" \\\n        --cov_file \"${cov_file}\" \\\n        --n_cpus ${task.cpus} \\\n        --min_code_count ${params.min_code_count} \\\n        --add_exclusions ${add_exclusions} \\\n        --firth_regression ${firth_regression} \\\n        --pheno_codes \"$params.pheno_codes\"\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "phewas",
+            "ch_codes_pheno",
+            "ch_covariate_file",
+            "ch_add_exclusions",
+            "ch_firth_regression"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "results_chr"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "cpus threads"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "phewas_with_covariates": {
+        "name_process": "phewas_with_covariates",
+        "string_process": " process phewas_with_covariates {\n        cpus threads\n\n        input:\n        file genotypes from phewas\n        file pheno from ch_codes_pheno\n        val add_exclusions from ch_add_exclusions\n        val firth_regression from ch_firth_regression\n\n        output:\n        file(\"*phewas_results.csv\") into results_chr\n\n        script:\n        \"\"\"\n        mkdir -p assets/\n        cp /assets/* assets/\n        phewas.R --pheno_file \"${pheno}\" \\\n        --geno_file \"${genotypes}\" \\\n        --n_cpus ${task.cpus} \\\n        --min_code_count ${params.min_code_count} \\\n        --add_exclusions ${add_exclusions} \\\n        --firth_regression ${firth_regression} \\\n        --pheno_codes \"$params.pheno_codes\"\n        \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "        \"\"\"\n        mkdir -p assets/\n        cp /assets/* assets/\n        phewas.R --pheno_file \"${pheno}\" \\\n        --geno_file \"${genotypes}\" \\\n        --n_cpus ${task.cpus} \\\n        --min_code_count ${params.min_code_count} \\\n        --add_exclusions ${add_exclusions} \\\n        --firth_regression ${firth_regression} \\\n        --pheno_codes \"$params.pheno_codes\"\n        \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "phewas",
+            "ch_codes_pheno",
+            "ch_add_exclusions",
+            "ch_firth_regression"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "results_chr"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "cpus threads"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_results": {
+        "name_process": "merge_results",
+        "string_process": "\nprocess merge_results {\n    publishDir \"${params.outdir}/summary_statistics\", mode: 'copy'\n    \n    input:\n    file(\"*phewas_result.csv\") from results_chr.collect()\n\n    output:\n    set file(\"summary_statistics.csv\"), file(\"summary_top_hits.csv\"), file(\"*png\") into plots, plots2\n\n    script:\n    \"\"\"\n    plot_summary_statistics.R\n\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    plot_summary_statistics.R\n\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "results_chr"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "plots",
+            "plots2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "publishDir \"${params.outdir}/summary_statistics\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "build_report": {
+        "name_process": "build_report",
+        "string_process": " process build_report {\n        tag \"report\"\n        publishDir \"${params.outdir}/MultiQC\", mode: 'copy', pattern: '*.html'\n\n        input:\n        set file(phewas_results), file(phewas_top_results), file(phewas_plot) from plots\n\n        output:\n        file(\"multiqc_report.html\") into ch_report_outputs\n\n        script:\n\n        \"\"\"\n        mkdir assets/\n        cp /assets/* assets/\n\n        \n        # Generates the report\n        cp /opt/bin/phewas_report.Rmd .\n        cp /opt/bin/DTable.R .\n        cp /opt/bin/sanitise.R .\n        cp /opt/bin/style.css .\n        cp /opt/bin/logo.png .\n        \n\n        Rscript -e \"rmarkdown::render('phewas_report.Rmd', params = list(phewas_manhattan='${phewas_plot}', phewas_results='${phewas_results}', coloc_results='None', coloc_heatmap='None'))\"\n        mv phewas_report.html multiqc_report.html\n\n        rm ./DTable.R\n        rm ./sanitise.R\n        rm ./style.css\n        rm ./phewas_report.Rmd\n        \"\"\"\n    }",
+        "nb_lignes_process": 32,
+        "string_script": "        \"\"\"\n        mkdir assets/\n        cp /assets/* assets/\n\n        \n        # Generates the report\n        cp /opt/bin/phewas_report.Rmd .\n        cp /opt/bin/DTable.R .\n        cp /opt/bin/sanitise.R .\n        cp /opt/bin/style.css .\n        cp /opt/bin/logo.png .\n        \n\n        Rscript -e \"rmarkdown::render('phewas_report.Rmd', params = list(phewas_manhattan='${phewas_plot}', phewas_results='${phewas_results}', coloc_results='None', coloc_heatmap='None'))\"\n        mv phewas_report.html multiqc_report.html\n\n        rm ./DTable.R\n        rm ./sanitise.R\n        rm ./style.css\n        rm ./phewas_report.Rmd\n        \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "plots"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_report_outputs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "tag \"report\"",
+            "publishDir \"${params.outdir}/MultiQC\", mode: 'copy', pattern: '*.html'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_coloc": {
+        "name_process": "run_coloc",
+        "string_process": " process run_coloc {\n        publishDir \"${params.outdir}/colocalization\", mode: \"copy\"\n        label \"coloc\"\n\n        input:\n        file gwas_file from ch_gwas_input\n        set file(merged_results), file(merged_top_results), file(\"*png\") from plots2\n\n        output:\n        set file(\"*coloc_heatmap.png\"), file(\"*coloc_results.csv\") into coloc_results_ch\n\n        script:\n        \"\"\"\n        run_coloc.R --phewas_summary \"$merged_results\" \\\n                    --gwas_summary \"${gwas_file}\" \\\n                    --gwas_trait_type \"${params.gwas_trait_type}\" \\\n                    --outprefix \"${params.output_tag}\"\n        \"\"\"\n    }",
+        "nb_lignes_process": 17,
+        "string_script": "        \"\"\"\n        run_coloc.R --phewas_summary \"$merged_results\" \\\n                    --gwas_summary \"${gwas_file}\" \\\n                    --gwas_trait_type \"${params.gwas_trait_type}\" \\\n                    --outprefix \"${params.output_tag}\"\n        \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_gwas_input",
+            "plots2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "coloc_results_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "publishDir \"${params.outdir}/colocalization\", mode: \"copy\"",
+            "label \"coloc\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "build_report_coloc": {
+        "name_process": "build_report_coloc",
+        "string_process": " process build_report_coloc {\n        tag \"report\"\n        publishDir \"${params.outdir}/MultiQC\", mode: 'copy', pattern: '*.html'\n\n        input:\n        set file(coloc_plot), file(coloc_results) from coloc_results_ch\n        set file(phewas_results), file(phewas_top_results), file(phewas_plot) from plots\n\n        output:\n        file(\"multiqc_report.html\") into ch_report_outputs\n\n        script:\n\n        \"\"\"\n        mkdir assets/\n        cp /assets/* assets/\n\n        \n        # Generates the report\n        cp /opt/bin/phewas_report.Rmd .\n        cp /opt/bin/DTable.R .\n        cp /opt/bin/sanitise.R .\n        cp /opt/bin/style.css .\n        cp /opt/bin/logo.png .\n        \n\n        Rscript -e \"rmarkdown::render('phewas_report.Rmd', params = list(phewas_manhattan='${phewas_plot}', phewas_results='${phewas_results}', coloc_results='${coloc_results}', coloc_heatmap='${coloc_plot}'))\"\n        mv phewas_report.html multiqc_report.html\n\n        rm ./DTable.R\n        rm ./sanitise.R\n        rm ./style.css\n        rm ./phewas_report.Rmd\n\n        \"\"\"\n    }",
+        "nb_lignes_process": 34,
+        "string_script": "        \"\"\"\n        mkdir assets/\n        cp /assets/* assets/\n\n        \n        # Generates the report\n        cp /opt/bin/phewas_report.Rmd .\n        cp /opt/bin/DTable.R .\n        cp /opt/bin/sanitise.R .\n        cp /opt/bin/style.css .\n        cp /opt/bin/logo.png .\n        \n\n        Rscript -e \"rmarkdown::render('phewas_report.Rmd', params = list(phewas_manhattan='${phewas_plot}', phewas_results='${phewas_results}', coloc_results='${coloc_results}', coloc_heatmap='${coloc_plot}'))\"\n        mv phewas_report.html multiqc_report.html\n\n        rm ./DTable.R\n        rm ./sanitise.R\n        rm ./style.css\n        rm ./phewas_report.Rmd\n\n        \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "coloc_results_ch",
+            "plots"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_report_outputs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "lifebit-ai__phewas",
+        "directive": [
+            "tag \"report\"",
+            "publishDir \"${params.outdir}/MultiQC\", mode: 'copy', pattern: '*.html'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,337 @@
+{
+    "gather_results": {
+        "name_process": "gather_results",
+        "string_process": "\nprocess gather_results {\n    \n    executor 'local'\n    \n    input:\n        file(quantDir) from QUANT_DIRS\n\n    output:\n        set file('protocol'), file('quantType'), file('quantResults') into ALL_RESULTS\n\n    \"\"\"\n        cp -p $quantDir/protocol protocol\n\n        if [ -e $quantDir/kallisto ]; then\n            echo -n kallisto > quantType\n            cp -rp $quantDir/kallisto quantResults\n        elif [ -e $quantDir/alevin ]; then\n            echo -n alevin > quantType\n            cp -rp $quantDir/alevin quantResults\n        else\n            echo \"cannot determine quantification type from \\$(pwd)\" 1>&2\n            exit 1\n        fi\n    \"\"\"\n\n}",
+        "nb_lignes_process": 25,
+        "string_script": "\"\"\"\n        cp -p $quantDir/protocol protocol\n\n        if [ -e $quantDir/kallisto ]; then\n            echo -n kallisto > quantType\n            cp -rp $quantDir/kallisto quantResults\n        elif [ -e $quantDir/alevin ]; then\n            echo -n alevin > quantType\n            cp -rp $quantDir/alevin quantResults\n        else\n            echo \"cannot determine quantification type from \\$(pwd)\" 1>&2\n            exit 1\n        fi\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "QUANT_DIRS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ALL_RESULTS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "executor 'local'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_transcript_to_gene": {
+        "name_process": "merge_transcript_to_gene",
+        "string_process": "\nprocess merge_transcript_to_gene {\n\n    input:\n        file('??/tx2gene') from TRANSCRIPT_TO_GENE_MANY\n\n    output:\n        file tx2gene into TRANSCRIPT_TO_GENE\n\n    \"\"\"\n    cat \\$(ls */tx2gene | head -n 1) | head -n 1 > tx2gene\n    tail -q -n +2 */tx2gene | sort | uniq >> tx2gene\n    \"\"\"    \n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\n    cat \\$(ls */tx2gene | head -n 1) | head -n 1 > tx2gene\n    tail -q -n +2 */tx2gene | sort | uniq >> tx2gene\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "TRANSCRIPT_TO_GENE_MANY"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "TRANSCRIPT_TO_GENE"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "find_kallisto_results": {
+        "name_process": "find_kallisto_results",
+        "string_process": "\nprocess find_kallisto_results {\n    \n    executor 'local'\n    \n    input:\n        set val(protocol), val(quantType), file('kallisto') from KALLISTO_RESULTS\n\n    output:\n        set val(protocol), file(\"kallisto_results.txt\") into KALLISTO_RESULT_SETS\n\n    \"\"\"\n        dir=\\$(readlink kallisto)\n        ls kallisto/*/abundance.h5 | while read -r l; do\n            echo \\$(dirname \\${dir})/\\$l >> kallisto_results.txt\n        done\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n        dir=\\$(readlink kallisto)\n        ls kallisto/*/abundance.h5 | while read -r l; do\n            echo \\$(dirname \\${dir})/\\$l >> kallisto_results.txt\n        done\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "KALLISTO_RESULTS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "KALLISTO_RESULT_SETS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "executor 'local'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chunk_kallisto": {
+        "name_process": "chunk_kallisto",
+        "string_process": "\nprocess chunk_kallisto {\n\n    executor 'local'\n\n    input:\n        set val(protocol), file(kallistoResults) from KALLISTO_RESULT_SETS\n\n    output: \n        set val(protocol), file(\"chunks/*\") into KALLISTO_CHUNKS\n\n    \"\"\"\n        mkdir -p chunks\n        split -l ${params.chunkSize} ${kallistoResults} chunks/\n    \"\"\"\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n        mkdir -p chunks\n        split -l ${params.chunkSize} ${kallistoResults} chunks/\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "KALLISTO_RESULT_SETS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "KALLISTO_CHUNKS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "executor 'local'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kallisto_gene_count_matrix": {
+        "name_process": "kallisto_gene_count_matrix",
+        "string_process": "\nprocess kallisto_gene_count_matrix {\n    \n    conda \"${baseDir}/envs/kallisto_matrix.yml\"\n\n    cache 'deep'\n\n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 20\n\n    input:\n        file tx2Gene from TRANSCRIPT_TO_GENE.first()\n        set val(protocol), file(kallistoChunk) from FLATTENED_KALLISTO_CHUNKS        \n\n    output:\n        set val(protocol), file(\"counts_mtx\") into KALLISTO_CHUNK_COUNT_MATRICES\n        set val(protocol), file(\"tpm_mtx\") into KALLISTO_CHUNK_ABUNDANCE_MATRICES\n        file(\"kallisto_stats.tsv\") into KALLISTO_CHUNK_STATS\n\n    script:\n\n        def txOut\n        if ( expressionLevel == 'transcript' ){\n            txOut = 'TRUE'\n        }else{\n            txOut = 'FALSE'\n        }\n\n        script:\n\n            \"\"\"\n            # Some transcripts have identifiers that look annoyingly like versions \n\n            ignoreTxVersion=${params.reference.ignoreTxVersion}\n            example_file=\\$(head -n 1 ${kallistoChunk})\n            example_id=\\$(sed '2q;d'  \\${example_file/\\\\.h5/.tsv} | awk '{print \\$1}')\n            grep -P \"^\\$example_id\\t\" tx2gene > /dev/null\n\n            # If the full identifier matches, then we shouldn't try to ignore a version\n\n            if [ \\$? -eq 0 ]; then\n                ignoreTxVersion=FALSE\n            fi\n\n            sed -e 's/\\t/,/g' ${tx2Gene} > ${tx2Gene}.csv\n            tximport.R --files=${kallistoChunk} --type=kallisto --tx2gene=${tx2Gene}.csv \\\n                --countsFromAbundance=$expressionScaling --ignoreTxVersion=\\$ignoreTxVersion --txOut=$txOut \\\n                --outputCountsFile=counts_mtx/matrix.mtx \\\n                --outputAbundancesFile=tpm_mtx/matrix.mtx \\\n                --outputStatsFile=kallisto_stats.tsv\n            \"\"\"\n}",
+        "nb_lignes_process": 51,
+        "string_script": "        def txOut\n        if ( expressionLevel == 'transcript' ){\n            txOut = 'TRUE'\n        }else{\n            txOut = 'FALSE'\n        }\n\n        script:\n\n            \"\"\"\n            # Some transcripts have identifiers that look annoyingly like versions \n\n            ignoreTxVersion=${params.reference.ignoreTxVersion}\n            example_file=\\$(head -n 1 ${kallistoChunk})\n            example_id=\\$(sed '2q;d'  \\${example_file/\\\\.h5/.tsv} | awk '{print \\$1}')\n            grep -P \"^\\$example_id\\t\" tx2gene > /dev/null\n\n            # If the full identifier matches, then we shouldn't try to ignore a version\n\n            if [ \\$? -eq 0 ]; then\n                ignoreTxVersion=FALSE\n            fi\n\n            sed -e 's/\\t/,/g' ${tx2Gene} > ${tx2Gene}.csv\n            tximport.R --files=${kallistoChunk} --type=kallisto --tx2gene=${tx2Gene}.csv \\\n                --countsFromAbundance=$expressionScaling --ignoreTxVersion=\\$ignoreTxVersion --txOut=$txOut \\\n                --outputCountsFile=counts_mtx/matrix.mtx \\\n                --outputAbundancesFile=tpm_mtx/matrix.mtx \\\n                --outputStatsFile=kallisto_stats.tsv\n            \"\"\"",
+        "nb_lignes_script": 29,
+        "language_script": "bash",
+        "tools": [
+            "NullSeq"
+        ],
+        "tools_url": [
+            "https://bio.tools/nullseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "NullSeq",
+                "uri": "https://bio.tools/nullseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0364",
+                                    "term": "Random sequence generation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Creates Random Coding Sequences with specified GC content and Amino Acid usage.",
+                "homepage": "https://github.com/amarallab/NullSeq"
+            }
+        ],
+        "inputs": [
+            "TRANSCRIPT_TO_GENE",
+            "FLATTENED_KALLISTO_CHUNKS"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "KALLISTO_CHUNK_COUNT_MATRICES",
+            "KALLISTO_CHUNK_ABUNDANCE_MATRICES",
+            "KALLISTO_CHUNK_STATS"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/kallisto_matrix.yml\"",
+            "cache 'deep'",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alevin_runs": {
+        "name_process": "alevin_runs",
+        "string_process": "\nprocess alevin_runs {\n\n    executor 'local'\n    \n    input:\n        set val(protocol), val(quantType), file('alevin') from ALEVIN_RESULTS\n\n    output:\n         set val(protocol), file(\"alevin_runs/*\") into ALEVIN_RESULTS_BY_LIB\n    \n    \"\"\"\n    cp -P alevin alevin_runs\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    cp -P alevin alevin_runs\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ALEVIN_RESULTS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ALEVIN_RESULTS_BY_LIB"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "executor 'local'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alevin_to_mtx": {
+        "name_process": "alevin_to_mtx",
+        "string_process": "\nprocess alevin_to_mtx {\n\n    conda \"${baseDir}/envs/parse_alevin.yml\"\n    \n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 || task.exitStatus == 141 ? 'retry' : 'finish' }\n    maxRetries 10\n\n    input:\n        set val(protocol), file('alevin_run') from FLATTENED_ALEVIN_RESULTS_BY_LIB\n\n    output:\n        set val(protocol), file(\"counts_mtx\") into ALEVIN_CHUNK_COUNT_MATRICES\n\n    \"\"\"\n    ln -s alevin_run/alevin/mtx/counts_mtx_nonempty counts_mtx\n    \"\"\" \n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    ln -s alevin_run/alevin/mtx/counts_mtx_nonempty counts_mtx\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FLATTENED_ALEVIN_RESULTS_BY_LIB"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ALEVIN_CHUNK_COUNT_MATRICES"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/parse_alevin.yml\"",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 || task.exitStatus == 141 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alevin_stats": {
+        "name_process": "alevin_stats",
+        "string_process": "\nprocess alevin_stats {\n    \n    conda 'r-rjson'\n\n    input:\n        set val(protocol), file('alevin_run') from FLATTENED_ALEVIN_RESULTS_BY_LIB_FOR_STATS\n\n    output:\n        set val(protocol), file(\"alevin_stats.tsv\") into ALEVIN_CHUNK_STATS\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n    \n    suppressPackageStartupMessages(library(rjson))    \n    \n    json <- fromJSON(file = \"alevin_run/aux_info/alevin_meta_info.json\") \n    stats <- t(data.frame(unlist(lapply(json, function(j) paste(j, collapse = ' ')))))\n    run <- basename(Sys.readlink(\"alevin_run\"))\n    \n    write.table(data.frame(cbind(run=run, stats)), file = 'alevin_stats.tsv', quote = FALSE, sep=\"\\\\t\", row.names=FALSE)\n    \"\"\"\n    \n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n    \n    suppressPackageStartupMessages(library(rjson))    \n    \n    json <- fromJSON(file = \"alevin_run/aux_info/alevin_meta_info.json\") \n    stats <- t(data.frame(unlist(lapply(json, function(j) paste(j, collapse = ' ')))))\n    run <- basename(Sys.readlink(\"alevin_run\"))\n    \n    write.table(data.frame(cbind(run=run, stats)), file = 'alevin_stats.tsv', quote = FALSE, sep=\"\\\\t\", row.names=FALSE)\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FLATTENED_ALEVIN_RESULTS_BY_LIB_FOR_STATS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ALEVIN_CHUNK_STATS"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "conda 'r-rjson'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_count_chunk_matrices": {
+        "name_process": "merge_count_chunk_matrices",
+        "string_process": "\nprocess merge_count_chunk_matrices {\n    \n    conda \"${baseDir}/envs/kallisto_matrix.yml\"\n\n    cache 'lenient'\n    \n    memory { 5.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 20\n    \n    input:\n        set val(protocol), file('dir??/*') from PROTOCOL_COUNT_CHUNKS\n\n    output:\n        file(\"counts_mtx_${protocol}\") into PROTOCOL_COUNT_MATRICES\n\n    \"\"\"\n        find \\$(pwd) -name 'counts_mtx' > dirs.txt\n        ndirs=\\$(cat dirs.txt | wc -l)\n        if [ \"\\$ndirs\" -gt 1 ]; then \n            mergeMtx.R dirs.txt counts_mtx_${protocol}\n        else\n            ln -s \\$(cat dirs.txt) counts_mtx_${protocol}\n        fi\n        rm -f dirs.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n        find \\$(pwd) -name 'counts_mtx' > dirs.txt\n        ndirs=\\$(cat dirs.txt | wc -l)\n        if [ \"\\$ndirs\" -gt 1 ]; then \n            mergeMtx.R dirs.txt counts_mtx_${protocol}\n        else\n            ln -s \\$(cat dirs.txt) counts_mtx_${protocol}\n        fi\n        rm -f dirs.txt\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "PROTOCOL_COUNT_CHUNKS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "PROTOCOL_COUNT_MATRICES"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/kallisto_matrix.yml\"",
+            "cache 'lenient'",
+            "memory { 5.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_protocol_count_matrices": {
+        "name_process": "merge_protocol_count_matrices",
+        "string_process": "\nprocess merge_protocol_count_matrices {\n    \n    conda \"${baseDir}/envs/kallisto_matrix.yml\"\n\n    cache 'lenient'\n    \n    memory { 5.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 20\n    \n    publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true\n    \n    input:\n        file('*') from PROTOCOL_COUNT_MATRICES.collect()\n\n    output:\n        file(\"counts_mtx.zip\") into EXP_COUNT_MATRICES\n\n    \"\"\"\n        find \\$(pwd) -name 'counts_mtx_*' > dirs.txt\n        \n        ndirs=\\$(cat dirs.txt | wc -l)\n        if [ \"\\$ndirs\" -gt 1 ]; then \n            mergeMtx.R dirs.txt counts_mtx\n        else\n            ln -s \\$(cat dirs.txt) counts_mtx\n        fi\n        rm -f dirs.txt\n        zip -r counts_mtx.zip counts_mtx\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"\n        find \\$(pwd) -name 'counts_mtx_*' > dirs.txt\n        \n        ndirs=\\$(cat dirs.txt | wc -l)\n        if [ \"\\$ndirs\" -gt 1 ]; then \n            mergeMtx.R dirs.txt counts_mtx\n        else\n            ln -s \\$(cat dirs.txt) counts_mtx\n        fi\n        rm -f dirs.txt\n        zip -r counts_mtx.zip counts_mtx\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "PROTOCOL_COUNT_MATRICES"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "EXP_COUNT_MATRICES"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/kallisto_matrix.yml\"",
+            "cache 'lenient'",
+            "memory { 5.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 20",
+            "publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_tpm_chunk_matrices": {
+        "name_process": "merge_tpm_chunk_matrices",
+        "string_process": "\nprocess merge_tpm_chunk_matrices {\n\n    conda \"${baseDir}/envs/kallisto_matrix.yml\"\n    \n    memory { 5.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 20\n    \n    publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true\n    \n    input:\n        set val(protocol), file('dir??/*') from PROTOCOL_KALLISTO_ABUNDANCE_CHUNKS\n\n    output:\n        set val(protocol), file(\"tpm_mtx.zip\")\n\n    \"\"\"\n        find . -name 'tpm_mtx' > dirs.txt\n        mergeMtx.R dirs.txt tpm_mtx\n        rm -f dirs.txt\n        zip -r tpm_mtx.zip tpm_mtx\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"\n        find . -name 'tpm_mtx' > dirs.txt\n        mergeMtx.R dirs.txt tpm_mtx\n        rm -f dirs.txt\n        zip -r tpm_mtx.zip tpm_mtx\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "PROTOCOL_KALLISTO_ABUNDANCE_CHUNKS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "protocol"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scxa-aggregation-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/kallisto_matrix.yml\"",
+            "memory { 5.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 20",
+            "publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

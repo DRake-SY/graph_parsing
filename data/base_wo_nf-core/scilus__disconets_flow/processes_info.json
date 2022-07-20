@@ -1,0 +1,332 @@
+{
+    "README": {
+        "name_process": "README",
+        "string_process": "\nprocess README {\n    cpus 1\n    publishDir = params.Readme_Publish_Dir\n    tag = \"README\"\n\n    output:\n    file \"readme.txt\"\n\n    script:\n    String list_options = new String();\n    for (String item : params) {\n        list_options += item + \"\\n\"\n    }\n\n    \"\"\"\n    echo \"Disconets_flow pipeline\\n\" >> readme.txt\n    echo \"Start time: $workflow.start\\n\" >> readme.txt\n    echo \"[Command-line]\\n$workflow.commandLine\\n\" >> readme.txt\n    echo \"[Options]\\n\" >> readme.txt\n    echo \"$list_options\" >> readme.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    String list_options = new String();\n    for (String item : params) {\n        list_options += item + \"\\n\"\n    }\n\n    \"\"\"\n    echo \"Disconets_flow pipeline\\n\" >> readme.txt\n    echo \"Start time: $workflow.start\\n\" >> readme.txt\n    echo \"[Command-line]\\n$workflow.commandLine\\n\" >> readme.txt\n    echo \"[Options]\\n\" >> readme.txt\n    echo \"$list_options\" >> readme.txt\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "STRING"
+        ],
+        "tools_url": [
+            "https://bio.tools/string"
+        ],
+        "tools_dico": [
+            {
+                "name": "STRING",
+                "uri": "https://bio.tools/string",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0276",
+                                    "term": "Protein interaction network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A database of known and predicted protein-protein interactions. The database contains information from numerous sources, including experimental repositories, computational prediction methods and public text collections. STRING is regularly updated and gives a comprehensive view on protein-protein interactions currently available.",
+                "homepage": "http://string-db.org/"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus 1",
+            "publishDir = params.Readme_Publish_Dir",
+            "tag = \"README\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Copy_Atlas": {
+        "name_process": "Copy_Atlas",
+        "string_process": "\nprocess Copy_Atlas {\n    cpus 1\n    publishDir = {\"${params.output_dir}/\"}\n\n    input:\n    set sid, file(atlas_labels), file(atlas_labels_txt), file(atlas_list), file(atlas_t1) from atlas_for_copy\n\n    output:\n    file(\"${sid}_labels.nii.gz\")\n    file(\"${sid}_labels.txt\")\n    file(\"${sid}_t1.nii.gz\")\n\n    script:\n    \"\"\"\n    mv ${atlas_labels} ${sid}_labels.nii.gz\n    mv ${atlas_labels_txt} ${sid}_labels.txt\n    mv ${atlas_t1} ${sid}_t1.nii.gz\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    mv ${atlas_labels} ${sid}_labels.nii.gz\n    mv ${atlas_labels_txt} ${sid}_labels.txt\n    mv ${atlas_t1} ${sid}_t1.nii.gz\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "atlas_for_copy"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus 1",
+            "publishDir = {\"${params.output_dir}/\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Register_Lesions_T1s": {
+        "name_process": "Register_Lesions_T1s",
+        "string_process": "\nprocess Register_Lesions_T1s {\n    cpus params.processes_bet_register_t1\n\n    input:\n    set sid, file(t1), atlas_name, file(atlas), file(atlas_labels), file(atlas_list), file(atlas_t1) from atlas_lesion_for_registration\n\n    output:\n    set sid, atlas_name, \"${sid}__output0GenericAffine.mat\", \"${sid}__t1_${atlas_name}_space.nii.gz\" into transformation_for_registration_lesions\n    file \"${sid}__t1_bet_mask.nii.gz\" optional true\n    file \"${sid}__t1_bet.nii.gz\" optional true\n\n    script:\n    if (params.run_bet){\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        antsBrainExtraction.sh -d 3 -a $t1 -e $params.template_t1/t1_template.nii.gz\\\n            -o bet/ -m $params.template_t1/t1_brain_probability_map.nii.gz -u 0\n        scil_image_math.py convert bet/BrainExtractionMask.nii.gz ${sid}__t1_bet_mask.nii.gz --data_type uint8\n        scil_image_math.py multiplication $t1 ${sid}__t1_bet_mask.nii.gz ${sid}__t1_bet.nii.gz\n\n        ${params.registration_script} -d 3 -m ${sid}__t1_bet.nii.gz -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" -t ${params.registration_strategy}\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }\n    else{\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        ${params.registration_script} -d 3 -m ${t1} -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" ${params.registration_strategy}\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    if (params.run_bet){\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        antsBrainExtraction.sh -d 3 -a $t1 -e $params.template_t1/t1_template.nii.gz\\\n            -o bet/ -m $params.template_t1/t1_brain_probability_map.nii.gz -u 0\n        scil_image_math.py convert bet/BrainExtractionMask.nii.gz ${sid}__t1_bet_mask.nii.gz --data_type uint8\n        scil_image_math.py multiplication $t1 ${sid}__t1_bet_mask.nii.gz ${sid}__t1_bet.nii.gz\n\n        ${params.registration_script} -d 3 -m ${sid}__t1_bet.nii.gz -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" -t ${params.registration_strategy}\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }\n    else{\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        ${params.registration_script} -d 3 -m ${t1} -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" ${params.registration_strategy}\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "atlas_lesion_for_registration"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformation_for_registration_lesions"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus params.processes_bet_register_t1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Transform_Lesions": {
+        "name_process": "Transform_Lesions",
+        "string_process": "\nprocess Transform_Lesions {\n    cpus 1\n\n    input:\n    set sid, file(lesion), atlas_name, file(mat), file(t1_ref) from lesion_mat_for_transformation\n\n    output:\n    set sid, \"${sid}__${params.lesion_name}_${atlas_name}_space_int16.nii.gz\" into transformed_lesions\n    file \"${sid}__${params.lesion_name}_${atlas_name}_space.nii.gz\"\n\n    script:\n    \"\"\"\n    antsApplyTransforms -d 3 -i $lesion -r $t1_ref -o ${sid}__${params.lesion_name}_${atlas_name}_space.nii.gz -t $mat -n NearestNeighbor\n    scil_image_math.py convert ${sid}__${params.lesion_name}_${atlas_name}_space.nii.gz ${sid}__${params.lesion_name}_${atlas_name}_space_int16.nii.gz --data_type int16\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    antsApplyTransforms -d 3 -i $lesion -r $t1_ref -o ${sid}__${params.lesion_name}_${atlas_name}_space.nii.gz -t $mat -n NearestNeighbor\n    scil_image_math.py convert ${sid}__${params.lesion_name}_${atlas_name}_space.nii.gz ${sid}__${params.lesion_name}_${atlas_name}_space_int16.nii.gz --data_type int16\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "lesion_mat_for_transformation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformed_lesions"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Register_Tractograms_T1s": {
+        "name_process": "Register_Tractograms_T1s",
+        "string_process": "\nprocess Register_Tractograms_T1s {\n    cpus params.processes_bet_register_t1\n\n    input:\n    set sid, file(t1), atlas_name, file(atlas), file(atlas_labels), file(atlas_list), file(atlas_t1) from atlas_trk_for_registration\n\n    output:\n    set sid, atlas_name, \"${sid}__t1_${atlas_name}_space.nii.gz\", \"${sid}__output0GenericAffine.mat\", \"${sid}__output1InverseWarp.nii.gz\" into transformation_for_trk_registration\n    file \"${sid}__output1Warp.nii.gz\"\n    file \"${sid}__t1_bet_mask.nii.gz\" optional true\n    file \"${sid}__t1_bet.nii.gz\" optional true\n\n    script:\n    if (params.run_bet){\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        antsBrainExtraction.sh -d 3 -a $t1 -e $params.template_t1/t1_template.nii.gz\\\n            -o bet/ -m $params.template_t1/t1_brain_probability_map.nii.gz -u 0\n        scil_image_math.py convert bet/BrainExtractionMask.nii.gz ${sid}__t1_bet_mask.nii.gz --data_type uint8\n        scil_image_math.py multiplication $t1 ${sid}__t1_bet_mask.nii.gz ${sid}__t1_bet.nii.gz\n\n        ${params.registration_script} -d 3 -m ${sid}__t1_bet.nii.gz -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" -t s\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }\n    else{\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        ${params.registration_script} -d 3 -m ${t1} -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" -t s\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }\n}",
+        "nb_lignes_process": 40,
+        "string_script": "    if (params.run_bet){\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        antsBrainExtraction.sh -d 3 -a $t1 -e $params.template_t1/t1_template.nii.gz\\\n            -o bet/ -m $params.template_t1/t1_brain_probability_map.nii.gz -u 0\n        scil_image_math.py convert bet/BrainExtractionMask.nii.gz ${sid}__t1_bet_mask.nii.gz --data_type uint8\n        scil_image_math.py multiplication $t1 ${sid}__t1_bet_mask.nii.gz ${sid}__t1_bet.nii.gz\n\n        ${params.registration_script} -d 3 -m ${sid}__t1_bet.nii.gz -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" -t s\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }\n    else{\n    \"\"\"\n        export ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS=${params.processes_bet_register_t1}\n        export OMP_NUM_THREADS=1\n        export OPENBLAS_NUM_THREADS=1\n        export ANTS_RANDOM_SEED=1234\n\n        ${params.registration_script} -d 3 -m ${t1} -f ${atlas_t1} -n ${params.processes_bet_register_t1} -o \"${sid}__output\" -t s\n        mv ${sid}__outputWarped.nii.gz ${sid}__t1_${atlas_name}_space.nii.gz\n    \"\"\"\n    }",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "atlas_trk_for_registration"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformation_for_trk_registration"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus params.processes_bet_register_t1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Transform_Tractograms": {
+        "name_process": "Transform_Tractograms",
+        "string_process": "\nprocess Transform_Tractograms {\n    cpus 1\n\n    input:\n    set sid, file(trk), atlas_name, file(atlas), file(transfo), file(inv_deformation) from transfo_trk_for_registration\n\n    output:\n    set sid, \"${sid}_${atlas_name}_space.trk\" into transformed_trks\n\n    script:\n    \"\"\"\n    scil_apply_transform_to_tractogram.py ${trk} ${atlas} ${transfo} ${sid}_${atlas_name}_space.trk --remove_invalid --inverse --in_deformation ${inv_deformation}\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    scil_apply_transform_to_tractogram.py ${trk} ${atlas} ${transfo} ${sid}_${atlas_name}_space.trk --remove_invalid --inverse --in_deformation ${inv_deformation}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "transfo_trk_for_registration"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "transformed_trks"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Decompose_Connectivity": {
+        "name_process": "Decompose_Connectivity",
+        "string_process": "\nprocess Decompose_Connectivity {\n    cpus 1\n    memory { 6 * trackings.size() }\n\n    input:\n    set sid, file(trackings), atlas_name, file(atlas), file(atlas_labels), file(atlas_list), file(atlas_t1) from trk_atlases_for_decompose_connectivity\n\n    output:\n    set sid, atlas_name, file(atlas), file(atlas_labels), file(atlas_list), \"${sid}_${atlas_name}__decompose.h5\" into h5_for_combine_with_lesion\n\n    script:\n    no_pruning_arg = \"\"\n    if (params.no_pruning) {\n        no_pruning_arg = \"--no_pruning\"\n    }\n    no_remove_loops_arg = \"\"\n    if (params.no_remove_loops) {\n        no_remove_loops_arg = \"--no_remove_loops\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_pruning) {\n        no_remove_outliers_arg = \"--no_pruning\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_remove_outliers) {\n        no_remove_outliers_arg = \"--no_remove_outliers\"\n    }\n    \"\"\"\n    if [ `echo $trackings | wc -w` -gt 1 ]; then\n        scil_streamlines_math.py lazy_concatenate $trackings tracking_concat.trk --ignore_invalid\n    else\n        mv $trackings tracking_concat.trk\n    fi\n\n    scil_decompose_connectivity.py tracking_concat.trk $atlas \"${sid}_${atlas_name}__decompose.h5\" --no_remove_curv_dev \\\n        $no_pruning_arg $no_remove_loops_arg $no_remove_outliers_arg --min_length $params.min_length \\\n        --max_length $params.max_length --loop_max_angle $params.loop_max_angle \\\n        --outlier_threshold $params.outlier_threshold\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    no_pruning_arg = \"\"\n    if (params.no_pruning) {\n        no_pruning_arg = \"--no_pruning\"\n    }\n    no_remove_loops_arg = \"\"\n    if (params.no_remove_loops) {\n        no_remove_loops_arg = \"--no_remove_loops\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_pruning) {\n        no_remove_outliers_arg = \"--no_pruning\"\n    }\n    no_remove_outliers_arg = \"\"\n    if (params.no_remove_outliers) {\n        no_remove_outliers_arg = \"--no_remove_outliers\"\n    }\n    \"\"\"\n    if [ `echo $trackings | wc -w` -gt 1 ]; then\n        scil_streamlines_math.py lazy_concatenate $trackings tracking_concat.trk --ignore_invalid\n    else\n        mv $trackings tracking_concat.trk\n    fi\n\n    scil_decompose_connectivity.py tracking_concat.trk $atlas \"${sid}_${atlas_name}__decompose.h5\" --no_remove_curv_dev \\\n        $no_pruning_arg $no_remove_loops_arg $no_remove_outliers_arg --min_length $params.min_length \\\n        --max_length $params.max_length --loop_max_angle $params.loop_max_angle \\\n        --outlier_threshold $params.outlier_threshold\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "trk_atlases_for_decompose_connectivity"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "h5_for_combine_with_lesion"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus 1",
+            "memory { 6 * trackings.size() }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Compute_Connectivity_Lesion_without_similiarity": {
+        "name_process": "Compute_Connectivity_Lesion_without_similiarity",
+        "string_process": "\nprocess Compute_Connectivity_Lesion_without_similiarity {\n    cpus params.processes_connectivity\n    publishDir = {\"${params.output_dir}/$lesion_id/$sid/Compute_Connectivity\"}\n\n    input:\n    set sid, atlas_name, file(atlas), file(atlas_labels), file(atlas_list), file(h5), lesion_id, file(lesion) from h5_labels_lesion_for_compute_connectivity\n\n    output:\n    set sid, lesion_id, \"*.npy\", \"Connectivity_w_lesion/*.npy\" into matrices_for_connectivity_in_csv\n    set sid, lesion_id, \"$atlas_labels\", \"$atlas_list\", \"Connectivity_w_lesion/${lesion_id}_${sid}_lesion_sc.npy\" into lesion_sc_for_visualisation\n\n    script:\n    \"\"\"\n    mkdir Connectivity_w_lesion\n\n    scil_compute_connectivity.py $h5 $atlas --force_labels_list $atlas_list \\\n        --volume ${lesion_id}_${sid}_atlas_vol.npy --streamline_count ${lesion_id}_${sid}_atlas_sc.npy \\\n        --length ${lesion_id}_${sid}_atlas_len.npy \\\n        --include_dps ./ --lesion_load $lesion Connectivity_w_lesion/ \\\n        --processes $params.processes_connectivity\n\n    mv Connectivity_w_lesion/lesion_sc.npy Connectivity_w_lesion/${lesion_id}_${sid}_lesion_sc.npy\n    mv Connectivity_w_lesion/lesion_vol.npy Connectivity_w_lesion/${lesion_id}_${sid}_lesion_vol.npy\n    mv Connectivity_w_lesion/lesion_count.npy Connectivity_w_lesion/${lesion_id}_${sid}_lesion_count.npy\n\n    rm rd_fixel.npy -f\n    scil_normalize_connectivity.py ${lesion_id}_${sid}_atlas_sc.npy ${lesion_id}_${sid}_atlas_sc_edge_normalized.npy \\\n        --parcel_volume $atlas $atlas_list\n    scil_normalize_connectivity.py ${lesion_id}_${sid}_atlas_vol.npy ${lesion_id}_${sid}_atlas_sc_vol_normalized.npy \\\n        --parcel_volume $atlas $atlas_list\n    \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "    \"\"\"\n    mkdir Connectivity_w_lesion\n\n    scil_compute_connectivity.py $h5 $atlas --force_labels_list $atlas_list \\\n        --volume ${lesion_id}_${sid}_atlas_vol.npy --streamline_count ${lesion_id}_${sid}_atlas_sc.npy \\\n        --length ${lesion_id}_${sid}_atlas_len.npy \\\n        --include_dps ./ --lesion_load $lesion Connectivity_w_lesion/ \\\n        --processes $params.processes_connectivity\n\n    mv Connectivity_w_lesion/lesion_sc.npy Connectivity_w_lesion/${lesion_id}_${sid}_lesion_sc.npy\n    mv Connectivity_w_lesion/lesion_vol.npy Connectivity_w_lesion/${lesion_id}_${sid}_lesion_vol.npy\n    mv Connectivity_w_lesion/lesion_count.npy Connectivity_w_lesion/${lesion_id}_${sid}_lesion_count.npy\n\n    rm rd_fixel.npy -f\n    scil_normalize_connectivity.py ${lesion_id}_${sid}_atlas_sc.npy ${lesion_id}_${sid}_atlas_sc_edge_normalized.npy \\\n        --parcel_volume $atlas $atlas_list\n    scil_normalize_connectivity.py ${lesion_id}_${sid}_atlas_vol.npy ${lesion_id}_${sid}_atlas_sc_vol_normalized.npy \\\n        --parcel_volume $atlas $atlas_list\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "h5_labels_lesion_for_compute_connectivity"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "matrices_for_connectivity_in_csv",
+            "lesion_sc_for_visualisation"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus params.processes_connectivity",
+            "publishDir = {\"${params.output_dir}/$lesion_id/$sid/Compute_Connectivity\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Connectivity_in_csv": {
+        "name_process": "Connectivity_in_csv",
+        "string_process": "\nprocess Connectivity_in_csv {\n    cpus 1\n    publishDir = {\"${params.output_dir}/$lesion_id/$sid/Compute_Connectivity\"}\n\n    input:\n    set sid, lesion_id, file(atlas_matrices), file(matrices_w_lesion) from matrices_for_connectivity_in_csv\n\n    output:\n    set sid, \"*csv\", \"Connectivity_w_lesion/*.csv\"\n\n    script:\n    String matrices_list = atlas_matrices.join(\"\\\",\\\"\")\n    String matrices_w_lesion = matrices_w_lesion.join(\"\\\",\\\"\")\n    \"\"\"\n    #!/usr/bin/env python3\n    import numpy as np\n    import os, sys\n\n    os.mkdir(\"Connectivity_w_lesion\")\n\n    for data in [\"$matrices_list\",\"$matrices_w_lesion\"]:\n      fmt='%1.8f'\n      if 'sc' in data:\n        fmt='%i'\n\n      curr_data = np.load(data)\n      if \"lesion\" in data:\n        np.savetxt(os.path.join(\"Connectivity_w_lesion/\", data.replace(\".npy\", \".csv\")), curr_data, delimiter=\",\", fmt=fmt)\n      else:\n        np.savetxt(data.replace(\".npy\", \".csv\"), curr_data, delimiter=\",\", fmt=fmt)\n    \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "    String matrices_list = atlas_matrices.join(\"\\\",\\\"\")\n    String matrices_w_lesion = matrices_w_lesion.join(\"\\\",\\\"\")\n    \"\"\"\n    #!/usr/bin/env python3\n    import numpy as np\n    import os, sys\n\n    os.mkdir(\"Connectivity_w_lesion\")\n\n    for data in [\"$matrices_list\",\"$matrices_w_lesion\"]:\n      fmt='%1.8f'\n      if 'sc' in data:\n        fmt='%i'\n\n      curr_data = np.load(data)\n      if \"lesion\" in data:\n        np.savetxt(os.path.join(\"Connectivity_w_lesion/\", data.replace(\".npy\", \".csv\")), curr_data, delimiter=\",\", fmt=fmt)\n      else:\n        np.savetxt(data.replace(\".npy\", \".csv\"), curr_data, delimiter=\",\", fmt=fmt)\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "matrices_for_connectivity_in_csv"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sid"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus 1",
+            "publishDir = {\"${params.output_dir}/$lesion_id/$sid/Compute_Connectivity\"}"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Visualize_Connectivity": {
+        "name_process": "Visualize_Connectivity",
+        "string_process": "\nprocess Visualize_Connectivity {\n    cpus 1\n    publishDir = {\"${params.output_dir}/$lesion_id/$sid/Compute_Connectivity/Connectivity_w_lesion\"}\n\n    input:\n    set sid, lesion_id, file(atlas_labels), file(atlas_list), file(matrices) from lesion_sc_for_visualisation\n\n    output:\n    set sid, \"*.png\"\n\n    script:\n    String matrices_list = matrices.join(\", \").replace(',', '')\n    \"\"\"\n    for matrix in \"$matrices_list\"; do\n        scil_visualize_connectivity.py \\$matrix \\${matrix/.npy/_matrix.png} --labels_list $atlas_list --name_axis \\\n            --display_legend --lookup_table $atlas_labels --log --histogram \\${matrix/.npy/_hist.png} --nb_bins 50 --exclude_zeros --axis_text_size 5 5\n    done\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    String matrices_list = matrices.join(\", \").replace(',', '')\n    \"\"\"\n    for matrix in \"$matrices_list\"; do\n        scil_visualize_connectivity.py \\$matrix \\${matrix/.npy/_matrix.png} --labels_list $atlas_list --name_axis \\\n            --display_legend --lookup_table $atlas_labels --log --histogram \\${matrix/.npy/_hist.png} --nb_bins 50 --exclude_zeros --axis_text_size 5 5\n    done\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "STRING"
+        ],
+        "tools_url": [
+            "https://bio.tools/string"
+        ],
+        "tools_dico": [
+            {
+                "name": "STRING",
+                "uri": "https://bio.tools/string",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0121",
+                            "term": "Proteomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0276",
+                                    "term": "Protein interaction network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A database of known and predicted protein-protein interactions. The database contains information from numerous sources, including experimental repositories, computational prediction methods and public text collections. STRING is regularly updated and gives a comprehensive view on protein-protein interactions currently available.",
+                "homepage": "http://string-db.org/"
+            }
+        ],
+        "inputs": [
+            "lesion_sc_for_visualisation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sid"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__disconets_flow",
+        "directive": [
+            "cpus 1",
+            "publishDir = {\"${params.output_dir}/$lesion_id/$sid/Compute_Connectivity/Connectivity_w_lesion\"}"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

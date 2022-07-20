@@ -1,0 +1,442 @@
+{
+    "AdapterRemoval": {
+        "name_process": "AdapterRemoval",
+        "string_process": "\nprocess AdapterRemoval {\n    tag \"$name\"\n\n    label 'expresso'\n\n    input:\n        set val(name), file(reads) from reads_to_trim\n\n    output:\n        set val(name), file('*.trimmed.fastq.gz') into trimmed_reads\n        file(\"*.settings\") into adapter_removal_results_multiqc\n\n    script:\n        settings = name+\".settings\"\n        if (params.pairedEnd && !params.collapse){\n            out1 = name+\".pair1.trimmed.fastq.gz\"\n            out2 = name+\".pair2.trimmed.fastq.gz\"\n            \"\"\"\n            AdapterRemoval \\\\\n                --basename $name \\\\\n                --file1 ${reads[0]} \\\\\n                --file2 ${reads[1]} \\\\\n                --trimns \\\\\n                --trimqualities \\\\\n                --minquality 20 \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --output1 $out1 \\\\\n                --output2 $out2 \\\\\n                --threads ${task.cpus} \\\\\n                --qualitybase ${params.phred} \\\\\n                --settings $settings\n            \"\"\"\n        } else if (params.pairedEnd && params.collapse) {\n            trimmed_out = name+\".trimmed.fastq.gz\"\n            \"\"\"\n            AdapterRemoval  \\\\\n                --qualitybase ${params.phred} \\\\\n                --file1 ${reads[0]} \\\\\n                --file2 ${reads[1]} \\\\\n                --collapse \\\\\n                --trimns \\\\\n                --trimqualities \\\\\n                --minquality 20 \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --basename $name \\\\\n                --threads ${task.cpus} \\\\\n                --settings $settings \\\\\n                --seed 42 \\\\\n                --gzip\n\n                cat *.collapsed.gz *.collapsed.truncated.gz > $trimmed_out\n            \"\"\"\n        } \n        else {\n            se_out = name+\".trimmed.fastq.gz\"\n            \"\"\"\n            AdapterRemoval \\\\\n                --basename $name \\\\\n                --file1 ${reads[0]} \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --trimns \\\\\n                --trimqualities \\\\\n                --minquality 20 \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --output1 $se_out \\\\\n                --threads ${task.cpus} \\\\\n                --qualitybase ${params.phred} \\\\\n                --settings $settings\n            \"\"\"\n        }       \n}",
+        "nb_lignes_process": 70,
+        "string_script": "        settings = name+\".settings\"\n        if (params.pairedEnd && !params.collapse){\n            out1 = name+\".pair1.trimmed.fastq.gz\"\n            out2 = name+\".pair2.trimmed.fastq.gz\"\n            \"\"\"\n            AdapterRemoval \\\\\n                --basename $name \\\\\n                --file1 ${reads[0]} \\\\\n                --file2 ${reads[1]} \\\\\n                --trimns \\\\\n                --trimqualities \\\\\n                --minquality 20 \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --output1 $out1 \\\\\n                --output2 $out2 \\\\\n                --threads ${task.cpus} \\\\\n                --qualitybase ${params.phred} \\\\\n                --settings $settings\n            \"\"\"\n        } else if (params.pairedEnd && params.collapse) {\n            trimmed_out = name+\".trimmed.fastq.gz\"\n            \"\"\"\n            AdapterRemoval  \\\\\n                --qualitybase ${params.phred} \\\\\n                --file1 ${reads[0]} \\\\\n                --file2 ${reads[1]} \\\\\n                --collapse \\\\\n                --trimns \\\\\n                --trimqualities \\\\\n                --minquality 20 \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --basename $name \\\\\n                --threads ${task.cpus} \\\\\n                --settings $settings \\\\\n                --seed 42 \\\\\n                --gzip\n\n                cat *.collapsed.gz *.collapsed.truncated.gz > $trimmed_out\n            \"\"\"\n        } \n        else {\n            se_out = name+\".trimmed.fastq.gz\"\n            \"\"\"\n            AdapterRemoval \\\\\n                --basename $name \\\\\n                --file1 ${reads[0]} \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --trimns \\\\\n                --trimqualities \\\\\n                --minquality 20 \\\\\n                --minlength ${params.minimum_read_length} \\\\\n                --output1 $se_out \\\\\n                --threads ${task.cpus} \\\\\n                --qualitybase ${params.phred} \\\\\n                --settings $settings\n            \"\"\"\n        }",
+        "nb_lignes_script": 56,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reads_to_trim"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trimmed_reads",
+            "adapter_removal_results_multiqc"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "tag \"$name\"",
+            "label 'expresso'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kraken2": {
+        "name_process": "kraken2",
+        "string_process": "\nprocess kraken2 {\n    tag \"$name\"\n\n    label 'intenso'\n\n    errorStrategy 'ignore'\n\n    publishDir \"${params.results}/kraken\", mode: 'copy', pattern: '*.kraken2_minimizer_report'\n\n    input:\n        set val(name), path(reads) from trimmed_reads\n        path db from krakendb\n\n    output:\n        set val(name), file('*.kraken.out') into kraken_out\n        set val(name), file('*.kraken2_minimizer_report') into kraken_report\n\n    script:\n        out = name+\".kraken.out\"\n        kreport = name+\".kraken2_minimizer_report\"\n        if (params.pairedEnd && !params.collapse){\n            \"\"\"\n            kraken2 --db $db --threads ${task.cpus} --output $out --report-minimizer-data --report $kreport --paired ${reads[0]} ${reads[1]}\n            \"\"\"    \n        } else {\n            \"\"\"\n            kraken2 --db $db --threads ${task.cpus} --output $out --report-minimizer-data --report $kreport ${reads[0]}\n            \"\"\"\n        }\n        \n}",
+        "nb_lignes_process": 30,
+        "string_script": "        out = name+\".kraken.out\"\n        kreport = name+\".kraken2_minimizer_report\"\n        if (params.pairedEnd && !params.collapse){\n            \"\"\"\n            kraken2 --db $db --threads ${task.cpus} --output $out --report-minimizer-data --report $kreport --paired ${reads[0]} ${reads[1]}\n            \"\"\"    \n        } else {\n            \"\"\"\n            kraken2 --db $db --threads ${task.cpus} --output $out --report-minimizer-data --report $kreport ${reads[0]}\n            \"\"\"\n        }",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "Ragout",
+            "kraken2"
+        ],
+        "tools_url": [
+            "https://bio.tools/ragout",
+            "https://bio.tools/kraken2"
+        ],
+        "tools_dico": [
+            {
+                "name": "Ragout",
+                "uri": "https://bio.tools/ragout",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tool for assisted assembly using multiple references. It takes a short read assembly (a set of contigs), a set of related references and a corresponding phylogenetic tree and then assembles the contigs into scaffolds.",
+                "homepage": "http://fenderglass.github.io/Ragout/"
+            },
+            {
+                "name": "kraken2",
+                "uri": "https://bio.tools/kraken2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0637",
+                            "term": "Taxonomy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3028",
+                                "term": "Taxonomy"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Kraken 2 is the newest version of Kraken, a taxonomic classification system using exact k-mer matches to achieve high accuracy and fast classification speeds. This classifier matches each k-mer within a query sequence to the lowest common ancestor (LCA) of all genomes containing the given k-mer. The k-mer assignments inform the classification algorithm.",
+                "homepage": "https://ccb.jhu.edu/software/kraken2/"
+            }
+        ],
+        "inputs": [
+            "trimmed_reads",
+            "krakendb"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "kraken_out",
+            "kraken_report"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "tag \"$name\"",
+            "label 'intenso'",
+            "errorStrategy 'ignore'",
+            "publishDir \"${params.results}/kraken\", mode: 'copy', pattern: '*.kraken2_minimizer_report'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kraken_report_backward_compatibility": {
+        "name_process": "kraken_report_backward_compatibility",
+        "string_process": "\nprocess kraken_report_backward_compatibility {\n  tag \"$prefix\"\n\n  label 'ristretto'\n\n  publishDir \"${params.results}/kraken\", mode: 'copy', pattern: '*.kreport'\n\n  input:\n  tuple val(prefix), path(kraken_r) from kraken_report_back\n\n  output:\n  tuple prefix, path(\"*.kreport\") into kraken_report_old\n  script:\n  kreport = prefix+\".kreport\"\n\n  \"\"\"\n  cut -f1-3,6-8 $kraken_r > $kreport\n  \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "  kreport = prefix+\".kreport\"\n\n  \"\"\"\n  cut -f1-3,6-8 $kraken_r > $kreport\n  \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "kraken_report_back"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "kraken_report_old"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "tag \"$prefix\"",
+            "label 'ristretto'",
+            "publishDir \"${params.results}/kraken\", mode: 'copy', pattern: '*.kreport'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "build_bracken_db": {
+        "name_process": "build_bracken_db",
+        "string_process": " process build_bracken_db {\n    label 'expresso'\n\n    publishDir \"${params.results}/bracken_db\", mode: 'copy', pattern: '*{kraken,kmer_distrib}'\n\n    input:\n        path db from krakendb\n    output:\n        path db_name into bracken_db\n    script:\n        db_name = db.toString()+\"_bracken\"\n        \"\"\"\n        bracken-build \\\\\n            -d $db \\\\\n            -t $task.cpus \\\\\n            -k ${params.kraken_kmer_len} \\\\\n            -l ${params.minimum_read_length} \\\\\n\n        mv $db $db_name\n        cp $db_name/*.kraken . \n        cp $db_name/*.kmer_distrib .\n        \"\"\"\n    }",
+        "nb_lignes_process": 21,
+        "string_script": "        db_name = db.toString()+\"_bracken\"\n        \"\"\"\n        bracken-build \\\\\n            -d $db \\\\\n            -t $task.cpus \\\\\n            -k ${params.kraken_kmer_len} \\\\\n            -l ${params.minimum_read_length} \\\\\n\n        mv $db $db_name\n        cp $db_name/*.kraken . \n        cp $db_name/*.kmer_distrib .\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "krakendb"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bracken_db"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "label 'expresso'",
+            "publishDir \"${params.results}/bracken_db\", mode: 'copy', pattern: '*{kraken,kmer_distrib}'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bracken": {
+        "name_process": "bracken",
+        "string_process": " process bracken {\n        tag \"$prefix\"\n\n        label 'expresso'\n\n        publishDir \"${params.results}/bracken\", mode: 'copy', pattern: '*bracken_report'\n\n        input:\n        tuple val(prefix), path(kraken_report) from kraken_report_bracken\n        path db from bracken_db\n\n        output:\n        tuple prefix, path(\"*.bracken_report\") into bracken_report\n        tuple prefix, path(\"*.new_bracken_report\") into bracken_new_report\n\n        script:\n        bracken_report = prefix+\".bracken_report\"\n        bracken_new_report = prefix+\".new_bracken_report\"\n        \"\"\"\n        bracken \\\\\n            -d $db \\\\\n            -i $kraken_report\\\\\n            -o $bracken_report \\\\\n            -w $bracken_new_report \\\\\n            -r ${params.minimum_read_length} \\\\\n            -l ${params.bracken_level} \\\\\n            -t ${params.bracken_threshold} \\\\\n        \"\"\"\n    }",
+        "nb_lignes_process": 27,
+        "string_script": "        bracken_report = prefix+\".bracken_report\"\n        bracken_new_report = prefix+\".new_bracken_report\"\n        \"\"\"\n        bracken \\\\\n            -d $db \\\\\n            -i $kraken_report\\\\\n            -o $bracken_report \\\\\n            -w $bracken_new_report \\\\\n            -r ${params.minimum_read_length} \\\\\n            -l ${params.bracken_level} \\\\\n            -t ${params.bracken_threshold} \\\\\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "Bracken"
+        ],
+        "tools_url": [
+            "https://bio.tools/bracken"
+        ],
+        "tools_dico": [
+            {
+                "name": "Bracken",
+                "uri": "https://bio.tools/bracken",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Microbial ecology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Environmental microbiology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Statistical method that computes the abundance of species in DNA sequences from a metagenomics sample.",
+                "homepage": "https://ccb.jhu.edu/software/bracken/"
+            }
+        ],
+        "inputs": [
+            "kraken_report_bracken",
+            "bracken_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "bracken_report",
+            "bracken_new_report"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "tag \"$prefix\"",
+            "label 'expresso'",
+            "publishDir \"${params.results}/bracken\", mode: 'copy', pattern: '*bracken_report'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kraken_parse": {
+        "name_process": "kraken_parse",
+        "string_process": "\nprocess kraken_parse {\n    tag \"$name\"\n\n    label 'ristretto'\n\n    errorStrategy 'ignore'\n\n    publishDir \"${params.results}/kraken\", mode: 'copy'\n\n    input:\n        set val(name), file(kraken_r) from kraken_report_parse\n\n    output:\n        file('*_kraken_parsed.csv') into kraken_parsed\n\n    script:\n        read_out = name+\".read_kraken_parsed.csv\"\n        kmer_out =  name+\".kmer_kraken_parsed.csv\"\n        \"\"\"\n        kraken_parse.py -c ${params.minhit} -or $read_out -ok $kmer_out $kraken_r\n        \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "        read_out = name+\".read_kraken_parsed.csv\"\n        kmer_out =  name+\".kmer_kraken_parsed.csv\"\n        \"\"\"\n        kraken_parse.py -c ${params.minhit} -or $read_out -ok $kmer_out $kraken_r\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "kraken_report_parse"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "kraken_parsed"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "tag \"$name\"",
+            "label 'ristretto'",
+            "errorStrategy 'ignore'",
+            "publishDir \"${params.results}/kraken\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kraken_merge": {
+        "name_process": "kraken_merge",
+        "string_process": "\nprocess kraken_merge {\n\n    label 'ristretto'\n\n    publishDir \"${params.results}\", mode: 'copy'\n\n    input:\n        file(csv_count) from kraken_parsed.collect()\n\n    output:\n        file('*.csv') into kraken_merged\n\n    script:\n        read_out = \"kraken_read_count.csv\"\n        kmer_out = \"kraken_kmer_duplication.csv\"\n        \"\"\"\n        merge_kraken_res.py -or $read_out -ok $kmer_out\n        \"\"\"    \n}",
+        "nb_lignes_process": 18,
+        "string_script": "        read_out = \"kraken_read_count.csv\"\n        kmer_out = \"kraken_kmer_duplication.csv\"\n        \"\"\"\n        merge_kraken_res.py -or $read_out -ok $kmer_out\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "kraken_parsed"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "kraken_merged"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "label 'ristretto'",
+            "publishDir \"${params.results}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n\n    publishDir \"${params.results}/multiqc\", mode: 'copy'\n\n    label 'ristretto'\n\n    input:\n        path('adapterRemoval/*') from adapter_removal_results_multiqc.collect().ifEmpty([])\n        path('kraken/*') from kraken_report_multiqc_file.collect().ifEmpty([])\n    output:\n        path('*multiqc_report.html')\n    script:\n        \"\"\"\n        multiqc .\n        \"\"\"\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "        \"\"\"\n        multiqc .\n        \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "adapter_removal_results_multiqc",
+            "kraken_report_multiqc_file"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "maxibor__kraken-nf",
+        "directive": [
+            "publishDir \"${params.results}/multiqc\", mode: 'copy'",
+            "label 'ristretto'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

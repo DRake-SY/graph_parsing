@@ -1,0 +1,223 @@
+{
+    "OPERATION_1": {
+        "string": "fastQC_input_ch = Channel.fromFilePairs(params.reads, size: -1)",
+        "origin": [
+            [
+                "params.reads, size: -1",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "fastQC_input_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_2": {
+        "string": "reads_ch = Channel.fromFilePairs(params.reads, size: -1)",
+        "origin": [
+            [
+                "params.reads, size: -1",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "reads_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "bc_ch = Channel.fromPath(params.barcode)",
+        "origin": [
+            [
+                "params.barcode",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "bc_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "reads_ch = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "reads_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_5": {
+        "string": "fastQC_input_ch = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "fastQC_input_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_6": {
+        "string": "zotuTable_ch = Channel.fromPath(params.zotuTable)",
+        "origin": [
+            [
+                "params.zotuTable",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "zotuTable_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_7": {
+        "string": "blastFile_ch = Channel.fromPath(params.blastFile)",
+        "origin": [
+            [
+                "params.blastFile",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "blastFile_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_8": {
+        "string": "zotuTable_ch = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "zotuTable_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_9": {
+        "string": "blastFile_ch = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "blastFile_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_10": {
+        "string": "lca_script = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "lca_script",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_11": {
+        "string": "reads_ch = Channel.empty()",
+        "origin": [],
+        "gives": [
+            [
+                "reads_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_12": {
+        "string": "Channel.fromPath(params.demuxedInput).set{ dmuxed_relabeled_input_ch }",
+        "origin": [
+            [
+                "params.demuxedInput",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "dmuxed_relabeled_input_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_13": {
+        "string": "name_ch = Channel.value(params.demuxedInput)",
+        "origin": [
+            [
+                "params.demuxedInput",
+                "V"
+            ]
+        ],
+        "gives": [
+            [
+                "name_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_14": {
+        "string": "_fastqc.{zip,html}') into res_fastQC_ch\n\n  when:\n  !params.skipFastqc\n\n  script:\n  \n  if( read instanceof Path ) {\n  \"\"\"\n  fastqc -q ${read}\n  \"\"\"\n  } else {\n  \"\"\"\n  fastqc -q ${read[0]} ${read[1]}\n  \"\"\"\n  }\n}\n\n \n  \n                                            \n   \n\nprocess '01_a_quality_Filtering' {\n\tlabel 'adapterRemoval'\n \n  publishDir \"01_a_quality_Filtering_${sample_id}\", mode: params.publish_dir_mode\n\n  input:\n      tuple val(sample_id), path(read) from reads_ch\n\n  output:\n      tuple val(sample_id), path('*_QF.fastq') into QF_ch \n      \n  script:\n\n  if( read instanceof Path ) {   \n     \"\"\"\n     AdapterRemoval --threads ${task.cpus} --file1 ${read} \\\n                    --trimns --trimqualities \\\n                    --minquality ${minQuality} \\\n                    --basename ${sample_id}\n\n     mv ${sample_id}.truncated ${sample_id}_QF.fastq\n\n    \"\"\"\n  }\n\n                                      \n  else {  \n     \"\"\"\n     AdapterRemoval --threads ${task.cpus} --file1 ${read[0]} --file2 ${read[1]} \\\n                    --collapse --trimns --trimqualities \\\n                    --minquality $minQuality \\\n                    --minalignmentlength $minAlignLeng \\\n                    --basename ${sample_id}\n\n    mv ${sample_id}.collapsed ${sample_id}_QF.fastq  \n    \"\"\"\n  }\n}\n\nQF_ch.into { QFres_4dmux_ch; QFres_4fastQC_ch}\nbarcode_reads_mixed = QFres_4dmux_ch.combine(bc_ch)\n                           .view()\n\n\n\nprocess '01_b_fastQC' {\n        label 'fastqc'\n\n  publishDir \"01_b_fastQC_${sample_id}\", mode: params.publish_dir_mode\n\n  input:\n      tuple val(sample_id), path(\"${sample_id}_QF.fastq\") from QFres_4fastQC_ch\n\n  output:\n      path(\"*_fastqc.{zip,html}\") into last_fastQC_ch\n\n  when:\n  !params.skipFastqc\n\n  script:\n  \"\"\"\n  fastqc -q ${\"${sample_id}_QF.fastq\"}\n  \"\"\"\n}\n   \n\n\n  \n                                                       \n   \n\n\nprocess '02_assigned_dmux' {\n  label 'obitools'\n\n  publishDir \"02_assigned_dmux_${sample_id}_${barcode.baseName}\", mode: params.publish_dir_mode\n\n  input:\n      tuple val(sample_id), path(read), path(barcode) from barcode_reads_mixed\n    \n\n  output:\n      tuple val(sample_id), val(\"${barcode.baseName}\"), path(\"*_Dmux.fastq\") into dmux_ch\n\n  script:\n  \"\"\"\n  ngsfilter -t ${barcode} -e ${primer_mismatch} -u \"orphan.fastq\" ${read} > \"${sample_id}_${barcode.baseName}_QF_Dmux.fastq\"\n  \"\"\"\n}\n\ngrouped_demux = dmux_ch.groupTuple()\n\n  \n                                                                                                                  \n   \n\nprocess '03_Length_filtered' {\n  label 'obitools'\n\n  publishDir \"03_Length_filtered_${sample_id}\", mode: params.publish_dir_mode\n\n  input: \n  tuple val(sample_id), val(barcode_files), path(fastq_files) from grouped_demux\n  output:\n  tuple val(sample_id), path('*_QF_Dmux_minLF.fastq') into lenFilt_ch\n\n\n  script:\n  \"\"\"\n  cat ${fastq_files} > \"${sample_id}_QF_Dmux.fastq\" \n  obigrep -l $minLen -p 'forward_tag is not None and reverse_tag is not None' ${sample_id}_QF_Dmux.fastq > ${sample_id}_QF_Dmux_minLF.fastq\n \n  \"\"\"\n\n}\n\n\n  \n                                             \n   \n\n\nprocess '04_splitSamples_relabel_Cat' {\n  label 'obitools'\n\n  publishDir \"04_splitSamples_${sample_id}\", mode: params.publish_dir_mode\n\n  input:\n  tuple val(sample_id), path(fastqs) from lenFilt_ch\n  output:\n  tuple val(sample_id), path(\"$sample_id/*.fastq\") into split_ch\n  script:\n  \"\"\"\n  mkdir ${sample_id}\n  obisplit -t sample -u \"noSampleID.fastq\" $fastqs\n  mv *.fastq ${sample_id}\n  mv ${sample_id}/$fastqs ..\n  mv ${sample_id}/noSampleID.fastq  noSampleID.fastq.ignore\n  \"\"\"\n}\n\n\n  \n                                      \n   \n\n\nprocess '05_relabel_Cat' {\n\n   label 'usearch'\n   \n   publishDir \"${task.process}_${sample_id}\", mode: params.publish_dir_mode\n\n   input:\n   tuple val(sample_id), path(fastqs) from split_ch\n\n   output:\n   tuple val(sample_id), path(\"*.relabeled.fastq\"), path(\"CountOfSeq.txt\"), path(\"*_relabeled4Usearch.fastq\") into addition_ch \n   tuple val(sample_id), path(\"*_upper.fasta\") into relabel_ch\n\n\n   script:\n   if(mode == 'usearch32')\n\t   \"\"\"\n\t   for files in ${fastqs}\n\t   do\n\t   label=\\$(echo \\$files | cut -d '/' -f 3 | cut -d '.' -f 1)\n\t   usearch -fastx_relabel \\$files -prefix \\${label}. -fastqout \\${label}.relabeled.fastq \n\t   done\n\t \n\t   for files in *.relabeled.fastq\n\t   do\n\t   name=\\$(echo \\$files | cut -d '/' -f '2' | cut -d '.' -f 1)\n\t   echo \\${name} >> CountOfSeq.txt\n\t   grep \"^@\\${name}\" \\$files | wc -l >> CountOfSeq.txt\n\t   done \n\n\t   cat *.relabeled.fastq > \"${sample_id}_QF_Dmux_minLF_relabeled4Usearch.fastq\"\n\t  \n\t   usearch -fastx_get_sample_names *_relabeled4Usearch.fastq -output sample.txt\n\n\t   usearch -fastq_filter *_relabeled4Usearch.fastq -fastaout ${sample_id}.fasta\n\t   \n\t   awk '/^>/ {print(\\$0)}; /^[^>]/ {print(toupper(\\$0))}' *.fasta > ${sample_id}_upper.fasta\n\t \n\t   \"\"\"\n   else if(mode == 'usearch64')\n   \t   \"\"\"\n\t   for files in ${fastqs}\n           do\n           label=\\$(echo \\$files | cut -d '/' -f 3 | cut -d '.' -f 1)\n           $usearch64 -fastx_relabel \\$files -prefix \\${label}. -fastqout \\${label}.relabeled.fastq\n           done\n  \n           for files in *.relabeled.fastq\n           do\n           name=\\$(echo \\$files | cut -d '/' -f '2' | cut -d '.' -f 1)\n           echo \\${name} >> CountOfSeq.txt\n           grep \"^@\\${name}\" \\$files | wc -l >> CountOfSeq.txt\n           done\n\n           cat *.relabeled.fastq > \"${sample_id}_QF_Dmux_minLF_relabeled4Usearch.fastq\"\n   \n           $usearch64 -fastx_get_sample_names *_relabeled4Usearch.fastq -output sample.txt\n\n           $usearch64 -fastq_filter *_relabeled4Usearch.fastq -fastaout ${sample_id}.fasta\n    \n           awk '/^>/ {print(\\$0)}; /^[^>]/ {print(toupper(\\$0))}' *.fasta > ${sample_id}_upper.fasta\n\t   \"\"\"\n }\n\n                                                                                      \nif ((params.skipDemux ) {",
+        "origin": [
+            [
+                "_fastqc",
+                "P"
+            ],
+            [
+                "bc_ch",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "QFres_4dmux_ch",
+                "P"
+            ],
+            [
+                "QFres_4fastQC_ch",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_15": {
+        "string": "demux_channel = name_ch.combine(dmuxed_relabeled_input_ch)",
+        "origin": [
+            [
+                "name_ch",
+                "P"
+            ],
+            [
+                "dmuxed_relabeled_input_ch",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "demux_channel",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_16": {
+        "string": "zotuTable_ch.combine(blastFile_ch)",
+        "origin": [
+            [
+                "zotuTable_ch",
+                "P"
+            ],
+            [
+                "blastFile_ch",
+                "P"
+            ]
+        ],
+        "gives": []
+    }
+}

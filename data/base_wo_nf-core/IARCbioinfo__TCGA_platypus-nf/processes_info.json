@@ -1,0 +1,223 @@
+{
+    "convert2annovar": {
+        "name_process": "convert2annovar",
+        "string_process": "\nprocess convert2annovar {\n\n  tag { SM_tag }\n\n  input:\n  file vcf\n\n  output:\n  file(\"${vcf_tag}_convert.vcf\") into convert_VCF\n\n  shell:\n  SM_tag = vcf.baseName.substring(0,12)\n  vcf_tag = vcf.baseName.replace(\".vcf\",\"\")\n  '''\n  zcat !{vcf} | sed '/^#CHROM/Q' > !{vcf_tag}_convert.vcf\n  zcat !{vcf} | grep -m1 \"^#CHROM\" | sed 's/POS\\tID/START\\tEND/g' >> !{vcf_tag}_convert.vcf\n  convert2annovar.pl -format vcf4 -includeinfo !{vcf} |  grep -v \"^#\" | cut -f-5,11- >> !{vcf_tag}_convert.vcf\n  '''\n\n}",
+        "nb_lignes_process": 19,
+        "string_script": "  SM_tag = vcf.baseName.substring(0,12)\n  vcf_tag = vcf.baseName.replace(\".vcf\",\"\")\n  '''\n  zcat !{vcf} | sed '/^#CHROM/Q' > !{vcf_tag}_convert.vcf\n  zcat !{vcf} | grep -m1 \"^#CHROM\" | sed 's/POS\\tID/START\\tEND/g' >> !{vcf_tag}_convert.vcf\n  convert2annovar.pl -format vcf4 -includeinfo !{vcf} |  grep -v \"^#\" | cut -f-5,11- >> !{vcf_tag}_convert.vcf\n  '''",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vcf"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "convert_VCF"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__TCGA_platypus-nf",
+        "directive": [
+            "tag { SM_tag }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "germline_filter": {
+        "name_process": "germline_filter",
+        "string_process": "\nprocess germline_filter {\n\n  tag { SM_tag }\n\n  input:\n  file convert_VCF\n\n  output:\n  set val(SM_tag), file(\"*filter.vcf\") into germ_filt\n\n  shell:\n  SM_tag = convert_VCF.baseName.substring(0,12)\n  '''\n  filter_germline.r --vcf=!{convert_VCF} --min_af=!{params.min_af} --min_DP=!{params.min_DP}\n  '''\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "  SM_tag = convert_VCF.baseName.substring(0,12)\n  '''\n  filter_germline.r --vcf=!{convert_VCF} --min_af=!{params.min_af} --min_DP=!{params.min_DP}\n  '''",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "convert_VCF"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "germ_filt"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__TCGA_platypus-nf",
+        "directive": [
+            "tag { SM_tag }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "reformat": {
+        "name_process": "reformat",
+        "string_process": "\nprocess reformat {\n\n  tag { SM_tag }\n\n  input:\n  set val(SM_tag), file(\"*filter.vcf\") from germ_filt\n\n  output:\n  file '*reformat.tsv' into reformated\n\n  shell:\n  '''\n  reformat.sh filter.vcf !{baseDir}/data/tissueSourceSite.tsv !{baseDir}/data/diseaseStudy.tsv\n  '''\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "  '''\n  reformat.sh filter.vcf !{baseDir}/data/tissueSourceSite.tsv !{baseDir}/data/diseaseStudy.tsv\n  '''",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "germ_filt"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "reformated"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__TCGA_platypus-nf",
+        "directive": [
+            "tag { SM_tag }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_blood_tissue": {
+        "name_process": "filter_blood_tissue",
+        "string_process": "\nprocess filter_blood_tissue {\n\n  input:\n  file all_reformated from reformated.toList()\n\n  output:\n  file \"*blood_tissue_filtered.tsv\" into blood_tissue_filtered mode flatten\n\n  shell:\n  if(params.blood_tissue_filter){\n    '''\n    blood_tissue_filter.R\n    for file in *.tsv\n    do\n      ln -s \"$file\" \"${file/.tsv/_blood_tissue_filtered.tsv}\"\n    done\n    '''\n  } else {\n  '''\n  for file in *.tsv\n  do\n    ln -s \"$file\" \"${file/.tsv/_blood_tissue_filtered.tsv}\"\n  done\n  '''\n  }\n}",
+        "nb_lignes_process": 25,
+        "string_script": "  if(params.blood_tissue_filter){\n    '''\n    blood_tissue_filter.R\n    for file in *.tsv\n    do\n      ln -s \"$file\" \"${file/.tsv/_blood_tissue_filtered.tsv}\"\n    done\n    '''\n  } else {\n  '''\n  for file in *.tsv\n  do\n    ln -s \"$file\" \"${file/.tsv/_blood_tissue_filtered.tsv}\"\n  done\n  '''\n  }",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reformated"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "blood_tissue_filtered"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__TCGA_platypus-nf",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "annotation": {
+        "name_process": "annotation",
+        "string_process": "\nprocess annotation {\n\n  tag { SM_tag }\n\n  input:\n  file filt from blood_tissue_filtered\n\n  output:\n  file \"*hg38_multianno.txt\" into annotated\n\n  shell:\n  SM_tag = filt.baseName.substring(0,12)\n  '''\n  table_annovar.pl -nastring NA -buildver hg38 --thread !{params.annovar_cpu} --onetranscript -remove -protocol refGene,exac03nontcga,esp6500siv2_all,1000g2015aug_all,gnomad_exome,clinvar_20170905,revel,cosmic80,avsnp147,ljb26_all -operation g,f,f,f,f,f,f,f,f,f -otherinfo !{filt} !{params.annovar_db}\n  sed -i '1s/Otherinfo/QUAL\\tFILTER\\tINFO\\tFORMAT\\tGT\\tIndividual\\tStudy/' !{filt}.hg38_multianno.txt\n  '''\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  SM_tag = filt.baseName.substring(0,12)\n  '''\n  table_annovar.pl -nastring NA -buildver hg38 --thread !{params.annovar_cpu} --onetranscript -remove -protocol refGene,exac03nontcga,esp6500siv2_all,1000g2015aug_all,gnomad_exome,clinvar_20170905,revel,cosmic80,avsnp147,ljb26_all -operation g,f,f,f,f,f,f,f,f,f -otherinfo !{filt} !{params.annovar_db}\n  sed -i '1s/Otherinfo/QUAL\\tFILTER\\tINFO\\tFORMAT\\tGT\\tIndividual\\tStudy/' !{filt}.hg38_multianno.txt\n  '''",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "blood_tissue_filtered"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "annotated"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__TCGA_platypus-nf",
+        "directive": [
+            "tag { SM_tag }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge": {
+        "name_process": "merge",
+        "string_process": "\nprocess merge {\n\n  publishDir params.out_folder, mode: 'move'\n\n  input:\n  file annotated_table from annotated.toList()\n\n  output:\n  file \"*.tsv\" into reformated_for_annovar mode flatten\n\n  shell:\n  '''\n  mlr --tsv cat *.txt > big.tsv\n  study=`head -n2 big.tsv | awk '{print $NF}' | grep -v \"Study\"`\n  mv big.tsv TCGA_platypus_reformat_${study}.tsv\n  '''\n}",
+        "nb_lignes_process": 16,
+        "string_script": "  '''\n  mlr --tsv cat *.txt > big.tsv\n  study=`head -n2 big.tsv | awk '{print $NF}' | grep -v \"Study\"`\n  mv big.tsv TCGA_platypus_reformat_${study}.tsv\n  '''",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "SIMLR"
+        ],
+        "tools_url": [
+            "https://bio.tools/simlr"
+        ],
+        "tools_dico": [
+            {
+                "name": "SIMLR",
+                "uri": "https://bio.tools/simlr",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0092",
+                            "term": "Data visualisation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0092",
+                            "term": "Data rendering"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3432",
+                                    "term": "Clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Novel similarity-learning framework, which learns an appropriate distance metric from the data for dimension reduction, clustering and visualization. It can separate known subpopulations more accurately in single-cell data sets than do existing dimension reduction methods. Additionally, it demonstrates high sensitivity and accuracy on high-throughput peripheral blood mononuclear cells (PBMC) data sets generated by the GemCode single-cell.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/SIMLR.html"
+            }
+        ],
+        "inputs": [
+            "annotated"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "reformated_for_annovar"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__TCGA_platypus-nf",
+        "directive": [
+            "publishDir params.out_folder, mode: 'move'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

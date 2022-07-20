@@ -1,0 +1,839 @@
+{
+    "download_ref": {
+        "name_process": "download_ref",
+        "string_process": "\nprocess download_ref{\n\n\tpublishDir \"${params.outdir}/reference\", pattern: \"*.fa\", mode:'copy'\n\n\toutput:\n\tfile(\"*.fa\") into fasta_downloaded\n\n        when: !params.fasta & !params.index & !params.bams\n\n\tscript:\n\t\"\"\"\n\twget --no-check-certificate http://ftp.ensembl.org/pub/release-104/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz\n\tgunzip Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz\n\tmv Homo_sapiens.GRCh38.dna.primary_assembly.fa GRCh38_ensembl.dna.fa\n\t\"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\t\"\"\"\n\twget --no-check-certificate http://ftp.ensembl.org/pub/release-104/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz\n\tgunzip Homo_sapiens.GRCh38.dna.primary_assembly.fa.gz\n\tmv Homo_sapiens.GRCh38.dna.primary_assembly.fa GRCh38_ensembl.dna.fa\n\t\"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "fasta_downloaded"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "publishDir \"${params.outdir}/reference\", pattern: \"*.fa\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "download_gtf_toBed": {
+        "name_process": "download_gtf_toBed",
+        "string_process": "\nprocess download_gtf_toBed{\n\n        publishDir \"${params.outdir}/reference\", pattern: \"*.{bed,gtf}\", mode:'copy'\n\n        output:\n        file(\"*.bed\") into bed12_1, bed12_2\n\tfile(\"*.gtf\") into gtf1, gtf2, gtf3\n\n\twhen: params.gtftobed \n\n\n        script:\n        '''\n        wget --no-check-certificate http://ftp.ensembl.org/pub/release-104/gtf/homo_sapiens/Homo_sapiens.GRCh38.104.gtf.gz\n        gunzip Homo_sapiens.GRCh38.104.gtf.gz\n        mv Homo_sapiens.GRCh38.104.gtf GRCh38.104.gtf\n\tgtfToGenePred /dev/stdin /dev/stdout | genePredToBed stdin GRCh38.104.bed\n        '''\n\n}",
+        "nb_lignes_process": 19,
+        "string_script": "        '''\n        wget --no-check-certificate http://ftp.ensembl.org/pub/release-104/gtf/homo_sapiens/Homo_sapiens.GRCh38.104.gtf.gz\n        gunzip Homo_sapiens.GRCh38.104.gtf.gz\n        mv Homo_sapiens.GRCh38.104.gtf GRCh38.104.gtf\n\tgtfToGenePred /dev/stdin /dev/stdout | genePredToBed stdin GRCh38.104.bed\n        '''",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "bed12_1",
+            "bed12_2",
+            "gtf1",
+            "gtf2",
+            "gtf3 when"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "publishDir \"${params.outdir}/reference\", pattern: \"*.{bed,gtf}\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "download_adapters": {
+        "name_process": "download_adapters",
+        "string_process": "\nprocess download_adapters{\n\n\tpublishDir \"${params.outdir}/adapters\", pattern: \"adapters.fa\", mode:'copy'\n\n\toutput:\n\tfile(\"adapters.fa\") into ch_adapters\n\n\twhen: params.trim_fastq & !params.bams\n\n\tscript:\n\t\"\"\"\n\twget --no-check-certificate https://raw.githubusercontent.com/BioInfoTools/BBMap/master/resources/adapters.fa\n\t\"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\t\"\"\"\n\twget --no-check-certificate https://raw.githubusercontent.com/BioInfoTools/BBMap/master/resources/adapters.fa\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ch_adapters"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "publishDir \"${params.outdir}/adapters\", pattern: \"adapters.fa\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trim": {
+        "name_process": "trim",
+        "string_process": "\nprocess trim {\n\n\tlabel 'BBDUK'\n\tpublishDir \"${params.outdir}/trimmed_reads\", mode:'copy', pattern: \"*.fq.gz\"\n\tpublishDir \"${params.outdir}/BBDUK_stats\", mode:'copy', pattern: \"*.stats.txt\"\n\n\tinput:\n\t\ttuple val(key), file(reads) from BBDUK_reads\n\t\tpath(adapters) from ch_adapters\n        output:\n\t\ttuple val(key), file(\"*.fq.gz\") into trimmed_reads_ch_1, trimmed_reads_ch_2\n\t\tfile(\"*.stats.txt\") into trimmed_stats_ch\n\n\n\twhen: params.trim_fastq  & !params.bams\n\n\n\tscript:\n\t\"\"\"\n\tbbduk.sh -Xmx4g \\\n\t\t in1=${reads[0]} \\\n\t\t in2=${reads[1]} \\\n\t\t out1=${key}_r1.fq.gz \\\n\t\t out2=${key}_r2.fq.gz \\\n\t\t ref=$adapters \\\n\t\t minlen=30 \\\n\t\t ktrim=r \\\n\t\t k=12 \\\n\t\t qtrim=r \\\n\t\t trimq=20 \\\n\t\t stats=${key}.stats.txt\n\t\"\"\"\n\t\t\t      \n\t\t\t      \n}",
+        "nb_lignes_process": 34,
+        "string_script": "\t\"\"\"\n\tbbduk.sh -Xmx4g \\\n\t\t in1=${reads[0]} \\\n\t\t in2=${reads[1]} \\\n\t\t out1=${key}_r1.fq.gz \\\n\t\t out2=${key}_r2.fq.gz \\\n\t\t ref=$adapters \\\n\t\t minlen=30 \\\n\t\t ktrim=r \\\n\t\t k=12 \\\n\t\t qtrim=r \\\n\t\t trimq=20 \\\n\t\t stats=${key}.stats.txt\n\t\"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "BBDUK_reads",
+            "ch_adapters"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "trimmed_reads_ch_1",
+            "trimmed_reads_ch_2",
+            "trimmed_stats_ch"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "label 'BBDUK'",
+            "publishDir \"${params.outdir}/trimmed_reads\", mode:'copy', pattern: \"*.fq.gz\"",
+            "publishDir \"${params.outdir}/BBDUK_stats\", mode:'copy', pattern: \"*.stats.txt\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc": {
+        "name_process": "fastqc",
+        "string_process": "\nprocess fastqc{\n    tag \"${base}\"\n\n    when:\n    params.run_qc_trim\n\n    input:\n    tuple val(base), file(reads) from trimmed_reads_ch_1\n\n    output:\n    file(\"*.zip\") into fastqc_trim\n\n    script:\n    \"\"\"\n    fastqc -q $reads\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    fastqc -q $reads\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "trimmed_reads_ch_1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastqc_trim"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "tag \"${base}\""
+        ],
+        "when": "params.run_qc_trim",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc{\n\n    tag \"${base}\"\n\n    publishDir \"${params.outdir}/multiQC/\", pattern: \"multiqc_report.html\", mode: 'copy'\n\n    when:\n    params.run_qc_trim\n\n    input:\n    file(zips) from fastqc_trim.collect()\n\n    output:\n    file(\"multiqc_report.html\") into multiqc_report_ch\n    script:\n    \"\"\"\n    multiqc .\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    multiqc .\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "fastqc_trim"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "multiqc_report_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "tag \"${base}\"",
+            "publishDir \"${params.outdir}/multiQC/\", pattern: \"multiqc_report.html\", mode: 'copy'"
+        ],
+        "when": "params.run_qc_trim",
+        "stub": ""
+    },
+    "create_index": {
+        "name_process": "create_index",
+        "string_process": "\nprocess create_index{\n\n\tpublishDir \"${params.outdir}/index\", mode:'copy'\n\n\tinput:\n\tfile(fasta) from fasta_downloaded\n\n\toutput:\n\tfile(\"*.ht2\") into index_created\n\n\twhen: !params.index  & !params.bams\n\n\tscript:\n\t\"\"\"\n\tmkdir index\n\thisat2-build ${fasta} index\n\t\"\"\"\n\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\t\"\"\"\n\tmkdir index\n\thisat2-build ${fasta} index\n\t\"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta_downloaded"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "index_created"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "publishDir \"${params.outdir}/index\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "align_hisat2": {
+        "name_process": "align_hisat2",
+        "string_process": "\nprocess align_hisat2{\n\n\ttag \"${base}\" \n\n\tpublishDir \"${params.outdir}/aligned/${base}\", pattern: \"*_hisat2_report.txt\", mode:'copy'\n\n\tinput:\n\ttuple val(base), file(reads) from aligner_reads\n\tfile(index) from ch_index.collect()\n\n\toutput:\n\tset val(base), file(\"${base}.sam\") into hisat_sams\n\tfile \"${base}_hisat2_report.txt\" into alignment_logs\n\n\n\twhen: !params.bams\n\n\n\tscript:\n\t\"\"\"\n\thisat2 -p ${params.cpus} \\\n\t       --dta \\\n\t       -x ${index}/index \\\n\t       -1 ${reads[0]} \\\n\t       -2 ${reads[1]} \\\n\t       -S ${base}.sam \\\n\t       --summary-file ${base}_hisat2_report.txt\n\t       --rna-strandness RF\n\t\n\tif grep -q \"Error\" ${base}_hisat2_report.txt; then\n         exit 1\n        fi\n\n\t\"\"\"\n\n}",
+        "nb_lignes_process": 35,
+        "string_script": "\t\"\"\"\n\thisat2 -p ${params.cpus} \\\n\t       --dta \\\n\t       -x ${index}/index \\\n\t       -1 ${reads[0]} \\\n\t       -2 ${reads[1]} \\\n\t       -S ${base}.sam \\\n\t       --summary-file ${base}_hisat2_report.txt\n\t       --rna-strandness RF\n\t\n\tif grep -q \"Error\" ${base}_hisat2_report.txt; then\n         exit 1\n        fi\n\n\t\"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "HISAT2"
+        ],
+        "tools_url": [
+            "https://bio.tools/hisat2"
+        ],
+        "tools_dico": [
+            {
+                "name": "HISAT2",
+                "uri": "https://bio.tools/hisat2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Alignment program for mapping next-generation sequencing reads (both DNA and RNA) to a population of human genomes (as well as to a single reference genome).",
+                "homepage": "https://ccb.jhu.edu/software/hisat2/index.shtml"
+            }
+        ],
+        "inputs": [
+            "aligner_reads",
+            "ch_index"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "hisat_sams",
+            "alignment_logs"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "tag \"${base}\"",
+            "publishDir \"${params.outdir}/aligned/${base}\", pattern: \"*_hisat2_report.txt\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "samtobams": {
+        "name_process": "samtobams",
+        "string_process": "\nprocess samtobams {\n\n\ttag \"${base}\"   \n\n\tpublishDir \"${params.outdir}/bams/\", pattern: \"*.bam\", mode:'copy'\n\n\t\n\tinput:\n\tset val(base), file(sam) from hisat_sams\n\n\toutput:\n\tset val(base), file(\"${base}.bam\") into bam_sorted1, bam_sorted2\n\n\twhen:  !params.bams\n\n\tscript:\n\t\"\"\"\n\tsamtools view -S -b ${sam} | samtools sort -o ${base}.bam -\n\t\"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\t\"\"\"\n\tsamtools view -S -b ${sam} | samtools sort -o ${base}.bam -\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "hisat_sams"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bam_sorted1",
+            "bam_sorted2 when"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "tag \"${base}\"",
+            "publishDir \"${params.outdir}/bams/\", pattern: \"*.bam\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "indexBams": {
+        "name_process": "indexBams",
+        "string_process": "\nprocess indexBams {\n\ttag \"${base} ${bam}\"\n\n\tpublishDir \"${params.outdir}/bams/\", pattern: \"*.bai\", mode:'copy'\n\n\tinput:\n\tset val(base), file(bam) from hisat_bams1\n\n\toutput:\n\tset val(base), file(bam), file(\"*.bai\") into bai_bam\n\n\tscript:\n\t\"\"\"\n\tsamtools index ${bam}\n\t\"\"\"\n\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\t\"\"\"\n\tsamtools index ${bam}\n\t\"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "hisat_bams1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "bai_bam"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "tag \"${base} ${bam}\"",
+            "publishDir \"${params.outdir}/bams/\", pattern: \"*.bai\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "featureCounts": {
+        "name_process": "featureCounts",
+        "string_process": "\nprocess featureCounts {\n\t\n\ttag \"${base}\"\n\n\tpublishDir \"${params.outdir}/featureCounts/\", pattern: \"*.counts.txt\", mode:'copy'\n\n\tinput:\n\tset val(base), file(bam) from hisat_bams2\n\tfile(gtf) from gtf1.collect()\n\t\n\toutput:\n\tfile(\"final.counts.txt\") into counts.out\n\n\tscript:\n\t\"\"\"\n\tfeatureCounts -a $gtf \\\n\t\t      -p \\\n\t\t      -s 2 \\\n\t\t      -T ${params.cpus} \\\n\t\t      -o ${base}.counts.txt \\\n\t\t      ${bam}\n\t\t      \n\t\"\"\"\n\n}",
+        "nb_lignes_process": 24,
+        "string_script": "\t\"\"\"\n\tfeatureCounts -a $gtf \\\n\t\t      -p \\\n\t\t      -s 2 \\\n\t\t      -T ${params.cpus} \\\n\t\t      -o ${base}.counts.txt \\\n\t\t      ${bam}\n\t\t      \n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "FeatureCounts"
+        ],
+        "tools_url": [
+            "https://bio.tools/featurecounts"
+        ],
+        "tools_dico": [
+            {
+                "name": "FeatureCounts",
+                "uri": "https://bio.tools/featurecounts",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3793",
+                                    "term": "Read summarisation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "featureCounts is a very efficient read quantifier. It can be used to summarize RNA-seq reads and gDNA-seq reads to a variety of genomic features such as genes, exons, promoters, gene bodies and genomic bins. It is included in the Bioconductor Rsubread package and also in the SourceForge Subread package.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/Rsubread.html"
+            }
+        ],
+        "inputs": [
+            "hisat_bams2",
+            "gtf1"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "counts"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "tag \"${base}\"",
+            "publishDir \"${params.outdir}/featureCounts/\", pattern: \"*.counts.txt\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "tin": {
+        "name_process": "tin",
+        "string_process": "\nprocess tin{\n\n\ttag \"${base}\"\n\n\tpublishDir \"${params.outdir}/tin/${base}\", mode:'copy'\n\n\n\tinput:\n\tfile(bed12) from bed12_1\n\tset val(base), file(bam),\n\t    \t\t file(bai) from bai_bam\n\n\toutput:\n\tfile(\"*.{txt,xls}\") into tin_out\n\t\n\tscript:\n\n\t\"\"\"\n\ttin.py \\\n\t       -i $bam \\\n\t       -r $bed12 \n\t\"\"\"\n\n\n}",
+        "nb_lignes_process": 24,
+        "string_script": "\t\"\"\"\n\ttin.py \\\n\t       -i $bam \\\n\t       -r $bed12 \n\t\"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bed12_1",
+            "bai_bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "tin_out"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "BenNolann__rsi_analysis",
+        "directive": [
+            "tag \"${base}\"",
+            "publishDir \"${params.outdir}/tin/${base}\", mode:'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

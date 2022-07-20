@@ -1,0 +1,534 @@
+{
+    "fetch_training_datasets": {
+        "name_process": "fetch_training_datasets",
+        "string_process": "\nprocess fetch_training_datasets {\n    conda \"${baseDir}/envs/load_data.yaml\"\n    \n    memory { 8.GB * task.attempt }\n    maxRetries 3\n    errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }\n\n    input:\n        tuple val(dataset_id), val(seq_method), val(num_clust), val(barcode_col), val(cell_label_col), val(matrix_type) from IMPORT_PARAMS\n\n    output:\n        tuple file(dataset_id), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) into TRAINING_DATA\n        val(num_clust) into N_CLUST\n\n    \"\"\"\n    if [ ${seq_method} ==  \"droplet\" ]; then \n        MATRIX_TYPE_UPD=\"CPM\"\n    else\n        MATRIX_TYPE_UPD=${matrix_type}\n    fi\n\n    get_experiment_data.R\\\n                --accesssion-code ${dataset_id}\\\n                --config-file ${params.data_import.scxa_import_config_file}\\\n                --matrix-type \\$MATRIX_TYPE_UPD\\\n                --output-dir-name ${dataset_id}\\\n                --get-sdrf ${params.data_import.get_sdrf}\\\n                --get-condensed-sdrf ${params.data_import.get_cond_sdrf}\\\n                --get-idf ${params.data_import.get_idf}\\\n                --get-marker-genes ${params.data_import.get_marker_genes}\\\n                --number-of-clusters ${num_clust}\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "\"\"\"\n    if [ ${seq_method} ==  \"droplet\" ]; then \n        MATRIX_TYPE_UPD=\"CPM\"\n    else\n        MATRIX_TYPE_UPD=${matrix_type}\n    fi\n\n    get_experiment_data.R\\\n                --accesssion-code ${dataset_id}\\\n                --config-file ${params.data_import.scxa_import_config_file}\\\n                --matrix-type \\$MATRIX_TYPE_UPD\\\n                --output-dir-name ${dataset_id}\\\n                --get-sdrf ${params.data_import.get_sdrf}\\\n                --get-condensed-sdrf ${params.data_import.get_cond_sdrf}\\\n                --get-idf ${params.data_import.get_idf}\\\n                --get-marker-genes ${params.data_import.get_marker_genes}\\\n                --number-of-clusters ${num_clust}\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "IMPORT_PARAMS"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "TRAINING_DATA",
+            "N_CLUST"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/load_data.yaml\"",
+            "memory { 8.GB * task.attempt }",
+            "maxRetries 3",
+            "errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_labels": {
+        "name_process": "filter_labels",
+        "string_process": "\nprocess filter_labels{\n    conda \"${baseDir}/envs/label_analysis.yaml\"\n\n    input: \n        tuple file(data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) from TRAINING_DATA\n        val(num_clust) from N_CLUST\n\n    output:\n        tuple file(\"${data}_upd\"), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) into TRAINING_DATA_FILT\n        val(num_clust) into N_CLUST_FILT\n\n    \"\"\"\n    # SDRF file\n    check_labels.R\\\n          --input-file ${data}/condensed-sdrf.tsv\\\n          --label-field '${cell_label_col}'\\\n          --condensed\\\n          --output-path ${data}/condensed_sdrf_filt.tsv &&\n    check_labels.R\\\n          --input-file ${data}/marker_genes_${num_clust}.tsv\\\n          --label-field '${params.garnett.groups_col}'\\\n          --output-path ${data}/marker_genes_${num_clust}_filt.tsv\n    \n    mv ${data} \"${data}_upd\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n    # SDRF file\n    check_labels.R\\\n          --input-file ${data}/condensed-sdrf.tsv\\\n          --label-field '${cell_label_col}'\\\n          --condensed\\\n          --output-path ${data}/condensed_sdrf_filt.tsv &&\n    check_labels.R\\\n          --input-file ${data}/marker_genes_${num_clust}.tsv\\\n          --label-field '${params.garnett.groups_col}'\\\n          --output-path ${data}/marker_genes_${num_clust}_filt.tsv\n    \n    mv ${data} \"${data}_upd\"\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "TRAINING_DATA",
+            "N_CLUST"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "TRAINING_DATA_FILT",
+            "N_CLUST_FILT"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/label_analysis.yaml\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "unmelt_condensed_sdrf": {
+        "name_process": "unmelt_condensed_sdrf",
+        "string_process": " process unmelt_condensed_sdrf {\n        conda \"${baseDir}/envs/exp_metadata.yaml\"\n\n        memory { 10.GB * task.attempt }\n        maxRetries 5\n        errorStrategy { task.attempt<=5 ? 'retry' : 'ignore' }\n\n        input:\n            tuple file(data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) from TRAINING_DATA_FILT\n\n        output:\n            tuple file(data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) into TRAINING_DATA_UNMELT\n\n        \"\"\"\n        unmelt_condensed.R\\\n                -i ${data}/condensed_sdrf_filt.tsv\\\n                -o ${data}/unmelted_sdrf.tsv\\\n                --has-ontology ${params.unmelt_sdrf.has_ontology}\\\n                --retain-types ${params.unmelt_sdrf.retain_types}        \n        \"\"\"\n    }",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n        unmelt_condensed.R\\\n                -i ${data}/condensed_sdrf_filt.tsv\\\n                -o ${data}/unmelted_sdrf.tsv\\\n                --has-ontology ${params.unmelt_sdrf.has_ontology}\\\n                --retain-types ${params.unmelt_sdrf.retain_types}        \n        \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "TRAINING_DATA_FILT"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "TRAINING_DATA_UNMELT"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/exp_metadata.yaml\"",
+            "memory { 10.GB * task.attempt }",
+            "maxRetries 5",
+            "errorStrategy { task.attempt<=5 ? 'retry' : 'ignore' }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_garnett_workflow": {
+        "name_process": "run_garnett_workflow",
+        "string_process": " process run_garnett_workflow {\n        publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'\n        conda \"${baseDir}/envs/nextflow.yaml\"\n\n        errorStrategy { task.attempt<=3  ? 'retry' : 'ignore' }   \n        maxRetries 3\n        memory { 16.GB * task.attempt }\n     \n        maxForks 20\n\n        input:\n            tuple val(num_clust), file(training_data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) from GARNETT_FILTERED_DATA\n\n        output:\n            file(\"${dataset_id}_garnett.rds\") into GARNETT_CLASSIFIER\n\n        \"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/garnett-train-workflow/main.nf\\\n\t\t\t                -profile ${params.profile}\\\n                            --results_dir \\$RESULTS_DIR\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --training_dataset_id ${dataset_id}\\\n                            --marker_genes ${training_data}/marker_genes_${num_clust}_filt.tsv\\\n                            --pval_col ${params.garnett.pval_col}\\\n                            --groups_col ${params.garnett.groups_col}\\\n                            --gene_names ${params.garnett.gene_names}\\\n                            --database ${params.garnett.database}\\\n                            --marker_gene_id_type ${params.garnett.marker_gene_id_type}\\\n                            --classifier_gene_type ${params.garnett.classifier_gene_type}\\\n                            --n_outgroups ${params.garnett.n_outgroups}\n\n        mv garnett_classifier.rds ${dataset_id}_garnett.rds\n        \"\"\"\n    }",
+        "nb_lignes_process": 34,
+        "string_script": "\"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/garnett-train-workflow/main.nf\\\n\t\t\t                -profile ${params.profile}\\\n                            --results_dir \\$RESULTS_DIR\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --training_dataset_id ${dataset_id}\\\n                            --marker_genes ${training_data}/marker_genes_${num_clust}_filt.tsv\\\n                            --pval_col ${params.garnett.pval_col}\\\n                            --groups_col ${params.garnett.groups_col}\\\n                            --gene_names ${params.garnett.gene_names}\\\n                            --database ${params.garnett.database}\\\n                            --marker_gene_id_type ${params.garnett.marker_gene_id_type}\\\n                            --classifier_gene_type ${params.garnett.classifier_gene_type}\\\n                            --n_outgroups ${params.garnett.n_outgroups}\n\n        mv garnett_classifier.rds ${dataset_id}_garnett.rds\n        \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [
+            "Nextflow"
+        ],
+        "tools_url": [
+            "https://bio.tools/nextflow"
+        ],
+        "tools_dico": [
+            {
+                "name": "Nextflow",
+                "uri": "https://bio.tools/nextflow",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Nextflow enables scalable and reproducible scientific workflows using software containers. It allows the adaptation of pipelines written in the most common scripting languages.",
+                "homepage": "https://www.nextflow.io/"
+            }
+        ],
+        "inputs": [
+            "GARNETT_FILTERED_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "GARNETT_CLASSIFIER"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'",
+            "conda \"${baseDir}/envs/nextflow.yaml\"",
+            "errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }",
+            "maxRetries 3",
+            "memory { 16.GB * task.attempt }",
+            "maxForks 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_scpred_workflow": {
+        "name_process": "run_scpred_workflow",
+        "string_process": " process run_scpred_workflow {\n        publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'\n        conda \"${baseDir}/envs/nextflow.yaml\"\n\n        errorStrategy { task.attempt<=3  ? 'retry' : 'ignore' }\n        maxRetries 2\n        memory { 16.GB * task.attempt }\n\n        maxForks 20\n        \n        input:\n            tuple file(training_data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) from SCPRED_FILTERED_DATA\n\n        output:\n            file(\"${dataset_id}_scpred.rds\") into SCPRED_CLASSIFIER\n\n        \"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/scpred-train-workflow/main.nf\\\n                            -profile ${params.profile}\\\n\t\t\t                --results_dir \\$RESULTS_DIR\\\n                            --exclusions ${params.exclusions}\\\n                            --method ${params.scpred.method}\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --metadata_file ${training_data}/unmelted_sdrf.tsv\\\n                            --training_dataset_id ${dataset_id}\\\n                            --train_probs_plot_path ${params.scpred.train_probs_plot_path}\\\n                            --normalised_counts_slot ${params.scpred.normalised_counts_slot}\\\n                            --cell_id_col_name \"${barcode_col}\"\\\n                            --cell_types_col_name \"${cell_label_col}\"\\\n                            --col_names ${params.scpred.col_names}\\\n                            --trained_model ${params.scpred.trained_model}\\\n                            --log_transform ${params.scpred.log_transform}\\\n                            --model ${params.scpred.model}\\\n                            --iter_num ${params.scpred.iter_num}\n\n        mv scpred_classifier.rds ${dataset_id}_scpred.rds\n        \"\"\"\n    }",
+        "nb_lignes_process": 38,
+        "string_script": "\"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/scpred-train-workflow/main.nf\\\n                            -profile ${params.profile}\\\n\t\t\t                --results_dir \\$RESULTS_DIR\\\n                            --exclusions ${params.exclusions}\\\n                            --method ${params.scpred.method}\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --metadata_file ${training_data}/unmelted_sdrf.tsv\\\n                            --training_dataset_id ${dataset_id}\\\n                            --train_probs_plot_path ${params.scpred.train_probs_plot_path}\\\n                            --normalised_counts_slot ${params.scpred.normalised_counts_slot}\\\n                            --cell_id_col_name \"${barcode_col}\"\\\n                            --cell_types_col_name \"${cell_label_col}\"\\\n                            --col_names ${params.scpred.col_names}\\\n                            --trained_model ${params.scpred.trained_model}\\\n                            --log_transform ${params.scpred.log_transform}\\\n                            --model ${params.scpred.model}\\\n                            --iter_num ${params.scpred.iter_num}\n\n        mv scpred_classifier.rds ${dataset_id}_scpred.rds\n        \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [
+            "Nextflow"
+        ],
+        "tools_url": [
+            "https://bio.tools/nextflow"
+        ],
+        "tools_dico": [
+            {
+                "name": "Nextflow",
+                "uri": "https://bio.tools/nextflow",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Nextflow enables scalable and reproducible scientific workflows using software containers. It allows the adaptation of pipelines written in the most common scripting languages.",
+                "homepage": "https://www.nextflow.io/"
+            }
+        ],
+        "inputs": [
+            "SCPRED_FILTERED_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SCPRED_CLASSIFIER"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'",
+            "conda \"${baseDir}/envs/nextflow.yaml\"",
+            "errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }",
+            "maxRetries 2",
+            "memory { 16.GB * task.attempt }",
+            "maxForks 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_scmap_cluster_workflow": {
+        "name_process": "run_scmap_cluster_workflow",
+        "string_process": " process run_scmap_cluster_workflow {\n        publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'\n        conda \"${baseDir}/envs/nextflow.yaml\"\n\n        errorStrategy { task.attempt<=3  ? 'retry' : 'ignore' }\n        maxRetries 3\n        memory { 16.GB * task.attempt }\n\n        maxForks 20\n        \n        input:\n            tuple file(training_data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) from SCMAP_CLUSTER_FILTERED_DATA\n\n        output:\n            file(\"${dataset_id}_scmap-cluster.rds\")\n\n        \"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/scmap-train-workflow/main.nf\\\n\t\t\t                -profile ${params.profile}\\\n                            --results_dir \\$RESULTS_DIR\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --training_metadata ${training_data}/unmelted_sdrf.tsv\\\n                            --projection_method cluster\\\n                            --training_dataset_id \"${dataset_id}\"\\\n                            --col_names ${params.scmap_cluster.col_names}\\\n                            --exclusions ${params.exclusions}\\\n                            --cell_id_col \"${barcode_col}\"\\\n                            --cluster_col \"${cell_label_col}\"\\\n                            --threshold ${params.scmap_cluster.threshold}\n\n        mv scmap_index_cluster.rds ${dataset_id}_scmap-cluster.rds\n        \"\"\"\n    }",
+        "nb_lignes_process": 33,
+        "string_script": "\"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/scmap-train-workflow/main.nf\\\n\t\t\t                -profile ${params.profile}\\\n                            --results_dir \\$RESULTS_DIR\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --training_metadata ${training_data}/unmelted_sdrf.tsv\\\n                            --projection_method cluster\\\n                            --training_dataset_id \"${dataset_id}\"\\\n                            --col_names ${params.scmap_cluster.col_names}\\\n                            --exclusions ${params.exclusions}\\\n                            --cell_id_col \"${barcode_col}\"\\\n                            --cluster_col \"${cell_label_col}\"\\\n                            --threshold ${params.scmap_cluster.threshold}\n\n        mv scmap_index_cluster.rds ${dataset_id}_scmap-cluster.rds\n        \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "Nextflow"
+        ],
+        "tools_url": [
+            "https://bio.tools/nextflow"
+        ],
+        "tools_dico": [
+            {
+                "name": "Nextflow",
+                "uri": "https://bio.tools/nextflow",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Nextflow enables scalable and reproducible scientific workflows using software containers. It allows the adaptation of pipelines written in the most common scripting languages.",
+                "homepage": "https://www.nextflow.io/"
+            }
+        ],
+        "inputs": [
+            "SCMAP_CLUSTER_FILTERED_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'",
+            "conda \"${baseDir}/envs/nextflow.yaml\"",
+            "errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }",
+            "maxRetries 3",
+            "memory { 16.GB * task.attempt }",
+            "maxForks 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_scmap_cell_workflow": {
+        "name_process": "run_scmap_cell_workflow",
+        "string_process": " process run_scmap_cell_workflow {\n        publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'\n        conda \"${baseDir}/envs/nextflow.yaml\"\n\n        errorStrategy { task.attempt<=3  ? 'retry' : 'ignore' }\n        maxRetries 3\n        memory { 16.GB * task.attempt }\n\n        maxForks 20\n\n        input:\n            tuple file(training_data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) from SCMAP_CELL_FILTERED_DATA\n\n\n        output:\n            file(\"${dataset_id}_scmap-cell.rds\") into SCMAP_CELL_INDEX\n\n        \"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/scmap-train-workflow/main.nf\\\n                            -profile ${params.profile}\\\n\t\t\t                --results_dir \\$RESULTS_DIR\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --training_metadata ${training_data}/unmelted_sdrf.tsv\\\n                            --projection_method cell\\\n                            --training_dataset_id ${dataset_id}\\\n                            --col_names ${params.scmap_cell.col_names}\\\n                            --cell_id_col \"${barcode_col}\"\\\n                            --cluster_col \"${cell_label_col}\"\\\n                            --exclusions ${params.exclusions}\\\n                            --threshold ${params.scmap_cell.threshold}\n\n        mv scmap_index_cell.rds ${dataset_id}_scmap-cell.rds\n        \"\"\"\n    }",
+        "nb_lignes_process": 34,
+        "string_script": "\"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/scmap-train-workflow/main.nf\\\n                            -profile ${params.profile}\\\n\t\t\t                --results_dir \\$RESULTS_DIR\\\n                            --training_10x_dir ${training_data}/10x_data\\\n                            --training_metadata ${training_data}/unmelted_sdrf.tsv\\\n                            --projection_method cell\\\n                            --training_dataset_id ${dataset_id}\\\n                            --col_names ${params.scmap_cell.col_names}\\\n                            --cell_id_col \"${barcode_col}\"\\\n                            --cluster_col \"${cell_label_col}\"\\\n                            --exclusions ${params.exclusions}\\\n                            --threshold ${params.scmap_cell.threshold}\n\n        mv scmap_index_cell.rds ${dataset_id}_scmap-cell.rds\n        \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "Nextflow"
+        ],
+        "tools_url": [
+            "https://bio.tools/nextflow"
+        ],
+        "tools_dico": [
+            {
+                "name": "Nextflow",
+                "uri": "https://bio.tools/nextflow",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Nextflow enables scalable and reproducible scientific workflows using software containers. It allows the adaptation of pipelines written in the most common scripting languages.",
+                "homepage": "https://www.nextflow.io/"
+            }
+        ],
+        "inputs": [
+            "SCMAP_CELL_FILTERED_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SCMAP_CELL_INDEX"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'",
+            "conda \"${baseDir}/envs/nextflow.yaml\"",
+            "errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }",
+            "maxRetries 3",
+            "memory { 16.GB * task.attempt }",
+            "maxForks 20"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_singlecellnet_workflow": {
+        "name_process": "run_singlecellnet_workflow",
+        "string_process": " process run_singlecellnet_workflow{\n        publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'\n        conda \"${baseDir}/envs/nextflow.yaml\"\n\n        errorStrategy { task.attempt<=3  ? 'retry' : 'ignore' }\n        maxRetries 3\n        memory { 16.GB * task.attempt }\n\n        maxForks 20\n\n        input:\n            tuple file(training_data), val(dataset_id), val(barcode_col), val(cell_label_col), val(matrix_type) from SCMAP_CELL_FILTERED_DATA\n\n        output:\n             file(\"${dataset_id}_singlecellnet.rds\") into SINGLECELLNET_CLASSIFIER\n\n        \"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/singlecellnet-train-workflow/main.nf\\\n                             -profile ${params.profile}\\\n                             --results_dir \\$RESULTS_DIR\\\n                             --exclusions ${params.exclusions}\\\n                             --training_10x_dir ${training_data}/10x_data\\\n                             --training_metadata ${training_data}/unmelted_sdrf.tsv\\\n                             --training_dataset_id ${dataset_id}\\\n                             --cell_id_col ${barcode_col}\\\n                             --cell_types_col ${cell_label_col}\n        \n        mv trained_classifer.rds ${dataset_id}_singlecellnet.rds\n        \"\"\"\n\n    }",
+        "nb_lignes_process": 31,
+        "string_script": "\"\"\"\n        RESULTS_DIR=\\$PWD\n\n        nextflow run $TRAIN_WORKFLOWS/singlecellnet-train-workflow/main.nf\\\n                             -profile ${params.profile}\\\n                             --results_dir \\$RESULTS_DIR\\\n                             --exclusions ${params.exclusions}\\\n                             --training_10x_dir ${training_data}/10x_data\\\n                             --training_metadata ${training_data}/unmelted_sdrf.tsv\\\n                             --training_dataset_id ${dataset_id}\\\n                             --cell_id_col ${barcode_col}\\\n                             --cell_types_col ${cell_label_col}\n        \n        mv trained_classifer.rds ${dataset_id}_singlecellnet.rds\n        \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "Nextflow"
+        ],
+        "tools_url": [
+            "https://bio.tools/nextflow"
+        ],
+        "tools_dico": [
+            {
+                "name": "Nextflow",
+                "uri": "https://bio.tools/nextflow",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3762",
+                                    "term": "Service composition"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Nextflow enables scalable and reproducible scientific workflows using software containers. It allows the adaptation of pipelines written in the most common scripting languages.",
+                "homepage": "https://www.nextflow.io/"
+            }
+        ],
+        "inputs": [
+            "SCMAP_CELL_FILTERED_DATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SINGLECELLNET_CLASSIFIER"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__cell-types-train-control-workflow",
+        "directive": [
+            "publishDir \"${baseDir}/data/${dataset_id}\", mode: 'copy'",
+            "conda \"${baseDir}/envs/nextflow.yaml\"",
+            "errorStrategy { task.attempt<=3 ? 'retry' : 'ignore' }",
+            "maxRetries 3",
+            "memory { 16.GB * task.attempt }",
+            "maxForks 20"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

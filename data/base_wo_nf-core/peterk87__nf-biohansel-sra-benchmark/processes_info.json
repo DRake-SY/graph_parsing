@@ -1,0 +1,446 @@
+{
+    "shuffle_accessions": {
+        "name_process": "shuffle_accessions",
+        "string_process": "\nprocess shuffle_accessions {\n  tag \"seed=$params.random_seed\"\n\n  input:\n    set val(scheme), file(scheme_fasta), val(accessions), file(metadata), file(ref_genbank) from ch_schemes\n  output:\n    set val(scheme), file(scheme_fasta), file(\"shuffled_accessions\"), file(metadata), file(ref_genbank) into ch_schemes_shuffled\n\n  \n  \"\"\"\n  shuffle_lines.py --input-file $accessions --output-file shuffled_accessions --random-seed $params.random_seed\n  \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\n  shuffle_lines.py --input-file $accessions --output-file shuffled_accessions --random-seed $params.random_seed\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_schemes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_schemes_shuffled"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "peterk87__nf-biohansel-sra-benchmark",
+        "directive": [
+            "tag \"seed=$params.random_seed\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fasterq_dump": {
+        "name_process": "fasterq_dump",
+        "string_process": "\nprocess fasterq_dump {\n  tag \"$accession\"\n  publishDir \"$outdir/fastqs/$scheme/$accession\", mode: 'symlink', pattern: \"*.fastq.gz\"\n  maxForks 4\n\n  input:\n    set val(scheme), file(scheme_fasta), val(accession), file(metadata), file(ref_genbank) from ch_accessions\n  output:\n    set val(scheme), file(scheme_fasta), val(accession), file(reads1), file(reads2), file(metadata), file(ref_genbank) into ch_fastqs, ch_fastqs_2, ch_fastqs_snippy, ch_fastqs_for_wc\n\n  script:\n  fq_1 = \"${accession}_1.fastq\"\n  fq_2 = \"${accession}_2.fastq\"\n  reads1 = \"${fq_1}.gz\"\n  reads2 = \"${fq_2}.gz\"\n  \"\"\"\n  fasterq-dump $accession -e ${task.cpus} -o $accession -S\n  clumpify.sh -Xmx16g in=$fq_1 in2=$fq_2 out=$reads1 out2=$reads2 deleteinput=t\n  \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "  fq_1 = \"${accession}_1.fastq\"\n  fq_2 = \"${accession}_2.fastq\"\n  reads1 = \"${fq_1}.gz\"\n  reads2 = \"${fq_2}.gz\"\n  \"\"\"\n  fasterq-dump $accession -e ${task.cpus} -o $accession -S\n  clumpify.sh -Xmx16g in=$fq_1 in2=$fq_2 out=$reads1 out2=$reads2 deleteinput=t\n  \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "Reads2Type"
+        ],
+        "tools_url": [
+            "https://bio.tools/reads2type"
+        ],
+        "tools_dico": [
+            {
+                "name": "Reads2Type",
+                "uri": "https://bio.tools/reads2type",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Microbial ecology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3293",
+                            "term": "Phylogenetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0637",
+                            "term": "Taxonomy"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Environmental microbiology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This is a web-based tool for taxonomy identification based on whole bacterial genome sequence data.",
+                "homepage": "http://www.cbs.dtu.dk/~dhany/reads2type.html"
+            }
+        ],
+        "inputs": [
+            "ch_accessions"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "ch_fastqs",
+            "ch_fastqs_2",
+            "ch_fastqs_snippy",
+            "ch_fastqs_for_wc"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "peterk87__nf-biohansel-sra-benchmark",
+        "directive": [
+            "tag \"$accession\"",
+            "publishDir \"$outdir/fastqs/$scheme/$accession\", mode: 'symlink', pattern: \"*.fastq.gz\"",
+            "maxForks 4"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "biohansel": {
+        "name_process": "biohansel",
+        "string_process": "\nprocess biohansel {\n  tag \"$scheme|N=${nSamples}|T=$nthreads|i=$iter\"\n  publishDir \"$outdir/biohansel/$scheme/$nthreads/$iter\", mode: 'copy', pattern: \"*.tsv\"\n  cpus { nthreads }\n\n  input:\n    each iter from 1..params.iterations\n    each nthreads from thread_combos\n    set val(scheme), file(scheme_fastas), val(accession), file(reads1), file(reads2), file(metadata), file(ref_genbank) from ch_collected_fastqs\n  output:\n    set file(detailed_report), file(summary_report) into ch_biohansel\n    set val(scheme), val(nSamples), val(nthreads), val('multiple'), file('.command.trace'), val(iter), file(reads1), file(reads2) into ch_biohansel_multi_trace\n  script:\n  nSamples = reads1.size() \n  detailed_report = \"biohansel-detailed_report.tsv\"\n  summary_report = \"biohansel-summary_report.tsv\"\n  schema_fa = scheme_fastas[0]\n  md = metadata.size() == 0 ? '' : \" -M ${metadata}\"\n  \"\"\"\n  echo \"iteration=$iter; threads=$nthreads\"\n  mkdir -p reads\n  ln -s `realpath *.fastq.gz` reads/\n  hansel \\\\\n    -v $md \\\\\n    -t $nthreads \\\\\n    -s $schema_fa \\\\\n    -D reads/ \\\\\n    -o $summary_report \\\\\n    -O $detailed_report\n  \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "  nSamples = reads1.size() \n  detailed_report = \"biohansel-detailed_report.tsv\"\n  summary_report = \"biohansel-summary_report.tsv\"\n  schema_fa = scheme_fastas[0]\n  md = metadata.size() == 0 ? '' : \" -M ${metadata}\"\n  \"\"\"\n  echo \"iteration=$iter; threads=$nthreads\"\n  mkdir -p reads\n  ln -s `realpath *.fastq.gz` reads/\n  hansel \\\\\n    -v $md \\\\\n    -t $nthreads \\\\\n    -s $schema_fa \\\\\n    -D reads/ \\\\\n    -o $summary_report \\\\\n    -O $detailed_report\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "mdp"
+        ],
+        "tools_url": [
+            "https://bio.tools/mdp"
+        ],
+        "tools_dico": [
+            {
+                "name": "mdp",
+                "uri": "https://bio.tools/mdp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2259",
+                            "term": "Systems biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Medical informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarray experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Biomedical informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Healthcare informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Health informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Health and disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Clinical informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarrays"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Molecular Degree of Perturbation webtool quantifies the heterogeneity of samples. It takes a data.frame of omic data that contains at least two classes (control and test) and assigns a score to all samples based on how perturbed they are compared to the controls.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/mdp.html"
+            }
+        ],
+        "inputs": [
+            "1",
+            "thread_combos",
+            "ch_collected_fastqs"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "ch_biohansel",
+            "ch_biohansel_multi_trace"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "peterk87__nf-biohansel-sra-benchmark",
+        "directive": [
+            "tag \"$scheme|N=${nSamples}|T=$nthreads|i=$iter\"",
+            "publishDir \"$outdir/biohansel/$scheme/$nthreads/$iter\", mode: 'copy', pattern: \"*.tsv\"",
+            "cpus { nthreads }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "biohansel_single_cpu": {
+        "name_process": "biohansel_single_cpu",
+        "string_process": "\nprocess biohansel_single_cpu {\n  tag \"$scheme|$accession|$iter\"\n  publishDir \"$outdir/biohansel/singles\", mode: 'copy', pattern: \"*.tsv\"\n  cpus 1\n\n  input:\n    each iter from 1..params.iterations\n    set val(scheme), file(scheme_fasta), val(accession), file(reads1), file(reads2), file(metadata), file(ref_genbank) from ch_fastqs_2\n  output:\n    set file(detailed_report), file(summary_report) into ch_biohansel_singles\n    set val(scheme), val(1), val(1), val('single'), file('.command.trace'), val(iter), file(reads1), file(reads2) into ch_biohansel_single_trace\n  script:\n  detailed_report = \"biohansel-detailed_report-${accession}.tsv\"\n  summary_report = \"biohansel-summary_report-${accession}.tsv\"\n  md = metadata.size() == 0 ? '' : \" -M $metadata\"\n  \"\"\"\n  mkdir -p reads\n  ln -s `realpath *.fastq.gz` reads/\n  hansel \\\\\n    -v $md \\\\\n    -t ${task.cpus} \\\\\n    -s $scheme_fasta \\\\\n    -D reads/ \\\\\n    -o $summary_report \\\\\n    -O $detailed_report\n  \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "  detailed_report = \"biohansel-detailed_report-${accession}.tsv\"\n  summary_report = \"biohansel-summary_report-${accession}.tsv\"\n  md = metadata.size() == 0 ? '' : \" -M $metadata\"\n  \"\"\"\n  mkdir -p reads\n  ln -s `realpath *.fastq.gz` reads/\n  hansel \\\\\n    -v $md \\\\\n    -t ${task.cpus} \\\\\n    -s $scheme_fasta \\\\\n    -D reads/ \\\\\n    -o $summary_report \\\\\n    -O $detailed_report\n  \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "mdp"
+        ],
+        "tools_url": [
+            "https://bio.tools/mdp"
+        ],
+        "tools_dico": [
+            {
+                "name": "mdp",
+                "uri": "https://bio.tools/mdp",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2259",
+                            "term": "Systems biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Medical informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarray experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Biomedical informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Healthcare informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Health informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Health and disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3063",
+                            "term": "Clinical informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3518",
+                            "term": "Microarrays"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Molecular Degree of Perturbation webtool quantifies the heterogeneity of samples. It takes a data.frame of omic data that contains at least two classes (control and test) and assigns a score to all samples based on how perturbed they are compared to the controls.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/mdp.html"
+            }
+        ],
+        "inputs": [
+            "1",
+            "ch_fastqs_2"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_biohansel_singles",
+            "ch_biohansel_single_trace"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "peterk87__nf-biohansel-sra-benchmark",
+        "directive": [
+            "tag \"$scheme|$accession|$iter\"",
+            "publishDir \"$outdir/biohansel/singles\", mode: 'copy', pattern: \"*.tsv\"",
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "snippy": {
+        "name_process": "snippy",
+        "string_process": "\nprocess snippy {\n  tag \"CPU=$ncpus|$accession\"\n                                                                       \n  cpus { ncpus }\n\n  input:\n    each ncpus from thread_combos\n    set val(scheme), file(scheme_fasta), val(accession), file(reads1), file(reads2), file(metadata), file(ref_genbank) from ch_fastqs_snippy\n  output:\n    set val(scheme), val(1), val(ncpus), val('snippy'), file('.command.trace'), val(1), file(reads1), file(reads2) into ch_snippy_trace\n\n  script:\n  \"\"\"\n  snippy --prefix $accession \\\\\n    --outdir out \\\\\n    --cpus ${task.cpus} \\\\\n    --ram ${task.memory.toGiga()} \\\\\n    --R1 $reads1 \\\\\n    --R2 $reads2 \\\\\n    --ref $ref_genbank \\\\\n    --cleanup \\\\\n    --tmpdir ./\n  \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "  \"\"\"\n  snippy --prefix $accession \\\\\n    --outdir out \\\\\n    --cpus ${task.cpus} \\\\\n    --ram ${task.memory.toGiga()} \\\\\n    --R1 $reads1 \\\\\n    --R2 $reads2 \\\\\n    --ref $ref_genbank \\\\\n    --cleanup \\\\\n    --tmpdir ./\n  \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "snippy"
+        ],
+        "tools_url": [
+            "https://bio.tools/snippy"
+        ],
+        "tools_dico": [
+            {
+                "name": "snippy",
+                "uri": "https://bio.tools/snippy",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3293",
+                            "term": "Phylogenetics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0567",
+                                    "term": "Phylogenetic tree visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0323",
+                                    "term": "Phylogenetic inference"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0567",
+                                    "term": "Phylogenetic tree rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0323",
+                                    "term": "Phlyogenetic tree construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0323",
+                                    "term": "Phylogenetic reconstruction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0323",
+                                    "term": "Phylogenetic tree generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Rapid haploid variant calling and core SNP phylogeny generation.",
+                "homepage": "https://github.com/tseemann/snippy"
+            }
+        ],
+        "inputs": [
+            "thread_combos",
+            "ch_fastqs_snippy"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "ch_snippy_trace"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "peterk87__nf-biohansel-sra-benchmark",
+        "directive": [
+            "tag \"CPU=$ncpus|$accession\"",
+            "cpus { ncpus }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trace_table": {
+        "name_process": "trace_table",
+        "string_process": "\nprocess trace_table {\n  publishDir \"$outdir/trace\", pattern: \"*.csv\", mode: 'copy'\n  input:\n    file trace from ch_trace\n  output:\n    file trace_table_csv\n\n  script:\n  trace_table_csv = \"trace.csv\"\n  \"\"\"\n  make_trace_table.py -t $trace -o $trace_table_csv \n  \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "  trace_table_csv = \"trace.csv\"\n  \"\"\"\n  make_trace_table.py -t $trace -o $trace_table_csv \n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "ch_trace"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trace_table_csv"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "peterk87__nf-biohansel-sra-benchmark",
+        "directive": [
+            "publishDir \"$outdir/trace\", pattern: \"*.csv\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

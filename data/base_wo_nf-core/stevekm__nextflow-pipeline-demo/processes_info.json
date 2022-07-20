@@ -1,0 +1,2025 @@
+{
+    "msisensor": {
+        "name_process": "msisensor",
+        "string_process": "\nprocess msisensor {\n    tag { \"${comparisonID}\" }\n    module 'samtools/1.3'\n    clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=5G'\n    publishDir \"${params.output_dir}/microsatellites\", mode: 'copy', overwrite: true\n\n\n    input:\n    set val(comparisonID), val(tumorID), file(tumorBam), file(tumorBai), val(normalID), file(normalBam), file(normalBai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed), file(microsatellites) from samples_dd_ra_rc_bam_pairs_ref_msi\n\n    output:\n    file \"${comparisonID}.msisensor\"\n    file \"${comparisonID}.msisensor_dis\"\n    file \"${comparisonID}.msisensor_germline\"\n    file \"${comparisonID}.msisensor_somatic\"\n\n    script:\n    \"\"\"\n    \"${params.msisensor_bin}\" msi -d \"${microsatellites}\" -n \"${normalBam}\" -t \"${tumorBam}\" -e \"${targets_bed}\" -o \"${comparisonID}.msisensor\" -l 1 -q 1 -b \\${NSLOTS:-1}\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    \"${params.msisensor_bin}\" msi -d \"${microsatellites}\" -n \"${normalBam}\" -t \"${tumorBam}\" -e \"${targets_bed}\" -o \"${comparisonID}.msisensor\" -l 1 -q 1 -b \\${NSLOTS:-1}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_pairs_ref_msi"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${comparisonID}\" }",
+            "module 'samtools/1.3'",
+            "clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=5G'",
+            "publishDir \"${params.output_dir}/microsatellites\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "match_samples": {
+        "name_process": "match_samples",
+        "string_process": "\nprocess match_samples {\n    executor \"local\"\n    input:\n    set val(sample_tumor_ID), file(sample_tumor_bam), file(sample_tumor_bai), val(sample_normal_ID), file(sample_normal_bam), file(sample_normal_bai) from sample_pairs\n\n    exec:\n    println \"tumor: ${sample_tumor_ID}, sample_tumor_bam: ${sample_tumor_bam}\"\n\n}",
+        "nb_lignes_process": 8,
+        "string_script": "    println \"tumor: ${sample_tumor_ID}, sample_tumor_bam: ${sample_tumor_bam}\"",
+        "nb_lignes_script": 0,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_pairs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "executor \"local\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotate_ANNOVAR": {
+        "name_process": "annotate_ANNOVAR",
+        "string_process": "\nprocess annotate_ANNOVAR {\n    tag { sample_ID }\n    publishDir \"${params.output_dir}/Annotations\", mode: 'copy', overwrite: true\n    clusterOptions '-pe threaded 1-4'\n\n    input:\n    set val(sample_ID), file(sample_vcf) from sample_vcfs\n\n    output:\n    file \"${sample_ID}.sample.${params.build_version}_multianno.txt\" into sample_vcfs_summary\n\n    script:\n    \"\"\"\n    # convert to ANNOVAR format\n    \"${params.ANNOVAR_DIR}/convert2annovar.pl\" --format vcf4old --includeinfo \"${sample_vcf}\" --outfile \"${sample_ID}.avinput\"\n\n    # check number of lines between the files\n    [ ! \"\\$(wc -l \"${sample_ID}.avinput\" )\" -eq \"\\$(grep -v '^#' \"${sample_vcf}\" | wc -l)\" ] && echo \"ERROR: number of lines does not match\" && exit 1 || :\n\n    # annotate with ANNOVAR\n    \"${params.ANNOVAR_DIR}/table_annovar.pl\" \"${sample_ID}.avinput\" \"${params.ANNOVAR_DB_DIR}\" --buildver \"${params.build_version}\" --remove --protocol \"refGene,1000g2015aug_all,clinvar_20170905,intervar_20170202,dbnsfp33a,esp6500siv2_all,kaviar_20150923,gnomad_exome,gnomad_genome,avsnp150,fathmm,eigen\" --operation \"g,f,f,f,f,f,f,f,f,f,f,f\" --nastring . --outfile \"${sample_ID}\" --thread \\${NSLOTS:-1}\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.${params.build_version}_multianno.txt\" -o \"${sample_ID}.sample.${params.build_version}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    # convert to ANNOVAR format\n    \"${params.ANNOVAR_DIR}/convert2annovar.pl\" --format vcf4old --includeinfo \"${sample_vcf}\" --outfile \"${sample_ID}.avinput\"\n\n    # check number of lines between the files\n    [ ! \"\\$(wc -l \"${sample_ID}.avinput\" )\" -eq \"\\$(grep -v '^#' \"${sample_vcf}\" | wc -l)\" ] && echo \"ERROR: number of lines does not match\" && exit 1 || :\n\n    # annotate with ANNOVAR\n    \"${params.ANNOVAR_DIR}/table_annovar.pl\" \"${sample_ID}.avinput\" \"${params.ANNOVAR_DB_DIR}\" --buildver \"${params.build_version}\" --remove --protocol \"refGene,1000g2015aug_all,clinvar_20170905,intervar_20170202,dbnsfp33a,esp6500siv2_all,kaviar_20150923,gnomad_exome,gnomad_genome,avsnp150,fathmm,eigen\" --operation \"g,f,f,f,f,f,f,f,f,f,f,f\" --nastring . --outfile \"${sample_ID}\" --thread \\${NSLOTS:-1}\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.${params.build_version}_multianno.txt\" -o \"${sample_ID}.sample.${params.build_version}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_vcfs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sample_vcfs_summary"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { sample_ID }",
+            "publishDir \"${params.output_dir}/Annotations\", mode: 'copy', overwrite: true",
+            "clusterOptions '-pe threaded 1-4'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotation_summary": {
+        "name_process": "annotation_summary",
+        "string_process": "\nprocess annotation_summary {\n    publishDir \"${params.output_dir}/Annotations-Summary\", mode: 'copy', overwrite: true\n\n    input:\n    file \"*\" from sample_vcfs_summary.toList()\n\n    script:\n    \"\"\"\n    concat_tables.py * > annotation.summary.tsv\n    \"\"\"\n                                                                     \n                                                                                                                                                                                       \n\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    \"\"\"\n    concat_tables.py * > annotation.summary.tsv\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_vcfs_summary"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "publishDir \"${params.output_dir}/Annotations-Summary\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc_raw": {
+        "name_process": "fastqc_raw",
+        "string_process": "\nprocess fastqc_raw {\n    tag { \"${fastq}\" }\n    module \"fastqc/0.11.7\"\n    publishDir \"${params.output_dir}/fastqc-raw\", mode: 'copy', overwrite: true\n\n    input:\n    file(fastq) from samples_each_fastq\n\n    output:\n    file(output_html)\n    file(output_zip)\n\n    script:\n    output_html = \"${fastq}\".replaceFirst(/.fastq.gz$/, \"_fastqc.html\")\n    output_zip = \"${fastq}\".replaceFirst(/.fastq.gz$/, \"_fastqc.zip\")\n    \"\"\"\n    echo \"output_zip: ${output_zip}, output_html: ${output_html}\"\n    fastqc -o . \"${fastq}\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    output_html = \"${fastq}\".replaceFirst(/.fastq.gz$/, \"_fastqc.html\")\n    output_zip = \"${fastq}\".replaceFirst(/.fastq.gz$/, \"_fastqc.zip\")\n    \"\"\"\n    echo \"output_zip: ${output_zip}, output_html: ${output_html}\"\n    fastqc -o . \"${fastq}\"\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "samples_each_fastq"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "output_html",
+            "output_zip"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${fastq}\" }",
+            "module \"fastqc/0.11.7\"",
+            "publishDir \"${params.output_dir}/fastqc-raw\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastq_merge": {
+        "name_process": "fastq_merge",
+        "string_process": "\nprocess fastq_merge {\n                                                               \n    tag { \"${sample_ID}\" }\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    publishDir \"${params.output_dir}/fastq-merge\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(fastq_r1: \"*\"), file(fastq_r2: \"*\") from samples_R1_R2\n\n    output:\n    set val(sample_ID), file(\"${sample_ID}_R1.fastq.gz\"), file(\"${sample_ID}_R2.fastq.gz\") into samples_fastq_merged\n\n    script:\n    \"\"\"\n    cat ${fastq_r1} > \"${sample_ID}_R1.fastq.gz\"\n    cat ${fastq_r2} > \"${sample_ID}_R2.fastq.gz\"\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    cat ${fastq_r1} > \"${sample_ID}_R1.fastq.gz\"\n    cat ${fastq_r2} > \"${sample_ID}_R2.fastq.gz\"\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_R1_R2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "samples_fastq_merged"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "publishDir \"${params.output_dir}/fastq-merge\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trimmomatic": {
+        "name_process": "trimmomatic",
+        "string_process": "\nprocess trimmomatic {\n                             \n                                                     \n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/fastq-trim\", mode: 'copy', overwrite: true\n    clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=5G'\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n\n    input:\n    set val(sample_ID), file(read1), file(read2), file(trimmomatic_contaminant_fa) from samples_fastq_merged.combine(trimmomatic_contaminant_fa)\n\n    output:\n    set val(sample_ID), file(\"${sample_ID}_R1.trim.fastq.gz\"), file(\"${sample_ID}_R2.trim.fastq.gz\") into samples_fastq_trimmed, samples_fastq_trimmed2\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar ${params.trimmomatic_jar} PE -threads \\${NSLOTS:-1} \\\n    \"${read1}\" \"${read2}\" \\\n    \"${sample_ID}_R1.trim.fastq.gz\" \"${sample_ID}_R1.unpaired.fastq.gz\" \\\n    \"${sample_ID}_R2.trim.fastq.gz\" \"${sample_ID}_R2.unpaired.fastq.gz\" \\\n    ILLUMINACLIP:${trimmomatic_contaminant_fa}:2:30:10:1:true TRAILING:5 SLIDINGWINDOW:4:15 MINLEN:35\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar ${params.trimmomatic_jar} PE -threads \\${NSLOTS:-1} \\\n    \"${read1}\" \"${read2}\" \\\n    \"${sample_ID}_R1.trim.fastq.gz\" \"${sample_ID}_R1.unpaired.fastq.gz\" \\\n    \"${sample_ID}_R2.trim.fastq.gz\" \"${sample_ID}_R2.unpaired.fastq.gz\" \\\n    ILLUMINACLIP:${trimmomatic_contaminant_fa}:2:30:10:1:true TRAILING:5 SLIDINGWINDOW:4:15 MINLEN:35\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_fastq_merged",
+            "trimmomatic_contaminant_fa"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "samples_fastq_trimmed",
+            "samples_fastq_trimmed2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/fastq-trim\", mode: 'copy', overwrite: true",
+            "clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=5G'",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqc_trim": {
+        "name_process": "fastqc_trim",
+        "string_process": "\nprocess fastqc_trim {\n    tag { \"${sample_ID}\" }\n    module \"fastqc/0.11.7\"\n    publishDir \"${params.output_dir}/fastqc-trim\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID),  file(fastq_R1_trim), file(fastq_R2_trim) from samples_fastq_trimmed2\n\n    output:\n    file(output_R1_html)\n    file(output_R1_zip)\n    file(output_R2_html)\n    file(output_R2_zip)\n\n    script:\n    output_R1_html = \"${fastq_R1_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.html\")\n    output_R1_zip = \"${fastq_R1_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.zip\")\n    output_R2_html = \"${fastq_R2_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.html\")\n    output_R2_zip = \"${fastq_R2_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.zip\")\n    \"\"\"\n    fastqc -o . \"${fastq_R1_trim}\"\n    fastqc -o . \"${fastq_R2_trim}\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    output_R1_html = \"${fastq_R1_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.html\")\n    output_R1_zip = \"${fastq_R1_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.zip\")\n    output_R2_html = \"${fastq_R2_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.html\")\n    output_R2_zip = \"${fastq_R2_trim}\".replaceFirst(/.fastq.gz$/, \"_fastqc.zip\")\n    \"\"\"\n    fastqc -o . \"${fastq_R1_trim}\"\n    fastqc -o . \"${fastq_R2_trim}\"\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "FastQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "FastQC",
+                "uri": "https://bio.tools/fastqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3572",
+                            "term": "Data quality management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality control"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3218",
+                                    "term": "Sequencing quality assessment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "This tool aims to provide a QC report which can spot problems or biases which originate either in the sequencer or in the starting library material. It can be run in one of two modes. It can either run as a stand alone interactive application for the immediate analysis of small numbers of FastQ files, or it can be run in a non-interactive mode where it would be suitable for integrating into a larger analysis pipeline for the systematic processing of large numbers of files.",
+                "homepage": "http://www.bioinformatics.babraham.ac.uk/projects/fastqc/"
+            }
+        ],
+        "inputs": [
+            "samples_fastq_trimmed2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "output_R1_html",
+            "output_R1_zip",
+            "output_R2_html",
+            "output_R2_zip"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "module \"fastqc/0.11.7\"",
+            "publishDir \"${params.output_dir}/fastqc-trim\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bwa_mem": {
+        "name_process": "bwa_mem",
+        "string_process": "\nprocess bwa_mem {\n                                    \n    tag { \"${sample_ID}\" }\n    clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    module 'bwa/0.7.17'\n\n    input:\n    set val(sample_ID), file(fastq_R1_trim), file(fastq_R2_trim), file(ref_fa_bwa_dir) from samples_fastq_trimmed.combine(ref_fa_bwa_dir)\n\n    output:\n    set val(sample_ID), file(\"${sample_ID}.sam\") into samples_bwa_sam\n\n    script:\n    \"\"\"\n    bwa mem -M -v 1 -t \\${NSLOTS:-1} -R '@RG\\\\tID:${sample_ID}\\\\tSM:${sample_ID}\\\\tLB:${sample_ID}\\\\tPL:ILLUMINA' \"${ref_fa_bwa_dir}/genome.fa\" \"${fastq_R1_trim}\" \"${fastq_R2_trim}\" -o \"${sample_ID}.sam\"\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    bwa mem -M -v 1 -t \\${NSLOTS:-1} -R '@RG\\\\tID:${sample_ID}\\\\tSM:${sample_ID}\\\\tLB:${sample_ID}\\\\tPL:ILLUMINA' \"${ref_fa_bwa_dir}/genome.fa\" \"${fastq_R1_trim}\" \"${fastq_R2_trim}\" -o \"${sample_ID}.sam\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BWA"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            }
+        ],
+        "inputs": [
+            "samples_fastq_trimmed",
+            "ref_fa_bwa_dir"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "samples_bwa_sam"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "module 'bwa/0.7.17'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sambamba_view_sort": {
+        "name_process": "sambamba_view_sort",
+        "string_process": "\nprocess sambamba_view_sort {\n    tag { \"${sample_ID}\" }\n    clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=4G'\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n\n    input:\n    set val(sample_ID), file(sample_sam) from samples_bwa_sam\n\n    output:\n    set val(sample_ID), file(\"${sample_ID}.bam\") into samples_bam, samples_bam2\n\n    script:\n    \"\"\"\n    \"${params.sambamba_bin}\" view --sam-input --nthreads=\\${NSLOTS:-1} --filter='mapping_quality>=10' --format=bam --compression-level=0 \"${sample_sam}\" | \\\n    \"${params.sambamba_bin}\" sort --nthreads=\\${NSLOTS:-1} --memory-limit=16GB --out=\"${sample_ID}.bam\" /dev/stdin\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    \"${params.sambamba_bin}\" view --sam-input --nthreads=\\${NSLOTS:-1} --filter='mapping_quality>=10' --format=bam --compression-level=0 \"${sample_sam}\" | \\\n    \"${params.sambamba_bin}\" sort --nthreads=\\${NSLOTS:-1} --memory-limit=16GB --out=\"${sample_ID}.bam\" /dev/stdin\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_bwa_sam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "samples_bam",
+            "samples_bam2"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=4G'",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sambamba_flagstat": {
+        "name_process": "sambamba_flagstat",
+        "string_process": "\nprocess sambamba_flagstat {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/sambamba-flagstat\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n\n    input:\n    set val(sample_ID), file(sample_bam) from samples_bam\n\n    output:\n    file \"${sample_ID}.flagstat.txt\"\n\n    script:\n    \"\"\"\n    \"${params.sambamba_bin}\" flagstat \"${sample_bam}\" > \"${sample_ID}.flagstat.txt\"\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    \"${params.sambamba_bin}\" flagstat \"${sample_bam}\" > \"${sample_ID}.flagstat.txt\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_bam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/sambamba-flagstat\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sambamba_dedup": {
+        "name_process": "sambamba_dedup",
+        "string_process": "\nprocess sambamba_dedup {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/bam-bwa-dd\", mode: 'copy', overwrite: true\n    clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=4G'\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    module 'samtools/1.3'\n\n    input:\n    set val(sample_ID), file(sample_bam) from samples_bam2\n\n    output:\n    set val(sample_ID), file(\"${sample_ID}.dd.bam\") into samples_dd_bam, samples_dd_bam2, samples_dd_bam3, samples_dd_bam4, samples_dd_bam5, samples_dd_bam6, samples_dd_bam7\n    file(\"${sample_ID}.dd.bam.bai\")\n\n    script:\n    \"\"\"\n    \"${params.sambamba_bin}\" markdup --remove-duplicates --nthreads \\${NSLOTS:-1} --hash-table-size 525000 --overflow-list-size 525000 \"${sample_bam}\" \"${sample_ID}.dd.bam\"\n    samtools view \"${sample_ID}.dd.bam\"\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    \"${params.sambamba_bin}\" markdup --remove-duplicates --nthreads \\${NSLOTS:-1} --hash-table-size 525000 --overflow-list-size 525000 \"${sample_bam}\" \"${sample_ID}.dd.bam\"\n    samtools view \"${sample_ID}.dd.bam\"\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "samples_bam2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "samples_dd_bam",
+            "samples_dd_bam2",
+            "samples_dd_bam3",
+            "samples_dd_bam4",
+            "samples_dd_bam5",
+            "samples_dd_bam6",
+            "samples_dd_bam7"
+        ],
+        "nb_outputs": 7,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/bam-bwa-dd\", mode: 'copy', overwrite: true",
+            "clusterOptions '-pe threaded 1-8 -l mem_free=40G -l mem_token=4G'",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "module 'samtools/1.3'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "sambamba_dedup_flagstat": {
+        "name_process": "sambamba_dedup_flagstat",
+        "string_process": "\nprocess sambamba_dedup_flagstat {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/sambamba-dd-flagstat\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n\n    input:\n    set val(sample_ID), file(sample_bam) from samples_dd_bam2\n\n    output:\n    file \"${sample_ID}.dd.flagstat.txt\"\n\n    script:\n    \"\"\"\n    \"${params.sambamba_bin}\" flagstat \"${sample_bam}\" > \"${sample_ID}.dd.flagstat.txt\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    \"${params.sambamba_bin}\" flagstat \"${sample_bam}\" > \"${sample_ID}.dd.flagstat.txt\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_bam2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/sambamba-dd-flagstat\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "qc_target_reads_gatk_genome": {
+        "name_process": "qc_target_reads_gatk_genome",
+        "string_process": "\nprocess qc_target_reads_gatk_genome {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'\n\n    input:\n    set val(sample_ID), file(sample_bam), file(ref_fasta), file(ref_fai), file(ref_dict) from samples_dd_bam_ref\n\n    output:\n    file \"${sample_ID}.genome.sample_statistics\"\n    file \"${sample_ID}.genome.sample_summary\"\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.genome\"\n    \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.genome\"\n    \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_bam_ref"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "qc_target_reads_gatk_pad500": {
+        "name_process": "qc_target_reads_gatk_pad500",
+        "string_process": "\nprocess qc_target_reads_gatk_pad500 {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'\n\n    input:\n    set val(sample_ID), file(sample_bam), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_bam_ref2\n\n    output:\n    file \"${sample_ID}.pad500.sample_statistics\"\n    file \"${sample_ID}.pad500.sample_summary\"\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 500 \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.pad500\"\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 500 \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.pad500\"\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_bam_ref2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "qc_target_reads_gatk_pad100": {
+        "name_process": "qc_target_reads_gatk_pad100",
+        "string_process": "\nprocess qc_target_reads_gatk_pad100 {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'\n\n    input:\n    set val(sample_ID), file(sample_bam), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_bam_ref3\n\n    output:\n    file \"${sample_ID}.pad100.sample_statistics\"\n    file \"${sample_ID}.pad100.sample_summary\"\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 100 \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.pad100\"\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 100 \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.pad100\"\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_bam_ref3"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "qc_target_reads_gatk_bed": {
+        "name_process": "qc_target_reads_gatk_bed",
+        "string_process": "\nprocess qc_target_reads_gatk_bed {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'\n\n    input:\n    set val(sample_ID), file(sample_bam), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_bam_ref4\n\n    output:\n    file \"${sample_ID}.bed.sample_statistics\"\n    file \"${sample_ID}.bed.sample_summary\"\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.bed\"\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    -rf BadCigar \\\n    -nt \\${NSLOTS:-1} \\\n    --logging_level ERROR \\\n    --omitIntervalStatistics \\\n    --omitLocusTable \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 100 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}.bed\"\n    \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_bam_ref4"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/qc-target-reads\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bam_ra_rc_gatk": {
+        "name_process": "bam_ra_rc_gatk",
+        "string_process": "\nprocess bam_ra_rc_gatk {\n                                               \n                                                                                                                                            \n                                                                                                                                             \n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/bam_dd_ra_rc_gatk\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'\n    module 'samtools/1.3'\n\n\n    input:\n    set val(sample_ID), file(sample_bam), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file), file(gatk_1000G_phase1_indels_vcf), file(mills_and_1000G_gold_standard_indels_vcf), file(dbsnp_ref_vcf) from samples_dd_bam_ref_gatk\n\n    output:\n    set val(sample_ID), file(\"${sample_ID}.dd.ra.rc.bam\"), file(\"${sample_ID}.dd.ra.rc.bam.bai\") into samples_dd_ra_rc_bam, samples_dd_ra_rc_bam2, samples_dd_ra_rc_bam3\n    file \"${sample_ID}.intervals\"\n    file \"${sample_ID}.table1.txt\"\n    file \"${sample_ID}.table2.txt\"\n    file \"${sample_ID}.csv\"\n    file \"${sample_ID}.pdf\"\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T RealignerTargetCreator \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    -nt \\${NSLOTS:-1} \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -known \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -known \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_bam}\" \\\n    --out \"${sample_ID}.intervals\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T IndelRealigner \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --maxReadsForRealignment 50000 \\\n    -known \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -known \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    -targetIntervals \"${sample_ID}.intervals\" \\\n    --input_file \"${sample_bam}\" \\\n    --out \"${sample_ID}.dd.ra.bam\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T BaseRecalibrator \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -knownSites \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -knownSites \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    -knownSites \"${dbsnp_ref_vcf}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_ID}.dd.ra.bam\" \\\n    --out \"${sample_ID}.table1.txt\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T BaseRecalibrator \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -knownSites \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -knownSites \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    -knownSites \"${dbsnp_ref_vcf}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_ID}.dd.ra.bam\" \\\n    -BQSR \"${sample_ID}.table1.txt\" \\\n    --out \"${sample_ID}.table2.txt\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T AnalyzeCovariates \\\n    --logging_level ERROR \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -before \"${sample_ID}.table1.txt\" \\\n    -after \"${sample_ID}.table2.txt\" \\\n    -csv \"${sample_ID}.csv\" \\\n    -plots \"${sample_ID}.pdf\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T PrintReads \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -BQSR \"${sample_ID}.table1.txt\" \\\n    --input_file \"${sample_ID}.dd.ra.bam\" \\\n    --out \"${sample_ID}.dd.ra.rc.bam\"\n\n    samtools index \"${sample_ID}.dd.ra.rc.bam\"\n    \"\"\"\n}",
+        "nb_lignes_process": 94,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T RealignerTargetCreator \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    -nt \\${NSLOTS:-1} \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -known \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -known \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_bam}\" \\\n    --out \"${sample_ID}.intervals\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T IndelRealigner \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --maxReadsForRealignment 50000 \\\n    -known \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -known \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    -targetIntervals \"${sample_ID}.intervals\" \\\n    --input_file \"${sample_bam}\" \\\n    --out \"${sample_ID}.dd.ra.bam\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T BaseRecalibrator \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -knownSites \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -knownSites \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    -knownSites \"${dbsnp_ref_vcf}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_ID}.dd.ra.bam\" \\\n    --out \"${sample_ID}.table1.txt\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T BaseRecalibrator \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -knownSites \"${gatk_1000G_phase1_indels_vcf}\" \\\n    -knownSites \"${mills_and_1000G_gold_standard_indels_vcf}\" \\\n    -knownSites \"${dbsnp_ref_vcf}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_ID}.dd.ra.bam\" \\\n    -BQSR \"${sample_ID}.table1.txt\" \\\n    --out \"${sample_ID}.table2.txt\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T AnalyzeCovariates \\\n    --logging_level ERROR \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -before \"${sample_ID}.table1.txt\" \\\n    -after \"${sample_ID}.table2.txt\" \\\n    -csv \"${sample_ID}.csv\" \\\n    -plots \"${sample_ID}.pdf\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T PrintReads \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    -BQSR \"${sample_ID}.table1.txt\" \\\n    --input_file \"${sample_ID}.dd.ra.bam\" \\\n    --out \"${sample_ID}.dd.ra.rc.bam\"\n\n    samtools index \"${sample_ID}.dd.ra.rc.bam\"\n    \"\"\"",
+        "nb_lignes_script": 69,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "samples_dd_bam_ref_gatk"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "samples_dd_ra_rc_bam",
+            "samples_dd_ra_rc_bam2",
+            "samples_dd_ra_rc_bam3"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/bam_dd_ra_rc_gatk\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'",
+            "module 'samtools/1.3'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "qc_coverage_gatk": {
+        "name_process": "qc_coverage_gatk",
+        "string_process": "\nprocess qc_coverage_gatk {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/qc_coverage_gatk\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_ra_rc_bam_ref\n\n    output:\n    file \"${sample_ID}.sample_summary\"\n    file \"${sample_ID}.sample_statistics\"\n    file \"${sample_ID}.sample_interval_summary\"\n    file \"${sample_ID}.sample_interval_statistics\"\n    file \"${sample_ID}.sample_cumulative_coverage_proportions\"\n    file \"${sample_ID}.sample_cumulative_coverage_counts\"\n    file(\"${sample_ID}.summary.csv\") into qc_coverage_gatk_summary\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 50 -ct 100 -ct 500 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --nBins 999 \\\n    --start 1 --stop 1000 \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}\"\n\n    head -2 \"${sample_ID}.sample_summary\" > \"${sample_ID}.summary.csv\"\n    \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T DepthOfCoverage \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    -rf BadCigar \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --omitDepthOutputAtEachBase \\\n    -ct 10 -ct 50 -ct 100 -ct 500 \\\n    --minBaseQuality 20 \\\n    --minMappingQuality 20 \\\n    --nBins 999 \\\n    --start 1 --stop 1000 \\\n    --input_file \"${sample_bam}\" \\\n    --outputFormat csv \\\n    --out \"${sample_ID}\"\n\n    head -2 \"${sample_ID}.sample_summary\" > \"${sample_ID}.summary.csv\"\n    \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "qc_coverage_gatk_summary"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/qc_coverage_gatk\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 1-16 -l mem_free=40G -l mem_token=5G'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pad_bed": {
+        "name_process": "pad_bed",
+        "string_process": "\nprocess pad_bed {\n    publishDir \"${params.output_dir}/targets\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    module 'bedtools/2.26.0'\n\n    input:\n    set file(targets_bed_file), file(ref_chrom_sizes) from targets_bed3.combine(ref_chrom_sizes)\n\n    output:\n    file(\"targets.pad10.bed\") into targets_pad_bed\n\n    script:\n    \"\"\"\n    cat \"${targets_bed_file}\" | LC_ALL=C sort -k1,1 -k2,2n | bedtools slop -g \"${ref_chrom_sizes}\" -b 10 | bedtools merge -d 5 > targets.pad10.bed\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    cat \"${targets_bed_file}\" | LC_ALL=C sort -k1,1 -k2,2n | bedtools slop -g \"${ref_chrom_sizes}\" -b 10 | bedtools merge -d 5 > targets.pad10.bed\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "BEDTools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bedtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BEDTools",
+                "uri": "https://bio.tools/bedtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "BEDTools is an extensive suite of utilities for comparing genomic features in BED format.",
+                "homepage": "https://github.com/arq5x/bedtools2"
+            }
+        ],
+        "inputs": [
+            "targets_bed3",
+            "ref_chrom_sizes"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "targets_pad_bed"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "publishDir \"${params.output_dir}/targets\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "module 'bedtools/2.26.0'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "lofreq": {
+        "name_process": "lofreq",
+        "string_process": "\nprocess lofreq {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/vcf_lofreq\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'\n    module 'samtools/1.3'\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file), file(dbsnp_ref_vcf) from samples_dd_ra_rc_bam_ref_dbsnp\n\n    output:\n    file(\"${sample_ID}.vcf\")\n    file(\"${sample_ID}.norm.vcf\")\n    file(\"${sample_ID}.norm.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\") into lofreq_annotations\n    file(\"${sample_ID}.eval.grp\")\n    val(sample_ID) into sample_lofreq_done\n\n    script:\n    \"\"\"\n    \"${params.lofreq_bin}\" call-parallel \\\n    --call-indels \\\n    --pp-threads \\${NSLOTS:-1} \\\n    --ref \"${ref_fasta}\" \\\n    --bed \"${targets_bed_file}\" \\\n    --out \"${sample_ID}.vcf\" \\\n    \"${sample_bam}\"\n\n    bgzip -c \"${sample_ID}.vcf\" > \"${sample_ID}.vcf.bgz\"\n\n    bcftools index \"${sample_ID}.vcf.bgz\"\n\n    bcftools norm \\\n    --multiallelics \\\n    -both \\\n    --output-type v \\\n    \"${sample_ID}.vcf.bgz\" | \\\n    bcftools norm \\\n    --fasta-ref \"${ref_fasta}\" \\\n    --output-type v - | \\\n    bcftools view \\\n    --exclude 'DP<5' \\\n    --output-type v >  \"${sample_ID}.norm.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.norm.vcf\" \"${sample_ID}.norm\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.norm.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.norm.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T VariantEval \\\n    -R \"${ref_fasta}\" \\\n    -o \"${sample_ID}.eval.grp\" \\\n    --dbsnp \"${dbsnp_ref_vcf}\" \\\n    --eval \"${sample_ID}.norm.vcf\"\n\n    \"\"\"\n}",
+        "nb_lignes_process": 57,
+        "string_script": "    \"\"\"\n    \"${params.lofreq_bin}\" call-parallel \\\n    --call-indels \\\n    --pp-threads \\${NSLOTS:-1} \\\n    --ref \"${ref_fasta}\" \\\n    --bed \"${targets_bed_file}\" \\\n    --out \"${sample_ID}.vcf\" \\\n    \"${sample_bam}\"\n\n    bgzip -c \"${sample_ID}.vcf\" > \"${sample_ID}.vcf.bgz\"\n\n    bcftools index \"${sample_ID}.vcf.bgz\"\n\n    bcftools norm \\\n    --multiallelics \\\n    -both \\\n    --output-type v \\\n    \"${sample_ID}.vcf.bgz\" | \\\n    bcftools norm \\\n    --fasta-ref \"${ref_fasta}\" \\\n    --output-type v - | \\\n    bcftools view \\\n    --exclude 'DP<5' \\\n    --output-type v >  \"${sample_ID}.norm.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.norm.vcf\" \"${sample_ID}.norm\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.norm.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.norm.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T VariantEval \\\n    -R \"${ref_fasta}\" \\\n    -o \"${sample_ID}.eval.grp\" \\\n    --dbsnp \"${dbsnp_ref_vcf}\" \\\n    --eval \"${sample_ID}.norm.vcf\"\n\n    \"\"\"",
+        "nb_lignes_script": 37,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref_dbsnp"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "lofreq_annotations",
+            "sample_lofreq_done"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/vcf_lofreq\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'",
+            "module 'samtools/1.3'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "gatk_hc": {
+        "name_process": "gatk_hc",
+        "string_process": "\nprocess gatk_hc {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/vcf_hc\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'\n    module 'samtools/1.3'\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file), file(dbsnp_ref_vcf) from samples_dd_ra_rc_bam_ref_dbsnp2\n\n    output:\n    file(\"${sample_ID}.vcf\")\n    set val(sample_ID), file(\"${sample_ID}.norm.vcf\") into sample_vcf_hc\n    file(\"${sample_ID}.norm.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\") into gatk_hc_annotations\n    set val(sample_ID), file(\"${sample_ID}.norm.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\") into gatk_hc_annotations2\n    file(\"${sample_ID}.eval.grp\")\n    val(sample_ID) into sample_gatk_hc_done\n\n    script:\n    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T HaplotypeCaller \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    --max_alternate_alleles 3 \\\n    --standard_min_confidence_threshold_for_calling 50 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_bam}\" \\\n    --out \"${sample_ID}.vcf\"\n\n    cat \"${sample_ID}.vcf\" | \\\n    bcftools norm \\\n    --multiallelics \\\n    -both \\\n    --output-type v - | \\\n    bcftools norm \\\n    --fasta-ref \"${ref_fasta}\" \\\n    --output-type v - | \\\n    bcftools view \\\n    --exclude 'DP<5' \\\n    --output-type v > \"${sample_ID}.norm.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.norm.vcf\" \"${sample_ID}.norm\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.norm.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.norm.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T VariantEval \\\n    -R \"${ref_fasta}\" \\\n    -o \"${sample_ID}.eval.grp\" \\\n    --dbsnp \"${dbsnp_ref_vcf}\" \\\n    --eval \"${sample_ID}.norm.vcf\"\n    \"\"\"\n}",
+        "nb_lignes_process": 57,
+        "string_script": "    \"\"\"\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T HaplotypeCaller \\\n    -dt NONE \\\n    --logging_level ERROR \\\n    -nct \\${NSLOTS:-1} \\\n    --max_alternate_alleles 3 \\\n    --standard_min_confidence_threshold_for_calling 50 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --intervals \"${targets_bed_file}\" \\\n    --interval_padding 10 \\\n    --input_file \"${sample_bam}\" \\\n    --out \"${sample_ID}.vcf\"\n\n    cat \"${sample_ID}.vcf\" | \\\n    bcftools norm \\\n    --multiallelics \\\n    -both \\\n    --output-type v - | \\\n    bcftools norm \\\n    --fasta-ref \"${ref_fasta}\" \\\n    --output-type v - | \\\n    bcftools view \\\n    --exclude 'DP<5' \\\n    --output-type v > \"${sample_ID}.norm.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.norm.vcf\" \"${sample_ID}.norm\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.norm.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.norm.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T VariantEval \\\n    -R \"${ref_fasta}\" \\\n    -o \"${sample_ID}.eval.grp\" \\\n    --dbsnp \"${dbsnp_ref_vcf}\" \\\n    --eval \"${sample_ID}.norm.vcf\"\n    \"\"\"",
+        "nb_lignes_script": 36,
+        "language_script": "bash",
+        "tools": [
+            "BCFtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bcftools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BCFtools",
+                "uri": "https://bio.tools/bcftools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3516",
+                            "term": "Genotyping experiment"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant calling"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3227",
+                                    "term": "Variant mapping"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3498",
+                                "term": "Sequence variations"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Set of utilities that manipulate variant calls in the Variant Call Format (VCF) and its binary counterpart BCF. All commands work transparently with both VCFs and BCFs, both uncompressed and BGZF-compressed.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref_dbsnp2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sample_vcf_hc",
+            "gatk_hc_annotations",
+            "gatk_hc_annotations2",
+            "sample_gatk_hc_done"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/vcf_hc\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-pe threaded 4-16 -l mem_free=40G -l mem_token=4G'",
+            "module 'samtools/1.3'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "delly2_deletions": {
+        "name_process": "delly2_deletions",
+        "string_process": "\nprocess delly2_deletions {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/snv-deletions-Delly2\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_ra_rc_bam_ref4\n\n    output:\n    file \"${sample_ID}.deletions.vcf\"\n    file \"${sample_ID}.deletions.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" into delly2_deletions_annotations\n\n    script:\n    \"\"\"\n    \"${params.delly2_bin}\" call -t DEL -g \"${ref_fasta}\" -o \"${sample_ID}.deletions.bcf\" \"${sample_bam}\"\n    \"${params.delly2_bcftools_bin}\" view \"${sample_ID}.deletions.bcf\" > \"${sample_ID}.deletions.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.deletions.vcf\" \"${sample_ID}.deletions\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.deletions.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.deletions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    \"${params.delly2_bin}\" call -t DEL -g \"${ref_fasta}\" -o \"${sample_ID}.deletions.bcf\" \"${sample_bam}\"\n    \"${params.delly2_bcftools_bin}\" view \"${sample_ID}.deletions.bcf\" > \"${sample_ID}.deletions.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.deletions.vcf\" \"${sample_ID}.deletions\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.deletions.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.deletions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref4"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "delly2_deletions_annotations"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/snv-deletions-Delly2\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "delly2_duplications": {
+        "name_process": "delly2_duplications",
+        "string_process": "\nprocess delly2_duplications {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/snv-duplications-Delly2\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_ra_rc_bam_ref5\n\n    output:\n    file \"${sample_ID}.duplications.vcf\"\n    file \"${sample_ID}.duplications.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" into delly2_duplications_annotations\n\n    script:\n    \"\"\"\n    \"${params.delly2_bin}\" call -t DUP -g \"${ref_fasta}\" -o \"${sample_ID}.duplications.bcf\" \"${sample_bam}\"\n    \"${params.delly2_bcftools_bin}\" view \"${sample_ID}.duplications.bcf\" > \"${sample_ID}.duplications.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.duplications.vcf\" \"${sample_ID}.duplications\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.duplications.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.duplications.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    \"${params.delly2_bin}\" call -t DUP -g \"${ref_fasta}\" -o \"${sample_ID}.duplications.bcf\" \"${sample_bam}\"\n    \"${params.delly2_bcftools_bin}\" view \"${sample_ID}.duplications.bcf\" > \"${sample_ID}.duplications.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.duplications.vcf\" \"${sample_ID}.duplications\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.duplications.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.duplications.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref5"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "delly2_duplications_annotations"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/snv-duplications-Delly2\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "delly2_inversions": {
+        "name_process": "delly2_inversions",
+        "string_process": "\nprocess delly2_inversions {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/snv-inversions-Delly2\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_ra_rc_bam_ref6\n\n    output:\n    file \"${sample_ID}.inversions.bcf\"\n    file \"${sample_ID}.inversions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" into delly2_inversions_annotations\n\n    script:\n    \"\"\"\n    \"${params.delly2_bin}\" call -t INV -g \"${ref_fasta}\" -o \"${sample_ID}.inversions.bcf\" \"${sample_bam}\"\n    \"${params.delly2_bcftools_bin}\" view \"${sample_ID}.inversions.bcf\" > \"${sample_ID}.inversions.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.inversions.vcf\" \"${sample_ID}.inversions\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.inversions.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.inversions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    \"${params.delly2_bin}\" call -t INV -g \"${ref_fasta}\" -o \"${sample_ID}.inversions.bcf\" \"${sample_bam}\"\n    \"${params.delly2_bcftools_bin}\" view \"${sample_ID}.inversions.bcf\" > \"${sample_ID}.inversions.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.inversions.vcf\" \"${sample_ID}.inversions\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.inversions.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.inversions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref6"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "delly2_inversions_annotations"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/snv-inversions-Delly2\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "delly2_translocations": {
+        "name_process": "delly2_translocations",
+        "string_process": "\nprocess delly2_translocations {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/snv-translocations-Delly2\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_ra_rc_bam_ref7\n\n    output:\n    file \"${sample_ID}.translocations.vcf\"\n    file \"${sample_ID}.translocations.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" into delly2_translocations_annotations\n\n    script:\n    \"\"\"\n    ${params.delly2_bin} call -t BND -g ${ref_fasta} -o \"${sample_ID}.translocations.bcf\" \"${sample_bam}\"\n    ${params.delly2_bcftools_bin} view \"${sample_ID}.translocations.bcf\" > \"${sample_ID}.translocations.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.translocations.vcf\" \"${sample_ID}.translocations\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.translocations.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.translocations.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    ${params.delly2_bin} call -t BND -g ${ref_fasta} -o \"${sample_ID}.translocations.bcf\" \"${sample_bam}\"\n    ${params.delly2_bcftools_bin} view \"${sample_ID}.translocations.bcf\" > \"${sample_ID}.translocations.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.translocations.vcf\" \"${sample_ID}.translocations\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.translocations.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.translocations.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref7"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "delly2_translocations_annotations"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/snv-translocations-Delly2\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "delly2_insertions": {
+        "name_process": "delly2_insertions",
+        "string_process": "\nprocess delly2_insertions {\n    tag { \"${sample_ID}\" }\n    publishDir \"${params.output_dir}/snv-insertions-Delly2\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(sample_bam), file(sample_bai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed_file) from samples_dd_ra_rc_bam_ref8\n\n    output:\n    file \"${sample_ID}.insertions.vcf\"\n    file \"${sample_ID}.insertions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" into delly2_insertions_annotations\n\n    script:\n    \"\"\"\n    ${params.delly2_bin} call -t INS -g ${ref_fasta} -o \"${sample_ID}.insertions.bcf\" \"${sample_bam}\"\n    ${params.delly2_bcftools_bin} view \"${sample_ID}.insertions.bcf\" > \"${sample_ID}.insertions.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.insertions.vcf\" \"${sample_ID}.insertions\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.insertions.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.insertions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    ${params.delly2_bin} call -t INS -g ${ref_fasta} -o \"${sample_ID}.insertions.bcf\" \"${sample_bam}\"\n    ${params.delly2_bcftools_bin} view \"${sample_ID}.insertions.bcf\" > \"${sample_ID}.insertions.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${sample_ID}.insertions.vcf\" \"${sample_ID}.insertions\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${sample_ID}.insertions.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${sample_ID}.insertions.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${sample_ID}\" -d \"\\t\"\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_ref8"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "delly2_insertions_annotations"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "publishDir \"${params.output_dir}/snv-insertions-Delly2\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "deconstructSigs_signatures": {
+        "name_process": "deconstructSigs_signatures",
+        "string_process": "\nprocess deconstructSigs_signatures {\n    tag { \"${sample_ID}\" }\n    validExitStatus 0,11                                                   \n    errorStrategy 'ignore'\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    publishDir \"${params.output_dir}/signatures_hc\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(sample_vcf) from sample_vcf_hc\n\n    output:\n    file \"${sample_ID}_signatures.Rds\"\n    file \"${sample_ID}_signatures.pdf\" into signatures_plots\n    file \"${sample_ID}_signatures_pie.pdf\" into signatures_pie_plots\n\n    script:\n    \"\"\"\n    deconstructSigs_make_signatures.R \"${sample_ID}\" \"${sample_vcf}\"\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    deconstructSigs_make_signatures.R \"${sample_ID}\" \"${sample_vcf}\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sample_vcf_hc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "signatures_plots",
+            "signatures_pie_plots"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "validExitStatus 0,11",
+            "errorStrategy 'ignore'",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "publishDir \"${params.output_dir}/signatures_hc\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_signatures_plots": {
+        "name_process": "merge_signatures_plots",
+        "string_process": "\nprocess merge_signatures_plots {\n    validExitStatus 0,11                                                   \n    errorStrategy 'ignore'\n    executor \"local\"\n    publishDir \"${params.output_dir}\", mode: 'copy', overwrite: true\n\n    input:\n    file '*' from signatures_plots.toList()\n\n    output:\n    file \"signatures.pdf\"\n\n    script:\n    \"\"\"\n    if [ \"\\$(ls -1 * | wc -l)\" -gt 0 ]; then\n        gs -dBATCH -dNOPAUSE -q -dAutoRotatePages=/None -sDEVICE=pdfwrite -sOutputFile=genomic_signatures.pdf *\n    else\n        exit 11\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    if [ \"\\$(ls -1 * | wc -l)\" -gt 0 ]; then\n        gs -dBATCH -dNOPAUSE -q -dAutoRotatePages=/None -sDEVICE=pdfwrite -sOutputFile=genomic_signatures.pdf *\n    else\n        exit 11\n    fi\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "GS3"
+        ],
+        "tools_url": [
+            "https://bio.tools/gs3"
+        ],
+        "tools_dico": [
+            {
+                "name": "GS3",
+                "uri": "https://bio.tools/gs3",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2945",
+                                    "term": "Analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "GS3 (Genomic Selection / Gibbs Sampling / Gauss Seidel) is a program that estimates fixed and random effects, breeding values and SNP effects for genomic selection. It includes normal, mixture, or double exponential distributions for SNP effects, i.e. GBLUP, the so-called BayesCPi, and the Bayesian Lasso. It allows estimation of the variances and effects of SNPs, polygenic and environmental effects, and also the inclusion of heterogeneous variances as for the analysis of DYD\u2019s",
+                "homepage": "https://github.com/alegarra/gs3"
+            }
+        ],
+        "inputs": [
+            "signatures_plots"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "validExitStatus 0,11",
+            "errorStrategy 'ignore'",
+            "executor \"local\"",
+            "publishDir \"${params.output_dir}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_signatures_pie_plots": {
+        "name_process": "merge_signatures_pie_plots",
+        "string_process": "\nprocess merge_signatures_pie_plots {\n    validExitStatus 0,11                                                   \n    errorStrategy 'ignore'\n    executor \"local\"\n    publishDir \"${params.output_dir}\", mode: 'copy', overwrite: true\n\n    input:\n    file '*' from signatures_pie_plots.toList()\n\n    output:\n    file \"signatures_pie.pdf\"\n\n    script:\n    \"\"\"\n    if [ \"\\$(ls -1 * | wc -l)\" -gt 0 ]; then\n        gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=genomic_signatures_pie.pdf *\n    else\n        exit 11\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    if [ \"\\$(ls -1 * | wc -l)\" -gt 0 ]; then\n        gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=genomic_signatures_pie.pdf *\n    else\n        exit 11\n    fi\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "GS3"
+        ],
+        "tools_url": [
+            "https://bio.tools/gs3"
+        ],
+        "tools_dico": [
+            {
+                "name": "GS3",
+                "uri": "https://bio.tools/gs3",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2945",
+                                    "term": "Analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "GS3 (Genomic Selection / Gibbs Sampling / Gauss Seidel) is a program that estimates fixed and random effects, breeding values and SNP effects for genomic selection. It includes normal, mixture, or double exponential distributions for SNP effects, i.e. GBLUP, the so-called BayesCPi, and the Bayesian Lasso. It allows estimation of the variances and effects of SNPs, polygenic and environmental effects, and also the inclusion of heterogeneous variances as for the analysis of DYD\u2019s",
+                "homepage": "https://github.com/alegarra/gs3"
+            }
+        ],
+        "inputs": [
+            "signatures_pie_plots"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "validExitStatus 0,11",
+            "errorStrategy 'ignore'",
+            "executor \"local\"",
+            "publishDir \"${params.output_dir}\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "vaf_distribution_plot": {
+        "name_process": "vaf_distribution_plot",
+        "string_process": "\nprocess vaf_distribution_plot {\n    tag { \"${sample_ID}\" }\n    validExitStatus 0,11                                                   \n    errorStrategy 'ignore'\n    publishDir \"${params.output_dir}/vaf-distribution-hc\", mode: 'copy', overwrite: true\n\n    input:\n    set val(sample_ID), file(sample_vcf_annot) from gatk_hc_annotations2\n\n    output:\n    file \"${sample_ID}_vaf_dist.pdf\" into vaf_distribution_plots\n\n    script:\n    \"\"\"\n    VAF-distribution-plot.R \"${sample_ID}\" \"${sample_vcf_annot}\"\n    \"\"\"\n\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    VAF-distribution-plot.R \"${sample_ID}\" \"${sample_vcf_annot}\"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gatk_hc_annotations2"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "vaf_distribution_plots"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${sample_ID}\" }",
+            "validExitStatus 0,11",
+            "errorStrategy 'ignore'",
+            "publishDir \"${params.output_dir}/vaf-distribution-hc\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_VAF_plots": {
+        "name_process": "merge_VAF_plots",
+        "string_process": "\nprocess merge_VAF_plots {\n    executor \"local\"\n    validExitStatus 0,11                                                   \n    errorStrategy 'ignore'\n    publishDir \"${params.output_dir}/\", mode: 'copy', overwrite: true\n\n    input:\n    file '*' from vaf_distribution_plots.toList()\n\n    output:\n    file \"vaf_distributions.pdf\"\n\n    script:\n    \"\"\"\n    if [ \"\\$(ls -1 * | wc -l)\" -gt 0 ]; then\n        gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=vaf_distributions.pdf *\n    else\n        exit 11\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    if [ \"\\$(ls -1 * | wc -l)\" -gt 0 ]; then\n        gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=vaf_distributions.pdf *\n    else\n        exit 11\n    fi\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "GS3"
+        ],
+        "tools_url": [
+            "https://bio.tools/gs3"
+        ],
+        "tools_dico": [
+            {
+                "name": "GS3",
+                "uri": "https://bio.tools/gs3",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2885",
+                            "term": "DNA polymorphism"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2945",
+                                    "term": "Analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "GS3 (Genomic Selection / Gibbs Sampling / Gauss Seidel) is a program that estimates fixed and random effects, breeding values and SNP effects for genomic selection. It includes normal, mixture, or double exponential distributions for SNP effects, i.e. GBLUP, the so-called BayesCPi, and the Bayesian Lasso. It allows estimation of the variances and effects of SNPs, polygenic and environmental effects, and also the inclusion of heterogeneous variances as for the analysis of DYD\u2019s",
+                "homepage": "https://github.com/alegarra/gs3"
+            }
+        ],
+        "inputs": [
+            "vaf_distribution_plots"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "executor \"local\"",
+            "validExitStatus 0,11",
+            "errorStrategy 'ignore'",
+            "publishDir \"${params.output_dir}/\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "tumor_normal_compare": {
+        "name_process": "tumor_normal_compare",
+        "string_process": "\nprocess tumor_normal_compare {\n    tag { \"${comparisonID}\" }\n    echo true\n    executor \"local\"\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n\n    input:\n    set val(comparisonID), val(tumorID), file(tumorBam), file(tumorBai), val(normalID), file(normalBam), file(normalBai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed) from samples_dd_ra_rc_bam_pairs_ref3\n\n    script:\n    \"\"\"\n    echo \"[tumor_normal_compare] comparisonID: ${comparisonID}, tumorID: ${tumorID}, tumorBam: ${tumorBam}, tumorBai: ${tumorBai}, normalID: ${normalID}, normalBam: ${normalBam}, normalBai: ${normalBai}, ref_fasta: ${ref_fasta}, ref_fai: ${ref_fai}, ref_dict: ${ref_dict}, targets_bed: ${targets_bed}, \"\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    echo \"[tumor_normal_compare] comparisonID: ${comparisonID}, tumorID: ${tumorID}, tumorBam: ${tumorBam}, tumorBai: ${tumorBai}, normalID: ${normalID}, normalBam: ${normalBam}, normalBai: ${normalBai}, ref_fasta: ${ref_fasta}, ref_fai: ${ref_fai}, ref_dict: ${ref_dict}, targets_bed: ${targets_bed}, \"\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_pairs_ref3"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${comparisonID}\" }",
+            "echo true",
+            "executor \"local\"",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mutect2": {
+        "name_process": "mutect2",
+        "string_process": "\nprocess mutect2 {\n    tag { \"${comparisonID}:${chrom}\" }\n    publishDir \"${params.output_dir}/vcf_mutect2\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    clusterOptions '-l mem_free=150G -hard'\n    module 'samtools/1.3'\n    module 'java/1.8'\n\n    input:\n    set val(comparisonID), val(tumorID), file(tumorBam), file(tumorBai), val(normalID), file(normalBam), file(normalBai), file(ref_fasta), file(ref_fai), file(ref_dict), file(targets_bed), file(dbsnp_ref_vcf), file(cosmic_ref_vcf), val(chrom) from samples_dd_ra_rc_bam_pairs_ref_gatk_chrom\n\n    output:\n    file(\"${comparisonID}.${chrom}.vcf\")\n    file(\"${comparisonID}.${chrom}.sample.chrom.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\") into mutect2_annotations\n    val(comparisonID) into mutect2_sampleIDs\n\n    script:\n    \"\"\"\n    subset_bed.py \"${chrom}\" \"${targets_bed}\" > \"${comparisonID}.${chrom}.bed\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T MuTect2 \\\n    -dt NONE \\\n    --logging_level WARN \\\n    --standard_min_confidence_threshold_for_calling 30 \\\n    --max_alt_alleles_in_normal_count 10 \\\n    --max_alt_allele_in_normal_fraction 0.05 \\\n    --max_alt_alleles_in_normal_qscore_sum 40 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --dbsnp \"${dbsnp_ref_vcf}\" \\\n    --cosmic \"${cosmic_ref_vcf}\" \\\n    --intervals \"${comparisonID}.${chrom}.bed\" \\\n    --interval_padding 10 \\\n    --input_file:tumor \"${tumorBam}\" \\\n    --input_file:normal \"${normalBam}\" \\\n    --out \"${comparisonID}.${chrom}.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${comparisonID}.${chrom}.vcf\" \"${comparisonID}.${chrom}\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${comparisonID}.${chrom}.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${comparisonID}.${chrom}.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${comparisonID}\" -d \"\\t\"\n\n    # add the col for this chrom\n    paste_col.py -i \"${comparisonID}.${chrom}.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${comparisonID}.${chrom}.sample.chrom.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"SampleChrom\" -v \"${chrom}\" -d \"\\t\"\n    \"\"\"\n}",
+        "nb_lignes_process": 46,
+        "string_script": "    \"\"\"\n    subset_bed.py \"${chrom}\" \"${targets_bed}\" > \"${comparisonID}.${chrom}.bed\"\n\n    java -Xms16G -Xmx16G -jar \"${params.gatk_bin}\" -T MuTect2 \\\n    -dt NONE \\\n    --logging_level WARN \\\n    --standard_min_confidence_threshold_for_calling 30 \\\n    --max_alt_alleles_in_normal_count 10 \\\n    --max_alt_allele_in_normal_fraction 0.05 \\\n    --max_alt_alleles_in_normal_qscore_sum 40 \\\n    --reference_sequence \"${ref_fasta}\" \\\n    --dbsnp \"${dbsnp_ref_vcf}\" \\\n    --cosmic \"${cosmic_ref_vcf}\" \\\n    --intervals \"${comparisonID}.${chrom}.bed\" \\\n    --interval_padding 10 \\\n    --input_file:tumor \"${tumorBam}\" \\\n    --input_file:normal \"${normalBam}\" \\\n    --out \"${comparisonID}.${chrom}.vcf\"\n\n    # annotate the vcf\n    annotate_vcf.sh \"${comparisonID}.${chrom}.vcf\" \"${comparisonID}.${chrom}\"\n\n    # add a column with the sample ID\n    paste_col.py -i \"${comparisonID}.${chrom}.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${comparisonID}.${chrom}.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"Sample\" -v \"${comparisonID}\" -d \"\\t\"\n\n    # add the col for this chrom\n    paste_col.py -i \"${comparisonID}.${chrom}.sample.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" -o \"${comparisonID}.${chrom}.sample.chrom.${params.ANNOVAR_BUILD_VERSION}_multianno.txt\" --header \"SampleChrom\" -v \"${chrom}\" -d \"\\t\"\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "samples_dd_ra_rc_bam_pairs_ref_gatk_chrom"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mutect2_annotations",
+            "mutect2_sampleIDs"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "tag { \"${comparisonID}:${chrom}\" }",
+            "publishDir \"${params.output_dir}/vcf_mutect2\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "clusterOptions '-l mem_free=150G -hard'",
+            "module 'samtools/1.3'",
+            "module 'java/1.8'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n    publishDir \"${params.output_dir}\", mode: 'copy', overwrite: true\n    beforeScript \"${params.beforeScript_str}\"\n    afterScript \"${params.afterScript_str}\"\n    executor \"local\"\n    module 'python/2.7.3'\n\n    input:\n    val(comparisonID) from mutect2_sampleIDs.mix(sample_gatk_hc_done)\n                                            .mix(sample_lofreq_done)\n                                            .collect()                                            \n    file(output_dir) from Channel.fromPath(\"${params.output_dir}\")\n\n    output:\n    file \"multiqc_report.html\" into email_files\n    file \"multiqc_data\"\n\n    script:\n    \"\"\"\n    export PS=\\${PS:-''} # needed for virtualenv bug\n    export PS1=\\${PS1:-''}\n    unset PYTHONPATH\n    source activate\n    multiqc \"${output_dir}\"\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    export PS=\\${PS:-''} # needed for virtualenv bug\n    export PS1=\\${PS1:-''}\n    unset PYTHONPATH\n    source activate\n    multiqc \"${output_dir}\"\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "mutect2_sampleIDs",
+            "sample_gatk_hc_done",
+            "sample_lofreq_done"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "email_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "stevekm__nextflow-pipeline-demo",
+        "directive": [
+            "publishDir \"${params.output_dir}\", mode: 'copy', overwrite: true",
+            "beforeScript \"${params.beforeScript_str}\"",
+            "afterScript \"${params.afterScript_str}\"",
+            "executor \"local\"",
+            "module 'python/2.7.3'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,373 @@
+{
+    "adapter_trimming": {
+        "name_process": "adapter_trimming",
+        "string_process": "\nprocess adapter_trimming {\n    input:\n  file(reads) from file(params.reads)\n\n    output:\n  file('trimmed.fastq') into trimmed_reads\n\n\tscript:\n        \"\"\"\n    porechop -i \"${reads}\" -t \"${task.cpus}\" -o trimmed.fastq\n    \n    \n        \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "        \"\"\"\n    porechop -i \"${reads}\" -t \"${task.cpus}\" -o trimmed.fastq\n    \n    \n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "trimmed_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "hirenbioinfo__nextflow_pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "filter_long": {
+        "name_process": "filter_long",
+        "string_process": "\nprocess filter_long {\n    input:\n  file reads from trimmed_for_assembly\n\n    output:\n  file('trimmed.fastq.gz') into filtlong_reads\n\n\tscript:\n        \"\"\"\n    filtlong --min_length 1000 ${reads} | gzip > trimmed.fastq.gz\n    \n        \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "        \"\"\"\n    filtlong --min_length 1000 ${reads} | gzip > trimmed.fastq.gz\n    \n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Filtlong"
+        ],
+        "tools_url": [
+            "https://bio.tools/Filtlong"
+        ],
+        "tools_dico": [
+            {
+                "name": "Filtlong",
+                "uri": "https://bio.tools/Filtlong",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0798",
+                            "term": "Mobile genetic elements"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0310",
+                                    "term": "Sequence assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3482",
+                                    "term": "Antimicrobial resistance prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3472",
+                                    "term": "k-mer counting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3359",
+                                    "term": "Splitting"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3359",
+                                    "term": "File splitting"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Complete hybrid genome assembly of clinical multidrug-resistant Bacteroides fragilis isolates enables comprehensive identification of antimicrobial-resistance genes and plasmids.\n\nquality filtering tool for long reads.\n\nFiltlong is a tool for filtering long reads by quality. It can take a set of long reads and produce a smaller, better subset. It uses both read length (longer is better) and read identity (higher is better) when choosing which reads pass the filter.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Unicycler' (bio.tools/unicycler), 'Canu-corrected ONT', 'AMR', 'fragilis'",
+                "homepage": "https://github.com/rrwick/Filtlong"
+            }
+        ],
+        "inputs": [
+            "trimmed_for_assembly"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "filtlong_reads"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "hirenbioinfo__nextflow_pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    },
+    "assembly": {
+        "name_process": "assembly",
+        "string_process": "\nprocess assembly {\n\npublishDir \"Assembly_out\", mode: 'copy', pattern: 'assembly.fasta'\n\n    input:\n  \tfile reads from filtlong_reads\n  \n    output:\n  \tfile 'assembly.fasta' into assembly\n\n\tscript:\n\tif(params.assembler == 'flye')\n      \n        \"\"\"\n        mkdir fly_out\n    \tflye --nano-raw ${reads} --genome-size 1m --out-dir  fly_out\n    \tmv fly_out/assembly.fasta assembly.fasta\n    \t\n    \t\"\"\"\n    \n    else if(params.assembler == 'canu')\n       \n        \"\"\"\n        canu -p assembly -d canu_out genomeSize=2m -nanopore-raw \"${reads}\" maxThreads=8 gnuplotTested=true useGrid=false \n        mv canu_out/assembly.contigs.fasta assembly.fasta\n       \n        \"\"\"\n    else if(params.assembler == 'unicycler')\n        \"\"\"\n        unicycler -l \"${reads}\" -o unicycler_out\n        mv unicycler_out/assembly.fasta assembly.fasta\n        \"\"\"        \n}",
+        "nb_lignes_process": 32,
+        "string_script": "\tif(params.assembler == 'flye')\n      \n        \"\"\"\n        mkdir fly_out\n    \tflye --nano-raw ${reads} --genome-size 1m --out-dir  fly_out\n    \tmv fly_out/assembly.fasta assembly.fasta\n    \t\n    \t\"\"\"\n    \n    else if(params.assembler == 'canu')\n       \n        \"\"\"\n        canu -p assembly -d canu_out genomeSize=2m -nanopore-raw \"${reads}\" maxThreads=8 gnuplotTested=true useGrid=false \n        mv canu_out/assembly.contigs.fasta assembly.fasta\n       \n        \"\"\"\n    else if(params.assembler == 'unicycler')\n        \"\"\"\n        unicycler -l \"${reads}\" -o unicycler_out\n        mv unicycler_out/assembly.fasta assembly.fasta\n        \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [
+            "Flye",
+            "CANU",
+            "Unicycler"
+        ],
+        "tools_url": [
+            "https://bio.tools/Flye",
+            "https://bio.tools/canu",
+            "https://bio.tools/unicycler"
+        ],
+        "tools_dico": [
+            {
+                "name": "Flye",
+                "uri": "https://bio.tools/Flye",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0523",
+                                    "term": "Mapping assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De-novo assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0523",
+                                    "term": "Sequence assembly (mapping assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De Bruijn graph"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "Sequence assembly (de-novo assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Flye is a de novo assembler for single molecule sequencing reads, such as those produced by PacBio and Oxford Nanopore Technologies. It is designed for a wide range of datasets, from small bacterial projects to large mammalian-scale assemblies. The package represents a complete pipeline: it takes raw PB / ONT reads as input and outputs polished contigs.",
+                "homepage": "https://github.com/fenderglass/Flye"
+            },
+            {
+                "name": "CANU",
+                "uri": "https://bio.tools/canu",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De-novo assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De Bruijn graph"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "Sequence assembly (de-novo assembly)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "De-novo assembly tool for long read chemistry like Nanopore data and PacBio data.",
+                "homepage": "https://github.com/marbl/canu"
+            },
+            {
+                "name": "Unicycler",
+                "uri": "https://bio.tools/unicycler",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0925",
+                                "term": "Sequence assembly"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for assembling bacterial genomes from a combination of short (2nd generation) and long (3rd generation) sequencing reads.",
+                "homepage": "https://github.com/rrwick/Unicycler"
+            }
+        ],
+        "inputs": [
+            "filtlong_reads"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "assembly"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "hirenbioinfo__nextflow_pipeline",
+        "directive": [
+            "publishDir \"Assembly_out\", mode: 'copy', pattern: 'assembly.fasta'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "error_correction_1": {
+        "name_process": "error_correction_1",
+        "string_process": "\nprocess error_correction_1 {\n\n \tinput:\n  \tfile reads from assembly\n\n    output:\n  \tfile('assembly_consensus1.fasta') into error_correction_1\n\n\tscript:\n    \n        \"\"\"\n   medaka_consensus \u2013d ${reads} -i ${trimmed_for_assembly} -o medaka_output \u2013m r941_min_high_g303\n    \n        \"\"\"\n  }",
+        "nb_lignes_process": 14,
+        "string_script": "        \"\"\"\n   medaka_consensus \u2013d ${reads} -i ${trimmed_for_assembly} -o medaka_output \u2013m r941_min_high_g303\n    \n        \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "assembly"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "error_correction_1"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "hirenbioinfo__nextflow_pipeline",
+        "directive": [],
+        "when": "",
+        "stub": ""
+    }
+}

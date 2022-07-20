@@ -1,0 +1,101 @@
+{
+    "Compute_Priors": {
+        "name_process": "Compute_Priors",
+        "string_process": "\nprocess Compute_Priors {\n  cpus 1\n\n  input:\n    set sid, file(ad), file(fa), file(md) from sub_in_data_priors\n\n  output:\n    set val(\"Priors\"), \"${sid}__para_diff.txt\", \"${sid}__iso_diff.txt\" into priors_for_mean\n\n  when:\n    params.run_priors_only\n\n  script:\n    \"\"\"\n    scil_compute_NODDI_priors.py $fa $ad $md\\\n      --fa_min $params.fa_min\\\n      --fa_max $params.fa_max\\\n      --md_min $params.md_min\\\n      --roi_radius $params.roi_radius\\\n      --out_txt_1fiber ${sid}__para_diff.txt\\\n      --out_txt_ventricles ${sid}__iso_diff.txt\\\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    scil_compute_NODDI_priors.py $fa $ad $md\\\n      --fa_min $params.fa_min\\\n      --fa_max $params.fa_max\\\n      --md_min $params.md_min\\\n      --roi_radius $params.roi_radius\\\n      --out_txt_1fiber ${sid}__para_diff.txt\\\n      --out_txt_ventricles ${sid}__iso_diff.txt\\\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "sub_in_data_priors"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "priors_for_mean"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__noddi_flow",
+        "directive": [
+            "cpus 1"
+        ],
+        "when": "params.run_priors_only",
+        "stub": ""
+    },
+    "Mean_Priors": {
+        "name_process": "Mean_Priors",
+        "string_process": "\nprocess Mean_Priors {\n  cpus 1\n  publishDir = \"${params.output_dir}/Mean_Priors\"\n\n  input:\n    set sid, file(para_diff), file(iso_diff) from all_priors_for_mean\n\n  output:\n    file \"para_diff.txt\"\n    file \"iso_diff.txt\"\n\n  script:\n    \"\"\"\n    cat $para_diff > all_para_diff.txt\n    awk '{ total += \\$1; count++ } END { print total/count }' all_para_diff.txt > para_diff.txt\n    cat $iso_diff > all_iso_diff.txt\n    awk '{ total += \\$1; count++ } END { print total/count }' all_iso_diff.txt > iso_diff.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "    \"\"\"\n    cat $para_diff > all_para_diff.txt\n    awk '{ total += \\$1; count++ } END { print total/count }' all_para_diff.txt > para_diff.txt\n    cat $iso_diff > all_iso_diff.txt\n    awk '{ total += \\$1; count++ } END { print total/count }' all_iso_diff.txt > iso_diff.txt\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "all_priors_for_mean"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__noddi_flow",
+        "directive": [
+            "cpus 1",
+            "publishDir = \"${params.output_dir}/Mean_Priors\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "Compute_Kernel": {
+        "name_process": "Compute_Kernel",
+        "string_process": "\nprocess Compute_Kernel {\n  cpus 1\n  publishDir = \"${params.output_dir}/Compute_Kernel\"\n\n  input:\n    set sid, file(brain_mask), file(bval), file(bvec), file(dwi) from unique_data_for_kernels\n\n  output:\n    file(\"kernels/\") into kernel_for_noddi\n\n  when:\n    !params.run_priors_only\n\n  script:\n    \"\"\"\n    scil_compute_NODDI.py $dwi $bval $bvec --mask $brain_mask\\\n      --para_diff $params.para_diff\\\n      --iso_diff $params.iso_diff\\\n      --lambda1 $params.lambda1\\\n      --lambda2 $params.lambda2\\\n      --processes $params.nb_threads\\\n      --b_thr $params.b_thr\\\n      --save_kernels kernels/ \\\n      --compute_only\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    \"\"\"\n    scil_compute_NODDI.py $dwi $bval $bvec --mask $brain_mask\\\n      --para_diff $params.para_diff\\\n      --iso_diff $params.iso_diff\\\n      --lambda1 $params.lambda1\\\n      --lambda2 $params.lambda2\\\n      --processes $params.nb_threads\\\n      --b_thr $params.b_thr\\\n      --save_kernels kernels/ \\\n      --compute_only\n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "unique_data_for_kernels"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "kernel_for_noddi"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "scilus__noddi_flow",
+        "directive": [
+            "cpus 1",
+            "publishDir = \"${params.output_dir}/Compute_Kernel\""
+        ],
+        "when": "!params.run_priors_only",
+        "stub": ""
+    },
+    "Compute_NODDI": {
+        "name_process": "Compute_NODDI",
+        "string_process": "\nprocess Compute_NODDI {\n    cpus params.nb_threads\n    memory params.memory_limit\n\n    input:\n      set sid, file(brain_mask), file(bval), file(bvec), file(dwi), file(kernels) from data_with_kernel_for_noddi\n\n    output:\n      file \"${sid}__FIT_dir.nii.gz\"\n      file \"${sid}__FIT_ISOVF.nii.gz\"\n      file \"${sid}__FIT_ICVF.nii.gz\"\n      file \"${sid}__FIT_OD.nii.gz\"\n\n    script:\n      \"\"\"\n      scil_compute_NODDI.py $dwi $bval $bvec --mask $brain_mask\\\n        --para_diff $params.para_diff\\\n        --iso_diff $params.iso_diff\\\n        --processes $params.nb_threads \\\n        --load_kernels $kernels\n\n      mv results/FIT_dir.nii.gz ${sid}__FIT_dir.nii.gz\n      mv results/FIT_ICVF.nii.gz ${sid}__FIT_ICVF.nii.gz\n      mv results/FIT_ISOVF.nii.gz ${sid}__FIT_ISOVF.nii.gz\n      mv results/FIT_OD.nii.gz ${sid}__FIT_OD.nii.gz\n\n      rm -rf results\n      \"\"\"\n}",
+        "nb_lignes_process": 28,
+        "string_script": "      \"\"\"\n      scil_compute_NODDI.py $dwi $bval $bvec --mask $brain_mask\\\n        --para_diff $params.para_diff\\\n        --iso_diff $params.iso_diff\\\n        --processes $params.nb_threads \\\n        --load_kernels $kernels\n\n      mv results/FIT_dir.nii.gz ${sid}__FIT_dir.nii.gz\n      mv results/FIT_ICVF.nii.gz ${sid}__FIT_ICVF.nii.gz\n      mv results/FIT_ISOVF.nii.gz ${sid}__FIT_ISOVF.nii.gz\n      mv results/FIT_OD.nii.gz ${sid}__FIT_OD.nii.gz\n\n      rm -rf results\n      \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "data_with_kernel_for_noddi"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "scilus__noddi_flow",
+        "directive": [
+            "cpus params.nb_threads",
+            "memory params.memory_limit"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

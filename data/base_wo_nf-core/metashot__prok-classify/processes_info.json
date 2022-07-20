@@ -1,0 +1,99 @@
+{
+    "genome_filter": {
+        "name_process": "genome_filter",
+        "string_process": "\nprocess genome_filter {\n    publishDir \"${params.outdir}\" , mode: 'copy'\n\n    input:\n    path(gtdb_bac_summary)\n    path(gtdb_ar_summary)\n    path(genomes)\n\n    output:\n    path 'bacteria_genomes'\n    path 'archaea_genomes'\n    \n    script:   \n    \"\"\"\n    mkdir genomes_dir\n    mv $genomes genomes_dir\n    genome_filter.py \\\n        genomes_dir \\\n        ./ \\\n        $gtdb_bac_summary \\\n        $gtdb_ar_summary\n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "    \"\"\"\n    mkdir genomes_dir\n    mv $genomes genomes_dir\n    genome_filter.py \\\n        genomes_dir \\\n        ./ \\\n        $gtdb_bac_summary \\\n        $gtdb_ar_summary\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gtdb_bac_summary",
+            "gtdb_ar_summary",
+            "genomes"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__prok-classify",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "identify": {
+        "name_process": "identify",
+        "string_process": "\nprocess identify {\n    publishDir \"${params.outdir}\" , mode: 'copy' ,\n        pattern: 'gtdbtk/gtdbtk.*'\n\n    input:\n    path(genomes)\n    path(gtdbtk_db)\n\n    output:\n    path \"gtdbtk\", emit: dir\n    path \"gtdbtk/*\"\n       \n    script:\n    \"\"\"\n    mkdir -p genomes_dir\n    for genome in $genomes\n    do\n        mv \\$genome genomes_dir/\\${genome}.fa\n    done\n   \n    GTDBTK_DATA_PATH=${gtdbtk_db} gtdbtk identify \\\n        --genome_dir genomes_dir \\\n        --out_dir gtdbtk \\\n        -x fa \\\n        --cpus ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    \"\"\"\n    mkdir -p genomes_dir\n    for genome in $genomes\n    do\n        mv \\$genome genomes_dir/\\${genome}.fa\n    done\n   \n    GTDBTK_DATA_PATH=${gtdbtk_db} gtdbtk identify \\\n        --genome_dir genomes_dir \\\n        --out_dir gtdbtk \\\n        -x fa \\\n        --cpus ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genomes",
+            "gtdbtk_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__prok-classify",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: 'copy' , pattern: 'gtdbtk/gtdbtk.*'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "align": {
+        "name_process": "align",
+        "string_process": "\nprocess align {\n    publishDir \"${params.outdir}\" , mode: 'copy' ,\n        pattern: 'gtdbtk/gtdbtk.*'\n\n    input:\n    path \"identify_dir\"\n    path(gtdbtk_db)\n\n    output:\n    path \"gtdbtk\", emit: dir\n    path \"gtdbtk/*\"\n       \n    script:\n    \"\"\" \n    GTDBTK_DATA_PATH=${gtdbtk_db} gtdbtk align \\\n        --identify_dir identify_dir \\\n        --out_dir gtdbtk \\\n        --cpus ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    \"\"\" \n    GTDBTK_DATA_PATH=${gtdbtk_db} gtdbtk align \\\n        --identify_dir identify_dir \\\n        --out_dir gtdbtk \\\n        --cpus ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "gtdbtk_db"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__prok-classify",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: 'copy' , pattern: 'gtdbtk/gtdbtk.*'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "classify": {
+        "name_process": "classify",
+        "string_process": "\nprocess classify {\n    publishDir \"${params.outdir}\" , mode: 'copy' ,\n        pattern: 'gtdbtk/gtdbtk.*'\n    publishDir \"${params.outdir}\" , mode: 'copy' ,\n        saveAs: { filename ->\n            if (filename == \"gtdbtk/gtdbtk.bac120.summary.tsv\") \"bacteria_summary.tsv\"\n            else if (filename == \"gtdbtk/gtdbtk.ar122.summary.tsv\") \"archaea_summary.tsv\"\n        }\n\n    input:\n    path(genomes)\n    path \"align_dir\"\n    path(gtdbtk_db)\n\n    output:\n    path \"gtdbtk\"\n    path \"gtdbtk/gtdbtk.bac120.summary.tsv\", emit: gtdb_bac_summary\n    path \"gtdbtk/gtdbtk.ar122.summary.tsv\", emit: gtdb_ar_summary\n       \n                                                            \n    script:\n    \"\"\"\n    mkdir -p genomes_dir\n    for genome in $genomes\n    do\n        mv \\$genome genomes_dir/\\${genome}.fa\n    done\n\n    GTDBTK_DATA_PATH=${gtdbtk_db} gtdbtk classify \\\n        --genome_dir genomes_dir \\\n        --align_dir align_dir \\\n        --out_dir gtdbtk \\\n        -x fa \\\n        --cpus ${task.cpus} \\\n        --pplacer_cpus 1\n\n    if [ ! -f gtdbtk/gtdbtk.bac120.summary.tsv ]; then\n        touch gtdbtk/gtdbtk.bac120.summary.tsv\n    fi\n\n    if [ ! -f gtdbtk/gtdbtk.ar122.summary.tsv ]; then\n        touch gtdbtk/gtdbtk.ar122.summary.tsv\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 44,
+        "string_script": "    \"\"\"\n    mkdir -p genomes_dir\n    for genome in $genomes\n    do\n        mv \\$genome genomes_dir/\\${genome}.fa\n    done\n\n    GTDBTK_DATA_PATH=${gtdbtk_db} gtdbtk classify \\\n        --genome_dir genomes_dir \\\n        --align_dir align_dir \\\n        --out_dir gtdbtk \\\n        -x fa \\\n        --cpus ${task.cpus} \\\n        --pplacer_cpus 1\n\n    if [ ! -f gtdbtk/gtdbtk.bac120.summary.tsv ]; then\n        touch gtdbtk/gtdbtk.bac120.summary.tsv\n    fi\n\n    if [ ! -f gtdbtk/gtdbtk.ar122.summary.tsv ]; then\n        touch gtdbtk/gtdbtk.ar122.summary.tsv\n    fi\n    \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genomes",
+            "gtdbtk_db"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__prok-classify",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: 'copy' , pattern: 'gtdbtk/gtdbtk.*'",
+            "publishDir \"${params.outdir}\" , mode: 'copy' , saveAs: { filename -> if (filename == \"gtdbtk/gtdbtk.bac120.summary.tsv\") \"bacteria_summary.tsv\" else if (filename == \"gtdbtk/gtdbtk.ar122.summary.tsv\") \"archaea_summary.tsv\" }"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,91 @@
+{
+    "OPERATION_1": {
+        "string": "Channel.fromPath( params.samplesheet )\n        .splitCsv(header: true, sep: '\\t')\n        .map{row ->\n            def sampleID = row['Sample']\n            def reads1 = row['R1'].tokenize( ',' ).collect { file(it) }                                       \n            def reads2 = row['R2'].tokenize( ',' ).collect { file(it) }\n            def bam = file(row['Bam'])\n            return [ sampleID, reads1, reads2, bam ]\n        }\n        .tap { samples_R1_R2 }",
+        "origin": [
+            [
+                "params.samplesheet",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "samples_R1_R2",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_2": {
+        "string": "Channel.fromPath( params.targets )\n    .splitCsv(header: false, sep: '\\t')\n    .map { row ->\n        def chrom = row[0]\n        def start = row[1]\n        def stop = row[2]\n        def numReads\n        if ( row.size() >= 4 ) {\n            numReads = row[3]\n        } else {\n            numReads = \"${params.maxReads}\"\n        }\n\n        return([ chrom, start, stop, numReads])\n    }.set{ targets }",
+        "origin": [
+            [
+                "params.targets",
+                "A"
+            ]
+        ],
+        "gives": [
+            [
+                "targets",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_3": {
+        "string": "samples_fastq_merged.combine(targets).set{ samples_fastq_merged_targets }",
+        "origin": [
+            [
+                "samples_fastq_merged",
+                "P"
+            ],
+            [
+                "targets",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "samples_fastq_merged_targets",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_4": {
+        "string": "samples_qnames.map { sampleID, fastq_R1, fastq_R2, chrom, start, stop, numReads, qnames_txt ->\n                                                                     \n    return([ sampleID, chrom, start, stop, numReads, qnames_txt, [ ['R1', fastq_R1], ['R2', fastq_R2] ] ])\n    }\n    .transpose()\n    .map { sampleID, chrom, start, stop, numReads, qnames_txt, fastq_list ->\n        def fastq_label = fastq_list[0]\n        def fastq = fastq_list[1]\n        return([ sampleID, chrom, start, stop, numReads, qnames_txt, fastq_label, fastq ])\n    }\n    .set { samples_qnames_per_fastq }",
+        "origin": [
+            [
+                "samples_qnames",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "samples_qnames_per_fastq",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_5": {
+        "string": "subset_fastqs.groupTuple(by: [0,1]).set { grouped_fastqs }PROCESS DEF merge_subsetted_fastq",
+        "origin": [
+            [
+                "subset_fastqs",
+                "P"
+            ]
+        ],
+        "gives": [
+            [
+                "grouped_fastqs",
+                "P"
+            ]
+        ]
+    },
+    "OPERATION_6": {
+        "string": "merged_subset_fastqs.subscribe { println \"${it}\" }",
+        "origin": [
+            [
+                "merged_subset_fastqs",
+                "P"
+            ]
+        ],
+        "gives": []
+    }
+}

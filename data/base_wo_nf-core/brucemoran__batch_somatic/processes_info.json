@@ -1,0 +1,3316 @@
+{
+    "splt_sg": {
+        "name_process": "splt_sg",
+        "string_process": "\nprocess splt_sg {\n\n  label 'low_mem'\n\n  publishDir \"$params.outDir/cases/$caseID\", mode: \"copy\", pattern: \"*.csv\"\n\n  input:\n  tuple val(caseID), val(soma_sampleID), file(soma_read1), file(soma_read2), val(germ_sampleID), file(germ_read1), file(germ_read2) from split_soma_germ\n\n  output:\n  file('*.csv') into splitcsv2\n\n  \"\"\"\n  SR1=\\$(readlink -e ${soma_read1})\n  SR2=\\$(readlink -e ${soma_read2})\n  GR1=\\$(readlink -e ${germ_read1})\n  GR2=\\$(readlink -e ${germ_read2})\n  echo \"caseID,type,sampleID,read1,read2\" > $caseID\".csv\"\n  echo \"${caseID},somatic,${soma_sampleID},\\$SR1,\\$SR2\" >> ${caseID}\".csv\"\n  echo \"${caseID},germline,${germ_sampleID},\\$GR1,\\$GR2\" >> ${caseID}\".csv\"\n  \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\"\"\"\n  SR1=\\$(readlink -e ${soma_read1})\n  SR2=\\$(readlink -e ${soma_read2})\n  GR1=\\$(readlink -e ${germ_read1})\n  GR2=\\$(readlink -e ${germ_read2})\n  echo \"caseID,type,sampleID,read1,read2\" > $caseID\".csv\"\n  echo \"${caseID},somatic,${soma_sampleID},\\$SR1,\\$SR2\" >> ${caseID}\".csv\"\n  echo \"${caseID},germline,${germ_sampleID},\\$GR1,\\$GR2\" >> ${caseID}\".csv\"\n  \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "split_soma_germ"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "splitcsv2"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'",
+            "publishDir \"$params.outDir/cases/$caseID\", mode: \"copy\", pattern: \"*.csv\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bbduk": {
+        "name_process": "bbduk",
+        "string_process": "\nprocess bbduk {\n\n  label 'med_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/bbduk\", mode: \"copy\", pattern: \"*.txt\"\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(read1), file(read2) from bbduking\n\n  output:\n  file('*.txt') into log_bbduk\n  tuple val(caseID), val(type), val(sampleID), file('*.bbduk.R1.fastq.gz'), file('*.bbduk.R2.fastq.gz') into bwa_memming\n  tuple val(caseID), val(type), val(sampleID), file(read1), file(read2) into fastping\n\n  script:\n  def taskmem = task.memory == null ? \"\" : \"-Xmx\" + javaTaskmem(\"${task.memory}\")\n  \"\"\"\n  {\n  ##remove because of issues on readname including \"1:xyz, 2:xyz for R1, R2\"\n  if [[ ${read1} =~ \".gz\"\\$ ]]; then\n    gunzip -c ${read1} | perl -ane 'chomp; print \"\\$F[0]\\\\n\";' > r1.fq\n    gunzip -c ${read2} | perl -ane 'chomp; print \"\\$F[0]\\\\n\";' > r2.fq\n  else\n    perl -ane 'chomp; print \"\\$F[0]\\\\n\";' ${read1} > r1.fq\n    perl -ane 'chomp; print \"\\$F[0]\\\\n\";' ${read2} > r2.fq\n  fi\n\n  ##repair in case of disorder\n  repair.sh in1=r1.fq in2=r2.fq out1=r1.f.fq out2=r2.f.fq repair\n\n  sh bbduk.sh ${taskmem} \\\n    in1=r1.f.fq \\\n    in2=r2.f.fq \\\n    out1=${sampleID}\".bbduk.R1.fastq.gz\" \\\n    out2=${sampleID}\".bbduk.R2.fastq.gz\" \\\n    k=31 \\\n    mink=5 \\\n    hdist=1 \\\n    ktrim=r \\\n    trimq=20 \\\n    qtrim=rl \\\n    maq=20 \\\n    ref=/opt/miniconda/envs/somatic_n-of-1/opt/bbmap-adapters.fa \\\n    tpe \\\n    tbo \\\n    stats=${sampleID}\".bbduk.adapterstats.txt\" \\\n    overwrite=T\n  } 2>&1 | tee > ${sampleID}.bbduk.runstats.txt\n  rm r*.fq\n  \"\"\"\n}",
+        "nb_lignes_process": 50,
+        "string_script": "  def taskmem = task.memory == null ? \"\" : \"-Xmx\" + javaTaskmem(\"${task.memory}\")\n  \"\"\"\n  {\n  ##remove because of issues on readname including \"1:xyz, 2:xyz for R1, R2\"\n  if [[ ${read1} =~ \".gz\"\\$ ]]; then\n    gunzip -c ${read1} | perl -ane 'chomp; print \"\\$F[0]\\\\n\";' > r1.fq\n    gunzip -c ${read2} | perl -ane 'chomp; print \"\\$F[0]\\\\n\";' > r2.fq\n  else\n    perl -ane 'chomp; print \"\\$F[0]\\\\n\";' ${read1} > r1.fq\n    perl -ane 'chomp; print \"\\$F[0]\\\\n\";' ${read2} > r2.fq\n  fi\n\n  ##repair in case of disorder\n  repair.sh in1=r1.fq in2=r2.fq out1=r1.f.fq out2=r2.f.fq repair\n\n  sh bbduk.sh ${taskmem} \\\n    in1=r1.f.fq \\\n    in2=r2.f.fq \\\n    out1=${sampleID}\".bbduk.R1.fastq.gz\" \\\n    out2=${sampleID}\".bbduk.R2.fastq.gz\" \\\n    k=31 \\\n    mink=5 \\\n    hdist=1 \\\n    ktrim=r \\\n    trimq=20 \\\n    qtrim=rl \\\n    maq=20 \\\n    ref=/opt/miniconda/envs/somatic_n-of-1/opt/bbmap-adapters.fa \\\n    tpe \\\n    tbo \\\n    stats=${sampleID}\".bbduk.adapterstats.txt\" \\\n    overwrite=T\n  } 2>&1 | tee > ${sampleID}.bbduk.runstats.txt\n  rm r*.fq\n  \"\"\"",
+        "nb_lignes_script": 34,
+        "language_script": "bash",
+        "tools": [
+            "RASH",
+            "TPES",
+            "NetBox"
+        ],
+        "tools_url": [
+            "https://bio.tools/RASH",
+            "https://bio.tools/TPES",
+            "https://bio.tools/netbox"
+        ],
+        "tools_dico": [
+            {
+                "name": "RASH",
+                "uri": "https://bio.tools/RASH",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature and language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Mathematics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Maths"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3778",
+                                    "term": "Text annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a Web-first format for HTML-based scholarly articles.\n\nResearch Articles in Simplified HTML (RASH) Framework includes a markup language defined as a subset of HTML+RDF for writing scientific articles, and related tools to convert it into different formats, to extract data from it, etc.\n\nHow to cite: Peroni, S., Osborne, F., Di Iorio, A., Nuzzolese, A. G., Poggi, F., Vitali, F., Motta, E. (2017). Research Articles in Simplified HTML: a Web-first format for HTML-based scholarly articles. PeerJ Computer Science 3: e132. e2513. DOI: https://doi.org/10.7717/peerj-cs.132.\n\n# rash-check.sh - fully check RASH documents.\n\nThe odt2rash.jar executable converts an ODT file into the RASH format.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Research Articles Simplified HTML', 'SAVE-SD'",
+                "homepage": "https://w3id.org/people/essepuntato/papers/rash-peerj2016.html"
+            },
+            {
+                "name": "TPES",
+                "uri": "https://bio.tools/TPES",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tumor Purity Estimation from SNVs.",
+                "homepage": "https://bitbucket.org/l0ka/tpes.git"
+            },
+            {
+                "name": "NetBox",
+                "uri": "https://bio.tools/netbox",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "Oncology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2259",
+                            "term": "Systems biology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "Cancer biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2640",
+                            "term": "https://en.wikipedia.org/wiki/Oncology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2497",
+                                    "term": "Pathway or network analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "NetBox is a Java-based software tool for performing network analysis on human interaction networks. It is pre-loaded with a Human Interaction Network (HIN) derived from four literature curated data sources, including the Human Protein Reference Database (HPRD), Reactome, NCI-Nature Pathway Interaction (PID) Database, and the MSKCC Cancer Cell Map.",
+                "homepage": "http://cbio.mskcc.org/tools/netbox/index.html"
+            }
+        ],
+        "inputs": [
+            "bbduking"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "log_bbduk",
+            "bwa_memming",
+            "fastping"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/bbduk\", mode: \"copy\", pattern: \"*.txt\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastp": {
+        "name_process": "fastp",
+        "string_process": "\nprocess fastp {\n\n  label 'low_mem'\n\n  publishDir \"$params.outDir/cases/$caseID/fastp\", mode: \"copy\", pattern: \"*.html\"\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(preread1), file(preread2) from fastping\n\n  output:\n  file('*.html') into fastp_html\n  file('*.json') into fastp_multiqc\n\n  script:\n  \"\"\"\n  fastp -w ${task.cpus} -h ${sampleID}\".fastp.html\" -j ${sampleID}\".fastp.json\" --in1 ${preread1} --in2 ${preread2}\n  \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "  \"\"\"\n  fastp -w ${task.cpus} -h ${sampleID}\".fastp.html\" -j ${sampleID}\".fastp.json\" --in1 ${preread1} --in2 ${preread2}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "fastPHASE"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastphase"
+        ],
+        "tools_dico": [
+            {
+                "name": "fastPHASE",
+                "uri": "https://bio.tools/fastphase",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3454",
+                                    "term": "Phasing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Imputation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Data imputation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "fastPHASE is a program to estimate missing genotypes and unobserved haplotypes. It is an implementation of the model described in Scheet & Stephens (2006). This is a cluster-based model for haplotype variation, and gains its utility from implicitly modeling the genealogy of chromosomes in a random sample from a population as a tree but summarizing all haplotype variation in the \"tips\" of the trees.",
+                "homepage": "http://scheet.org/software.html"
+            }
+        ],
+        "inputs": [
+            "fastping"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "fastp_html",
+            "fastp_multiqc"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'",
+            "publishDir \"$params.outDir/cases/$caseID/fastp\", mode: \"copy\", pattern: \"*.html\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bwamem": {
+        "name_process": "bwamem",
+        "string_process": "\nprocess bwamem {\n\n  label 'high_mem'\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(read1), file(read2) from bwa_memming\n  file(bwa) from reference.bwa\n\n  output:\n  tuple val(caseID), val(type), val(sampleID), file('*.bam'), file('*.bai') into (cramming, dup_marking)\n\n  script:\n  def fa = \"${bwa}/*fasta\"\n  \"\"\"\n  DATE=\\$(date +\"%Y-%m-%dT%T\")\n  RGLINE=\"@RG\\\\tID:${sampleID}\\\\tPL:ILLUMINA\\\\tSM:${sampleID}\\\\tDS:${type}\\\\tCN:UCD\\\\tLB:LANE_X\\\\tDT:\\$DATE\"\n\n  bwa mem \\\n    -t${task.cpus} \\\n    -M \\\n    -R \\$RGLINE \\\n    ${fa} \\\n    ${read1} ${read2} | \\\n    samtools sort -T \"tmp.\"${sampleID} -o ${sampleID}\".sort.bam\"\n  samtools index ${sampleID}\".sort.bam\"\n  \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "  def fa = \"${bwa}/*fasta\"\n  \"\"\"\n  DATE=\\$(date +\"%Y-%m-%dT%T\")\n  RGLINE=\"@RG\\\\tID:${sampleID}\\\\tPL:ILLUMINA\\\\tSM:${sampleID}\\\\tDS:${type}\\\\tCN:UCD\\\\tLB:LANE_X\\\\tDT:\\$DATE\"\n\n  bwa mem \\\n    -t${task.cpus} \\\n    -M \\\n    -R \\$RGLINE \\\n    ${fa} \\\n    ${read1} ${read2} | \\\n    samtools sort -T \"tmp.\"${sampleID} -o ${sampleID}\".sort.bam\"\n  samtools index ${sampleID}\".sort.bam\"\n  \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [
+            "BWA",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "bwa_memming",
+            "reference"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'high_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cram": {
+        "name_process": "cram",
+        "string_process": "\nprocess cram {\n\n  label 'low_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/bwa\", mode: \"copy\", pattern: \"*.cra*\"\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(bam), file(bai) from cramming\n  file(bwa) from reference.bwa\n\n  output:\n  tuple file(\"${sampleID}.sort.cram\"), file(\"${sampleID}.sort.cram.crai\") into completedcram\n\n  script:\n  \"\"\"\n  samtools view -hC -T ${bwa}/*fasta ${sampleID}\".sort.bam\" > ${sampleID}\".sort.cram\"\n  samtools index ${sampleID}\".sort.cram\"\n  \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "  \"\"\"\n  samtools view -hC -T ${bwa}/*fasta ${sampleID}\".sort.bam\" > ${sampleID}\".sort.cram\"\n  samtools index ${sampleID}\".sort.cram\"\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "cramming",
+            "reference"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "completedcram"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/bwa\", mode: \"copy\", pattern: \"*.cra*\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mrkdup": {
+        "name_process": "mrkdup",
+        "string_process": "\nprocess mrkdup {\n\n  label 'high_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/picard\", mode: \"copy\", pattern: \"*.txt\"\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(bam), file(bai) from dup_marking\n\n  output:\n  file('*.txt') into mrkdup_multiqc\n  tuple val(caseID), val(type), val(sampleID), file('*.md.bam'), file('*.md.bam.bai') into gatk4recaling\n\n  script:\n  def taskmem = task.memory == null ? \"\" : \"-Xmx\" + javaTaskmem(\"${task.memory}\")\n  \"\"\"\n  OUTBAM=\\$(echo ${bam} | sed 's/bam/md.bam/')\n  OUTMET=\\$(echo ${bam} | sed 's/bam/md.metrics.txt/')\n  {\n  picard ${taskmem} \\\n    MarkDuplicates \\\n    TMP_DIR=./ \\\n    INPUT=${bam} \\\n    OUTPUT=/dev/stdout \\\n    COMPRESSION_LEVEL=0 \\\n    QUIET=TRUE \\\n    METRICS_FILE=\\$OUTMET \\\n    REMOVE_DUPLICATES=FALSE \\\n    ASSUME_SORTED=TRUE \\\n    VALIDATION_STRINGENCY=LENIENT \\\n    VERBOSITY=ERROR | samtools view -Shb - > \\$OUTBAM\n\n  samtools index \\$OUTBAM\n  } 2>&1 | tee > ${sampleID}.picard_markDuplicates.log.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "  def taskmem = task.memory == null ? \"\" : \"-Xmx\" + javaTaskmem(\"${task.memory}\")\n  \"\"\"\n  OUTBAM=\\$(echo ${bam} | sed 's/bam/md.bam/')\n  OUTMET=\\$(echo ${bam} | sed 's/bam/md.metrics.txt/')\n  {\n  picard ${taskmem} \\\n    MarkDuplicates \\\n    TMP_DIR=./ \\\n    INPUT=${bam} \\\n    OUTPUT=/dev/stdout \\\n    COMPRESSION_LEVEL=0 \\\n    QUIET=TRUE \\\n    METRICS_FILE=\\$OUTMET \\\n    REMOVE_DUPLICATES=FALSE \\\n    ASSUME_SORTED=TRUE \\\n    VALIDATION_STRINGENCY=LENIENT \\\n    VERBOSITY=ERROR | samtools view -Shb - > \\$OUTBAM\n\n  samtools index \\$OUTBAM\n  } 2>&1 | tee > ${sampleID}.picard_markDuplicates.log.txt\n  \"\"\"",
+        "nb_lignes_script": 20,
+        "language_script": "bash",
+        "tools": [
+            "Picard",
+            "MarkDuplicates (IP)",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools",
+            "https://bio.tools/markduplicates_ip",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            },
+            {
+                "name": "MarkDuplicates (IP)",
+                "uri": "https://bio.tools/markduplicates_ip",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature prediction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0006",
+                                "term": "Data"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Marks all duplicate reads in a provided SAM or BAM file and either removes them or flags them.",
+                "homepage": "https://galaxy.pasteur.fr/tool_runner?tool_id=toolshed.pasteur.fr/repos/fmareuil/picard_pasteur_wrapper/rgPicardMarkDups/1.56.0"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "dup_marking"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mrkdup_multiqc",
+            "gatk4recaling"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'high_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/picard\", mode: \"copy\", pattern: \"*.txt\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "gtkrcl": {
+        "name_process": "gtkrcl",
+        "string_process": "\nprocess gtkrcl {\n\n  label 'high_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/gatk4/bqsr\", mode: \"copy\", pattern: \"*.GATK4_BQSR.log.txt\"\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(bam), file(bai) from gatk4recaling\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n  file(dbsnp_files) from reference.dbsnp\n  file(intlist) from reference.intlist\n\n  output:\n  file('*.table') into gtkrcl_multiqc\n  tuple val(caseID), val(type), val(sampleID), file('*.bqsr.bam'), file('*.bqsr.bam.bai') into ( germfiltering, gmultimetricing)\n  tuple val(caseID), val(type), val(sampleID), file('*.bqsr.bam'), file('*.bqsr.bam.bai') into hc_germ\n  tuple val(caseID), val(sampleID) into metas_pcgr\n  file(\"${sampleID}.GATK4_BQSR.log.txt\") into bqsr_log\n\n  script:\n  def dbsnp = \"${dbsnp_files}/*gz\"\n  \"\"\"\n  {\n  gatk BaseRecalibrator \\\n    -R ${fasta} \\\n    -I ${bam} \\\n    --known-sites \\$(echo ${dbsnp}) \\\n    --use-original-qualities \\\n    -O ${sampleID}.recal_data.table \\\n    --disable-sequence-dictionary-validation true \\\n    -L ${intlist}\n\n  #ApplyBQSR\n  OUTBAM=\\$(echo ${bam} | sed 's/bam/bqsr.bam/')\n  gatk ApplyBQSR \\\n    -R ${fasta} \\\n    -I ${bam} \\\n    --bqsr-recal-file ${sampleID}.recal_data.table \\\n    --add-output-sam-program-record \\\n    --use-original-qualities \\\n    -O \\$OUTBAM \\\n    -L ${intlist}\n\n  samtools index \\$OUTBAM \\$OUTBAM\".bai\"\n  } 2>&1 | tee >  ${sampleID}.GATK4_BQSR.log.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "  def dbsnp = \"${dbsnp_files}/*gz\"\n  \"\"\"\n  {\n  gatk BaseRecalibrator \\\n    -R ${fasta} \\\n    -I ${bam} \\\n    --known-sites \\$(echo ${dbsnp}) \\\n    --use-original-qualities \\\n    -O ${sampleID}.recal_data.table \\\n    --disable-sequence-dictionary-validation true \\\n    -L ${intlist}\n\n  #ApplyBQSR\n  OUTBAM=\\$(echo ${bam} | sed 's/bam/bqsr.bam/')\n  gatk ApplyBQSR \\\n    -R ${fasta} \\\n    -I ${bam} \\\n    --bqsr-recal-file ${sampleID}.recal_data.table \\\n    --add-output-sam-program-record \\\n    --use-original-qualities \\\n    -O \\$OUTBAM \\\n    -L ${intlist}\n\n  samtools index \\$OUTBAM \\$OUTBAM\".bai\"\n  } 2>&1 | tee >  ${sampleID}.GATK4_BQSR.log.txt\n  \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [
+            "GATK",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/gatk",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "gatk4recaling",
+            "reference",
+            "reference",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "gtkrcl_multiqc",
+            "",
+            "hc_germ",
+            "metas_pcgr",
+            "bqsr_log"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'high_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/gatk4/bqsr\", mode: \"copy\", pattern: \"*.GATK4_BQSR.log.txt\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "scat_gath": {
+        "name_process": "scat_gath",
+        "string_process": "\nprocess scat_gath {\n\n  label 'low_mem'\n\n  input:\n  file(intlist) from Channel.value(params.intlist)\n\n  output:\n  file('lancet.scatgath.*.bed') into lancet_bedding\n  file('mutect2.scatgath.*.bed.interval_list') into mutect2_bedding\n  file('hc.scatgath.*.bed.interval_list') into hc_bedding\n\n  script:\n  def sgcount = params.scatGath\n  if (params.scatGath == null){\n    if (params.seqlevel == \"exome\"){\n      sgcount = 20\n    }\n    else {\n      sgcount = 100\n    }\n  }\n  \"\"\"\n  picard IntervalListTools \\\n    I=${intlist} \\\n    SCATTER_COUNT=${sgcount} \\\n    O=./\n  ls temp*/* | while read FILE; do\n    COUNTN=\\$(dirname \\$FILE | perl -ane '@s=split(/\\\\_/); print \\$s[1];');\n    mv \\$FILE mutect2.scatgath.\\${COUNTN}.bed.interval_list;\n    cp mutect2.scatgath.\\${COUNTN}.bed.interval_list hc.scatgath.\\${COUNTN}.bed.interval_list\n    grep -v @ mutect2.scatgath.\\${COUNTN}.bed.interval_list | \\\n      cut -f 1,2,3,5 > lancet.scatgath.\\${COUNTN}.bed\n  done\n  \"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "  def sgcount = params.scatGath\n  if (params.scatGath == null){\n    if (params.seqlevel == \"exome\"){\n      sgcount = 20\n    }\n    else {\n      sgcount = 100\n    }\n  }\n  \"\"\"\n  picard IntervalListTools \\\n    I=${intlist} \\\n    SCATTER_COUNT=${sgcount} \\\n    O=./\n  ls temp*/* | while read FILE; do\n    COUNTN=\\$(dirname \\$FILE | perl -ane '@s=split(/\\\\_/); print \\$s[1];');\n    mv \\$FILE mutect2.scatgath.\\${COUNTN}.bed.interval_list;\n    cp mutect2.scatgath.\\${COUNTN}.bed.interval_list hc.scatgath.\\${COUNTN}.bed.interval_list\n    grep -v @ mutect2.scatgath.\\${COUNTN}.bed.interval_list | \\\n      cut -f 1,2,3,5 > lancet.scatgath.\\${COUNTN}.bed\n  done\n  \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "lancet_bedding",
+            "mutect2_bedding",
+            "hc_bedding"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "haplotypecaller": {
+        "name_process": "haplotypecaller",
+        "string_process": "\nprocess haplotypecaller {\n\n  label 'med_mem'\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(bam), file(bai), file(intlist) from hcgermbedding\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n  file(dbsnp_files) from reference.dbsnp\n  file(hc_dbs_files) from reference.hc_dbs\n\n  output:\n  tuple val(caseID), val(sampleID), file('*sort.hc.vcf') into hc_gt\n\n  when:\n  type == \"germline\" & params.germline != false\n\n  script:\n  def taskmem = task.memory == null ? \"\" : \"--java-options \\\"-Xmx\" + javaTaskmem(\"${task.memory}\") + \"\\\"\"\n  def dbsnp = \"${dbsnp_files}/*gz\"\n  def omni = \"${hc_dbs_files}/KG_omni*.gz\"\n  def kgp1 = \"${hc_dbs_files}/KG_phase1*.gz\"\n  def hpmp = \"${hc_dbs_files}/hapmap*.gz\"\n  \"\"\"\n  SCATGATHN=\\$(echo ${intlist} | perl -ane '@s=split(/\\\\./);print \\$s[2];')\n  gatk ${taskmem} HaplotypeCaller \\\n    -R ${fasta} \\\n    -I ${bam} \\\n    --dont-use-soft-clipped-bases \\\n    --standard-min-confidence-threshold-for-calling 20 \\\n    --dbsnp \\$(echo ${dbsnp}) \\\n    --native-pair-hmm-threads ${task.cpus} \\\n    -O ${sampleID}\".\\${SCATGATHN}.hc.vcf\" \\\n    --disable-sequence-dictionary-validation true \\\n    -L ${intlist}\n\n  picard SortVcf \\\n    I=${sampleID}\".\\${SCATGATHN}.hc.vcf\" \\\n    O=${sampleID}\".\\${SCATGATHN}.sort.hc.vcf\" \\\n    SD=${dict}\n  \"\"\"\n}",
+        "nb_lignes_process": 42,
+        "string_script": "  def taskmem = task.memory == null ? \"\" : \"--java-options \\\"-Xmx\" + javaTaskmem(\"${task.memory}\") + \"\\\"\"\n  def dbsnp = \"${dbsnp_files}/*gz\"\n  def omni = \"${hc_dbs_files}/KG_omni*.gz\"\n  def kgp1 = \"${hc_dbs_files}/KG_phase1*.gz\"\n  def hpmp = \"${hc_dbs_files}/hapmap*.gz\"\n  \"\"\"\n  SCATGATHN=\\$(echo ${intlist} | perl -ane '@s=split(/\\\\./);print \\$s[2];')\n  gatk ${taskmem} HaplotypeCaller \\\n    -R ${fasta} \\\n    -I ${bam} \\\n    --dont-use-soft-clipped-bases \\\n    --standard-min-confidence-threshold-for-calling 20 \\\n    --dbsnp \\$(echo ${dbsnp}) \\\n    --native-pair-hmm-threads ${task.cpus} \\\n    -O ${sampleID}\".\\${SCATGATHN}.hc.vcf\" \\\n    --disable-sequence-dictionary-validation true \\\n    -L ${intlist}\n\n  picard SortVcf \\\n    I=${sampleID}\".\\${SCATGATHN}.hc.vcf\" \\\n    O=${sampleID}\".\\${SCATGATHN}.sort.hc.vcf\" \\\n    SD=${dict}\n  \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [
+            "GATK",
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/gatk",
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            },
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "hcgermbedding",
+            "reference",
+            "reference",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "hc_gt"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'"
+        ],
+        "when": "type == \"germline\" & params.germline != false",
+        "stub": ""
+    },
+    "hc_merge": {
+        "name_process": "hc_merge",
+        "string_process": "\nprocess hc_merge {\n\n  label 'high_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/gatk4/haplotypecaller\", mode: \"copy\", pattern: '*.hc.merge.vcf'\n\n  input:\n  tuple val(caseID), val(sampleID), file(rawvcfs) from hc_fm\n\n  output:\n  tuple val(caseID), val(sampleID), file(\"${sampleID}.hc.merge.vcf\"), file(\"${sampleID}.hc.merge.vcf.gz.tbi\") into cpsr_vcf\n\n  script:\n  \"\"\"\n  ls *.sort.hc.vcf > vcf.list\n  picard MergeVcfs I=vcf.list O=${sampleID}\".hc.merge.vcf\"\n  bgzip ${sampleID}\".hc.merge.vcf\"\n  tabix ${sampleID}\".hc.merge.vcf.gz\"\n  \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "  \"\"\"\n  ls *.sort.hc.vcf > vcf.list\n  picard MergeVcfs I=vcf.list O=${sampleID}\".hc.merge.vcf\"\n  bgzip ${sampleID}\".hc.merge.vcf\"\n  tabix ${sampleID}\".hc.merge.vcf.gz\"\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "hc_fm"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "cpsr_vcf"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'high_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/gatk4/haplotypecaller\", mode: \"copy\", pattern: '*.hc.merge.vcf'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cpsrreport": {
+        "name_process": "cpsrreport",
+        "string_process": "\nprocess cpsrreport {\n\n  label 'low_mem'\n\n  publishDir \"$params.outDir/reports/cpsr\", mode: \"copy\", pattern: \"*.html\"\n  publishDir \"$params.outDir/cases/$caseID/cpsr\", mode: \"copy\"\n\n  input:\n  tuple val(caseID), val(sampleID), file(vcf), fie(tbi) from cpsr_vcf\n  file(grchver) from reference.grchvers\n  file(pcgrbase) from reference.pcgrbase\n\n  output:\n  file('*') into cpsr_vcfs\n\n  script:\n  def grchv = \"${grchver}\".split(\"\\\\/\")[-1]\n  \"\"\"\n  {\n  ##CPSR v0.6.0rc\n  cpsr.py \\\n    --no-docker \\\n    --no_vcf_validate \\\n    --panel_id 0 \\\n    --query_vcf ${vcf} \\\n    --pcgr_dir ${pcgrbase} \\\n    --output_dir ./ \\\n    --genome_assembly ${grchv} \\\n    --conf ${pcgrbase}/data/${grchv}/cpsr_configuration_default.toml \\\n    --sample_id ${sampleID}\n\n  } 2>&1 | tee > ${sampleID}.cpsr.log.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "  def grchv = \"${grchver}\".split(\"\\\\/\")[-1]\n  \"\"\"\n  {\n  ##CPSR v0.6.0rc\n  cpsr.py \\\n    --no-docker \\\n    --no_vcf_validate \\\n    --panel_id 0 \\\n    --query_vcf ${vcf} \\\n    --pcgr_dir ${pcgrbase} \\\n    --output_dir ./ \\\n    --genome_assembly ${grchv} \\\n    --conf ${pcgrbase}/data/${grchv}/cpsr_configuration_default.toml \\\n    --sample_id ${sampleID}\n\n  } 2>&1 | tee > ${sampleID}.cpsr.log.txt\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cpsr_vcf",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "cpsr_vcfs"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'",
+            "publishDir \"$params.outDir/reports/cpsr\", mode: \"copy\", pattern: \"*.html\"",
+            "publishDir \"$params.outDir/cases/$caseID/cpsr\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mltmet": {
+        "name_process": "mltmet",
+        "string_process": "\nprocess mltmet {\n\n  label 'med_mem'\n\n  publishDir \"$params.outDir/cases/$caseID/metrics\", overwrite: 'true'\n\n  input:\n  tuple val(caseID), val(type), val(sampleID), file(bam), file(bai) from gmultimetricing\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n  file(intlist) from reference.intlist\n\n  output:\n  file('*.txt') into multimetrics_multiqc\n\n  script:\n  def taskmem = task.memory == null ? \"\" : \"-Xmx\" + javaTaskmem(\"${task.memory}\")\n  \"\"\"\n  {\n  if [[ ${params.seqlevel} == \"exome\" ]]; then\n  picard ${taskmem} CollectHsMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".hs_metrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta} \\\n    BAIT_INTERVALS=${intlist}  \\\n    TARGET_INTERVALS=${intlist}\n  fi\n  picard ${taskmem} CollectAlignmentSummaryMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".AlignmentSummaryMetrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta}\n\n  picard ${taskmem} CollectMultipleMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".CollectMultipleMetrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta}\n\n  picard ${taskmem} CollectSequencingArtifactMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".artifact_metrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta}\n\n  picard ${taskmem} CollectInsertSizeMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".insert_size_metrics.txt\" \\\n    H=${bam}\".histogram.pdf\" \\\n    TMP_DIR=./\n\n  } 2>&1 | tee > ${sampleID}.picard.metrics.log\n  \"\"\"\n}",
+        "nb_lignes_process": 55,
+        "string_script": "  def taskmem = task.memory == null ? \"\" : \"-Xmx\" + javaTaskmem(\"${task.memory}\")\n  \"\"\"\n  {\n  if [[ ${params.seqlevel} == \"exome\" ]]; then\n  picard ${taskmem} CollectHsMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".hs_metrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta} \\\n    BAIT_INTERVALS=${intlist}  \\\n    TARGET_INTERVALS=${intlist}\n  fi\n  picard ${taskmem} CollectAlignmentSummaryMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".AlignmentSummaryMetrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta}\n\n  picard ${taskmem} CollectMultipleMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".CollectMultipleMetrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta}\n\n  picard ${taskmem} CollectSequencingArtifactMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".artifact_metrics.txt\" \\\n    TMP_DIR=./ \\\n    R=${fasta}\n\n  picard ${taskmem} CollectInsertSizeMetrics \\\n    I=${bam} \\\n    O=${sampleID}\".insert_size_metrics.txt\" \\\n    H=${bam}\".histogram.pdf\" \\\n    TMP_DIR=./\n\n  } 2>&1 | tee > ${sampleID}.picard.metrics.log\n  \"\"\"",
+        "nb_lignes_script": 37,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "gmultimetricing",
+            "reference",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "multimetrics_multiqc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir \"$params.outDir/cases/$caseID/metrics\", overwrite: 'true'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fctcsv": {
+        "name_process": "fctcsv",
+        "string_process": "\nprocess fctcsv {\n\n  label 'med_mem'\n\n  publishDir \"$params.outDir/cases/$caseID/facets\"\n\n  input:\n  tuple val(caseID), val(sampleID), file(tumourbam), file(tumourbai), val(germlineID), file(germlinebam), file(germlinebai) from facetsomaing\n  file(dbsnp_files) from reference.dbsnp\n\n  output:\n  tuple file(\"${sampleID}.fit_cncf_jointsegs.tsv\"), file(\"${sampleID}.fit_ploidy_purity.tsv\") into facets_consensusing\n  tuple val(sampleID), file(\"${sampleID}.cncf_jointsegs.pcgr.tsv\"), file(\"${sampleID}.fit_ploidy_purity.pcgr.tsv\") into facets_pcgr\n  file(\"${sampleID}.facets.log.txt\") into facets_log\n\n  script:\n  def dbsnp = \"${dbsnp_files}/*gz\"\n  \"\"\"\n  { snp-pileup \\\n      \\$(echo ${dbsnp}) \\\n      -r 10 \\\n      -p \\\n      ${sampleID}.facets.r10.csv \\\n      ${germlinebam} \\\n      ${tumourbam}\n\n    Rscript -e \"somenone::facets_cna_call(\\\\\"${sampleID}.facets.r10.csv\\\\\")\"\n\n    tail -n+2 ${sampleID}.fit_ploidy_purity.tsv > ${sampleID}.fit_ploidy_purity.pcgr.tsv\n  } 2>&1 | tee > ${sampleID}.facets.log.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "  def dbsnp = \"${dbsnp_files}/*gz\"\n  \"\"\"\n  { snp-pileup \\\n      \\$(echo ${dbsnp}) \\\n      -r 10 \\\n      -p \\\n      ${sampleID}.facets.r10.csv \\\n      ${germlinebam} \\\n      ${tumourbam}\n\n    Rscript -e \"somenone::facets_cna_call(\\\\\"${sampleID}.facets.r10.csv\\\\\")\"\n\n    tail -n+2 ${sampleID}.fit_ploidy_purity.tsv > ${sampleID}.fit_ploidy_purity.pcgr.tsv\n  } 2>&1 | tee > ${sampleID}.facets.log.txt\n  \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "facetsomaing",
+            "reference"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "facets_consensusing",
+            "facets_pcgr",
+            "facets_log"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir \"$params.outDir/cases/$caseID/facets\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fctcon": {
+        "name_process": "fctcon",
+        "string_process": "\nprocess fctcon {\n\n  label 'med_mem'\n\n  publishDir \"$params.outDir/reports/scna/facets\"\n\n  input:\n  file(filesn) from facets_consensusing.collect()\n  file(cosmicbed) from reference.cosmic\n  file(dict) from reference.dict\n\n  output:\n  file('*') into complete_facets\n\n  script:\n  if( !params.cosmic )\n    \"\"\"\n    { Rscript -e \"somenone::facets_cna_consensus(\\\\\"fit_cncf_jointsegs.tsv\\\\\", \\\\\"${dict}\\\\\", \\\\\"${params.runID}\\\\\")\"\n    } 2>&1 | tee > facets_cons.log.txt\n    \"\"\"\n  else\n    \"\"\"\n    { Rscript -e \"somenone::facets_cna_consensus(\\\\\"fit_cncf_jointsegs.tsv\\\\\", \\\\\"${dict}\\\\\", \\\\\"${params.runID}\\\\\", \\\\\"${cosmicbed}\\\\\")\"\n    } 2>&1 | tee > facets_cons.log.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "  if( !params.cosmic )\n    \"\"\"\n    { Rscript -e \"somenone::facets_cna_consensus(\\\\\"fit_cncf_jointsegs.tsv\\\\\", \\\\\"${dict}\\\\\", \\\\\"${params.runID}\\\\\")\"\n    } 2>&1 | tee > facets_cons.log.txt\n    \"\"\"\n  else\n    \"\"\"\n    { Rscript -e \"somenone::facets_cna_consensus(\\\\\"fit_cncf_jointsegs.tsv\\\\\", \\\\\"${dict}\\\\\", \\\\\"${params.runID}\\\\\", \\\\\"${cosmicbed}\\\\\")\"\n    } 2>&1 | tee > facets_cons.log.txt\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "facets_consensusing",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "complete_facets"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir \"$params.outDir/reports/scna/facets\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mutct2_sg": {
+        "name_process": "mutct2_sg",
+        "string_process": "\nprocess mutct2_sg {\n\n  label 'med_mem'\n\n  input:\n  tuple val(caseID), val(sampleID), file(tumourbam), file(tumourbai), val(germlineID), file(germlinebam), file(germlinebai), file(intlist) from mutect2somaticbedding\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n\n  output:\n  tuple val(caseID), val(sampleID), file('*sort.mutect2.vcf') into mutect2_gt\n  tuple val(caseID), val(sampleID), file('*.vcf.stats') into mutect2_st\n  tuple val(caseID), val(sampleID), file('*mutect2.f1r2.tar.gz') into mutect2_f1r2\n\n  script:\n  taskmem = javaTaskmem(\"${task.memory}\")\n  def taskmem = task.memory == null ? \"\" : \"--java-options \\\"-Xmx\" + javaTaskmem(\"${task.memory}\") + \"\\\"\"\n  \"\"\"\n  SCATGATHN=\\$(echo ${intlist} | perl -ane '@s=split(/\\\\./);print\\$s[2];')\n  gatk ${taskmem} \\\n    Mutect2 \\\n    --native-pair-hmm-threads ${task.cpus} \\\n    --reference ${fasta} \\\n    --input ${germlinebam} \\\n    --input ${tumourbam} \\\n    --normal-sample ${germlineID} \\\n    --tumor-sample ${sampleID} \\\n    --output ${sampleID}\".\"\\${SCATGATHN}\".mutect2.vcf\" \\\n    --disable-sequence-dictionary-validation true \\\n    --f1r2-tar-gz \\${SCATGATHN}\".mutect2.f1r2.tar.gz\" \\\n    -L ${intlist}\n\n  picard SortVcf \\\n    I=${sampleID}\".\"\\${SCATGATHN}\".mutect2.vcf\" \\\n    O=${sampleID}\".\"\\${SCATGATHN}\".sort.mutect2.vcf\" \\\n    SD=${dict}\n  \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "  taskmem = javaTaskmem(\"${task.memory}\")\n  def taskmem = task.memory == null ? \"\" : \"--java-options \\\"-Xmx\" + javaTaskmem(\"${task.memory}\") + \"\\\"\"\n  \"\"\"\n  SCATGATHN=\\$(echo ${intlist} | perl -ane '@s=split(/\\\\./);print\\$s[2];')\n  gatk ${taskmem} \\\n    Mutect2 \\\n    --native-pair-hmm-threads ${task.cpus} \\\n    --reference ${fasta} \\\n    --input ${germlinebam} \\\n    --input ${tumourbam} \\\n    --normal-sample ${germlineID} \\\n    --tumor-sample ${sampleID} \\\n    --output ${sampleID}\".\"\\${SCATGATHN}\".mutect2.vcf\" \\\n    --disable-sequence-dictionary-validation true \\\n    --f1r2-tar-gz \\${SCATGATHN}\".mutect2.f1r2.tar.gz\" \\\n    -L ${intlist}\n\n  picard SortVcf \\\n    I=${sampleID}\".\"\\${SCATGATHN}\".mutect2.vcf\" \\\n    O=${sampleID}\".\"\\${SCATGATHN}\".sort.mutect2.vcf\" \\\n    SD=${dict}\n  \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "GATK",
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/gatk",
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            },
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "mutect2somaticbedding",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "mutect2_gt",
+            "mutect2_st",
+            "mutect2_f1r2"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mutct2_concat": {
+        "name_process": "mutct2_concat",
+        "string_process": "\nprocess mutct2_concat {\n\n  label 'med_mem'\n\n  input:\n  tuple val(caseID), val(sampleID), file(rawvcfs) from mutect2_fm\n\n  output:\n  tuple val(caseID), val(sampleID), file('*mutect2.merge.vcf') into mutect2_merge\n\n  script:\n  \"\"\"\n  ls *.sort.mutect2.vcf > vcf.list\n  picard MergeVcfs I=vcf.list O=${sampleID}\".mutect2.merge.vcf\"\n  \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "  \"\"\"\n  ls *.sort.mutect2.vcf > vcf.list\n  picard MergeVcfs I=vcf.list O=${sampleID}\".mutect2.merge.vcf\"\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "mutect2_fm"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mutect2_merge"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mutct2_concstat": {
+        "name_process": "mutct2_concstat",
+        "string_process": "\nprocess mutct2_concstat {\n\n  label 'med_mem'\n\n  input:\n  tuple val(caseID), val(sampleID), file(stats) from mutect2_sm\n\n  output:\n  tuple val(caseID), val(sampleID), file('*mutect2.merge.vcf.stats') into mutect2_stats\n\n  script:\n  \"\"\"\n  STATS=\\$(ls *stats | perl -ane 'foreach \\$k (@F){print \"--stats \\$k \";}')\n  gatk MergeMutectStats --output ${sampleID}\".mutect2.merge.vcf.stats\" \\$STATS\n  \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "  \"\"\"\n  STATS=\\$(ls *stats | perl -ane 'foreach \\$k (@F){print \"--stats \\$k \";}')\n  gatk MergeMutectStats --output ${sampleID}\".mutect2.merge.vcf.stats\" \\$STATS\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "GATK"
+        ],
+        "tools_url": [
+            "https://bio.tools/gatk"
+        ],
+        "tools_dico": [
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            }
+        ],
+        "inputs": [
+            "mutect2_sm"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mutect2_stats"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mutct2_f1r2_comb": {
+        "name_process": "mutct2_f1r2_comb",
+        "string_process": "\nprocess mutct2_f1r2_comb {\n\n  label 'med_mem'\n\n  input:\n  tuple val(caseID), val(sampleID), file(mutect2_ro) from mutect2_f1r2_set\n\n  output:\n  tuple val(caseID), val(sampleID), file(\"${sampleID}.mutect2.f1r2.tar.gz\") into mutect2_f1r2_comb\n\n  script:\n  \"\"\"\n  ALL_F1R2_INPUT=\\$(for x in *.mutect2.f1r2.tar.gz; do echo -n \"-I \\$x \"; done)\n  gatk LearnReadOrientationModel \\$ALL_F1R2_INPUT -O ${sampleID}.mutect2.f1r2.tar.gz\n  \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "  \"\"\"\n  ALL_F1R2_INPUT=\\$(for x in *.mutect2.f1r2.tar.gz; do echo -n \"-I \\$x \"; done)\n  gatk LearnReadOrientationModel \\$ALL_F1R2_INPUT -O ${sampleID}.mutect2.f1r2.tar.gz\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "GATK"
+        ],
+        "tools_url": [
+            "https://bio.tools/gatk"
+        ],
+        "tools_dico": [
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            }
+        ],
+        "inputs": [
+            "mutect2_f1r2_set"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "mutect2_f1r2_comb"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mutct2_contam_filter": {
+        "name_process": "mutct2_contam_filter",
+        "string_process": "\nprocess mutct2_contam_filter {\n\n  label 'med_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/mutect2\", mode: \"copy\", overwrite: true\n\n  input:\n  tuple val(caseID), val(sampleID), file(tumourbam), file(tumourbai), val(germlineID), file(germlinebam), file(germlinebai), file(mergevcf), file(statsvcf), file(readorient) from mutect2_contam_merge\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n  file(gps_files) from reference.seqlevel\n  file(intlist) from reference.intlist\n\n  output:\n  tuple val(caseID), file(\"${sampleID}.mutect2.snv_indel.pass.vcf\") into mutect2_veping\n  tuple val(caseID), file(\"${sampleID}.mutect2.raw.vcf\") into mutect2_rawVcf\n  file('*') into completedmutect2call\n\n  script:\n  def taskmem = task.memory == null ? \"\" : \"--java-options \\\"-Xmx\" + javaTaskmem(\"${task.memory}\") + \"\\\"\"\n  def gpsgz = params.seqlevel == \"exome\" ? \"${gps_files}/af-only-gnomad.${params.exomeTag}.hg*.noChr.vcf.gz\" : \"${gps_files}/af-only-gnomad.wgs.hg*.noChr.vcf.gz\"\n  \"\"\"\n  gatk ${taskmem} \\\n    GetPileupSummaries \\\n    -I ${tumourbam} \\\n    -V \\$(echo ${gpsgz}) \\\n    -O ${sampleID}\".getpileupsummaries.table\" \\\n    -L ${intlist}\n\n  gatk CalculateContamination \\\n    -I ${sampleID}\".getpileupsummaries.table\" \\\n    -O ${sampleID}\".calculatecontamination.table\"\n\n  CONTAM=\\$(tail -n+2 ${sampleID}.calculatecontamination.table | cut -f 2 | cut -d \".\" -f 1)\n  if [[ \\$CONTAM != 0 ]]; then\n    touch ${sampleID}\".CONTAMINATION.WARNING.txt\"\n  fi\n\n  gatk IndexFeatureFile \\\n    --input ${mergevcf}\n\n  gatk ${taskmem} \\\n    FilterMutectCalls \\\n    --reference ${fasta} \\\n    --contamination-table ${sampleID}\".calculatecontamination.table\" \\\n    --interval-padding 5 \\\n    --output ${sampleID}\".mutect2.FilterMutectCalls.vcf\" \\\n    --unique-alt-read-count 3 \\\n    --variant ${mergevcf} \\\n    --stats ${statsvcf} \\\n    --disable-sequence-dictionary-validation true \\\n    --ob-priors ${readorient} \\\n    -L ${intlist}\n\n  perl ${workflow.projectDir}/bin/filter_Lancet_Mutect2_Manta-Strelka2_Format.pl \\\n    ID=${sampleID} \\\n    DP=14 \\\n    MD=2 \\\n    VCF=${sampleID}\".mutect2.FilterMutectCalls.vcf\"\n  \"\"\"\n}",
+        "nb_lignes_process": 61,
+        "string_script": "  def taskmem = task.memory == null ? \"\" : \"--java-options \\\"-Xmx\" + javaTaskmem(\"${task.memory}\") + \"\\\"\"\n  def gpsgz = params.seqlevel == \"exome\" ? \"${gps_files}/af-only-gnomad.${params.exomeTag}.hg*.noChr.vcf.gz\" : \"${gps_files}/af-only-gnomad.wgs.hg*.noChr.vcf.gz\"\n  \"\"\"\n  gatk ${taskmem} \\\n    GetPileupSummaries \\\n    -I ${tumourbam} \\\n    -V \\$(echo ${gpsgz}) \\\n    -O ${sampleID}\".getpileupsummaries.table\" \\\n    -L ${intlist}\n\n  gatk CalculateContamination \\\n    -I ${sampleID}\".getpileupsummaries.table\" \\\n    -O ${sampleID}\".calculatecontamination.table\"\n\n  CONTAM=\\$(tail -n+2 ${sampleID}.calculatecontamination.table | cut -f 2 | cut -d \".\" -f 1)\n  if [[ \\$CONTAM != 0 ]]; then\n    touch ${sampleID}\".CONTAMINATION.WARNING.txt\"\n  fi\n\n  gatk IndexFeatureFile \\\n    --input ${mergevcf}\n\n  gatk ${taskmem} \\\n    FilterMutectCalls \\\n    --reference ${fasta} \\\n    --contamination-table ${sampleID}\".calculatecontamination.table\" \\\n    --interval-padding 5 \\\n    --output ${sampleID}\".mutect2.FilterMutectCalls.vcf\" \\\n    --unique-alt-read-count 3 \\\n    --variant ${mergevcf} \\\n    --stats ${statsvcf} \\\n    --disable-sequence-dictionary-validation true \\\n    --ob-priors ${readorient} \\\n    -L ${intlist}\n\n  perl ${workflow.projectDir}/bin/filter_Lancet_Mutect2_Manta-Strelka2_Format.pl \\\n    ID=${sampleID} \\\n    DP=14 \\\n    MD=2 \\\n    VCF=${sampleID}\".mutect2.FilterMutectCalls.vcf\"\n  \"\"\"",
+        "nb_lignes_script": 40,
+        "language_script": "bash",
+        "tools": [
+            "GATK"
+        ],
+        "tools_url": [
+            "https://bio.tools/gatk"
+        ],
+        "tools_dico": [
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            }
+        ],
+        "inputs": [
+            "mutect2_contam_merge",
+            "reference",
+            "reference",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "mutect2_veping",
+            "mutect2_rawVcf",
+            "completedmutect2call"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/mutect2\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mntstr": {
+        "name_process": "mntstr",
+        "string_process": "\nprocess mntstr {\n\n  label 'high_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/manta-strelka2\", overwrite: 'true', mode: \"copy\"\n  publishDir path: \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*[.strelka2.snv_indel.raw.vcf, .strelka2.snv_indel.pass.vcf]'\n\n  input:\n  tuple val(caseID), val(sampleID), file(tumourbam), file(tumourbai), val(germlineID), file(germlinebam), file(germlinebai) from mantastrelka2ing\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n  file(bed_files) from reference.seqlevel\n\n  output:\n  tuple val(caseID), file(\"${sampleID}.strelka2.snv_indel.pass.vcf\") into strelka2_veping\n  tuple val(caseID), file(\"${sampleID}.strelka2.raw.vcf\") into strelka2_rawVcf\n  file('*.txt') into log_mantastrelka\n\n  script:\n  def bedgz = params.seqlevel == \"wgs\" ? \"${bed_files}/wgs.bed.gz\" : \"${bed_files}/${params.exomeTag}.bed.gz\"\n  def callRegions = params.seqlevel == \"exome\" ? \"--exome --callRegions ${bedgz}\" : \"--callRegions ${bedgz}\"\n  \"\"\"\n  {\n    configManta.py ${callRegions} --referenceFasta=${fasta} --normalBam=${germlinebam} --tumourBam=${tumourbam} --runDir=manta\n\n    manta/runWorkflow.py -m local -j ${task.cpus}\n\n    configureStrelkaSomaticWorkflow.py ${callRegions} --referenceFasta=${fasta} --indelCandidates=manta/results/variants/candidateSmallIndels.vcf.gz --normalBam=${germlinebam} --tumorBam=${tumourbam} --runDir=strelka2\n\n    strelka2/runWorkflow.py -m local -j ${task.cpus}\n\n    ##merge into raw snv_indel\n    gatk MergeVcfs -I strelka2/results/variants/somatic.snvs.vcf.gz -I strelka2/results/variants/somatic.indels.vcf.gz -O tmp.strelka2.snv_indel.vcf\n\n    ${workflow.projectDir}/bin/manta_strelka2_rename_filter.sh  tmp.strelka2.snv_indel.vcf tmp2.strelka2.snv_indel.vcf ${sampleID} ${germlineID}\n\n    perl ${workflow.projectDir}/bin/filter_Lancet_Mutect2_Manta-Strelka2_Format.pl \\\n        ID=${sampleID} \\\n        DP=14 \\\n        MD=2 \\\n        VCF=tmp2.strelka2.snv_indel.vcf\n\n  } 2>&1 | tee > ${sampleID}.manta-strelka2.log.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "  def bedgz = params.seqlevel == \"wgs\" ? \"${bed_files}/wgs.bed.gz\" : \"${bed_files}/${params.exomeTag}.bed.gz\"\n  def callRegions = params.seqlevel == \"exome\" ? \"--exome --callRegions ${bedgz}\" : \"--callRegions ${bedgz}\"\n  \"\"\"\n  {\n    configManta.py ${callRegions} --referenceFasta=${fasta} --normalBam=${germlinebam} --tumourBam=${tumourbam} --runDir=manta\n\n    manta/runWorkflow.py -m local -j ${task.cpus}\n\n    configureStrelkaSomaticWorkflow.py ${callRegions} --referenceFasta=${fasta} --indelCandidates=manta/results/variants/candidateSmallIndels.vcf.gz --normalBam=${germlinebam} --tumorBam=${tumourbam} --runDir=strelka2\n\n    strelka2/runWorkflow.py -m local -j ${task.cpus}\n\n    ##merge into raw snv_indel\n    gatk MergeVcfs -I strelka2/results/variants/somatic.snvs.vcf.gz -I strelka2/results/variants/somatic.indels.vcf.gz -O tmp.strelka2.snv_indel.vcf\n\n    ${workflow.projectDir}/bin/manta_strelka2_rename_filter.sh  tmp.strelka2.snv_indel.vcf tmp2.strelka2.snv_indel.vcf ${sampleID} ${germlineID}\n\n    perl ${workflow.projectDir}/bin/filter_Lancet_Mutect2_Manta-Strelka2_Format.pl \\\n        ID=${sampleID} \\\n        DP=14 \\\n        MD=2 \\\n        VCF=tmp2.strelka2.snv_indel.vcf\n\n  } 2>&1 | tee > ${sampleID}.manta-strelka2.log.txt\n  \"\"\"",
+        "nb_lignes_script": 24,
+        "language_script": "bash",
+        "tools": [
+            "GATK"
+        ],
+        "tools_url": [
+            "https://bio.tools/gatk"
+        ],
+        "tools_dico": [
+            {
+                "name": "GATK",
+                "uri": "https://bio.tools/gatk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Workflows"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0769",
+                            "term": "Pipelines"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3202",
+                                    "term": "Polymorphism detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Genome Analysis Toolkit (GATK) is a set of bioinformatic tools for analyzing high-throughput sequencing (HTS) and variant call format (VCF) data. The toolkit is well established for germline short variant discovery from whole genome and exome sequencing data. GATK4 expands functionality into copy number and somatic analyses and offers pipeline scripts for workflows.  \n\nVersion 4 (GATK4) is open-source at https://github.com/broadinstitute/gatk.",
+                "homepage": "https://software.broadinstitute.org/gatk/"
+            }
+        ],
+        "inputs": [
+            "mantastrelka2ing",
+            "reference",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "strelka2_veping",
+            "strelka2_rawVcf",
+            "log_mantastrelka"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'high_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/manta-strelka2\", overwrite: 'true', mode: \"copy\"",
+            "publishDir path: \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*[.strelka2.snv_indel.raw.vcf, .strelka2.snv_indel.pass.vcf]'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "lancet_sg": {
+        "name_process": "lancet_sg",
+        "string_process": "\nprocess lancet_sg {\n\n  label 'med_mem'\n\n  input:\n  tuple val(caseID), val(sampleID), file(tumourbam), file(tumourbai), val(germlineID), file(germlinebam), file(germlinebai), file(bed) from lancetsbedding\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n\n  output:\n  tuple val(caseID), val(sampleID), file('*.sort.lancet.vcf') into lancet_gt\n\n  when:\n  params.seqlevel == \"exome\"\n\n  script:\n  scatgathn = \"${bed}\".split(\"\\\\.\")[2]\n  \"\"\"\n  lancet \\\n    --num-threads ${task.cpus} \\\n    --ref ${fasta} \\\n    --bed ${bed} \\\n    --tumor ${tumourbam} \\\n    --normal ${germlinebam} | \\\n    perl -ane 'if(\\$F[0]=~m/^\\\\#CHROM/){\n      \\$_=~s/TUMOR/${sampleID}/;\n      \\$_=~s/NORMAL/${germlineID}/;\n      print \\$_;}\n    else{print \\$_;}' > ${sampleID}\".\"${scatgathn}\".lancet.vcf\"\n\n  picard SortVcf \\\n    I=${sampleID}\".\"${scatgathn}\".lancet.vcf\" \\\n    O=${sampleID}\".\"${scatgathn}\".sort.lancet.vcf\" \\\n    SD=${dict}\n  \"\"\"\n}",
+        "nb_lignes_process": 36,
+        "string_script": "  scatgathn = \"${bed}\".split(\"\\\\.\")[2]\n  \"\"\"\n  lancet \\\n    --num-threads ${task.cpus} \\\n    --ref ${fasta} \\\n    --bed ${bed} \\\n    --tumor ${tumourbam} \\\n    --normal ${germlinebam} | \\\n    perl -ane 'if(\\$F[0]=~m/^\\\\#CHROM/){\n      \\$_=~s/TUMOR/${sampleID}/;\n      \\$_=~s/NORMAL/${germlineID}/;\n      print \\$_;}\n    else{print \\$_;}' > ${sampleID}\".\"${scatgathn}\".lancet.vcf\"\n\n  picard SortVcf \\\n    I=${sampleID}\".\"${scatgathn}\".lancet.vcf\" \\\n    O=${sampleID}\".\"${scatgathn}\".sort.lancet.vcf\" \\\n    SD=${dict}\n  \"\"\"",
+        "nb_lignes_script": 18,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "lancetsbedding",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "lancet_gt"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'"
+        ],
+        "when": "params.seqlevel == \"exome\"",
+        "stub": ""
+    },
+    "lancet_concat": {
+        "name_process": "lancet_concat",
+        "string_process": "\nprocess lancet_concat {\n\n  label 'med_mem'\n\n  input:\n  tuple val(caseID), val(sampleID), file(rawvcf) from lancet_fm\n\n  output:\n  tuple val(caseID), val(sampleID), file('*lancet.merge.vcf') into lancet_merge\n\n  script:\n  \"\"\"\n  ls *.sort.lancet.vcf > vcf.list\n  picard MergeVcfs I=vcf.list O=${sampleID}\".lancet.merge.vcf\"\n  \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "  \"\"\"\n  ls *.sort.lancet.vcf > vcf.list\n  picard MergeVcfs I=vcf.list O=${sampleID}\".lancet.merge.vcf\"\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Picard"
+        ],
+        "tools_url": [
+            "https://bio.tools/picard_tools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Picard",
+                "uri": "https://bio.tools/picard_tools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A set of command line tools for manipulating high-throughput sequencing (HTS) data in formats such as SAM/BAM/CRAM and VCF. Available as a standalone program or within the GATK4 program.",
+                "homepage": "https://github.com/broadinstitute/picard"
+            }
+        ],
+        "inputs": [
+            "lancet_fm"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "lancet_merge"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "lancet_filter": {
+        "name_process": "lancet_filter",
+        "string_process": "\nprocess lancet_filter {\n\n  label 'med_mem'\n\n  publishDir path: \"$params.outDir/cases/$caseID/lancet\"\n  publishDir path: \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*raw.vcf'\n\n  input:\n  tuple val(caseID), val(sampleID), file(mergevcf) from lancet_merge\n\n  output:\n  tuple val(caseID), file(\"${sampleID}.lancet.snv_indel.pass.vcf\") into lancet_veping\n  tuple val(caseID), file(\"${sampleID}.lancet.raw.vcf\") into lancet_rawVcf\n  file('*') into completedlancetcall\n\n  script:\n  \"\"\"\n  perl ${workflow.projectDir}/bin/filter_Lancet_Mutect2_Manta-Strelka2_Format.pl \\\n    ID=${sampleID} \\\n    DP=14 \\\n    MD=2 \\\n    VCF=${mergevcf}\n  \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "  \"\"\"\n  perl ${workflow.projectDir}/bin/filter_Lancet_Mutect2_Manta-Strelka2_Format.pl \\\n    ID=${sampleID} \\\n    DP=14 \\\n    MD=2 \\\n    VCF=${mergevcf}\n  \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "lancet_merge"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "lancet_veping",
+            "lancet_rawVcf",
+            "completedlancetcall"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir path: \"$params.outDir/cases/$caseID/lancet\"",
+            "publishDir path: \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*raw.vcf'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "vepann": {
+        "name_process": "vepann",
+        "string_process": "\nprocess vepann {\n\n  label 'med_mem'\n\n  publishDir path: \"${params.outDir}/cases/${caseID}/vcf\", mode: \"copy\", pattern: '*.vcf'\n  publishDir path: \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*.vcf'\n\n  input:\n  tuple val(caseID), file(vcf1), file(vcf2), file(vcf3) from case_veping\n  file(fasta) from reference.fa\n  file(fai) from reference.fai\n  file(dict) from reference.dict\n  file(grchver) from reference.grchvers\n  file(pcgrbase) from reference.pcgrbase\n\n  output:\n  tuple val(caseID), file('*vep.vcf') into runGRanges\n\n  script:\n  def sampleID = \"${vcf1}\".split(\"\\\\.\")[0]\n  def grch_vers = \"${grchver}\".split(\"\\\\/\")[-1]\n  \"\"\"\n  for VCF in $vcf1 $vcf2 $vcf3; do\n    VCFANNO=\\$(echo \\$VCF | sed \"s/.vcf/.vep.vcf/\")\n    vep --dir_cache ${pcgrbase}/data/${grch_vers}/.vep \\\n      --offline \\\n      --assembly ${params.assembly} \\\n      --vcf_info_field ANN \\\n      --symbol \\\n      --species homo_sapiens \\\n      --check_existing \\\n      --cache \\\n      --fork ${task.cpus} \\\n      --af_1kg \\\n      --af_gnomad \\\n      --vcf \\\n      --input_file \\$VCF \\\n      --output_file \\$VCFANNO \\\n      --format \"vcf\" \\\n      --fasta ${fasta} \\\n      --hgvs \\\n      --canonical \\\n      --ccds \\\n      --force_overwrite \\\n      --verbose\n  done\n  \"\"\"\n}",
+        "nb_lignes_process": 47,
+        "string_script": "  def sampleID = \"${vcf1}\".split(\"\\\\.\")[0]\n  def grch_vers = \"${grchver}\".split(\"\\\\/\")[-1]\n  \"\"\"\n  for VCF in $vcf1 $vcf2 $vcf3; do\n    VCFANNO=\\$(echo \\$VCF | sed \"s/.vcf/.vep.vcf/\")\n    vep --dir_cache ${pcgrbase}/data/${grch_vers}/.vep \\\n      --offline \\\n      --assembly ${params.assembly} \\\n      --vcf_info_field ANN \\\n      --symbol \\\n      --species homo_sapiens \\\n      --check_existing \\\n      --cache \\\n      --fork ${task.cpus} \\\n      --af_1kg \\\n      --af_gnomad \\\n      --vcf \\\n      --input_file \\$VCF \\\n      --output_file \\$VCFANNO \\\n      --format \"vcf\" \\\n      --fasta ${fasta} \\\n      --hgvs \\\n      --canonical \\\n      --ccds \\\n      --force_overwrite \\\n      --verbose\n  done\n  \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [
+            "fivepseq"
+        ],
+        "tools_url": [
+            "https://bio.tools/fivepseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "fivepseq",
+                "uri": "https://bio.tools/fivepseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3563",
+                                    "term": "RNA-seq read count analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Fivepseq is a software package for analysis of 5prime endpoints distribution in RNA sequencing datasets. This is particularly useful for techniques that capture 5prime  monophosphorylated RNAs, such as 5PSeq, PARE-seq or GMUC. It may also be useful for ribosome profiling datasets and alike.",
+                "homepage": "http://pelechanolab.com/software/fivepseq"
+            }
+        ],
+        "inputs": [
+            "case_veping",
+            "reference",
+            "reference",
+            "reference",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "runGRanges"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir path: \"${params.outDir}/cases/${caseID}/vcf\", mode: \"copy\", pattern: '*.vcf'",
+            "publishDir path: \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*.vcf'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "vcfGRa": {
+        "name_process": "vcfGRa",
+        "string_process": "\nprocess vcfGRa {\n\n  label 'med_mem'\n\n  publishDir \"$params.outDir/cases/$caseID/consensus_vcfs\"\n  publishDir \"${params.outDir}/output/pdf\", mode: \"copy\", pattern: '*.pdf'\n  publishDir \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*.vcf'\n  publishDir \"${params.outDir}/output/data\", mode: \"copy\", pattern: '*[.RData, .tsv]'\n\n  input:\n  tuple val(caseID), file(vvcf1), file(vvcf2), file(vvcf3), file(rvcf1), file(rvcf2), file(rvcf3) from cons_vcfs\n  tuple file(callR), file(funcR) from vcfGRa_Scripts\n  each impact from impacts\n\n  output:\n  tuple val(caseID), val(sampleID), file(\"${sampleID}.*impacts.pcgr.tsv.vcf\") into vcfs_pcgr\n  file('*') into completedvcfGRangesConsensus\n\n  script:\n  sampleID = \"${vvcf1}\".split(\"\\\\.\")[0]\n  def inc_ord = params.incOrder ? params.incOrder : \"noord\"\n  \"\"\"\n  Rscript -e \"somenone::variant_consensus(germline_id = \\\\\"${germlineID}\\\\\", vep_vcf_pattern = \\\\\"snv_indel.pass.vep.vcf\\\\\", raw_vcf_pattern = \\\\\"raw.vcf\\\\\", tag = \\\\\"${params.runID}\\\\\", included_order = \\\\\"${inc_ord}\\\\\", impacts = \\\\\"${impact}\\\\\")\"\n  \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "  sampleID = \"${vvcf1}\".split(\"\\\\.\")[0]\n  def inc_ord = params.incOrder ? params.incOrder : \"noord\"\n  \"\"\"\n  Rscript -e \"somenone::variant_consensus(germline_id = \\\\\"${germlineID}\\\\\", vep_vcf_pattern = \\\\\"snv_indel.pass.vep.vcf\\\\\", raw_vcf_pattern = \\\\\"raw.vcf\\\\\", tag = \\\\\"${params.runID}\\\\\", included_order = \\\\\"${inc_ord}\\\\\", impacts = \\\\\"${impact}\\\\\")\"\n  \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "cons_vcfs",
+            "vcfGRa_Scripts",
+            "impacts"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "vcfs_pcgr",
+            "completedvcfGRangesConsensus"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'med_mem'",
+            "publishDir \"$params.outDir/cases/$caseID/consensus_vcfs\"",
+            "publishDir \"${params.outDir}/output/pdf\", mode: \"copy\", pattern: '*.pdf'",
+            "publishDir \"${params.outDir}/output/vcf\", mode: \"copy\", pattern: '*.vcf'",
+            "publishDir \"${params.outDir}/output/data\", mode: \"copy\", pattern: '*[.RData, .tsv]'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pcgrVcf": {
+        "name_process": "pcgrVcf",
+        "string_process": "\nprocess pcgrVcf {\n\n  label 'low_mem'\n\n  input:\n  tuple val(caseID), val(sampleID), file(cons_vcf) from vcfs_pcgr\n\n  output:\n  tuple val(sampleID), file(\"${sampleID}.snv_indel.pass.pcgr.vcf\") into snvpass_pcgr\n\n  when:\n  vcf =~ \"HMML_impacts.pcgr.tsv.vcf\"\n\n  script:\n  ovcf = \"${vcf}\".replace(\"pcgr.tsv.vcf\", \"snv_indel.pass.pcgr.vcf\")\n  \"\"\"\n  cat ${workflow.projectDir}/assets/vcf42.head.txt > $ovcf\n  head -n1 $vcf >> $ovcf\n  tail -n+2 $vcf | sort -V >> $ovcf\n  \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "  ovcf = \"${vcf}\".replace(\"pcgr.tsv.vcf\", \"snv_indel.pass.pcgr.vcf\")\n  \"\"\"\n  cat ${workflow.projectDir}/assets/vcf42.head.txt > $ovcf\n  head -n1 $vcf >> $ovcf\n  tail -n+2 $vcf | sort -V >> $ovcf\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vcfs_pcgr"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "snvpass_pcgr"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'"
+        ],
+        "when": "vcf =~ \"HMML_impacts.pcgr.tsv.vcf\"",
+        "stub": ""
+    },
+    "pcgrreport": {
+        "name_process": "pcgrreport",
+        "string_process": "\nprocess pcgrreport {\n\n  label 'low_mem'\n\n  publishDir \"${params.outDir}/reports/pcgr\", mode: \"copy\", pattern: \"*html\"\n  publishDir \"${params.outDir}/cases/${caseID}/pcgr\", mode: \"copy\"\n\n  input:\n  tuple val(sampleID), file(vcf), file(jointsegs), file(ploidpur) from pcgr_inputs\n  file(grchver) from reference.grchvers\n  file(pcgrbase) from reference.pcgrbase\n\n  output:\n  file('*') into completedPCGR\n\n  script:\n  caseID=\"${sampleID}\".split(\"T_\")[0]\n  grch_vers = \"${grchver}\".split(\"\\\\/\")[-1]\n  config = params.seqlevel == \"exome\" ? \"${pcgrbase}/data/${grch_vers}/pcgr_configuration_${params.exomeTag}.toml\" : \"${pcgrbase}/data/${grch_vers}/pcgr_configuration_wgs.toml\"\n  \"\"\"\n  {\n  PLOIDY=\"\"; PURITY=\"\";\n  if [[ \\$(cut -f 1 ${ploidpur}) != \"NA\" ]]; then\n    PLOIDY=\"--tumor_ploidy \\$(cut -f 1 ${ploidpur})\"\n  fi\n  if [[ \\$(cut -f 2 ${ploidpur}) != \"NA\" ]]; then\n    PURITY=\"--tumor_purity \\$(cut -f 2 ${ploidpur})\"\n  fi\n\n  ##8 lines in an empty VCF\n  LINETEST=\\$(wc -l $vcf | perl -ane 'print \\$F[0];')\n\n  if [[ \\$LINETEST != 8 ]]; then\n    ##PCGR 0.9.0rc\n    pcgr.py \\\n      --pcgr_dir ${pcgrbase} \\\n      --output_dir ./ \\\n      --genome_assembly ${grch_vers} \\\n      --conf ${config} \\\n      --sample_id ${sampleID} \\\n      --input_vcf ${vcf} \\\n      --input_cna ${jointsegs} \\$PLOIDY \\$PURITY \\\n      --no-docker \\\n      --force_overwrite\n  else\n    echo \"No variants\"\n  fi\n  } 2>&1 | tee > ${sampleID}.pcgr.log.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 49,
+        "string_script": "  caseID=\"${sampleID}\".split(\"T_\")[0]\n  grch_vers = \"${grchver}\".split(\"\\\\/\")[-1]\n  config = params.seqlevel == \"exome\" ? \"${pcgrbase}/data/${grch_vers}/pcgr_configuration_${params.exomeTag}.toml\" : \"${pcgrbase}/data/${grch_vers}/pcgr_configuration_wgs.toml\"\n  \"\"\"\n  {\n  PLOIDY=\"\"; PURITY=\"\";\n  if [[ \\$(cut -f 1 ${ploidpur}) != \"NA\" ]]; then\n    PLOIDY=\"--tumor_ploidy \\$(cut -f 1 ${ploidpur})\"\n  fi\n  if [[ \\$(cut -f 2 ${ploidpur}) != \"NA\" ]]; then\n    PURITY=\"--tumor_purity \\$(cut -f 2 ${ploidpur})\"\n  fi\n\n  ##8 lines in an empty VCF\n  LINETEST=\\$(wc -l $vcf | perl -ane 'print \\$F[0];')\n\n  if [[ \\$LINETEST != 8 ]]; then\n    ##PCGR 0.9.0rc\n    pcgr.py \\\n      --pcgr_dir ${pcgrbase} \\\n      --output_dir ./ \\\n      --genome_assembly ${grch_vers} \\\n      --conf ${config} \\\n      --sample_id ${sampleID} \\\n      --input_vcf ${vcf} \\\n      --input_cna ${jointsegs} \\$PLOIDY \\$PURITY \\\n      --no-docker \\\n      --force_overwrite\n  else\n    echo \"No variants\"\n  fi\n  } 2>&1 | tee > ${sampleID}.pcgr.log.txt\n  \"\"\"",
+        "nb_lignes_script": 32,
+        "language_script": "bash",
+        "tools": [
+            "haploconfig"
+        ],
+        "tools_url": [
+            "https://bio.tools/haploconfig"
+        ],
+        "tools_dico": [
+            {
+                "name": "haploconfig",
+                "uri": "https://bio.tools/haploconfig",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype reconstruction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype map generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype inference"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Program that can be used to implement tests of neutrality based on the frequency distribution of haplotypes in a sample of DNA sequences (the \u201chaplotype configuration\u201d) and the number of segregating sites. The neutrality tests can be performed conditional on the standard neutral coalescent model with or without recombination, exponential population growth, or island migration.",
+                "homepage": "http://www.stanford.edu/group/rosenberglab/haploconfig.html"
+            }
+        ],
+        "inputs": [
+            "pcgr_inputs",
+            "reference",
+            "reference"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "completedPCGR"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'",
+            "publishDir \"${params.outDir}/reports/pcgr\", mode: \"copy\", pattern: \"*html\"",
+            "publishDir \"${params.outDir}/cases/${caseID}/pcgr\", mode: \"copy\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "mltiQC": {
+        "name_process": "mltiQC",
+        "string_process": "\nprocess mltiQC {\n\n  label 'low_mem'\n  publishDir path: \"$params.outDir/reports\", mode: \"copy\", pattern: \"*html\"\n\n  input:\n  file(fastps) from fastp_multiqc.collect()\n  file(gtkrcls) from gtkrcl_multiqc.collect()\n  file(multimetrics) from multimetrics_multiqc.collect()\n  file(mrkdups) from mrkdup_multiqc.collect()\n\n  output:\n  file('*') into completedmultiqc\n\n  script:\n  \"\"\"\n  multiqc . -i ${params.runID}\".somatic_n-of-1\" --tag DNA -f -c ${params.multiqcConfig}\n  \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "  \"\"\"\n  multiqc . -i ${params.runID}\".somatic_n-of-1\" --tag DNA -f -c ${params.multiqcConfig}\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "fastp_multiqc",
+            "gtkrcl_multiqc",
+            "multimetrics_multiqc",
+            "mrkdup_multiqc"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "completedmultiqc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'",
+            "publishDir path: \"$params.outDir/reports\", mode: \"copy\", pattern: \"*html\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "somenone_software_vers": {
+        "name_process": "somenone_software_vers",
+        "string_process": "\nprocess somenone_software_vers {\n\n  label 'low_mem'\n  publishDir \"${params.outDir}/../pipeline_info\", mode: 'copy'\n\n  output:\n  file 'somenone_software_versions.yaml' into ch_somenone_software_vers\n\n  script:\n  \"\"\"\n  conda env export > somenone_software_versions.yaml\n  \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "  \"\"\"\n  conda env export > somenone_software_versions.yaml\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "ANACONDA"
+        ],
+        "tools_url": [
+            "https://bio.tools/anaconda"
+        ],
+        "tools_dico": [
+            {
+                "name": "ANACONDA",
+                "uri": "https://bio.tools/anaconda",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3658",
+                                    "term": "Statistical inference"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Nucleic acid sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Sequence analysis (nucleic acid)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software package specially developed for the study of genes\u2019 primary structure. It uses gene sequences downloaded from public databases, as FASTA and GenBank, and it applies a set of statistical and visualization methods in different ways, to reveal information about codon context, codon usage, nucleotide repeats within open reading frames (ORFeome) and others.",
+                "homepage": "http://bioinformatics.ua.pt/software/anaconda/"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "ch_somenone_software_vers"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "brucemoran__batch_somatic",
+        "directive": [
+            "label 'low_mem'",
+            "publishDir \"${params.outDir}/../pipeline_info\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

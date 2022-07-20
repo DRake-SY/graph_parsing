@@ -1,0 +1,327 @@
+{
+    "basecall": {
+        "name_process": "basecall",
+        "string_process": "\nprocess basecall {\ntag \"${dir}/${name}\"\npublishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'\nstageInMode 'symlink'\n\ninput:\nset dir, name, file('read_dir') from read_ch\n\noutput:\nset dir, name, file('Basecalled.fastq') into base_ch\n\nscript:\n\"\"\"\nguppy_basecaller \\\n    -i read_dir -s . \\\n    --recursive \\\n    --records_per_fastq 0 \\\n    -c dna_r9.4.1_450bps_hac.cfg \\\n    --qscore_filtering --min_score 7 \\\n    --num_callers 1 --cpu_threads_per_caller ${task.cpus}\n\nln -s pass/fastq_runid_*.fastq Basecalled.fastq\n\"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\nguppy_basecaller \\\n    -i read_dir -s . \\\n    --recursive \\\n    --records_per_fastq 0 \\\n    -c dna_r9.4.1_450bps_hac.cfg \\\n    --qscore_filtering --min_score 7 \\\n    --num_callers 1 --cpu_threads_per_caller ${task.cpus}\n\nln -s pass/fastq_runid_*.fastq Basecalled.fastq\n\"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "read_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "base_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "marcodelapierre__nanopore-nf",
+        "directive": [
+            "tag \"${dir}/${name}\"",
+            "publishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'",
+            "stageInMode 'symlink'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chop": {
+        "name_process": "chop",
+        "string_process": "\nprocess chop {\ntag \"${dir}/${name}\"\npublishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'\nstageInMode ( ( params.basecalled && workflow.profile == 'zeus' ) ? 'copy' : 'symlink' )\n\ninput:\nset dir, name, file('Basecalled.fastq') from base_ch.mix(basefile_ch)\n\noutput:\nset dir, name, file('Chopped.fastq') into chop_ch,chop2_ch\n\nscript:\n\"\"\"\nporechop \\\n  -i Basecalled.fastq -o Chopped.fastq \\\n  --discard_middle -t ${task.cpus}\n\"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\nporechop \\\n  -i Basecalled.fastq -o Chopped.fastq \\\n  --discard_middle -t ${task.cpus}\n\"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "base_ch",
+            "basefile_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "chop_ch",
+            "chop2_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "marcodelapierre__nanopore-nf",
+        "directive": [
+            "tag \"${dir}/${name}\"",
+            "publishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'",
+            "stageInMode ( ( params.basecalled && workflow.profile == 'zeus' ) ? 'copy' : 'symlink' )"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "assemble": {
+        "name_process": "assemble",
+        "string_process": "\nprocess assemble{\ntag \"${dir}/${name}\"\npublishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'\n\ninput:\nset dir, name, file('Chopped.fastq') from chop_ch\n\noutput:\nset dir, name, file('Denovo_subset.fa') into denovo_ch,denovo2_ch\n\nscript:\n\"\"\"\nmini_assemble \\\n  -i Chopped.fastq -p denovo -o denovo \\\n  -c -t ${task.cpus}\n\nawk -v min_len_contig=${params.min_len_contig} \\\n  '{ if( substr(\\$1,1,1) == \">\" ){ skip=0 ; s=gensub(/LN:i:/,\"\",1,\\$2) ; if( (s-0) < min_len_contig ){ skip=1 }} ; if( skip == 0 ){print} }' \\\n  denovo/denovo_final.fa >Denovo_subset.fa\n\"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\nmini_assemble \\\n  -i Chopped.fastq -p denovo -o denovo \\\n  -c -t ${task.cpus}\n\nawk -v min_len_contig=${params.min_len_contig} \\\n  '{ if( substr(\\$1,1,1) == \">\" ){ skip=0 ; s=gensub(/LN:i:/,\"\",1,\\$2) ; if( (s-0) < min_len_contig ){ skip=1 }} ; if( skip == 0 ){print} }' \\\n  denovo/denovo_final.fa >Denovo_subset.fa\n\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chop_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "denovo_ch",
+            "denovo2_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "marcodelapierre__nanopore-nf",
+        "directive": [
+            "tag \"${dir}/${name}\"",
+            "publishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "blast": {
+        "name_process": "blast",
+        "string_process": "\nprocess blast {\ntag \"${dir}/${name}\"\npublishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'\n\ninput:\nset dir, name, file('Denovo_subset.fa') from denovo_ch\n\noutput:\nset dir, name, file('blast.tsv') into blast_ch\nset dir, name, file('blast.xml') into blast_xml_ch\n\nwhen:\n!params.diamond\n\nscript:\n\"\"\"\nblastn \\\n  -query Denovo_subset.fa -db ${params.blast_db} \\\n  -outfmt 11 -out blast.asn \\\n  -evalue ${params.evalue} \\\n  -num_threads ${task.cpus}\n\nblast_formatter \\\n  -archive blast.asn \\\n  -outfmt 5 -out blast.xml\n\nblast_formatter \\\n  -archive blast.asn \\\n  -outfmt \"6 qaccver saccver pident length evalue bitscore stitle\" -out blast_unsort.tsv\n\nsort -n -r -k 6 blast_unsort.tsv >blast.tsv\n\"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "\"\"\"\nblastn \\\n  -query Denovo_subset.fa -db ${params.blast_db} \\\n  -outfmt 11 -out blast.asn \\\n  -evalue ${params.evalue} \\\n  -num_threads ${task.cpus}\n\nblast_formatter \\\n  -archive blast.asn \\\n  -outfmt 5 -out blast.xml\n\nblast_formatter \\\n  -archive blast.asn \\\n  -outfmt \"6 qaccver saccver pident length evalue bitscore stitle\" -out blast_unsort.tsv\n\nsort -n -r -k 6 blast_unsort.tsv >blast.tsv\n\"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "G-BLASTN"
+        ],
+        "tools_url": [
+            "https://bio.tools/g-blastn"
+        ],
+        "tools_dico": [
+            {
+                "name": "G-BLASTN",
+                "uri": "https://bio.tools/g-blastn",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acids"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0346",
+                                    "term": "Sequence similarity search"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2976",
+                                "term": "Protein sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0857",
+                                "term": "Sequence search results"
+                            }
+                        ]
+                    }
+                ],
+                "description": "GPU-accelerated nucleotide alignment tool based on the widely used NCBI-BLAST.",
+                "homepage": "http://www.comp.hkbu.edu.hk/~chxw/software/G-BLASTN.html"
+            }
+        ],
+        "inputs": [
+            "denovo_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "blast_ch",
+            "blast_xml_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "marcodelapierre__nanopore-nf",
+        "directive": [
+            "tag \"${dir}/${name}\"",
+            "publishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'"
+        ],
+        "when": "!params.diamond",
+        "stub": ""
+    },
+    "diamond": {
+        "name_process": "diamond",
+        "string_process": "\nprocess diamond {\ntag \"${dir}/${name}\"\npublishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'\n\ninput:\nset dir, name, file('Denovo_subset.fa') from denovo2_ch\n\noutput:\nset dir, name, file('diamond.tsv') into diamond_ch\nset dir, name, file('diamond.xml') into diamond_xml_ch\n\nwhen:\nparams.diamond\n\nscript:\n\"\"\"\ndiamond blastx \\\n  -q Denovo_subset.fa -d ${params.diamond_db} \\\n  -f 5 -o diamond.xml \\\n  --evalue ${params.evalue} \\\n  -p ${task.cpus}\n\ndiamond blastx \\\n  -q Denovo_subset.fa -d ${params.diamond_db} \\\n  -f 6 qseqid  sseqid  pident length evalue bitscore stitle -o diamond_unsort.tsv \\\n  --evalue ${params.evalue} \\\n  -p ${task.cpus}\n\nsort -n -r -k 6 diamond_unsort.tsv >diamond.tsv\n\"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"\ndiamond blastx \\\n  -q Denovo_subset.fa -d ${params.diamond_db} \\\n  -f 5 -o diamond.xml \\\n  --evalue ${params.evalue} \\\n  -p ${task.cpus}\n\ndiamond blastx \\\n  -q Denovo_subset.fa -d ${params.diamond_db} \\\n  -f 6 qseqid  sseqid  pident length evalue bitscore stitle -o diamond_unsort.tsv \\\n  --evalue ${params.evalue} \\\n  -p ${task.cpus}\n\nsort -n -r -k 6 diamond_unsort.tsv >diamond.tsv\n\"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "Diamond"
+        ],
+        "tools_url": [
+            "https://bio.tools/diamond"
+        ],
+        "tools_dico": [
+            {
+                "name": "Diamond",
+                "uri": "https://bio.tools/diamond",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0258",
+                                    "term": "Sequence alignment analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Sequence aligner for protein and translated DNA searches and functions as a drop-in replacement for the NCBI BLAST software tools. It is suitable for protein-protein search as well as DNA-protein search on short reads and longer sequences including contigs and assemblies, providing a speedup of BLAST ranging up to x20,000.",
+                "homepage": "https://github.com/bbuchfink/diamond"
+            }
+        ],
+        "inputs": [
+            "denovo2_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "diamond_ch",
+            "diamond_xml_ch"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "marcodelapierre__nanopore-nf",
+        "directive": [
+            "tag \"${dir}/${name}\"",
+            "publishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy'"
+        ],
+        "when": "params.diamond",
+        "stub": ""
+    },
+    "seqfile": {
+        "name_process": "seqfile",
+        "string_process": "\nprocess seqfile {\ntag \"${seqid}\"\npublishDir '.', mode: 'copy', saveAs: { filename -> \"Refseq_${seqid}.fasta\" }\n\ninput:\nval seqid from seqid_ch\n\noutput:\nset seqid, file('Refseq.fasta') into seq_ch\n\nscript:\n\"\"\"\nblastdbcmd \\\n    -db ${params.blast_db} -entry ${seqid} \\\n    -line_length 60 \\\n    -out Refseq.fasta\n\nsed -i '/^>/ s/ .*//g' Refseq.fasta\n\"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\nblastdbcmd \\\n    -db ${params.blast_db} -entry ${seqid} \\\n    -line_length 60 \\\n    -out Refseq.fasta\n\nsed -i '/^>/ s/ .*//g' Refseq.fasta\n\"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "seqid_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "seq_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "marcodelapierre__nanopore-nf",
+        "directive": [
+            "tag \"${seqid}\"",
+            "publishDir '.', mode: 'copy', saveAs: { filename -> \"Refseq_${seqid}.fasta\" }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "align": {
+        "name_process": "align",
+        "string_process": "\nprocess align {\ntag \"${dir}/${name}_${seqid}\"\npublishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy', saveAs: { filename -> \"Aligned_${seqid}.bam\" }\n\ninput:\nset dir, name, file('Chopped.fastq'), seqid, file('Refseq.fasta') from chop2_ch.combine( seq_ch )\n\noutput:\nset dir, name, seqid, file('Aligned.bam') into align_ch\n\nscript:\n\"\"\"\nmini_align \\\n  -i Chopped.fastq -r Refseq.fasta \\\n  -p Aligned \\\n  -t ${task.cpus}\n\"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\nmini_align \\\n  -i Chopped.fastq -r Refseq.fasta \\\n  -p Aligned \\\n  -t ${task.cpus}\n\"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chop2_ch",
+            "seq_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "align_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "marcodelapierre__nanopore-nf",
+        "directive": [
+            "tag \"${dir}/${name}_${seqid}\"",
+            "publishDir \"${dir}/${params.outsuffix}${name}\", mode: 'copy', saveAs: { filename -> \"Aligned_${seqid}.bam\" }"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

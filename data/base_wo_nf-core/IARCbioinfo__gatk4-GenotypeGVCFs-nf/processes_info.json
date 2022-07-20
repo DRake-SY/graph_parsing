@@ -1,0 +1,419 @@
+{
+    "GenomicsDBImport": {
+        "name_process": "GenomicsDBImport",
+        "string_process": "\nprocess GenomicsDBImport {\n\n\tcpus 1 \n\n    time { (10.hour + (2.hour * task.attempt)) }                                      \n    memory { (64.GB + (8.GB * task.attempt)) }                                        \n\n    errorStrategy 'retry'\n    maxRetries 3\n\n\ttag { chr }\n\n    input:\n\teach chr from chromosomes_ch\n    file (gvcf) from gvcf_ch.collect()\n\tfile (gvcf_idx) from gvcf_idx_ch.collect()\n\n\toutput:\n    set chr, file (\"${params.cohort}.${chr}\") into gendb_ch\n\t\n    script:\n\t\"\"\"\n\t${GATK} GenomicsDBImport --java-options \"-Xmx24g -Xms24g -Djava.io.tmpdir=/tmp\" \\\n\t${gvcf.collect { \"-V $it \" }.join()} \\\n    -L ${chr} \\\n    --batch-size 50 \\\n    --tmp-dir=/tmp \\\n\t--genomicsdb-workspace-path ${params.cohort}.${chr}\n\t\n\t\"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\t\"\"\"\n\t${GATK} GenomicsDBImport --java-options \"-Xmx24g -Xms24g -Djava.io.tmpdir=/tmp\" \\\n\t${gvcf.collect { \"-V $it \" }.join()} \\\n    -L ${chr} \\\n    --batch-size 50 \\\n    --tmp-dir=/tmp \\\n\t--genomicsdb-workspace-path ${params.cohort}.${chr}\n\t\n\t\"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [
+            "TMPD"
+        ],
+        "tools_url": [
+            "https://bio.tools/tmpd"
+        ],
+        "tools_dico": [
+            {
+                "name": "TMPD",
+                "uri": "https://bio.tools/tmpd",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0160",
+                            "term": "Sequence sites, features and motifs"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant science"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plants"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Botany"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Tobacco Markers & Primers Database.",
+                "homepage": "http://biodb.sdau.edu.cn/tmpd/index.html"
+            }
+        ],
+        "inputs": [
+            "chromosomes_ch",
+            "gvcf_ch",
+            "gvcf_idx_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "gendb_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__gatk4-GenotypeGVCFs-nf",
+        "directive": [
+            "cpus 1",
+            "time { (10.hour + (2.hour * task.attempt)) }",
+            "memory { (64.GB + (8.GB * task.attempt)) }",
+            "errorStrategy 'retry'",
+            "maxRetries 3",
+            "tag { chr }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "GenotypeGVCFs": {
+        "name_process": "GenotypeGVCFs",
+        "string_process": "\nprocess GenotypeGVCFs {\n\n\tcpus 4 \n\tmemory '48 GB'\n\ttime '20h'\n\t\n\ttag { chr }\n\n\tpublishDir params.output_dir, mode: 'copy', pattern: '*.{vcf,idx}'\n\n    input:\n\tset chr, file (workspace) from gendb_ch\n   \tfile genome from ref\n\n\toutput:\n    set chr, file(\"${params.cohort}.${chr}.vcf\"), file(\"${params.cohort}.${chr}.vcf.idx\") into vcf_ch\n    file \"${genome}.fai\" into faidx_sid_ch,faidx_snv_ch\n\tfile \"${genome.baseName}.dict\" into dict_sid_ch,dict_snv_ch\n\n    script:\n\t\"\"\"\n    samtools faidx ${genome}\n\n    java -jar \\$PICARD_TOOLS_LIBDIR/picard.jar \\\n    CreateSequenceDictionary \\\n    R=${genome} \\\n    O=${genome.baseName}.dict\n\n    WORKSPACE=\\$( basename ${workspace} )\n\n    ${GATK} --java-options \"-Xmx5g -Xms5g\" \\\n     GenotypeGVCFs \\\n     -R ${genome} \\\n     -O ${params.cohort}.${chr}.vcf \\\n     -D ${dbsnp_resource_vcf} \\\n     -G StandardAnnotation \\\n     --only-output-calls-starting-in-intervals \\\n     --use-new-qual-calculator \\\n     -V gendb://\\$WORKSPACE \\\n     -L ${chr}\n\n\t\"\"\"\n}",
+        "nb_lignes_process": 42,
+        "string_script": "\t\"\"\"\n    samtools faidx ${genome}\n\n    java -jar \\$PICARD_TOOLS_LIBDIR/picard.jar \\\n    CreateSequenceDictionary \\\n    R=${genome} \\\n    O=${genome.baseName}.dict\n\n    WORKSPACE=\\$( basename ${workspace} )\n\n    ${GATK} --java-options \"-Xmx5g -Xms5g\" \\\n     GenotypeGVCFs \\\n     -R ${genome} \\\n     -O ${params.cohort}.${chr}.vcf \\\n     -D ${dbsnp_resource_vcf} \\\n     -G StandardAnnotation \\\n     --only-output-calls-starting-in-intervals \\\n     --use-new-qual-calculator \\\n     -V gendb://\\$WORKSPACE \\\n     -L ${chr}\n\n\t\"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "gendb_ch",
+            "ref"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "vcf_ch",
+            "faidx_sid_ch",
+            "faidx_snv_ch",
+            "dict_sid_ch",
+            "dict_snv_ch"
+        ],
+        "nb_outputs": 5,
+        "name_workflow": "IARCbioinfo__gatk4-GenotypeGVCFs-nf",
+        "directive": [
+            "cpus 4",
+            "memory '48 GB'",
+            "time '20h'",
+            "tag { chr }",
+            "publishDir params.output_dir, mode: 'copy', pattern: '*.{vcf,idx}'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "HardFilter": {
+        "name_process": "HardFilter",
+        "string_process": "\nprocess HardFilter {\n\n\tcpus 1\n\tmemory '24 GB'\n\ttime '12h'\n\t\n\ttag { chr }\n\n    input:\n\tset chr, file (vcf), file (vcfidx) from vcf_ch\n\n\toutput:\n    file(\"${params.cohort}.${chr}.filtered.vcf\") into (vcf_hf_ch)\n    file(\"${params.cohort}.${chr}.filtered.vcf.idx\") into (vcf_idx_hf_ch)\n\n    script:\n\t\"\"\"\n\t${GATK} --java-options \"-Xmx3g -Xms3g\" \\\n      VariantFiltration \\\n      --filter-expression \"ExcessHet > ${excess_het_threshold}\" \\\n      --filter-name ExcessHet \\\n      -V ${vcf} \\\n      -O ${params.cohort}.${chr}.markfiltered.vcf\n\n\t${GATK} --java-options \"-Xmx3g -Xms3g\" \\\n      SelectVariants \\\n      --exclude-filtered \\\n      -V ${params.cohort}.${chr}.markfiltered.vcf \\\n      -O ${params.cohort}.${chr}.filtered.vcf\n\n\t\"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "\t\"\"\"\n\t${GATK} --java-options \"-Xmx3g -Xms3g\" \\\n      VariantFiltration \\\n      --filter-expression \"ExcessHet > ${excess_het_threshold}\" \\\n      --filter-name ExcessHet \\\n      -V ${vcf} \\\n      -O ${params.cohort}.${chr}.markfiltered.vcf\n\n\t${GATK} --java-options \"-Xmx3g -Xms3g\" \\\n      SelectVariants \\\n      --exclude-filtered \\\n      -V ${params.cohort}.${chr}.markfiltered.vcf \\\n      -O ${params.cohort}.${chr}.filtered.vcf\n\n\t\"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vcf_ch"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "",
+            ""
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "IARCbioinfo__gatk4-GenotypeGVCFs-nf",
+        "directive": [
+            "cpus 1",
+            "memory '24 GB'",
+            "time '12h'",
+            "tag { chr }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "GatherVcfs": {
+        "name_process": "GatherVcfs",
+        "string_process": "\nprocess GatherVcfs {\n\n\tcpus 1\n\tmemory '48 GB'\n\ttime '12h'\n\t\n\ttag \"${params.cohort}\"\n\n    input:\n    file (vcf) from vcf_hf_ch.collect()\n\tfile (vcf_idx) from vcf_idx_hf_ch.collect()\n\n\toutput:\n    set file(\"${params.cohort}.vcf\"), file(\"${params.cohort}.vcf.idx\") into (vcf_snv_ch, vcf_sid_ch, vcf_recal_ch)\n\n                                                 \n                                                                                                                                              \n                                                                                      \n                                                                                                        \n                                                                                                       \n                                                                          \n                \n                                        \n\n    script:\n\t\"\"\"\n\t${GATK} --java-options \"-Xmx3g -Xms3g\" \\\n      GatherVcfs \\\n      ${vcf.findAll{ it=~/chr\\d+/ }.collect().sort{ it.name.tokenize('.')[1].substring(3).toInteger() }.plus(vcf.find{ it=~/chrX/ }).plus(vcf.find{ it=~/chrY/ }).collect{ \"--INPUT $it \" }.join() } \\\n      --OUTPUT ${params.cohort}.vcf\n\n\t\"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "\t\"\"\"\n\t${GATK} --java-options \"-Xmx3g -Xms3g\" \\\n      GatherVcfs \\\n      ${vcf.findAll{ it=~/chr\\d+/ }.collect().sort{ it.name.tokenize('.')[1].substring(3).toInteger() }.plus(vcf.find{ it=~/chrX/ }).plus(vcf.find{ it=~/chrY/ }).collect{ \"--INPUT $it \" }.join() } \\\n      --OUTPUT ${params.cohort}.vcf\n\n\t\"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vcf_hf_ch",
+            "vcf_idx_hf_ch"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            ""
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__gatk4-GenotypeGVCFs-nf",
+        "directive": [
+            "cpus 1",
+            "memory '48 GB'",
+            "time '12h'",
+            "tag \"${params.cohort}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SID_VariantRecalibrator": {
+        "name_process": "SID_VariantRecalibrator",
+        "string_process": "\nprocess SID_VariantRecalibrator {\n\n\tcpus 1\n\tmemory '24 GB'\n\ttime '12h'\n\t\n\ttag \"${params.cohort}\"\n\n    input:\n\tset file (vcf), file (vcfidx) from vcf_sid_ch\n    file genome from ref\n    file faidx from faidx_sid_ch\n    file dict from dict_sid_ch\n\n\toutput:\n    set file(\"${params.cohort}.sid.recal\"),file(\"${params.cohort}.sid.recal.idx\"),file(\"${params.cohort}.sid.tranches\") into sid_recal_ch\n\n    script:\n\t\"\"\"\n    ${GATK} --java-options \"-Xmx24g -Xms24g\" \\\n      VariantRecalibrator \\\n      -R ${genome} \\\n      -V ${vcf} \\\n      --output ${params.cohort}.sid.recal \\\n      --tranches-file ${params.cohort}.sid.tranches \\\n      --trust-all-polymorphic \\\n      -an QD -an DP -an FS -an SOR -an ReadPosRankSum -an MQRankSum -an InbreedingCoeff \\\n      -mode INDEL \\\n      --max-gaussians 4 \\\n      -resource mills,known=false,training=true,truth=true,prior=12:${mills_resource_vcf} \\\n      -resource axiomPoly,known=false,training=true,truth=false,prior=10:${axiomPoly_resource_vcf} \\\n      -resource dbsnp,known=true,training=false,truth=false,prior=2:${dbsnp_resource_vcf}\n\t\n\t\"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "\t\"\"\"\n    ${GATK} --java-options \"-Xmx24g -Xms24g\" \\\n      VariantRecalibrator \\\n      -R ${genome} \\\n      -V ${vcf} \\\n      --output ${params.cohort}.sid.recal \\\n      --tranches-file ${params.cohort}.sid.tranches \\\n      --trust-all-polymorphic \\\n      -an QD -an DP -an FS -an SOR -an ReadPosRankSum -an MQRankSum -an InbreedingCoeff \\\n      -mode INDEL \\\n      --max-gaussians 4 \\\n      -resource mills,known=false,training=true,truth=true,prior=12:${mills_resource_vcf} \\\n      -resource axiomPoly,known=false,training=true,truth=false,prior=10:${axiomPoly_resource_vcf} \\\n      -resource dbsnp,known=true,training=false,truth=false,prior=2:${dbsnp_resource_vcf}\n\t\n\t\"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vcf_sid_ch",
+            "ref",
+            "faidx_sid_ch",
+            "dict_sid_ch"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "sid_recal_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__gatk4-GenotypeGVCFs-nf",
+        "directive": [
+            "cpus 1",
+            "memory '24 GB'",
+            "time '12h'",
+            "tag \"${params.cohort}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "SNV_VariantRecalibrator": {
+        "name_process": "SNV_VariantRecalibrator",
+        "string_process": "\nprocess SNV_VariantRecalibrator {\n\n\tcpus 1\n\tmemory '90 GB'\n\ttime '12h'\n\t\n\ttag \"${params.cohort}\"\n\n    input:\n\tset file (vcf), file (vcfidx) from vcf_snv_ch\n    file genome from ref\n    file faidx from faidx_snv_ch\n    file dict from dict_snv_ch\n\n\toutput:\n    set file(\"${params.cohort}.snv.recal\"),file(\"${params.cohort}.snv.recal.idx\"),file(\"${params.cohort}.snv.tranches\") into snv_recal_ch\n\n    script:\n\t\"\"\"\n    ${GATK} --java-options \"-Xmx90g -Xms90g\" \\\n      VariantRecalibrator \\\n      -R ${genome} \\\n      -V ${vcf} \\\n      --output ${params.cohort}.snv.recal \\\n      --tranches-file ${params.cohort}.snv.tranches \\\n      --trust-all-polymorphic \\\n      -an QD -an MQ -an MQRankSum -an ReadPosRankSum -an FS -an SOR -an DP -an InbreedingCoeff \\\n      -mode SNP \\\n      --max-gaussians 6 \\\n      -resource hapmap,known=false,training=true,truth=true,prior=15:${hapmap_resource_vcf} \\\n      -resource omni,known=false,training=true,truth=true,prior=12:${omni_resource_vcf} \\\n      -resource 1000G,known=false,training=true,truth=false,prior=10:${one_thousand_genomes_resource_vcf} \\\n      -resource dbsnp,known=true,training=false,truth=false,prior=7:${dbsnp_resource_vcf}\n\t\n\t\"\"\"\n}",
+        "nb_lignes_process": 35,
+        "string_script": "\t\"\"\"\n    ${GATK} --java-options \"-Xmx90g -Xms90g\" \\\n      VariantRecalibrator \\\n      -R ${genome} \\\n      -V ${vcf} \\\n      --output ${params.cohort}.snv.recal \\\n      --tranches-file ${params.cohort}.snv.tranches \\\n      --trust-all-polymorphic \\\n      -an QD -an MQ -an MQRankSum -an ReadPosRankSum -an FS -an SOR -an DP -an InbreedingCoeff \\\n      -mode SNP \\\n      --max-gaussians 6 \\\n      -resource hapmap,known=false,training=true,truth=true,prior=15:${hapmap_resource_vcf} \\\n      -resource omni,known=false,training=true,truth=true,prior=12:${omni_resource_vcf} \\\n      -resource 1000G,known=false,training=true,truth=false,prior=10:${one_thousand_genomes_resource_vcf} \\\n      -resource dbsnp,known=true,training=false,truth=false,prior=7:${dbsnp_resource_vcf}\n\t\n\t\"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vcf_snv_ch",
+            "ref",
+            "faidx_snv_ch",
+            "dict_snv_ch"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "snv_recal_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__gatk4-GenotypeGVCFs-nf",
+        "directive": [
+            "cpus 1",
+            "memory '90 GB'",
+            "time '12h'",
+            "tag \"${params.cohort}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "ApplyRecalibration": {
+        "name_process": "ApplyRecalibration",
+        "string_process": "\nprocess ApplyRecalibration {\n\n\tcpus 1 \n\tmemory '7 GB'\n\ttime '12h'\n\t\n\ttag \"${params.cohort}\"\n\n\tpublishDir params.output_dir, mode: 'copy'\n\n    input:\n\tset file (input_vcf), file (input_vcf_idx) from vcf_recal_ch\n\tset file (indels_recalibration), file (indels_recalibration_idx), file (indels_tranches) from sid_recal_ch\n\tset file (snps_recalibration), file (snps_recalibration_idx), file (snps_tranches) from snv_recal_ch\n\n\toutput:\n    set file(\"${params.cohort}.recalibrated.vcf\"),file(\"${params.cohort}.recalibrated.vcf.idx\") into vcf_final_ch\n\n    script:\n\t\"\"\"\n    ${GATK} --java-options \"-Xmx5g -Xms5g\" \\\n      ApplyVQSR \\\n      -O tmp.indel.recalibrated.vcf \\\n      -V ${input_vcf} \\\n      --recal-file ${indels_recalibration} \\\n      --tranches-file ${indels_tranches} \\\n      --truth-sensitivity-filter-level 99.0 \\\n      --exclude-filtered \\\n      --create-output-variant-index true \\\n      -mode INDEL\n\n    ${GATK} --java-options \"-Xmx5g -Xms5g\" \\\n      ApplyVQSR \\\n      -O ${params.cohort}.recalibrated.vcf \\\n      -V tmp.indel.recalibrated.vcf \\\n      --recal-file ${snps_recalibration} \\\n      --tranches-file ${snps_tranches} \\\n      --truth-sensitivity-filter-level 99.5 \\\n      --exclude-filtered \\\n      --create-output-variant-index true \\\n      -mode SNP\n\t\t\n\t\"\"\"\n}",
+        "nb_lignes_process": 43,
+        "string_script": "\t\"\"\"\n    ${GATK} --java-options \"-Xmx5g -Xms5g\" \\\n      ApplyVQSR \\\n      -O tmp.indel.recalibrated.vcf \\\n      -V ${input_vcf} \\\n      --recal-file ${indels_recalibration} \\\n      --tranches-file ${indels_tranches} \\\n      --truth-sensitivity-filter-level 99.0 \\\n      --exclude-filtered \\\n      --create-output-variant-index true \\\n      -mode INDEL\n\n    ${GATK} --java-options \"-Xmx5g -Xms5g\" \\\n      ApplyVQSR \\\n      -O ${params.cohort}.recalibrated.vcf \\\n      -V tmp.indel.recalibrated.vcf \\\n      --recal-file ${snps_recalibration} \\\n      --tranches-file ${snps_tranches} \\\n      --truth-sensitivity-filter-level 99.5 \\\n      --exclude-filtered \\\n      --create-output-variant-index true \\\n      -mode SNP\n\t\t\n\t\"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "vcf_recal_ch",
+            "sid_recal_ch",
+            "snv_recal_ch"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "vcf_final_ch"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "IARCbioinfo__gatk4-GenotypeGVCFs-nf",
+        "directive": [
+            "cpus 1",
+            "memory '7 GB'",
+            "time '12h'",
+            "tag \"${params.cohort}\"",
+            "publishDir params.output_dir, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

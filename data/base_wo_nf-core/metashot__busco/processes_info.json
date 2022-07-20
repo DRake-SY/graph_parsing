@@ -1,0 +1,178 @@
+{
+    "genome_info": {
+        "name_process": "genome_info",
+        "string_process": "\nprocess genome_info {      \n    publishDir \"${params.outdir}\" , mode: 'copy' ,\n        pattern: 'genome_info.tsv'\n\n    input:\n    path(summaries)\n    path(stats)\n   \n    output:\n    path 'genome_info.tsv', emit: table \n\n    script:\n    \"\"\"\n    mkdir summaries_dir\n    mv $summaries summaries_dir\n    genome_info.py \\\n        summaries_dir \\\n        $stats \\\n        genome_info.tsv\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    \"\"\"\n    mkdir summaries_dir\n    mv $summaries summaries_dir\n    genome_info.py \\\n        summaries_dir \\\n        $stats \\\n        genome_info.tsv\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "summaries",
+            "stats"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__busco",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: 'copy' , pattern: 'genome_info.tsv'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "genome_filter": {
+        "name_process": "genome_filter",
+        "string_process": "\nprocess genome_filter {\n    publishDir \"${params.outdir}\" , mode: 'copy'\n\n    input:\n    path 'genome_info.tsv'\n    path(genomes)\n\n    output:\n    path 'filtered/*'\n    \n    script:   \n    \"\"\"\n    mkdir genomes_dir\n    mv $genomes genomes_dir\n    genome_filter.py \\\n        genome_info.tsv \\\n        genomes_dir \\\n        filtered \\\n        ${params.min_completeness} \\\n        ${params.max_contamination}\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    \"\"\"\n    mkdir genomes_dir\n    mv $genomes genomes_dir\n    genome_filter.py \\\n        genome_info.tsv \\\n        genomes_dir \\\n        filtered \\\n        ${params.min_completeness} \\\n        ${params.max_contamination}\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genomes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__busco",
+        "directive": [
+            "publishDir \"${params.outdir}\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "busco": {
+        "name_process": "busco",
+        "string_process": "\nprocess busco {\n    tag \"${id}\"\n\n    publishDir \"${params.outdir}/busco\" , mode: 'copy'\n\n    input:\n    tuple val(id), path(genome)\n    path (lineage)\n    path busco_db, stageAs: 'busco_downloads'\n\n    output:\n    path \"${id}/logs\"\n    path \"${id}/exit_info.txt\", optional: true\n    path \"${id}/short_summary.*\", optional: true\n    path \"${id}/short_summary.specific.*.${id}.txt\", optional: true, emit: summary\n    \n\n    script:\n    if( params.lineage == 'auto' ) {\n        param_auto_lineage = '--auto-lineage'\n        param_lineage_dataset = ''\n    }\n    else if ( params.lineage == 'auto-prok' ) {\n        param_auto_lineage = '--auto-lineage-prok'\n        param_lineage_dataset = ''\n    }\n    else if ( params.lineage == 'auto-euk' ) {\n        param_auto_lineage = '--auto-lineage-euk'\n        param_lineage_dataset = ''\n    }\n    else {\n        param_auto_lineage = ''\n        param_lineage_dataset = \"-l ${params.lineage}\"\n    }\n\n    if( params.busco_db == 'none' ) {\n        param_offline = ''\n    }\n    else {\n        param_offline = '--offline'\n    }\n\n    \"\"\"\n    # Avoid the \"FileExistsError\" in inline mode\n    if [ \"${param_offline}\" = \"\" ]; then\n        rm busco_downloads\n    fi\n\n    set +e\n    busco \\\n        -i ${genome} \\\n        -o ${id} \\\n        -m genome \\\n        ${param_lineage_dataset} \\\n        ${param_auto_lineage} \\\n        ${param_offline} \\\n        --cpu ${task.cpus}\n    BUSCO_EXIT=\\$?\n      \n    BUSCO_LOG=${id}/logs/busco.log\n    if [ \"\\$BUSCO_EXIT\" -eq 1 ] && [ -f \\$BUSCO_LOG ]; then\n        \n        EXIT_MSG='SystemExit: Augustus did not recognize any genes'\n        grep -q \"\\$EXIT_MSG\" \\$BUSCO_LOG\n        if [ \"\\$?\" -eq 0 ]; then\n            echo \"Augustus did not recognize any genes.\" >> ${id}/exit_info.txt\n            exit 0\n        fi\n\n        EXIT_MSG='SystemExit: Placements failed'\n        grep -q \"\\$EXIT_MSG\" \\$BUSCO_LOG\n        if [ \"\\$?\" -eq 0 ]; then\n            echo \"Placements failed.\" >> ${id}/exit_info.txt\n            exit 0\n        fi\n\n    fi\n\n    exit \\$BUSCO_EXIT\n    \"\"\"\n}",
+        "nb_lignes_process": 80,
+        "string_script": "    if( params.lineage == 'auto' ) {\n        param_auto_lineage = '--auto-lineage'\n        param_lineage_dataset = ''\n    }\n    else if ( params.lineage == 'auto-prok' ) {\n        param_auto_lineage = '--auto-lineage-prok'\n        param_lineage_dataset = ''\n    }\n    else if ( params.lineage == 'auto-euk' ) {\n        param_auto_lineage = '--auto-lineage-euk'\n        param_lineage_dataset = ''\n    }\n    else {\n        param_auto_lineage = ''\n        param_lineage_dataset = \"-l ${params.lineage}\"\n    }\n\n    if( params.busco_db == 'none' ) {\n        param_offline = ''\n    }\n    else {\n        param_offline = '--offline'\n    }\n\n    \"\"\"\n    # Avoid the \"FileExistsError\" in inline mode\n    if [ \"${param_offline}\" = \"\" ]; then\n        rm busco_downloads\n    fi\n\n    set +e\n    busco \\\n        -i ${genome} \\\n        -o ${id} \\\n        -m genome \\\n        ${param_lineage_dataset} \\\n        ${param_auto_lineage} \\\n        ${param_offline} \\\n        --cpu ${task.cpus}\n    BUSCO_EXIT=\\$?\n      \n    BUSCO_LOG=${id}/logs/busco.log\n    if [ \"\\$BUSCO_EXIT\" -eq 1 ] && [ -f \\$BUSCO_LOG ]; then\n        \n        EXIT_MSG='SystemExit: Augustus did not recognize any genes'\n        grep -q \"\\$EXIT_MSG\" \\$BUSCO_LOG\n        if [ \"\\$?\" -eq 0 ]; then\n            echo \"Augustus did not recognize any genes.\" >> ${id}/exit_info.txt\n            exit 0\n        fi\n\n        EXIT_MSG='SystemExit: Placements failed'\n        grep -q \"\\$EXIT_MSG\" \\$BUSCO_LOG\n        if [ \"\\$?\" -eq 0 ]; then\n            echo \"Placements failed.\" >> ${id}/exit_info.txt\n            exit 0\n        fi\n\n    fi\n\n    exit \\$BUSCO_EXIT\n    \"\"\"",
+        "nb_lignes_script": 61,
+        "language_script": "bash",
+        "tools": [
+            "BUSCO"
+        ],
+        "tools_url": [
+            "https://bio.tools/busco"
+        ],
+        "tools_dico": [
+            {
+                "name": "BUSCO",
+                "uri": "https://bio.tools/busco",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Sequence assembly validation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Sequence assembly quality evaluation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Assembly QC"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Assembly quality evaluation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3180",
+                                    "term": "Sequence assembly QC"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1234",
+                                "term": "Sequence set (nucleic acid)"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2955",
+                                "term": "Sequence report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Provides measures for quantitative assessment of genome assembly, gene set, and transcriptome completeness based on evolutionarily informed expectations of gene content from near-universal single-copy orthologs.",
+                "homepage": "http://busco.ezlab.org/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "genome",
+            "lineage",
+            "busco_db"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__busco",
+        "directive": [
+            "tag \"${id}\"",
+            "publishDir \"${params.outdir}/busco\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "statswrapper": {
+        "name_process": "statswrapper",
+        "string_process": "\nprocess statswrapper {      \n\n        publishDir \"${params.outdir}/statswrapper\" , mode: 'copy'\n\n        input:\n        path(genomes)\n\n        output:\n        path 'stats.tsv', emit: stats\n\n        script:       \n        \"\"\"\n        mkdir genomes_dir\n        mv ${genomes} genomes_dir\n        statswrapper.sh genomes_dir/* > stats.tsv\n        \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "        \"\"\"\n        mkdir genomes_dir\n        mv ${genomes} genomes_dir\n        statswrapper.sh genomes_dir/* > stats.tsv\n        \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "genomes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "metashot__busco",
+        "directive": [
+            "publishDir \"${params.outdir}/statswrapper\" , mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

@@ -1,0 +1,2727 @@
+{
+    "init_db": {
+        "name_process": "init_db",
+        "string_process": "\nprocess init_db {\n  cpus 1\n  publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n  output:\n  path(\"db_stats.txt\")\n\n  \"\"\"\n  #!/usr/bin/env python\n\n  import subprocess\n  from os import path\n  from carveme import config, project_dir\n  from carveme.cli.carve import first_run_check\n\n  diamond_db = project_dir + config.get('generated', 'diamond_db')[:-5] + \".dmnd\"\n\n  if __name__ == \"__main__\":\n    if path.exists(diamond_db):\n      subprocess.check_output([\"rm\", diamond_db])\n    first_run_check()\n    with open(\"db_stats.txt\", \"w\") as out:\n      res = subprocess.check_output([\"diamond\", \"dbinfo\", \"-d\", diamond_db])\n      out.write(res.decode())\n  \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "\"\"\"\n  #!/usr/bin/env python\n\n  import subprocess\n  from os import path\n  from carveme import config, project_dir\n  from carveme.cli.carve import first_run_check\n\n  diamond_db = project_dir + config.get('generated', 'diamond_db')[:-5] + \".dmnd\"\n\n  if __name__ == \"__main__\":\n    if path.exists(diamond_db):\n      subprocess.check_output([\"rm\", diamond_db])\n    first_run_check()\n    with open(\"db_stats.txt\", \"w\") as out:\n      res = subprocess.check_output([\"diamond\", \"dbinfo\", \"-d\", diamond_db])\n      out.write(res.decode())\n  \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "find_genes": {
+        "name_process": "find_genes",
+        "string_process": "\nprocess find_genes {\n    cpus 1\n    publishDir \"${params.data_dir}/genes\"\n\n    input:\n    tuple val(id), path(assembly)\n\n    output:\n    tuple path(\"${id}.ffn\"), path(\"${id}.faa\")\n\n    \"\"\"\n    if grep -q \">\" ${assembly}; then\n        prodigal -p meta -i ${assembly} -o ${id}.gff -d ${id}.ffn -a ${id}.faa\n    else\n        touch ${id}.faa\n        touch ${id}.ffn\n    fi\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n    if grep -q \">\" ${assembly}; then\n        prodigal -p meta -i ${assembly} -o ${id}.gff -d ${id}.ffn -a ${id}.faa\n    else\n        touch ${id}.faa\n        touch ${id}.ffn\n    fi\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "assembly"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}/genes\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "checkm": {
+        "name_process": "checkm",
+        "string_process": "\nprocess checkm {\n  cpus params.threads\n  publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n  input:\n  path(proteins)\n\n  output:\n  path(\"checkm_summary.tsv\")\n\n  \"\"\"\n  checkm lineage_wf --genes -t ${task.cpus} -x faa . checkm\n  checkm qa checkm/lineage.ms checkm --tab_table -f checkm_summary.tsv\n  \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n  checkm lineage_wf --genes -t ${task.cpus} -x faa . checkm\n  checkm qa checkm/lineage.ms checkm --tab_table -f checkm_summary.tsv\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "proteins"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus params.threads",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "build_carveme": {
+        "name_process": "build_carveme",
+        "string_process": "\nprocess build_carveme {\n  cpus 2\n  publishDir \"${params.data_dir}/carveme_models\", mode: \"copy\", overwrite: true\n\n  input:\n  tuple val(id), path(genes_dna), path(genes_aa), path(db_info)\n\n  output:\n  tuple val(\"${id}\"), path(\"${id}.xml.gz\"), path(\"${id}.log\")\n\n  script:\n  if (params.media_db && params.media)\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    carve ${genes_aa} -o ${id}.xml.gz --mediadb ${params.media_db} \\\n          --gapfill ${params.media} --diamond-args \"-p ${task.cpus}\" \\\n          --fbc2 -v > ${id}.log\n    \"\"\"\n  else if (params.media)\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    carve ${genes_aa} -o ${id}.xml.gz --gapfill ${params.media} \\\n          --diamond-args \"-p ${task.cpus}\" \\\n          --fbc2 -v > ${id}.log\n    \"\"\"\n  else\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    carve ${genes_aa} -o ${id}.xml.gz --diamond-args \"-p ${task.cpus}\" \\\n      --fbc2 -v > ${id}.log\n    \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "  if (params.media_db && params.media)\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    carve ${genes_aa} -o ${id}.xml.gz --mediadb ${params.media_db} \\\n          --gapfill ${params.media} --diamond-args \"-p ${task.cpus}\" \\\n          --fbc2 -v > ${id}.log\n    \"\"\"\n  else if (params.media)\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    carve ${genes_aa} -o ${id}.xml.gz --gapfill ${params.media} \\\n          --diamond-args \"-p ${task.cpus}\" \\\n          --fbc2 -v > ${id}.log\n    \"\"\"\n  else\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    carve ${genes_aa} -o ${id}.xml.gz --diamond-args \"-p ${task.cpus}\" \\\n      --fbc2 -v > ${id}.log\n    \"\"\"",
+        "nb_lignes_script": 19,
+        "language_script": "bash",
+        "tools": [
+            "MetaCarvel"
+        ],
+        "tools_url": [
+            "https://bio.tools/MetaCarvel"
+        ],
+        "tools_dico": [
+            {
+                "name": "MetaCarvel",
+                "uri": "https://bio.tools/MetaCarvel",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3837",
+                            "term": "Metagenomic sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3837",
+                            "term": "Shotgun metagenomic sequencing"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3216",
+                                    "term": "Scaffolding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De-novo assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3216",
+                                    "term": "Scaffold construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3216",
+                                    "term": "Scaffold generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De Bruijn graph"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "Sequence assembly (de-novo assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "MetaCarvel: A scaffolder for metagenomes | MetaCarvel - Scaffolder for metagenomes | MetaCarvel is an updated version of previous metagenome scaffolder Bambus 2. To run MetaCarvel, you will need Python 2.7.x, Samtools, Bedtools, Networkx(Version < 1.11), NumPy,and OGDF",
+                "homepage": "https://github.com/marbl/MetaCarvel"
+            }
+        ],
+        "inputs": [
+            "id",
+            "genes_dna",
+            "genes_aa",
+            "db_info"
+        ],
+        "nb_inputs": 4,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 2",
+            "publishDir \"${params.data_dir}/carveme_models\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "build_gapseq": {
+        "name_process": "build_gapseq",
+        "string_process": "\nprocess build_gapseq {\n  cpus 1\n  publishDir \"${params.data_dir}/gapseq_models\", mode: \"copy\", overwrite: true\n\n  input:\n  tuple val(id), path(assembly)\n\n  output:\n  tuple val(\"${id}\"), path(\"${id}.xml.gz\"), path(\"${id}.log\")\n\n  script:\n  if (params.media_db)\n    \"\"\"\n    gapseq -n doall ${assembly} ${params.media_db} > ${id}.log\n    gzip ${id}.xml\n    \"\"\"\n  else\n    \"\"\"\n    gapseq -n doall ${assembly} /opt/gapseq/data/media/gut.csv > ${id}.log\n    gzip ${id}.xml\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "  if (params.media_db)\n    \"\"\"\n    gapseq -n doall ${assembly} ${params.media_db} > ${id}.log\n    gzip ${id}.xml\n    \"\"\"\n  else\n    \"\"\"\n    gapseq -n doall ${assembly} /opt/gapseq/data/media/gut.csv > ${id}.log\n    gzip ${id}.xml\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "gapseq"
+        ],
+        "tools_url": [
+            "https://bio.tools/gapseq"
+        ],
+        "tools_dico": [
+            {
+                "name": "gapseq",
+                "uri": "https://bio.tools/gapseq",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymes"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3407",
+                            "term": "Endocrinology and metabolism"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Microbial ecology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0821",
+                            "term": "Enzymology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3407",
+                            "term": "https://en.wikipedia.org/wiki/Endocrinology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Environmental microbiology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0310",
+                                    "term": "Sequence assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3461",
+                                    "term": "Virulence prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "Metabolic network modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3929",
+                                    "term": "Metabolic pathway prediction"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3461",
+                                    "term": "Pathogenicity prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3660",
+                                    "term": "http://edamontology.org/Metabolic%20pathway%20modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Informed prediction of bacterial metabolic pathways and reconstruction of accurate metabolic models.\n\nInformed prediction and analysis of bacterial metabolic pathways and genome-scale networks.\n\ngapseq is designed to combine metabolic pathway analysis with metabolic network reconstruction and curation. Based on genomic information and databases for pathways and reactions, gapseq can be used for:.",
+                "homepage": "https://github.com/jotech/gapseq"
+            }
+        ],
+        "inputs": [
+            "id",
+            "assembly"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}/gapseq_models\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "check_model": {
+        "name_process": "check_model",
+        "string_process": "\nprocess check_model {\n  cpus 1\n  publishDir \"${params.data_dir}/model_qualities\", mode: \"copy\", overwrite: true\n\n  input:\n  tuple val(id), path(model), path(log)\n\n  output:\n  tuple val(\"${id}\"), path(\"${id}.html.gz\")\n\n  script:\n  if (params.method == \"gapseq\")\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    memote report snapshot ${model} --filename ${id}.html\n    gzip ${id}.html\n    \"\"\"\n  else\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    memote report snapshot ${model} --solver cplex --filename ${id}.html\n    gzip ${id}.html\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "  if (params.method == \"gapseq\")\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    memote report snapshot ${model} --filename ${id}.html\n    gzip ${id}.html\n    \"\"\"\n  else\n    \"\"\"\n    CPX_PARAM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus} \\\n    memote report snapshot ${model} --solver cplex --filename ${id}.html\n    gzip ${id}.html\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "model",
+            "log"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}/model_qualities\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "carveme_fba": {
+        "name_process": "carveme_fba",
+        "string_process": "\nprocess carveme_fba {\n  cpus 1\n\n  input:\n  tuple val(id), path(model), path(log)\n\n  output:\n  tuple val(id), path(\"${id}_exchanges.csv\"), path(\"${id}_growth_rate.csv\")\n\n  \"\"\"\n  #!/usr/bin/env python3\n\n  import cobra\n  import pandas as pd\n  from carveme import project_dir\n  from os import path\n\n  model = cobra.io.read_sbml_model(\"${model}\")\n\n  exids = [r.id for r in model.exchanges]\n  if \"${params.media}\" != \"null\":\n    if \"${params.media_db}\" == \"null\":\n      media_df = pd.read_csv(\n        path.join(project_dir, \"${model}\", \"input\", \"media_db.tsv\"), sep=\"\\\\t\")\n    else:\n      media_df = pd.read_csv(\"${params.media_db}\", sep=\"\\\\t\")\n    mname = \"${params.media}\".split(\",\")[0]\n    media_df = media_df[media_df.medium == mname]\n    if \"flux\" not in media_df.columns:\n      media_df[\"flux\"] = 0.1\n    if \"reaction\" not in media_df.columns:\n      media_df[\"reaction\"] = \"EX_\" + media_df[\"compound\"] + \"_e\"\n    media_df.index = media_df.reaction\n    model.medium = media_df.flux[media_df.index.isin(exids)]\n\n  rate = pd.DataFrame({\"id\": \"${id}\", \"growth_rate\": model.slim_optimize()}, index=[0])\n  sol = cobra.flux_analysis.pfba(model)\n  ex_fluxes = sol.fluxes[\n    sol.fluxes.index.isin(exids)\n    & (sol.fluxes.abs() > model.tolerance)\n  ]\n  met_names = ex_fluxes.index.to_series().apply(\n    lambda idx: model.metabolites.get_by_id(idx.replace(\"EX_\", \"\")).name)\n  exchanges = pd.DataFrame({\n    \"assembly\": \"${id}\",\n    \"reaction\": ex_fluxes.index,\n    \"flux\": ex_fluxes,\n    \"description\": met_names\n  })\n  rate.to_csv(\"${id}_growth_rate.csv\", index=False)\n  exchanges.to_csv(\"${id}_exchanges.csv\", index=False)\n  \"\"\"\n}",
+        "nb_lignes_process": 52,
+        "string_script": "\"\"\"\n  #!/usr/bin/env python3\n\n  import cobra\n  import pandas as pd\n  from carveme import project_dir\n  from os import path\n\n  model = cobra.io.read_sbml_model(\"${model}\")\n\n  exids = [r.id for r in model.exchanges]\n  if \"${params.media}\" != \"null\":\n    if \"${params.media_db}\" == \"null\":\n      media_df = pd.read_csv(\n        path.join(project_dir, \"${model}\", \"input\", \"media_db.tsv\"), sep=\"\\\\t\")\n    else:\n      media_df = pd.read_csv(\"${params.media_db}\", sep=\"\\\\t\")\n    mname = \"${params.media}\".split(\",\")[0]\n    media_df = media_df[media_df.medium == mname]\n    if \"flux\" not in media_df.columns:\n      media_df[\"flux\"] = 0.1\n    if \"reaction\" not in media_df.columns:\n      media_df[\"reaction\"] = \"EX_\" + media_df[\"compound\"] + \"_e\"\n    media_df.index = media_df.reaction\n    model.medium = media_df.flux[media_df.index.isin(exids)]\n\n  rate = pd.DataFrame({\"id\": \"${id}\", \"growth_rate\": model.slim_optimize()}, index=[0])\n  sol = cobra.flux_analysis.pfba(model)\n  ex_fluxes = sol.fluxes[\n    sol.fluxes.index.isin(exids)\n    & (sol.fluxes.abs() > model.tolerance)\n  ]\n  met_names = ex_fluxes.index.to_series().apply(\n    lambda idx: model.metabolites.get_by_id(idx.replace(\"EX_\", \"\")).name)\n  exchanges = pd.DataFrame({\n    \"assembly\": \"${id}\",\n    \"reaction\": ex_fluxes.index,\n    \"flux\": ex_fluxes,\n    \"description\": met_names\n  })\n  rate.to_csv(\"${id}_growth_rate.csv\", index=False)\n  exchanges.to_csv(\"${id}_exchanges.csv\", index=False)\n  \"\"\"",
+        "nb_lignes_script": 42,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "model",
+            "log"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "summarize_fba": {
+        "name_process": "summarize_fba",
+        "string_process": "\nprocess summarize_fba {\n  cpus params.threads\n  publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n  input:\n  path(exchanges)\n  path(rates)\n\n  output:\n  tuple path(\"exchanges.csv\"), path(\"growth_rates.csv\")\n\n  \"\"\"\n  #!/usr/bin/env python3\n\n  import pandas as pd\n  import glob\n\n  res = map(pd.read_csv, glob.glob(\"*_exchanges.csv\"))\n  exchanges = pd.concat(res)\n  exchanges.to_csv(\"exchanges.csv\", index=False)\n\n  res = map(pd.read_csv, glob.glob(\"*_growth_rate.csv\"))\n  growth_rates = pd.concat(list(res))\n  growth_rates.to_csv(\"growth_rates.csv\", index=False)\n  \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "\"\"\"\n  #!/usr/bin/env python3\n\n  import pandas as pd\n  import glob\n\n  res = map(pd.read_csv, glob.glob(\"*_exchanges.csv\"))\n  exchanges = pd.concat(res)\n  exchanges.to_csv(\"exchanges.csv\", index=False)\n\n  res = map(pd.read_csv, glob.glob(\"*_growth_rate.csv\"))\n  growth_rates = pd.concat(list(res))\n  growth_rates.to_csv(\"growth_rates.csv\", index=False)\n  \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "python3",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "exchanges",
+            "rates"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus params.threads",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "map_reads": {
+        "name_process": "map_reads",
+        "string_process": "\nprocess map_reads {\n    cpus 4\n    publishDir \"${params.data_dir}/alignments\"\n\n    input:\n    tuple val(id), path(reads)\n\n    output:\n    tuple val(id), path(\"${id}.bam\")\n\n    script:\n    if (params.single_end)\n        \"\"\"\n      mkdir files bam1 bam2\n      (cd files && ln -s ../${reads[0]} ${id}_1.fastq.gz)\n      coptr map --threads ${task.cpus} ${params.IGG}/IGG_v1.0-1 files bam1\n      coptr map --threads ${task.cpus} ${params.IGG}/IGG_v1.0-2 files bam2\n      coptr merge bam1/*.bam bam2/*.bam ${id}.bam\n      \"\"\"\n    else\n      \"\"\"\n      mkdir files bam1 bam2\n      (cd files && ln -s ../${reads[0]} ${id}_1.fastq.gz && ln -s ../${reads[1]} ${id}_2.fastq.gz)\n      coptr map --threads ${task.cpus} --paired ${params.IGG}/IGG_v1.0-1 files bam1\n      coptr map --threads ${task.cpus} --paired ${params.IGG}/IGG_v1.0-2 files bam2\n      coptr merge bam1/*.bam bam2/*.bam ${id}.bam\n      \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    if (params.single_end)\n        \"\"\"\n      mkdir files bam1 bam2\n      (cd files && ln -s ../${reads[0]} ${id}_1.fastq.gz)\n      coptr map --threads ${task.cpus} ${params.IGG}/IGG_v1.0-1 files bam1\n      coptr map --threads ${task.cpus} ${params.IGG}/IGG_v1.0-2 files bam2\n      coptr merge bam1/*.bam bam2/*.bam ${id}.bam\n      \"\"\"\n    else\n      \"\"\"\n      mkdir files bam1 bam2\n      (cd files && ln -s ../${reads[0]} ${id}_1.fastq.gz && ln -s ../${reads[1]} ${id}_2.fastq.gz)\n      coptr map --threads ${task.cpus} --paired ${params.IGG}/IGG_v1.0-1 files bam1\n      coptr map --threads ${task.cpus} --paired ${params.IGG}/IGG_v1.0-2 files bam2\n      coptr merge bam1/*.bam bam2/*.bam ${id}.bam\n      \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 4",
+            "publishDir \"${params.data_dir}/alignments\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "extract_coverage": {
+        "name_process": "extract_coverage",
+        "string_process": "\nprocess extract_coverage {\n  cpus 1\n  publishDir \"${params.data_dir}/coverage\"\n\n  input:\n  tuple val(id), path(bam)\n\n  output:\n  path(\"coverage/*.*\")\n\n  \"\"\"\n  mkdir coverage\n  coptr extract . coverage\n  \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n  mkdir coverage\n  coptr extract . coverage\n  \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}/coverage\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "estimate_ptr": {
+        "name_process": "estimate_ptr",
+        "string_process": "\nprocess estimate_ptr {\n  cpus params.threads\n  publishDir \"${params.data_dir}\",  mode: \"copy\", overwrite: true\n\n  input:\n  path(coverage)\n\n  output:\n  path(\"rates.csv\")\n\n  \"\"\"\n  coptr estimate --min-reads ${params.min_reads} --threads ${task.cpus} . rates.csv\n  \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n  coptr estimate --min-reads ${params.min_reads} --threads ${task.cpus} . rates.csv\n  \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "coverage"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus params.threads",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotate_ptr": {
+        "name_process": "annotate_ptr",
+        "string_process": "\nprocess annotate_ptr {\n  cpus 1\n  publishDir \"${params.data_dir}\",  mode: \"copy\", overwrite: true\n\n  input:\n  path(rates)\n\n  output:\n  path(\"annotated_rates.csv\")\n\n  shell:\n  '''\n  #!/usr/bin/env python\n\n  import pandas as pd\n\n  rates = pd.read_csv(\"!{rates}\")\n  meta = pd.read_csv(\"http://bit.ly/IGG_species_info_23790\", sep=\"\\t\")\n  rates.rename(columns={\"log2(PTR):genome_id/sample_id\": \"genome_id\"}, inplace=True)\n  rates = rates.melt(id_vars=\"genome_id\", var_name=\"sample_id\", value_name=\"log2_ptr\").dropna()\n  rates[\"representative_genome\"] = rates.genome_id.str.replace(\"\\\\.\\\\w+$\", \"\", regex=True)\n\n  taxa = meta.gtdb_taxonomy.str.replace(\"\\\\w__\", \"\", regex=True).str.split(\";\", expand=True)\n  taxa.columns = [\"kingdom\", \"phylum\", \"class\", \"order\", \"family\", \"genus\", \"species\"]\n  meta = pd.concat([meta, taxa], axis=1)\n\n  merged = pd.merge(rates, meta, on=\"representative_genome\")\n  merged.to_csv(\"annotated_rates.csv\", index=False)\n  '''\n}",
+        "nb_lignes_process": 29,
+        "string_script": "  '''\n  #!/usr/bin/env python\n\n  import pandas as pd\n\n  rates = pd.read_csv(\"!{rates}\")\n  meta = pd.read_csv(\"http://bit.ly/IGG_species_info_23790\", sep=\"\\t\")\n  rates.rename(columns={\"log2(PTR):genome_id/sample_id\": \"genome_id\"}, inplace=True)\n  rates = rates.melt(id_vars=\"genome_id\", var_name=\"sample_id\", value_name=\"log2_ptr\").dropna()\n  rates[\"representative_genome\"] = rates.genome_id.str.replace(\"\\\\.\\\\w+$\", \"\", regex=True)\n\n  taxa = meta.gtdb_taxonomy.str.replace(\"\\\\w__\", \"\", regex=True).str.split(\";\", expand=True)\n  taxa.columns = [\"kingdom\", \"phylum\", \"class\", \"order\", \"family\", \"genus\", \"species\"]\n  meta = pd.concat([meta, taxa], axis=1)\n\n  merged = pd.merge(rates, meta, on=\"representative_genome\")\n  merged.to_csv(\"annotated_rates.csv\", index=False)\n  '''",
+        "nb_lignes_script": 17,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "rates"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "preprocess": {
+        "name_process": "preprocess",
+        "string_process": "\nprocess preprocess {\n    cpus 4\n    publishDir \"${params.data_dir}/preprocessed\"\n\n    input:\n    tuple val(id), path(reads)\n\n    output:\n    tuple val(id), path(\"${id}_filtered_R*.fastq.gz\"), path(\"${id}_fastp.json\"), path(\"${id}.html\")\n\n    script:\n    if (params.single_end)\n        \"\"\"\n        fastp -i ${reads[0]} -o ${id}_filtered_R1.fastq.gz \\\n            --json ${id}_fastp.json --html ${id}.html \\\n            --trim_front1 ${params.trim_front} -l ${params.min_length} \\\n            -3 -M ${params.quality_threshold} -r -w ${task.cpus}\n        \"\"\"\n\n    else\n        \"\"\"\n        fastp -i ${reads[0]} -I ${reads[1]} \\\n            -o ${id}_filtered_R1.fastq.gz -O ${id}_filtered_R2.fastq.gz\\\n            --json ${id}_fastp.json --html ${id}.html \\\n            --trim_front1 ${params.trim_front} -l ${params.min_length} \\\n            -3 -M ${params.quality_threshold} -r -w ${task.cpus}\n        \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "    if (params.single_end)\n        \"\"\"\n        fastp -i ${reads[0]} -o ${id}_filtered_R1.fastq.gz \\\n            --json ${id}_fastp.json --html ${id}.html \\\n            --trim_front1 ${params.trim_front} -l ${params.min_length} \\\n            -3 -M ${params.quality_threshold} -r -w ${task.cpus}\n        \"\"\"\n\n    else\n        \"\"\"\n        fastp -i ${reads[0]} -I ${reads[1]} \\\n            -o ${id}_filtered_R1.fastq.gz -O ${id}_filtered_R2.fastq.gz\\\n            --json ${id}_fastp.json --html ${id}.html \\\n            --trim_front1 ${params.trim_front} -l ${params.min_length} \\\n            -3 -M ${params.quality_threshold} -r -w ${task.cpus}\n        \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "bash",
+        "tools": [
+            "fastPHASE"
+        ],
+        "tools_url": [
+            "https://bio.tools/fastphase"
+        ],
+        "tools_dico": [
+            {
+                "name": "fastPHASE",
+                "uri": "https://bio.tools/fastphase",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3056",
+                            "term": "Population genetics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3454",
+                                    "term": "Phasing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Imputation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3557",
+                                    "term": "Data imputation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "fastPHASE is a program to estimate missing genotypes and unobserved haplotypes. It is an implementation of the model described in Scheet & Stephens (2006). This is a cluster-based model for haplotype variation, and gains its utility from implicitly modeling the genealogy of chromosomes in a random sample from a population as a tree but summarizing all haplotype variation in the \"tips\" of the trees.",
+                "homepage": "http://scheet.org/software.html"
+            }
+        ],
+        "inputs": [
+            "id",
+            "reads"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 4",
+            "publishDir \"${params.data_dir}/preprocessed\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "kraken": {
+        "name_process": "kraken",
+        "string_process": "\nprocess kraken {\n    cpus 8\n    publishDir \"${params.data_dir}/kraken2\"\n\n    input:\n    tuple val(id), path(reads), path(json), path(html)\n\n    output:\n    tuple val(id), path(\"${id}.k2\"), path(\"${id}.tsv\")\n\n    script:\n    if (params.single_end)\n        \"\"\"\n        kraken2 --db ${params.kraken2_db} \\\n            --threads ${task.cpus} --gzip-compressed --output ${id}.k2 \\\n            --memory-mapping --report ${id}.tsv ${reads}\n        \"\"\"\n\n    else\n        \"\"\"\n        kraken2 --db ${params.kraken2_db} --paired \\\n            --threads ${task.cpus} --gzip-compressed --output ${id}.k2 \\\n            --memory-mapping --report ${id}.tsv  ${reads[0]} ${reads[1]}\n        \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    if (params.single_end)\n        \"\"\"\n        kraken2 --db ${params.kraken2_db} \\\n            --threads ${task.cpus} --gzip-compressed --output ${id}.k2 \\\n            --memory-mapping --report ${id}.tsv ${reads}\n        \"\"\"\n\n    else\n        \"\"\"\n        kraken2 --db ${params.kraken2_db} --paired \\\n            --threads ${task.cpus} --gzip-compressed --output ${id}.k2 \\\n            --memory-mapping --report ${id}.tsv  ${reads[0]} ${reads[1]}\n        \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "bash",
+        "tools": [
+            "kraken2"
+        ],
+        "tools_url": [
+            "https://bio.tools/kraken2"
+        ],
+        "tools_dico": [
+            {
+                "name": "kraken2",
+                "uri": "https://bio.tools/kraken2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0637",
+                            "term": "Taxonomy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomic classification"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3460",
+                                    "term": "Taxonomy assignment"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3028",
+                                "term": "Taxonomy"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Kraken 2 is the newest version of Kraken, a taxonomic classification system using exact k-mer matches to achieve high accuracy and fast classification speeds. This classifier matches each k-mer within a query sequence to the lowest common ancestor (LCA) of all genomes containing the given k-mer. The k-mer assignments inform the classification algorithm.",
+                "homepage": "https://ccb.jhu.edu/software/kraken2/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "reads",
+            "json",
+            "html"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 8",
+            "publishDir \"${params.data_dir}/kraken2\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "count_taxa": {
+        "name_process": "count_taxa",
+        "string_process": "\nprocess count_taxa {\n    cpus 4\n\n    input:\n    tuple val(id), path(kraken), path(report), val(lev)\n\n    output:\n    tuple val(id), val(lev), path(\"${lev}/${id}.b2\"), path(\"${lev}/${id}_bracken_mpa.tsv\")\n\n    \"\"\"\n    mkdir ${lev} && cp ${report} ${lev}/${report} && \\\n        bracken -d /proj/gibbons/refs/kraken2_default -i ${lev}/${report} \\\n        -l ${lev} -o ${lev}/${id}.b2 -r ${params.read_length} \\\n        -t ${params.threshold} -w ${lev}/${id}_bracken.tsv && \\\n        kreport2mpa.py -r ${lev}/${id}_bracken.tsv -o ${lev}/${id}_bracken_mpa.tsv \\\n        --no-intermediate-ranks\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "\"\"\"\n    mkdir ${lev} && cp ${report} ${lev}/${report} && \\\n        bracken -d /proj/gibbons/refs/kraken2_default -i ${lev}/${report} \\\n        -l ${lev} -o ${lev}/${id}.b2 -r ${params.read_length} \\\n        -t ${params.threshold} -w ${lev}/${id}_bracken.tsv && \\\n        kreport2mpa.py -r ${lev}/${id}_bracken.tsv -o ${lev}/${id}_bracken_mpa.tsv \\\n        --no-intermediate-ranks\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "Bracken"
+        ],
+        "tools_url": [
+            "https://bio.tools/bracken"
+        ],
+        "tools_dico": [
+            {
+                "name": "Bracken",
+                "uri": "https://bio.tools/bracken",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Microbial ecology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3697",
+                            "term": "Environmental microbiology"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Statistical method that computes the abundance of species in DNA sequences from a metagenomics sample.",
+                "homepage": "https://ccb.jhu.edu/software/bracken/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "lev",
+            "kraken",
+            "report"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "lev"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 4"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_taxonomy": {
+        "name_process": "merge_taxonomy",
+        "string_process": "\nprocess merge_taxonomy {\n    cpus 1\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    tuple val(lev), path(reports)\n\n    output:\n    path(\"${lev}_counts.csv\")\n\n    \"\"\"\n    #!/usr/bin/env python\n\n    from sys import stdin\n    from loguru import logger as loggy\n    from os import path\n    import pandas as pd\n    import re\n\n    ranks = pd.Series({\n        \"k\": \"kingdom\",\n        \"p\": \"phylum\",\n        \"c\": \"class\",\n        \"o\": \"order\",\n        \"f\": \"family\",\n        \"g\": \"genus\",\n        \"s\": \"species\"\n    })\n\n    def str_to_taxa(taxon):\n        taxon = taxon.split(\"|\")\n        taxa = pd.Series({ranks[t.split(\"__\")[0]]: t.split(\"__\")[1] for t in taxon})\n        return taxa\n\n    read = []\n    lev = \"${lev}\"\n    input = \"${reports.join(\",\")}\"\n    paths = input.split(\",\")\n\n    for p in paths:\n        loggy.warning(p)\n        id = re.findall(\"(.+)_bracken_mpa.tsv\", p)[0]\n        try:\n            counts = pd.read_csv(p, sep=\"\\t\", header=None)\n        except pd.errors.EmptyDataError:\n            continue\n        counts = counts[counts.iloc[:, 0].str.contains(\n            str(\"k\" if lev == \"D\" else lev).lower() + \"_\")]\n        taxa = counts.iloc[:, 0].apply(str_to_taxa)\n        taxa[\"reads\"] = counts.iloc[:, 1]\n        taxa[\"sample\"] = id\n        read.append(taxa.dropna())\n    pd.concat(read, sort=False).to_csv(\"%s_counts.csv\" % lev, index=False)\n    \"\"\"\n}",
+        "nb_lignes_process": 54,
+        "string_script": "\"\"\"\n    #!/usr/bin/env python\n\n    from sys import stdin\n    from loguru import logger as loggy\n    from os import path\n    import pandas as pd\n    import re\n\n    ranks = pd.Series({\n        \"k\": \"kingdom\",\n        \"p\": \"phylum\",\n        \"c\": \"class\",\n        \"o\": \"order\",\n        \"f\": \"family\",\n        \"g\": \"genus\",\n        \"s\": \"species\"\n    })\n\n    def str_to_taxa(taxon):\n        taxon = taxon.split(\"|\")\n        taxa = pd.Series({ranks[t.split(\"__\")[0]]: t.split(\"__\")[1] for t in taxon})\n        return taxa\n\n    read = []\n    lev = \"${lev}\"\n    input = \"${reports.join(\",\")}\"\n    paths = input.split(\",\")\n\n    for p in paths:\n        loggy.warning(p)\n        id = re.findall(\"(.+)_bracken_mpa.tsv\", p)[0]\n        try:\n            counts = pd.read_csv(p, sep=\"\\t\", header=None)\n        except pd.errors.EmptyDataError:\n            continue\n        counts = counts[counts.iloc[:, 0].str.contains(\n            str(\"k\" if lev == \"D\" else lev).lower() + \"_\")]\n        taxa = counts.iloc[:, 0].apply(str_to_taxa)\n        taxa[\"reads\"] = counts.iloc[:, 1]\n        taxa[\"sample\"] = id\n        read.append(taxa.dropna())\n    pd.concat(read, sort=False).to_csv(\"%s_counts.csv\" % lev, index=False)\n    \"\"\"",
+        "nb_lignes_script": 43,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "lev",
+            "reports"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "megahit": {
+        "name_process": "megahit",
+        "string_process": "\nprocess megahit {\n    cpus 4\n    publishDir \"${params.data_dir}/assembled\"\n\n    input:\n    tuple val(id), path(reads), path(json), path(report)\n\n    output:\n    tuple val(id), path(\"contigs/${id}.contigs.fa\")\n\n    script:\n    if (params.single_end)\n        \"\"\"\n        megahit -r ${reads} -o contigs -t ${task.cpus} -m 0.4 \\\n                --min-contig-len ${params.contig_length} --out-prefix ${id}\n        sed -i -e \"s/^>/>${id}_/\" contigs/${id}.contigs.fa\n        \"\"\"\n    else\n        \"\"\"\n        megahit -1 ${reads[0]} -2 ${reads[1]} -o contigs -t ${task.cpus} -m 0.4 \\\n                --min-contig-len ${params.contig_length} --out-prefix ${id}\n        sed -i -e \"s/^>/>${id}_/\" contigs/${id}.contigs.fa\n        \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    if (params.single_end)\n        \"\"\"\n        megahit -r ${reads} -o contigs -t ${task.cpus} -m 0.4 \\\n                --min-contig-len ${params.contig_length} --out-prefix ${id}\n        sed -i -e \"s/^>/>${id}_/\" contigs/${id}.contigs.fa\n        \"\"\"\n    else\n        \"\"\"\n        megahit -1 ${reads[0]} -2 ${reads[1]} -o contigs -t ${task.cpus} -m 0.4 \\\n                --min-contig-len ${params.contig_length} --out-prefix ${id}\n        sed -i -e \"s/^>/>${id}_/\" contigs/${id}.contigs.fa\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "MEGAHIT"
+        ],
+        "tools_url": [
+            "https://bio.tools/megahit"
+        ],
+        "tools_dico": [
+            {
+                "name": "MEGAHIT",
+                "uri": "https://bio.tools/megahit",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0610",
+                            "term": "Ecology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct de Bruijn graph to achieve low memory usage, whereas its goal is not to make memory usage as low as possible.",
+                "homepage": "https://github.com/voutcn/megahit"
+            }
+        ],
+        "inputs": [
+            "id",
+            "reads",
+            "json",
+            "report"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 4",
+            "publishDir \"${params.data_dir}/assembled\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "transcript_align": {
+        "name_process": "transcript_align",
+        "string_process": "\nprocess transcript_align {\n    cpus 4\n    publishDir \"${params.data_dir}/txn_aligned\"\n\n    input:\n    tuple val(id), path(reads), path(json), path(html), path(index)\n\n    output:\n    tuple val(id), path(\"${id}.bam\")\n\n    script:\n    if (params.single_end)\n        \"\"\"\n        bowtie2 -k 10 -p ${task.cpus} --mm --no-unal \\\n            -x ${index}/txns -U ${reads} | \\\n            samtools view -bS - -o ${id}.bam\n        \"\"\"\n    else\n        \"\"\"\n        bowtie2 -k 10 -p ${task.cpus} --mm --no-unal \\\n            -x ${index}/txns -1 ${reads[0]} -2 ${reads[1]} | \\\n            samtools view -bS - -o ${id}.bam\n        \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    if (params.single_end)\n        \"\"\"\n        bowtie2 -k 10 -p ${task.cpus} --mm --no-unal \\\n            -x ${index}/txns -U ${reads} | \\\n            samtools view -bS - -o ${id}.bam\n        \"\"\"\n    else\n        \"\"\"\n        bowtie2 -k 10 -p ${task.cpus} --mm --no-unal \\\n            -x ${index}/txns -1 ${reads[0]} -2 ${reads[1]} | \\\n            samtools view -bS - -o ${id}.bam\n        \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "Rbowtie2",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/rbowtie2",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Rbowtie2",
+                "uri": "https://bio.tools/rbowtie2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0232",
+                                    "term": "Sequence merging"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0232",
+                                    "term": "Sequence splicing"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "This package provides an R wrapper of the popular bowtie2 sequencing reads aligner and AdapterRemoval, a convenient tool for rapid adapter trimming, identification, and read merging.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/Rbowtie2.html"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "reads",
+            "json",
+            "html",
+            "index"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 4",
+            "publishDir \"${params.data_dir}/txn_aligned\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "em_count": {
+        "name_process": "em_count",
+        "string_process": "\nprocess em_count {\n    cpus 8\n\n    input:\n    tuple val(id), path(bam), path(genes)\n\n    output:\n    path(\"${id}.sf\")\n\n    \"\"\"\n    salmon quant -p ${task.cpus} -l SF -t ${genes} -a ${bam} -o ${id} &&\n        mv ${id}/quant.sf ${id}.sf\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    salmon quant -p ${task.cpus} -l SF -t ${genes} -a ${bam} -o ${id} &&\n        mv ${id}/quant.sf ${id}.sf\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Salmon"
+        ],
+        "tools_url": [
+            "https://bio.tools/salmon"
+        ],
+        "tools_dico": [
+            {
+                "name": "Salmon",
+                "uri": "https://bio.tools/salmon",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3496",
+                                "term": "RNA sequence (raw)"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2093",
+                                "term": "Data reference"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for transcript expression quantification from RNA-seq data",
+                "homepage": "https://github.com/COMBINE-lab/salmon"
+            }
+        ],
+        "inputs": [
+            "id",
+            "bam",
+            "genes"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 8"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge": {
+        "name_process": "merge",
+        "string_process": "\nprocess merge {\n    cpus 1\n    storeDir \"${params.data_dir}\"\n\n    input:\n    stdin salmon_quants.reduce{a, b -> \"$a,$b\"}\n\n    output:\n    file(\"function_counts.csv.gz\")\n\n    \"\"\"\n    #!/usr/bin/env python\n\n    from sys import stdin\n    from loguru import logger as loggy\n    from os import path\n    import pandas as pd\n\n    read = []\n    paths = stdin.readline().split(\",\")\n    for p in paths:\n        sample = path.basename(path.dirname(p))\n        loggy.info(\"Processing sample {}...\", sample)\n        counts = pd.read_csv(p, sep=\"\\t\").query(\"NumReads > 0.1\")\n\n        counts.columns = [\n            \"locus_tag\", \"length\", \"effective_length\", \"tpm\", \"reads\"]\n        counts[\"sample\"] = sample\n        read.append(counts)\n    read = pd.concat(read)\n    loggy.info(\"writing compressed output\")\n    read.to_csv(\"function_counts.csv.gz\", index=False)\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "\"\"\"\n    #!/usr/bin/env python\n\n    from sys import stdin\n    from loguru import logger as loggy\n    from os import path\n    import pandas as pd\n\n    read = []\n    paths = stdin.readline().split(\",\")\n    for p in paths:\n        sample = path.basename(path.dirname(p))\n        loggy.info(\"Processing sample {}...\", sample)\n        counts = pd.read_csv(p, sep=\"\\t\").query(\"NumReads > 0.1\")\n\n        counts.columns = [\n            \"locus_tag\", \"length\", \"effective_length\", \"tpm\", \"reads\"]\n        counts[\"sample\"] = sample\n        read.append(counts)\n    read = pd.concat(read)\n    loggy.info(\"writing compressed output\")\n    read.to_csv(\"function_counts.csv.gz\", index=False)\n    \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "salmon_quants"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "storeDir \"${params.data_dir}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotate_eggnog": {
+        "name_process": "annotate_eggnog",
+        "string_process": "\nprocess annotate_eggnog {\n    cpus max_threads\n    publishDir \"${params.data_dir}/annotated\"\n\n    input:\n    set file(genes), file(proteins) from genes_annotate\n\n    output:\n    file(\"denovo.emapper.annotations\")\n\n    \"\"\"\n    set +eu && \\\n    source ~/miniconda3/etc/profile.d/conda.sh && \\\n    conda activate eggnog && \\\n    emapper.py -i ${proteins} --output denovo -m diamond \\\n        --data_dir ${params.eggnog_refs} \\\n        --cpu ${task.cpus} --resume\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n    set +eu && \\\n    source ~/miniconda3/etc/profile.d/conda.sh && \\\n    conda activate eggnog && \\\n    emapper.py -i ${proteins} --output denovo -m diamond \\\n        --data_dir ${params.eggnog_refs} \\\n        --cpu ${task.cpus} --resume\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [
+            "ANACONDA"
+        ],
+        "tools_url": [
+            "https://bio.tools/anaconda"
+        ],
+        "tools_dico": [
+            {
+                "name": "ANACONDA",
+                "uri": "https://bio.tools/anaconda",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3658",
+                                    "term": "Statistical inference"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Nucleic acid sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2478",
+                                    "term": "Sequence analysis (nucleic acid)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software package specially developed for the study of genes\u2019 primary structure. It uses gene sequences downloaded from public databases, as FASTA and GenBank, and it applies a set of statistical and visualization methods in different ways, to reveal information about codon context, codon usage, nucleotide repeats within open reading frames (ORFeome) and others.",
+                "homepage": "http://bioinformatics.ua.pt/software/anaconda/"
+            }
+        ],
+        "inputs": [
+            "genes_annotate"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus max_threads",
+            "publishDir \"${params.data_dir}/annotated\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "contig_align": {
+        "name_process": "contig_align",
+        "string_process": "\nprocess contig_align {\n    cpus 4\n    publishDir \"${params.data_dir}/contig_aligned\"\n\n    input:\n    tuple val(id), path(reads), path(json), path(html), path(contigs)\n\n    output:\n    tuple val(id), path(\"${id}.bam\")\n\n    \"\"\"\n    minimap2 -acx sr -t ${task.cpus} ${contigs} ${reads} | \\\n    samtools view -bS - -o ${id}.bam\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "\"\"\"\n    minimap2 -acx sr -t ${task.cpus} ${contigs} ${reads} | \\\n    samtools view -bS - -o ${id}.bam\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "reads",
+            "json",
+            "html",
+            "contigs"
+        ],
+        "nb_inputs": 5,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 4",
+            "publishDir \"${params.data_dir}/contig_aligned\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "replication_rates": {
+        "name_process": "replication_rates",
+        "string_process": "\nprocess replication_rates {\n    cpus 8\n    publishDir \"${params.data_dir}/replication_rates\"\n\n    input:\n    tuple val(id), path(bam)\n\n    output:\n    path(\"${id}.csv\")\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n\n    library(mbtools)\n    library(futile.logger)\n\n    flog.threshold(DEBUG)\n    alns <- data.table(id=${id}, alignment=${bam}, success=TRUE)\n\n    co <- bin_coverage(alns, threads=${task.cpus})\n    rates <- replication_rates(co, threads=${task.cpus}, min_points_fit=40)\n    fwrite(rates[[\"rate\"]], \"${id}.csv\")\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n\n    library(mbtools)\n    library(futile.logger)\n\n    flog.threshold(DEBUG)\n    alns <- data.table(id=${id}, alignment=${bam}, success=TRUE)\n\n    co <- bin_coverage(alns, threads=${task.cpus})\n    rates <- replication_rates(co, threads=${task.cpus}, min_points_fit=40)\n    fwrite(rates[[\"rate\"]], \"${id}.csv\")\n    \"\"\"",
+        "nb_lignes_script": 12,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "bam"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 8",
+            "publishDir \"${params.data_dir}/replication_rates\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "quality_control": {
+        "name_process": "quality_control",
+        "string_process": "\nprocess quality_control {\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n    cpus params.threads\n\n    output:\n    tuple path(\"manifest.csv\"), path(\"qc.rds\"), path(\"qualities.png\") into qc\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    files <- find_read_files(\n        \"${params.data_dir}/raw\",\n        pattern = mbtools:::${params.pattern}_pattern,\n        annotations = mbtools:::${params.pattern}_annotations,\n        dirs_are_runs = T\n    )\n\n    if (${params.forward_only ? \"T\" : \"F\"}) {\n        files[, \"reverse\" := NULL]\n    }\n\n    fwrite(files, \"manifest.csv\")\n\n    qc <- quality_control(files, min_score = 20)\n    saveRDS(qc, \"qc.rds\")\n    ggsave(\"qualities.png\", pl = qc[[\"quality_plot\"]] + theme_minimal(),\n           width = 8, height = 4, dpi = 300)\n    \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    files <- find_read_files(\n        \"${params.data_dir}/raw\",\n        pattern = mbtools:::${params.pattern}_pattern,\n        annotations = mbtools:::${params.pattern}_annotations,\n        dirs_are_runs = T\n    )\n\n    if (${params.forward_only ? \"T\" : \"F\"}) {\n        files[, \"reverse\" := NULL]\n    }\n\n    fwrite(files, \"manifest.csv\")\n\n    qc <- quality_control(files, min_score = 20)\n    saveRDS(qc, \"qc.rds\")\n    ggsave(\"qualities.png\", pl = qc[[\"quality_plot\"]] + theme_minimal(),\n           width = 8, height = 4, dpi = 300)\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "qc"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true",
+            "cpus params.threads"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trim": {
+        "name_process": "trim",
+        "string_process": "\nprocess trim {\n    publishDir \"${params.data_dir}\"\n    cpus params.threads\n\n    input:\n    tuple path(manifest), path(qc), path(pl) from qc\n\n    output:\n    tuple path(\"preprocessed\"), path(\"preprocessed.rds\") into processed\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    qc <- readRDS(\"${qc}\")\n    procced <- preprocess(\n        qc,\n        trimLeft = ${params.trim_left},\n        truncLen = ${params.forward_only ? \"${params.trunc_forward}\" :\n                     \"c(${params.trunc_forward}, ${params.trunc_reverse})\"},\n        maxEE = ${params.maxEE},\n        out_dir = \"preprocessed\",\n        threads = ${task.cpus}\n    )\n    saveRDS(procced, \"preprocessed.rds\")\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    qc <- readRDS(\"${qc}\")\n    procced <- preprocess(\n        qc,\n        trimLeft = ${params.trim_left},\n        truncLen = ${params.forward_only ? \"${params.trunc_forward}\" :\n                     \"c(${params.trunc_forward}, ${params.trunc_reverse})\"},\n        maxEE = ${params.maxEE},\n        out_dir = \"preprocessed\",\n        threads = ${task.cpus}\n    )\n    saveRDS(procced, \"preprocessed.rds\")\n    \"\"\"",
+        "nb_lignes_script": 15,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "qc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "processed"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "publishDir \"${params.data_dir}\"",
+            "cpus params.threads"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "denoise": {
+        "name_process": "denoise",
+        "string_process": "\nprocess denoise {\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n    cpus params.threads\n\n    input:\n    tuple path(procced), path(artifact) from processed\n\n    output:\n    tuple path(\"phyloseq.rds\"), path(\"read_stats.csv\"),\n          path(\"denoised.rds\") into denoised\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    procced <- readRDS(\"${artifact}\")\n    procced[[\"files\"]] <- procced[[\"files\"]][procced[[\"passed\"]][[\"preprocessed\"]] > 0]\n    denoised <- denoise(\n        procced,\n        hash = T,\n        threads = ${task.cpus},\n        merge = ${params.merge ? \"T\" : \"F\"},\n        min_overlap = ${params.min_overlap},\n        taxa_db = \"${params.taxa_db}\",\n        species_db = \"${params.species_db}\"\n    )\n    saveRDS(denoised, \"denoised.rds\")\n    fwrite(denoised[[\"passed_reads\"]], \"read_stats.csv\")\n    sdata <- as.data.frame(procced[[\"files\"]])\n    rownames(sdata) <- sdata[, \"id\"]\n    ps <- as_phyloseq(denoised, sdata)\n    saveRDS(ps, \"phyloseq.rds\")\n    \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    procced <- readRDS(\"${artifact}\")\n    procced[[\"files\"]] <- procced[[\"files\"]][procced[[\"passed\"]][[\"preprocessed\"]] > 0]\n    denoised <- denoise(\n        procced,\n        hash = T,\n        threads = ${task.cpus},\n        merge = ${params.merge ? \"T\" : \"F\"},\n        min_overlap = ${params.min_overlap},\n        taxa_db = \"${params.taxa_db}\",\n        species_db = \"${params.species_db}\"\n    )\n    saveRDS(denoised, \"denoised.rds\")\n    fwrite(denoised[[\"passed_reads\"]], \"read_stats.csv\")\n    sdata <- as.data.frame(procced[[\"files\"]])\n    rownames(sdata) <- sdata[, \"id\"]\n    ps <- as_phyloseq(denoised, sdata)\n    saveRDS(ps, \"phyloseq.rds\")\n    \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "processed"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "denoised"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true",
+            "cpus params.threads"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "tables": {
+        "name_process": "tables",
+        "string_process": "\nprocess tables {\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n    cpus 1\n\n    input:\n    tuple path(ps), path(stats), path(arti) from denoised\n\n    output:\n    tuple path(\"asvs.csv\"), path(\"taxonomy.csv\") into tabled\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    denoised <- readRDS(\"${arti}\")\n    ids <- rownames(denoised[[\"feature_table\"]])\n    asvs <- as.data.table(denoised[[\"feature_table\"]])[, \"id\" := ids]\n    asvs <- melt(asvs, id.vars=\"id\", variable.name=\"hash\",\n                 value.name=\"count\")[count > 0]\n    fwrite(asvs, \"asvs.csv\")\n    ids <- rownames(denoised[[\"taxonomy\"]])\n    tax <- as.data.table(denoised[[\"taxonomy\"]])[, \"id\" := ids]\n    fwrite(tax, \"taxonomy.csv\")\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n    library(mbtools)\n\n    denoised <- readRDS(\"${arti}\")\n    ids <- rownames(denoised[[\"feature_table\"]])\n    asvs <- as.data.table(denoised[[\"feature_table\"]])[, \"id\" := ids]\n    asvs <- melt(asvs, id.vars=\"id\", variable.name=\"hash\",\n                 value.name=\"count\")[count > 0]\n    fwrite(asvs, \"asvs.csv\")\n    ids <- rownames(denoised[[\"taxonomy\"]])\n    tax <- as.data.table(denoised[[\"taxonomy\"]])[, \"id\" := ids]\n    fwrite(tax, \"taxonomy.csv\")\n    \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "denoised"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "tabled"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true",
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "\nprocess multiqc {\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    path(taxonomy)\n\n    output:\n    path(\"multiqc_report.html\")\n\n    \"\"\"\n    multiqc ${params.data_dir}/preprocessed ${params.data_dir}/kraken2\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "\"\"\"\n    multiqc ${params.data_dir}/preprocessed ${params.data_dir}/kraken2\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "taxonomy"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cluster_contigs": {
+        "name_process": "cluster_contigs",
+        "string_process": "\nprocess cluster_contigs {\n    cpus params.threads\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    path(assemblies)\n\n    output:\n    path(\"all_contigs.fna\")\n\n    \"\"\"\n    cat ${assemblies} > merged.fna\n    mmseqs easy-linclust merged.fna contigs tmp --cov-mode 0 -c ${params.overlap} --min-seq-id ${params.identity} --threads ${task.cpus}\n    mv contigs_rep_seq.fasta all_contigs.fna\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    cat ${assemblies} > merged.fna\n    mmseqs easy-linclust merged.fna contigs tmp --cov-mode 0 -c ${params.overlap} --min-seq-id ${params.identity} --threads ${task.cpus}\n    mv contigs_rep_seq.fasta all_contigs.fna\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "MMseqs"
+        ],
+        "tools_url": [
+            "https://bio.tools/mmseqs"
+        ],
+        "tools_dico": [
+            {
+                "name": "MMseqs",
+                "uri": "https://bio.tools/mmseqs",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Gene and protein families"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Genes, gene family or system"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software suite for very fast protein sequence searches and clustering of huge protein sequence data sets.",
+                "homepage": "https://github.com/soedinglab/MMseqs"
+            }
+        ],
+        "inputs": [
+            "assemblies"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus params.threads",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "cluster_transcripts": {
+        "name_process": "cluster_transcripts",
+        "string_process": "\nprocess cluster_transcripts {\n    cpus params.threads/2\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    path(transcripts)\n\n    output:\n    path(\"transcripts.fna\")\n\n    \"\"\"\n    cat ${transcripts} > merged.fna\n    mmseqs easy-linclust merged.fna transcripts tmp --cov-mode 0 -c ${params.overlap} --min-seq-id ${params.identity} --threads ${task.cpus}\n    mv transcripts_rep_seq.fasta transcripts.fna\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    cat ${transcripts} > merged.fna\n    mmseqs easy-linclust merged.fna transcripts tmp --cov-mode 0 -c ${params.overlap} --min-seq-id ${params.identity} --threads ${task.cpus}\n    mv transcripts_rep_seq.fasta transcripts.fna\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "MMseqs"
+        ],
+        "tools_url": [
+            "https://bio.tools/mmseqs"
+        ],
+        "tools_dico": [
+            {
+                "name": "MMseqs",
+                "uri": "https://bio.tools/mmseqs",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Gene and protein families"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0623",
+                            "term": "Genes, gene family or system"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence clustering"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0291",
+                                    "term": "Sequence cluster generation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Software suite for very fast protein sequence searches and clustering of huge protein sequence data sets.",
+                "homepage": "https://github.com/soedinglab/MMseqs"
+            }
+        ],
+        "inputs": [
+            "transcripts"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus params.threads/2",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_proteins": {
+        "name_process": "filter_proteins",
+        "string_process": "\nprocess filter_proteins {\n    cpus 1\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    path(transcripts)\n    path(proteins)\n\n    output:\n    path(\"proteins.faa\")\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n\n    library(Biostrings)\n\n    proteins <- \"${proteins}\"\n    system2(\"cat\", c(strsplit(proteins, \" \")[[1]], \">\", \"merged.faa\"))\n\n    txns <- fasta.index(\"${transcripts}\")\n    txn_ids <- trimws(txns[[\"desc\"]])\n    prots <- readAAStringSet(\"merged.faa\")\n    prot_ids <- trimws(names(prots))\n    names(prots) <- prot_ids\n    writeXStringSet(prots[prot_ids %in% txn_ids], \"proteins.faa\")\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n\n    library(Biostrings)\n\n    proteins <- \"${proteins}\"\n    system2(\"cat\", c(strsplit(proteins, \" \")[[1]], \">\", \"merged.faa\"))\n\n    txns <- fasta.index(\"${transcripts}\")\n    txn_ids <- trimws(txns[[\"desc\"]])\n    prots <- readAAStringSet(\"merged.faa\")\n    prot_ids <- trimws(names(prots))\n    names(prots) <- prot_ids\n    writeXStringSet(prots[prot_ids %in% txn_ids], \"proteins.faa\")\n    \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "transcripts",
+            "proteins"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "transcript_index": {
+        "name_process": "transcript_index",
+        "string_process": "\nprocess transcript_index {\n    cpus params.threads\n    publishDir \"${params.data_dir}/\"\n\n    input:\n    path(txns)\n\n    output:\n    path(\"txn_salmon_index\")\n\n    \"\"\"\n    salmon index -p ${task.cpus} -t ${txns} -i txn_salmon_index\n    \"\"\"\n}",
+        "nb_lignes_process": 13,
+        "string_script": "\"\"\"\n    salmon index -p ${task.cpus} -t ${txns} -i txn_salmon_index\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "Salmon"
+        ],
+        "tools_url": [
+            "https://bio.tools/salmon"
+        ],
+        "tools_dico": [
+            {
+                "name": "Salmon",
+                "uri": "https://bio.tools/salmon",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3496",
+                                "term": "RNA sequence (raw)"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2093",
+                                "term": "Data reference"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for transcript expression quantification from RNA-seq data",
+                "homepage": "https://github.com/COMBINE-lab/salmon"
+            }
+        ],
+        "inputs": [
+            "txns"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus params.threads",
+            "publishDir \"${params.data_dir}/\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "map_and_count": {
+        "name_process": "map_and_count",
+        "string_process": "\nprocess map_and_count {\n    cpus 6\n\n    input:\n    tuple val(id), path(reads), path(json), path(html), path(index)\n\n    output:\n    path(\"${id}.sf\")\n\n    script:\n    if (params.single_end)\n        \"\"\"\n        salmon quant --meta -p ${task.cpus} -l A -i ${index} -r ${reads} -o ${id} &&\n            mv ${id}/quant.sf ${id}.sf\n        \"\"\"\n    else\n        \"\"\"\n        salmon quant --meta -p ${task.cpus} -l A -i ${index} -1 ${reads[0]} -2 ${reads[1]} -o ${id} &&\n            mv ${id}/quant.sf ${id}.sf\n        \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "    if (params.single_end)\n        \"\"\"\n        salmon quant --meta -p ${task.cpus} -l A -i ${index} -r ${reads} -o ${id} &&\n            mv ${id}/quant.sf ${id}.sf\n        \"\"\"\n    else\n        \"\"\"\n        salmon quant --meta -p ${task.cpus} -l A -i ${index} -1 ${reads[0]} -2 ${reads[1]} -o ${id} &&\n            mv ${id}/quant.sf ${id}.sf\n        \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [
+            "Salmon"
+        ],
+        "tools_url": [
+            "https://bio.tools/salmon"
+        ],
+        "tools_dico": [
+            {
+                "name": "Salmon",
+                "uri": "https://bio.tools/salmon",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Transcriptome profiling"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA-Seq analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small RNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Small-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "Whole transcriptome shotgun sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "RNA sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3170",
+                            "term": "WTSS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0236",
+                                    "term": "Sequence composition calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2495",
+                                    "term": "Expression data analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3800",
+                                    "term": "RNA-Seq quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3496",
+                                "term": "RNA sequence (raw)"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2093",
+                                "term": "Data reference"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for transcript expression quantification from RNA-seq data",
+                "homepage": "https://github.com/COMBINE-lab/salmon"
+            }
+        ],
+        "inputs": [
+            "id",
+            "reads",
+            "json",
+            "html",
+            "index"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 6"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_counts": {
+        "name_process": "merge_counts",
+        "string_process": "\nprocess merge_counts {\n    cpus 1\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    path(salmon_quants)\n\n    output:\n    path(\"function_counts.csv.gz\")\n\n    \"\"\"\n    #!/usr/bin/env python\n\n    from sys import stdin\n    from loguru import logger as loggy\n    from os import path\n    import pandas as pd\n    import gzip\n\n    paths = \"${salmon_quants}\"\n    paths = paths.split(\" \")\n    with gzip.open(\"function_counts.csv.gz\", \"ab\") as gzf:\n        for i, p in enumerate(paths):\n            sample = path.splitext(path.basename(p))[0]\n            loggy.info(\"Processing sample {}...\", sample)\n            counts = pd.read_csv(p, sep=\"\\t\").query(\"NumReads > 0.1\")\n\n            counts.columns = [\n                \"locus_tag\", \"length\", \"effective_length\", \"tpm\", \"reads\"]\n            counts[\"sample_id\"] = sample\n            loggy.info(\"writing compressed output for sample {}...\", sample)\n            counts.to_csv(gzf, header=(i==0),\n                          index=False)\n    \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "\"\"\"\n    #!/usr/bin/env python\n\n    from sys import stdin\n    from loguru import logger as loggy\n    from os import path\n    import pandas as pd\n    import gzip\n\n    paths = \"${salmon_quants}\"\n    paths = paths.split(\" \")\n    with gzip.open(\"function_counts.csv.gz\", \"ab\") as gzf:\n        for i, p in enumerate(paths):\n            sample = path.splitext(path.basename(p))[0]\n            loggy.info(\"Processing sample {}...\", sample)\n            counts = pd.read_csv(p, sep=\"\\t\").query(\"NumReads > 0.1\")\n\n            counts.columns = [\n                \"locus_tag\", \"length\", \"effective_length\", \"tpm\", \"reads\"]\n            counts[\"sample_id\"] = sample\n            loggy.info(\"writing compressed output for sample {}...\", sample)\n            counts.to_csv(gzf, header=(i==0),\n                          index=False)\n    \"\"\"",
+        "nb_lignes_script": 23,
+        "language_script": "python",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "salmon_quants"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "annotate": {
+        "name_process": "annotate",
+        "string_process": "\nprocess annotate {\n    cpus params.threads\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    path(proteins)\n\n    output:\n    path(\"proteins.emapper.annotations\")\n\n    \"\"\"\n    rm -rf /tmp/eggnog_results\n    mkdir /tmp/eggnog_results\n    emapper.py -i ${proteins} --output proteins -m diamond \\\n        --data_dir ${params.eggnog_refs} --scratch_dir /tmp/eggnog_results --temp_dir /tmp \\\n        --cpu ${task.cpus}\n    rm -rf /tmp/eggnog_results\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n    rm -rf /tmp/eggnog_results\n    mkdir /tmp/eggnog_results\n    emapper.py -i ${proteins} --output proteins -m diamond \\\n        --data_dir ${params.eggnog_refs} --scratch_dir /tmp/eggnog_results --temp_dir /tmp \\\n        --cpu ${task.cpus}\n    rm -rf /tmp/eggnog_results\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "proteins"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus params.threads",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "merge_rates": {
+        "name_process": "merge_rates",
+        "string_process": "\nprocess merge_rates {\n    cpus 1\n    publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true\n\n    input:\n    path(rates)\n\n    output:\n    path(\"replication_rates.csv\")\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n\n    library(data.table)\n\n    files <- strsplit(\"${rates}\", \" \")[[1]]\n    rates <- rbindlist(lapply(files, fread))\n    fwrite(files, \"replication_rates.csv\")\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n\n    library(data.table)\n\n    files <- strsplit(\"${rates}\", \" \")[[1]]\n    rates <- rbindlist(lapply(files, fread))\n    fwrite(files, \"replication_rates.csv\")\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "rates"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}\", mode: \"copy\", overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bin_align": {
+        "name_process": "bin_align",
+        "string_process": "\nprocess bin_align {\n    cpus maxcpus\n\n    input:\n    tuple val(id), file(reads)\n    path(assembly)\n\n    output:\n    path(\"${id}.bam\")\n\n    \"\"\"\n    minimap2 -ax sr -N 100 -t ${task.cpus} ${assembly} ${reads} | \\\n    samtools sort -@${task.cpus} -o ${id}.bam && \\\n    samtools index ${id}.bam ${id}.bai\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "\"\"\"\n    minimap2 -ax sr -N 100 -t ${task.cpus} ${assembly} ${reads} | \\\n    samtools sort -@${task.cpus} -o ${id}.bam && \\\n    samtools index ${id}.bam ${id}.bai\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "reads",
+            "assembly"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus maxcpus"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bin": {
+        "name_process": "bin",
+        "string_process": "\nprocess bin {\n    cpus maxcpus\n    publishDir \"${params.data_dir}\"\n\n    input:\n    path(bam_files)\n    path(assembly)\n\n    output:\n    path(\"metabat2_bins\")\n\n    \"\"\"\n    jgi_summarize_bam_contig_depths --outputDepth depth.txt ${bam_files} && \\\n    metabat2 -i ${assembly} -a depth.txt -o metabat2_bins/bin \\\n        -t ${task.cpus} -m 2500 -s 100000\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    jgi_summarize_bam_contig_depths --outputDepth depth.txt ${bam_files} && \\\n    metabat2 -i ${assembly} -a depth.txt -o metabat2_bins/bin \\\n        -t ${task.cpus} -m 2500 -s 100000\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "bam_files",
+            "assembly"
+        ],
+        "nb_inputs": 2,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus maxcpus",
+            "publishDir \"${params.data_dir}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "build_database": {
+        "name_process": "build_database",
+        "string_process": "\nprocess build_database {\n    cpus maxcpus\n    publishDir \"${params.data_dir}/refs\"\n\n    output:\n    tuple path(\"CAT_database\"), path(\"CAT_taxonomy\")\n\n    \"\"\"\n    CAT prepare --fresh -d CAT_database -t CAT_taxonomy -n ${task.cpus}\n    \"\"\"\n}",
+        "nb_lignes_process": 10,
+        "string_script": "\"\"\"\n    CAT prepare --fresh -d CAT_database -t CAT_taxonomy -n ${task.cpus}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [
+            "CATO"
+        ],
+        "tools_url": [
+            "https://bio.tools/cato"
+        ],
+        "tools_dico": [
+            {
+                "name": "CATO",
+                "uri": "https://bio.tools/cato",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "CATO (Clone Alignment Tool) allows a user to align, evaluate, edit, and select clone sequences based on comparisons to reference sequences.",
+                "homepage": "https://sourceforge.net/projects/cato-clone-alignment-tool/"
+            }
+        ],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus maxcpus",
+            "publishDir \"${params.data_dir}/refs\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_contigs": {
+        "name_process": "filter_contigs",
+        "string_process": "\nprocess filter_contigs {\n    cpus 1\n    publishDir \"${params.data_dir}/assembled/contigs\"\n\n    input:\n    path(contigs)\n\n    output:\n    path(\"long_contigs.fna\")\n\n    \"\"\"\n    #!/usr/bin/env Rscript\n\n    library(Biostrings)\n\n    contigs <- readDNAStringSet(\"${contigs}\")\n    writeXStringSet(contigs[width(contigs) > ${params.min_contig_length}], \"long_contigs.fna\")\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n    #!/usr/bin/env Rscript\n\n    library(Biostrings)\n\n    contigs <- readDNAStringSet(\"${contigs}\")\n    writeXStringSet(contigs[width(contigs) > ${params.min_contig_length}], \"long_contigs.fna\")\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "contigs"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus 1",
+            "publishDir \"${params.data_dir}/assembled/contigs\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "bin_taxonomy": {
+        "name_process": "bin_taxonomy",
+        "string_process": "\nprocess bin_taxonomy {\n    cpus maxcpus\n    publishDir \"${params.data_dir}\"\n\n    input:\n    path(bins)\n    tuple path(database_folder), path(taxonomy_folder)\n\n    output:\n    path(\"bins.classification.names.txt\")\n\n    \"\"\"\n    CAT bins -r 10 -f 0.1 -b ${bins} -s .fa -d ${database_folder} \\\n        -t ${taxonomy_folder} -o bins -n ${task.cpus} && \\\n    CAT add_names -i bins.bin2classification.txt -o bins.classification.names.txt -t ${taxonomy_folder}\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "\"\"\"\n    CAT bins -r 10 -f 0.1 -b ${bins} -s .fa -d ${database_folder} \\\n        -t ${taxonomy_folder} -o bins -n ${task.cpus} && \\\n    CAT add_names -i bins.bin2classification.txt -o bins.classification.names.txt -t ${taxonomy_folder}\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "CATO"
+        ],
+        "tools_url": [
+            "https://bio.tools/cato"
+        ],
+        "tools_dico": [
+            {
+                "name": "CATO",
+                "uri": "https://bio.tools/cato",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "CATO (Clone Alignment Tool) allows a user to align, evaluate, edit, and select clone sequences based on comparisons to reference sequences.",
+                "homepage": "https://sourceforge.net/projects/cato-clone-alignment-tool/"
+            }
+        ],
+        "inputs": [
+            "bins",
+            "database_folder",
+            "taxonomy_folder"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus maxcpus",
+            "publishDir \"${params.data_dir}\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "contig_taxonomy": {
+        "name_process": "contig_taxonomy",
+        "string_process": "\nprocess contig_taxonomy {\n    cpus maxcpus\n    publishDir \"${params.data_dir}\"\n\n    input:\n    path(contigs)\n    tuple path(database_folder), path(taxonomy_folder)\n\n    output:\n    tuple path(\"contigs.classification.names.txt\"), path(\"contigs.summary.txt\")\n\n    \"\"\"\n    CAT contigs -c ${contigs} -d ${database_folder} -t ${taxonomy_folder} \\\n        -n ${task.cpus} --out_prefix contigs && \\\n    CAT add_names -i contigs.contig2classification.txt -o contigs.classification.names.txt \\\n        -t ${taxonomy_folder} --only_official && \\\n    CAT summarise -c ${contigs} -i contigs.classification.names.txt -o contigs.summary.txt\n    \"\"\"\n}",
+        "nb_lignes_process": 18,
+        "string_script": "\"\"\"\n    CAT contigs -c ${contigs} -d ${database_folder} -t ${taxonomy_folder} \\\n        -n ${task.cpus} --out_prefix contigs && \\\n    CAT add_names -i contigs.contig2classification.txt -o contigs.classification.names.txt \\\n        -t ${taxonomy_folder} --only_official && \\\n    CAT summarise -c ${contigs} -i contigs.classification.names.txt -o contigs.summary.txt\n    \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [
+            "CATO"
+        ],
+        "tools_url": [
+            "https://bio.tools/cato"
+        ],
+        "tools_dico": [
+            {
+                "name": "CATO",
+                "uri": "https://bio.tools/cato",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2403",
+                                    "term": "Sequence analysis (general)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "CATO (Clone Alignment Tool) allows a user to align, evaluate, edit, and select clone sequences based on comparisons to reference sequences.",
+                "homepage": "https://sourceforge.net/projects/cato-clone-alignment-tool/"
+            }
+        ],
+        "inputs": [
+            "contigs",
+            "database_folder",
+            "taxonomy_folder"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "Gibbons-Lab__pipelines",
+        "directive": [
+            "cpus maxcpus",
+            "publishDir \"${params.data_dir}\""
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

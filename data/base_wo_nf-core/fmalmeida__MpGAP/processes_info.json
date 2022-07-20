@@ -1,0 +1,2623 @@
+{
+    "pilon_polish": {
+        "name_process": "pilon_polish",
+        "string_process": "process pilon_polish {\n  publishDir \"${params.output}/${prefix}/pilon_polished_contigs\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), file(draft), val(assembler), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file(\"${assembler}/*\")                  \n  tuple val(id), file(\"${assembler}/${assembler}_pilon_consensus.fasta\"), val(\"${assembler}_pilon_polished\")\n\n  script:\n  has_paired = (sread1 =~ /input.*/) ? false : true\n  has_single = (single =~ /input.*/) ? false : true\n  fixed_id   = id - \":strategy_2\"\n                                                     \n  if(has_paired && !has_single)\n      \"\"\"\n      # get tools path\n      miniasm_path=\\$(find \\$CONDA_PREFIX -name \"miniasm\" | grep \"mpgap\" | head -n 1)\n      pilonjar_path=\\$(find \\$CONDA_PREFIX -name \"pilon.jar\" | grep \"mpgap\" | head -n 1)\n\n      # Create the results dir\n      mkdir ${assembler};\n\n      # Execute Unicycler polishing pilon wrapper\n      unicycler_polish \\\\\n          --minimap \\$miniasm_path \\\\\n          --pilon \\$pilonjar_path \\\\\n          -a $draft \\\\\n          -1 ${sread1} \\\\\n          -2 ${sread2} \\\\\n          --threads $task.cpus &> polish.log ;\n\n      # Save files in the desired directory\n      mv 0* polish.log ${assembler};\n      mv ${assembler}/*_final_polish.fasta ${assembler}/${assembler}_pilon_consensus.fasta ;\n      \"\"\"\n                                                     \n  else if(!has_paired && has_single)\n      \"\"\"\n      # get tools path\n      miniasm_path=\\$(find \\$CONDA_PREFIX -name \"miniasm\" | grep \"mpgap\" | head -n 1)\n      pilonjar_path=\\$(find \\$CONDA_PREFIX -name \"pilon.jar\" | grep \"mpgap\" | head -n 1)\n\n      # Create the results dir\n      mkdir ${assembler};\n\n      # Index and align reads with bwa\n      bwa index ${draft} ;\n      bwa mem -M -t $task.cpus ${draft} ${single} > ${fixed_id}_${assembler}_aln.sam ;\n      samtools view -bS ${fixed_id}_${assembler}_aln.sam | samtools sort > ${fixed_id}_${assembler}_aln.bam ;\n      samtools index ${fixed_id}_${assembler}_aln.bam ;\n\n      # Execute pilon a single time (for single end reads)\n      java \\\\\n          -Xmx${params.pilon_memory_limit}G \\\\\n          -jar \\$pilonjar_path \\\\\n          --genome ${draft} \\\\\n          --bam ${fixed_id}_${assembler}_aln.bam \\\\\n          --output ${assembler}_pilon_consensus \\\\\n          --outdir ${assembler} &> pilon.log\n\n      # save bam file in the desired directory\n      mv ${fixed_id}_${assembler}_aln.bam pilon.log ${assembler};\n      \"\"\"\n                                            \n  else if(has_paired && has_single)\n      \"\"\"\n      # get tools path\n      miniasm_path=\\$(find \\$CONDA_PREFIX -name \"miniasm\" | grep \"mpgap\" | head -n 1)\n      pilonjar_path=\\$(find \\$CONDA_PREFIX -name \"pilon.jar\" | grep \"mpgap\" | head -n 1)\n\n      # Create the results dir\n      mkdir ${assembler};\n\n      # Index and align reads with bwa\n      bwa index ${draft} ;\n      bwa mem -M -t $task.cpus ${draft} ${single} > ${fixed_id}_${assembler}_aln.sam ;\n      samtools view -bS ${fixed_id}_${assembler}_aln.sam | samtools sort > ${fixed_id}_${assembler}_aln.bam ;\n      samtools index ${fixed_id}_${assembler}_aln.bam ;\n\n      # Execute pilon a single time (for single end reads)\n      java \\\\\n          -Xmx${params.pilon_memory_limit}G \\\\\n          -jar \\$pilonjar_path \\\\\n          --genome ${draft} \\\\\n          --bam ${fixed_id}_${assembler}_aln.bam \\\\\n          --output first_polish \\\\\n          --outdir . &> pilon.log\n\n      # Execute Unicycler polishing pilon wrapper (for paired reads)\n      unicycler_polish \\\\\n          --minimap \\$miniasm_path \\\\\n          --pilon \\$pilonjar_path \\\\\n          -a first_polish.fasta \\\\\n          -1 ${sread1} \\\\\n          -2 ${sread2} \\\\\n          --threads $task.cpus &> polish.log ;\n\n      # Save files in the desired directory\n      mv 0* polish.log ${assembler};\n      mv ${assembler}/*_final_polish.fasta ${assembler}/${assembler}_pilon_consensus.fasta ;\n      \"\"\"\n}",
+        "nb_lignes_process": 104,
+        "string_script": "  has_paired = (sread1 =~ /input.*/) ? false : true\n  has_single = (single =~ /input.*/) ? false : true\n  fixed_id   = id - \":strategy_2\"\n                                                     \n  if(has_paired && !has_single)\n      \"\"\"\n      # get tools path\n      miniasm_path=\\$(find \\$CONDA_PREFIX -name \"miniasm\" | grep \"mpgap\" | head -n 1)\n      pilonjar_path=\\$(find \\$CONDA_PREFIX -name \"pilon.jar\" | grep \"mpgap\" | head -n 1)\n\n      # Create the results dir\n      mkdir ${assembler};\n\n      # Execute Unicycler polishing pilon wrapper\n      unicycler_polish \\\\\n          --minimap \\$miniasm_path \\\\\n          --pilon \\$pilonjar_path \\\\\n          -a $draft \\\\\n          -1 ${sread1} \\\\\n          -2 ${sread2} \\\\\n          --threads $task.cpus &> polish.log ;\n\n      # Save files in the desired directory\n      mv 0* polish.log ${assembler};\n      mv ${assembler}/*_final_polish.fasta ${assembler}/${assembler}_pilon_consensus.fasta ;\n      \"\"\"\n                                                     \n  else if(!has_paired && has_single)\n      \"\"\"\n      # get tools path\n      miniasm_path=\\$(find \\$CONDA_PREFIX -name \"miniasm\" | grep \"mpgap\" | head -n 1)\n      pilonjar_path=\\$(find \\$CONDA_PREFIX -name \"pilon.jar\" | grep \"mpgap\" | head -n 1)\n\n      # Create the results dir\n      mkdir ${assembler};\n\n      # Index and align reads with bwa\n      bwa index ${draft} ;\n      bwa mem -M -t $task.cpus ${draft} ${single} > ${fixed_id}_${assembler}_aln.sam ;\n      samtools view -bS ${fixed_id}_${assembler}_aln.sam | samtools sort > ${fixed_id}_${assembler}_aln.bam ;\n      samtools index ${fixed_id}_${assembler}_aln.bam ;\n\n      # Execute pilon a single time (for single end reads)\n      java \\\\\n          -Xmx${params.pilon_memory_limit}G \\\\\n          -jar \\$pilonjar_path \\\\\n          --genome ${draft} \\\\\n          --bam ${fixed_id}_${assembler}_aln.bam \\\\\n          --output ${assembler}_pilon_consensus \\\\\n          --outdir ${assembler} &> pilon.log\n\n      # save bam file in the desired directory\n      mv ${fixed_id}_${assembler}_aln.bam pilon.log ${assembler};\n      \"\"\"\n                                            \n  else if(has_paired && has_single)\n      \"\"\"\n      # get tools path\n      miniasm_path=\\$(find \\$CONDA_PREFIX -name \"miniasm\" | grep \"mpgap\" | head -n 1)\n      pilonjar_path=\\$(find \\$CONDA_PREFIX -name \"pilon.jar\" | grep \"mpgap\" | head -n 1)\n\n      # Create the results dir\n      mkdir ${assembler};\n\n      # Index and align reads with bwa\n      bwa index ${draft} ;\n      bwa mem -M -t $task.cpus ${draft} ${single} > ${fixed_id}_${assembler}_aln.sam ;\n      samtools view -bS ${fixed_id}_${assembler}_aln.sam | samtools sort > ${fixed_id}_${assembler}_aln.bam ;\n      samtools index ${fixed_id}_${assembler}_aln.bam ;\n\n      # Execute pilon a single time (for single end reads)\n      java \\\\\n          -Xmx${params.pilon_memory_limit}G \\\\\n          -jar \\$pilonjar_path \\\\\n          --genome ${draft} \\\\\n          --bam ${fixed_id}_${assembler}_aln.bam \\\\\n          --output first_polish \\\\\n          --outdir . &> pilon.log\n\n      # Execute Unicycler polishing pilon wrapper (for paired reads)\n      unicycler_polish \\\\\n          --minimap \\$miniasm_path \\\\\n          --pilon \\$pilonjar_path \\\\\n          -a first_polish.fasta \\\\\n          -1 ${sread1} \\\\\n          -2 ${sread2} \\\\\n          --threads $task.cpus &> polish.log ;\n\n      # Save files in the desired directory\n      mv 0* polish.log ${assembler};\n      mv ${assembler}/*_final_polish.fasta ${assembler}/${assembler}_pilon_consensus.fasta ;\n      \"\"\"",
+        "nb_lignes_script": 91,
+        "language_script": "bash",
+        "tools": [
+            "BWA",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/bwa",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "BWA",
+                "uri": "https://bio.tools/bwa",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3211",
+                                    "term": "Genome indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3429",
+                                    "term": "Construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment construction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Oligonucleotide alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short sequence read mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3198",
+                                    "term": "Short read alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2044",
+                                "term": "Sequence"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0863",
+                                "term": "Sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2012",
+                                "term": "Sequence coordinates"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_1916",
+                                "term": "Alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_3210",
+                                "term": "Genome index"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Fast, accurate, memory-efficient aligner for short and long sequencing reads",
+                "homepage": "http://bio-bwa.sourceforge.net"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "assembler",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "draft",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 18,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/pilon_polished_contigs\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "medaka": {
+        "name_process": "medaka",
+        "string_process": "process medaka {\n  publishDir \"${params.output}/${prefix}/medaka_polished_contigs\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), file(draft), val(assembler), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"${assembler}\"                   \n  tuple val(id), file(\"${assembler}/${assembler}_medaka_consensus.fa\"), val(\"${assembler}_medaka\")                       \n\n  when:\n  (medaka_model) && (lr_type == 'nanopore') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  \"\"\"\n  # map reads\n  minimap2 \\\n      -x map-ont \\\\\n      ${draft} \\\\\n      ${lreads} > reads_mapped.paf ;\n\n  # first step racon polish\n  # as in medaka manual\n  racon \\\\\n      -m 8 -x -6 -g -8 -w 500 \\\\\n      -t $task.cpus \\\\\n      ${lreads} \\\\\n      reads_mapped.paf \\\\\n      ${draft} > racon_consensus.fasta ;\n\n  # second step medaka polish\n  medaka_consensus \\\\\n      -i ${lreads} \\\\\n      -d racon_consensus.fasta \\\\\n      -o ${assembler} \\\\\n      -t $task.cpus \\\\\n      -m ${medaka_model} ;\n\n  # rename results\n  mv ${assembler}/consensus.fasta ${assembler}/${assembler}_medaka_consensus.fa\n  \"\"\"\n}",
+        "nb_lignes_process": 42,
+        "string_script": "  \"\"\"\n  # map reads\n  minimap2 \\\n      -x map-ont \\\\\n      ${draft} \\\\\n      ${lreads} > reads_mapped.paf ;\n\n  # first step racon polish\n  # as in medaka manual\n  racon \\\\\n      -m 8 -x -6 -g -8 -w 500 \\\\\n      -t $task.cpus \\\\\n      ${lreads} \\\\\n      reads_mapped.paf \\\\\n      ${draft} > racon_consensus.fasta ;\n\n  # second step medaka polish\n  medaka_consensus \\\\\n      -i ${lreads} \\\\\n      -d racon_consensus.fasta \\\\\n      -o ${assembler} \\\\\n      -t $task.cpus \\\\\n      -m ${medaka_model} ;\n\n  # rename results\n  mv ${assembler}/consensus.fasta ${assembler}/${assembler}_medaka_consensus.fa\n  \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [
+            "Minimap2",
+            "Racon"
+        ],
+        "tools_url": [
+            "https://bio.tools/minimap2",
+            "https://bio.tools/Racon"
+        ],
+        "tools_dico": [
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            },
+            {
+                "name": "Racon",
+                "uri": "https://bio.tools/Racon",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant science"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plants"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Botany"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0780",
+                            "term": "Plant"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0523",
+                                    "term": "Mapping assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Sequence trimming"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0523",
+                                    "term": "Sequence assembly (mapping assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3192",
+                                    "term": "Trimming"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The Possibility to Use Oxford Nanopore Technology | Ultrafast consensus module for raw de novo genome assembly of long uncorrected reads. http://genome.cshlp.org/content/early/2017/01/18/gr.214270.116 Note: This was the original repository which will no longer be officially maintained. Please use the new official repository here: | Racon is intended as a standalone consensus module to correct raw contigs generated by rapid assembly methods which do not include a consensus step | Consensus module for raw de novo DNA assembly of long uncorrected reads",
+                "homepage": "https://github.com/isovic/racon"
+            }
+        ],
+        "inputs": [
+            "id",
+            "assembler",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "draft",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 18,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/medaka_polished_contigs\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(medaka_model) && (lr_type == 'nanopore') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    },
+    "unicycler": {
+        "name_process": "unicycler",
+        "string_process": "\nprocess unicycler {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"unicycler\"                   \n  tuple  val(id), file(\"unicycler/unicycler_assembly.fasta\"), val('unicycler')\n\n  when:\n  (entrypoint == 'shortreads_only')\n\n  script:\n  param_paired = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  param_single = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.unicycler_additional_parameters) ? params.unicycler_additional_parameters : \"\"\n  \"\"\"\n  # copy spades 3.13 to dir\n  src_dir=\\$(which shasta | sed 's/shasta//g')\n  spades_path=\"\\${src_dir}/spades-3.13.tar.gz\"\n  cp \\${spades_path} .\n  tar zxvf spades-3.13.tar.gz && rm spades-3.13.tar.gz\n\n  # run unicycler\n  unicycler \\\\\n      ${param_paired} \\\\\n      ${param_single} \\\\\n      -o unicycler \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      --spades_path SPAdes-3.13.0-Linux/bin/spades.py\n\n  # rename results\n  mv unicycler/assembly.fasta unicycler/unicycler_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 38,
+        "string_script": "  param_paired = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  param_single = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.unicycler_additional_parameters) ? params.unicycler_additional_parameters : \"\"\n  \"\"\"\n  # copy spades 3.13 to dir\n  src_dir=\\$(which shasta | sed 's/shasta//g')\n  spades_path=\"\\${src_dir}/spades-3.13.tar.gz\"\n  cp \\${spades_path} .\n  tar zxvf spades-3.13.tar.gz && rm spades-3.13.tar.gz\n\n  # run unicycler\n  unicycler \\\\\n      ${param_paired} \\\\\n      ${param_single} \\\\\n      -o unicycler \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      --spades_path SPAdes-3.13.0-Linux/bin/spades.py\n\n  # rename results\n  mv unicycler/assembly.fasta unicycler/unicycler_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 21,
+        "language_script": "bash",
+        "tools": [
+            "Unicycler"
+        ],
+        "tools_url": [
+            "https://bio.tools/unicycler"
+        ],
+        "tools_dico": [
+            {
+                "name": "Unicycler",
+                "uri": "https://bio.tools/unicycler",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0925",
+                                "term": "Sequence assembly"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for assembling bacterial genomes from a combination of short (2nd generation) and long (3rd generation) sequencing reads.",
+                "homepage": "https://github.com/rrwick/Unicycler"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(entrypoint == 'shortreads_only')",
+        "stub": ""
+    },
+    "wtdbg2": {
+        "name_process": "wtdbg2",
+        "string_process": "process wtdbg2 {\n  publishDir \"${params.output}/${prefix}/wtdbg2\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"*\"                   \n  tuple val(id), file(\"wtdbg2_assembly.fasta\"), val('wtdbg2')                     \n\n  when:\n  (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  fixed_id = id - \":strategy_2\"\n  additional_params = (params.wtdbg2_additional_parameters) ? params.wtdbg2_additional_parameters : \"\"\n  \"\"\"\n  # run wtdbg2\n  wtdbg2.pl \\\\\n      -t $task.cpus \\\\\n      -x ${wtdbg2_technology} \\\\\n      -g ${genome_size} \\\\\n      -o ${fixed_id} \\\\\n      $additional_params \\\\\n      $lreads\n\n  # rename results\n  cp ${fixed_id}.cns.fa wtdbg2_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "  fixed_id = id - \":strategy_2\"\n  additional_params = (params.wtdbg2_additional_parameters) ? params.wtdbg2_additional_parameters : \"\"\n  \"\"\"\n  # run wtdbg2\n  wtdbg2.pl \\\\\n      -t $task.cpus \\\\\n      -x ${wtdbg2_technology} \\\\\n      -g ${genome_size} \\\\\n      -o ${fixed_id} \\\\\n      $additional_params \\\\\n      $lreads\n\n  # rename results\n  cp ${fixed_id}.cns.fa wtdbg2_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/wtdbg2\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    },
+    "spades_hybrid": {
+        "name_process": "spades_hybrid",
+        "string_process": "process spades_hybrid {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"*\"                   \n  tuple val(id), file(\"spades/spades_assembly.fasta\"), val('spades')                     \n\n  when:\n  ((!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) || !(single =~ /input.*/)) && !(lreads =~ /input.*/) && (entrypoint == 'hybrid_strategy_1')\n\n  script:\n                \n  lr   = (lr_type == 'nanopore') ? '--nanopore' : '--pacbio'\n  paired_reads = (!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  single_reads = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.spades_additional_parameters) ? params.spades_additional_parameters : \"\"\n  \"\"\"\n  # run spades\n  spades.py \\\\\n      -o spades \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      ${paired_reads} \\\\\n      ${single_reads} \\\\\n      ${lr} ${lreads}\n\n  # rename results\n  mv spades/contigs.fasta spades/spades_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "  lr   = (lr_type == 'nanopore') ? '--nanopore' : '--pacbio'\n  paired_reads = (!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  single_reads = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.spades_additional_parameters) ? params.spades_additional_parameters : \"\"\n  \"\"\"\n  # run spades\n  spades.py \\\\\n      -o spades \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      ${paired_reads} \\\\\n      ${single_reads} \\\\\n      ${lr} ${lreads}\n\n  # rename results\n  mv spades/contigs.fasta spades/spades_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "LRC"
+        ],
+        "tools_url": [
+            "https://bio.tools/lrc"
+        ],
+        "tools_dico": [
+            {
+                "name": "LRC",
+                "uri": "https://bio.tools/lrc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2830",
+                            "term": "Immunoproteins and antigens"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0804",
+                            "term": "Immunology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2480",
+                                    "term": "Structure analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein structure comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology structure modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A computational method based on a combination of physicochemical and structural properties to predict the B-cell epitopes.",
+                "homepage": "http://bs.ipm.ir/softwares/LRC/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "((!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) || !(single =~ /input.*/)) && !(lreads =~ /input.*/) && (entrypoint == 'hybrid_strategy_1')",
+        "stub": ""
+    },
+    "shovill": {
+        "name_process": "shovill",
+        "string_process": "\nprocess shovill {\n  publishDir \"${params.output}/${prefix}/shovill\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix), val(assembler)\n\n  output:\n  file \"${assembler}\"                   \n  tuple val(id), file(\"${assembler}/shovill_${assembler}_final.fasta\"), val(\"shovill_${assembler}\")\n\n  when:\n  !(sread1 =~ /input.*/ || sread2 =~ /input.*/) && (single =~ /input.*/) && (entrypoint == 'shortreads_only')\n\n  script:\n  additional_params = (params.shovill_additional_parameters) ? params.shovill_additional_parameters : \"\"\n  \"\"\"\n  # run shovill\n  shovill \\\\\n      --outdir ${assembler} \\\\\n      --assembler ${assembler} \\\\\n      --R1 $sread1 \\\\\n      --R2 $sread2 \\\\\n      --cpus $task.cpus \\\\\n      $additional_params \\\\\n      --trim ;\n\n  # rename results\n  mv ${assembler}/contigs.fa ${assembler}/shovill_${assembler}_final.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "  additional_params = (params.shovill_additional_parameters) ? params.shovill_additional_parameters : \"\"\n  \"\"\"\n  # run shovill\n  shovill \\\\\n      --outdir ${assembler} \\\\\n      --assembler ${assembler} \\\\\n      --R1 $sread1 \\\\\n      --R2 $sread2 \\\\\n      --cpus $task.cpus \\\\\n      $additional_params \\\\\n      --trim ;\n\n  # rename results\n  mv ${assembler}/contigs.fa ${assembler}/shovill_${assembler}_final.fasta\n  \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [
+            "shovill"
+        ],
+        "tools_url": [
+            "https://bio.tools/shovill"
+        ],
+        "tools_dico": [
+            {
+                "name": "shovill",
+                "uri": "https://bio.tools/shovill",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3494",
+                                "term": "DNA sequence"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Shovill is a pipeline for assembly of bacterial isolate genomes from Illumina paired-end reads.  Shovill uses SPAdes at its core, but alters the steps before and after the primary assembly step to get similar results in less time. Shovill also supports other assemblers like SKESA, Velvet and Megahit, so you can take advantage of the pre- and post-processing the Shovill provides with those too.",
+                "homepage": "https://github.com/tseemann/shovill"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "assembler",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 17,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/shovill\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "!(sread1 =~ /input.*/ || sread2 =~ /input.*/) && (single =~ /input.*/) && (entrypoint == 'shortreads_only')",
+        "stub": ""
+    },
+    "flye": {
+        "name_process": "flye",
+        "string_process": "process flye {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"flye\"                   \n  tuple val(id), file(\"flye/flye_assembly.fasta\"), val('flye')                     \n\n  when:\n  (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  lr        = (lr_type == 'nanopore') ? '--nano' : '--pacbio'\n  corrected = (corrected_long_reads == 'true') ? '-corr' : '-raw'\n  lrparam   = lr + corrected\n  gsize     = (genome_size) ? \"--genome-size ${genome_size}\" : \"\"\n  additional_params = (params.flye_additional_parameters) ? params.flye_additional_parameters : \"\"\n  \"\"\"\n  # run flye\n  flye \\\\\n      ${lrparam} $lreads \\\\\n      ${gsize} \\\\\n      --out-dir flye \\\\\n      $additional_params \\\\\n      --threads $task.cpus &> flye.log ;\n\n  # rename results\n  mv flye/assembly.fasta flye/flye_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "  lr        = (lr_type == 'nanopore') ? '--nano' : '--pacbio'\n  corrected = (corrected_long_reads == 'true') ? '-corr' : '-raw'\n  lrparam   = lr + corrected\n  gsize     = (genome_size) ? \"--genome-size ${genome_size}\" : \"\"\n  additional_params = (params.flye_additional_parameters) ? params.flye_additional_parameters : \"\"\n  \"\"\"\n  # run flye\n  flye \\\\\n      ${lrparam} $lreads \\\\\n      ${gsize} \\\\\n      --out-dir flye \\\\\n      $additional_params \\\\\n      --threads $task.cpus &> flye.log ;\n\n  # rename results\n  mv flye/assembly.fasta flye/flye_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "LRC",
+            "Flye"
+        ],
+        "tools_url": [
+            "https://bio.tools/lrc",
+            "https://bio.tools/Flye"
+        ],
+        "tools_dico": [
+            {
+                "name": "LRC",
+                "uri": "https://bio.tools/lrc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2830",
+                            "term": "Immunoproteins and antigens"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0804",
+                            "term": "Immunology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2480",
+                                    "term": "Structure analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein structure comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology structure modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A computational method based on a combination of physicochemical and structural properties to predict the B-cell epitopes.",
+                "homepage": "http://bs.ipm.ir/softwares/LRC/"
+            },
+            {
+                "name": "Flye",
+                "uri": "https://bio.tools/Flye",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0523",
+                                    "term": "Mapping assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De-novo assembly"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0523",
+                                    "term": "Sequence assembly (mapping assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De Bruijn graph"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "Sequence assembly (de-novo assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Flye is a de novo assembler for single molecule sequencing reads, such as those produced by PacBio and Oxford Nanopore Technologies. It is designed for a wide range of datasets, from small bacterial projects to large mammalian-scale assemblies. The package represents a complete pipeline: it takes raw PB / ONT reads as input and outputs polished contigs.",
+                "homepage": "https://github.com/fenderglass/Flye"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    },
+    "gcpp": {
+        "name_process": "gcpp",
+        "string_process": "process gcpp {\n  publishDir \"${params.output}/${prefix}/gcpp_polished_contigs\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), file(draft), val(assembler), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"${assembler}_gcpp_variants.gff\"            \n  tuple val(id), file(\"${assembler}_gcpp_consensus.fasta\"), val(\"${assembler}_gcpp\")                \n\n when:\n !(bams =~ /input.*/) && (lr_type == 'pacbio') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  \"\"\"\n  # generate genome index\n  pbmm2 \\\\\n      index \\\\\n      -j $task.cpus \\\\\n      ${draft} \\\\\n      draft.mmi ;\n\n  # align bam\n  pbmm2 \\\\\n      align \\\\\n      -j $task.cpus \\\\\n      --sort \\\\\n      draft.mmi \\\\\n      ${bams} \\\\\n      final_pbaligned.bam ;\n\n  # index bam and fasta\n  samtools index final_pbaligned.bam ;\n  samtools faidx ${draft} ;\n\n  # run polisher\n  gcpp \\\\\n      -r ${draft} \\\\\n      -o ${assembler}_gcpp_consensus.fasta,${assembler}_gcpp_variants.gff \\\\\n      -j $task.cpus \\\\\n      final_pbaligned.bam ;\n  \"\"\"\n}",
+        "nb_lignes_process": 43,
+        "string_script": "  \"\"\"\n  # generate genome index\n  pbmm2 \\\\\n      index \\\\\n      -j $task.cpus \\\\\n      ${draft} \\\\\n      draft.mmi ;\n\n  # align bam\n  pbmm2 \\\\\n      align \\\\\n      -j $task.cpus \\\\\n      --sort \\\\\n      draft.mmi \\\\\n      ${bams} \\\\\n      final_pbaligned.bam ;\n\n  # index bam and fasta\n  samtools index final_pbaligned.bam ;\n  samtools faidx ${draft} ;\n\n  # run polisher\n  gcpp \\\\\n      -r ${draft} \\\\\n      -o ${assembler}_gcpp_consensus.fasta,${assembler}_gcpp_variants.gff \\\\\n      -j $task.cpus \\\\\n      final_pbaligned.bam ;\n  \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [
+            "CINdex",
+            "ALIGN",
+            "SAMtools"
+        ],
+        "tools_url": [
+            "https://bio.tools/cindex",
+            "https://bio.tools/align",
+            "https://bio.tools/samtools"
+        ],
+        "tools_dico": [
+            {
+                "name": "CINdex",
+                "uri": "https://bio.tools/cindex",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3233",
+                                    "term": "Copy number estimation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3233",
+                                    "term": "Transcript copy number estimation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "The package addresses important area of high-throughput genomic analysis. It allows the automated processing and analysis of the experimental DNA copy number data generated by Affymetrix SNP 6.0 arrays or similar. It calculates the chromosome instability index to quantitatively characterize genome-wide DNA copy number alterations. This package calculates not only overall genomic instability, but also instability in terms of copy number gains and losses at the chromosome and cytoband level.",
+                "homepage": "http://bioconductor.org/packages/release/bioc/html/CINdex.html"
+            },
+            {
+                "name": "ALIGN",
+                "uri": "https://bio.tools/align",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0300",
+                                    "term": "Sequence profile alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0495",
+                                    "term": "Local alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0496",
+                                    "term": "Global alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0495",
+                                    "term": "Local sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0495",
+                                    "term": "Sequence alignment (local)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0496",
+                                    "term": "Global sequence alignment"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0496",
+                                    "term": "Sequence alignment (global)"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1460",
+                                "term": "Protein structure"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_2976",
+                                "term": "Protein sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_1384",
+                                "term": "Protein sequence alignment"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_0869",
+                                "term": "Sequence-profile alignment"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Pairwise alignment tool.",
+                "homepage": "http://protein.bio.unipd.it/align2"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "assembler",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "draft",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 18,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/gcpp_polished_contigs\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "!(bams =~ /input.*/) && (lr_type == 'pacbio') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    },
+    "megahit": {
+        "name_process": "megahit",
+        "string_process": "\nprocess megahit {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"megahit\"                   \n  tuple val(id), file(\"megahit/megahit_assembly.fasta\"), val('megahit')\n\n  when:\n  (entrypoint == 'shortreads_only')\n\n  script:\n  param_paired = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  param_single = !(single =~ /input.*/) ? \"-r $single\" : \"\"\n  additional_params = (params.megahit_additional_parameters) ? params.megahit_additional_parameters : \"\"\n  memory = \"$task.memory\" - \" GB\" + \"e9\"\n  \"\"\"\n  # run megahit\n  megahit \\\\\n      ${param_paired} \\\\\n      ${param_single} \\\\\n      -o megahit \\\\\n      -t $task.cpus \\\\\n      -m $memory \\\\\n      $additional_params\n\n  # rename results\n  mv megahit/final.contigs.fa megahit/megahit_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "  param_paired = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  param_single = !(single =~ /input.*/) ? \"-r $single\" : \"\"\n  additional_params = (params.megahit_additional_parameters) ? params.megahit_additional_parameters : \"\"\n  memory = \"$task.memory\" - \" GB\" + \"e9\"\n  \"\"\"\n  # run megahit\n  megahit \\\\\n      ${param_paired} \\\\\n      ${param_single} \\\\\n      -o megahit \\\\\n      -t $task.cpus \\\\\n      -m $memory \\\\\n      $additional_params\n\n  # rename results\n  mv megahit/final.contigs.fa megahit/megahit_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [
+            "memory(LSTM",
+            "MEGAHIT"
+        ],
+        "tools_url": [
+            "https://bio.tools/memoryLSTM",
+            "https://bio.tools/megahit"
+        ],
+        "tools_dico": [
+            {
+                "name": "memory(LSTM",
+                "uri": "https://bio.tools/memoryLSTM",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3474",
+                            "term": "Machine learning"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0128",
+                            "term": "Protein interactions"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2464",
+                                    "term": "Protein-protein binding site prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0272",
+                                    "term": "Residue contact prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2492",
+                                    "term": "Protein interaction prediction"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2464",
+                                    "term": "Protein-protein binding site detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0272",
+                                    "term": "Residue interaction prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2492",
+                                    "term": "Protein-protein interaction detection"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Attention mechanism enhanced LSTM with residual architecture and its application for protein-protein interaction residue pairs prediction.\n\nBACKGROUND:Recurrent neural network(RNN) is a good way to process sequential data, but the capability of RNN to compute long sequence data is inefficient. As a variant of RNN, long short term memory(LSTM) solved the problem in some extent. Here we improved LSTM for big data application in protein-protein interaction interface residue pairs prediction based on the following two reasons. On the one hand, there are some deficiencies in LSTM, such as shallow layers, gradient explosion or vanishing, etc. With a dramatic data increasing, the imbalance between algorithm innovation and big data processing has been more serious and urgent.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'LSTM' (bio.tools/LSTM)",
+                "homepage": "https://github.com/Jiale-Liu/LSTM"
+            },
+            {
+                "name": "MEGAHIT",
+                "uri": "https://bio.tools/megahit",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0610",
+                            "term": "Ecology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3174",
+                            "term": "Metagenomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct de Bruijn graph to achieve low memory usage, whereas its goal is not to make memory usage as low as possible.",
+                "homepage": "https://github.com/voutcn/megahit"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(entrypoint == 'shortreads_only')",
+        "stub": ""
+    },
+    "spades": {
+        "name_process": "spades",
+        "string_process": "\nprocess spades {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"spades\"                   \n  tuple val(id), file(\"spades/spades_assembly.fasta\"), val('spades')\n\n  when:\n  (entrypoint == 'shortreads_only')\n\n  script:\n  param_paired = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  param_single = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.spades_additional_parameters) ? params.spades_additional_parameters : \"\"\n  \"\"\"\n  # run spades\n  spades.py \\\\\n      -o spades \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      $param_paired \\\\\n      $param_single\n\n  # rename results\n  mv spades/contigs.fasta spades/spades_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 31,
+        "string_script": "  param_paired = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  param_single = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.spades_additional_parameters) ? params.spades_additional_parameters : \"\"\n  \"\"\"\n  # run spades\n  spades.py \\\\\n      -o spades \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      $param_paired \\\\\n      $param_single\n\n  # rename results\n  mv spades/contigs.fasta spades/spades_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 14,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(entrypoint == 'shortreads_only')",
+        "stub": ""
+    },
+    "canu": {
+        "name_process": "canu",
+        "string_process": "process canu {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"canu/\"                   \n  tuple val(id), file(\"canu/canu_assembly.fasta\"), val('canu')                     \n\n  when:\n  (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  lr        = (lr_type == 'nanopore') ? '-nanopore' : '-pacbio'\n  corrected = (corrected_long_reads == 'true') ? '-corrected' : ''\n  fixed_id = id - \":strategy_2\"\n  additional_params = (params.canu_additional_parameters) ? params.canu_additional_parameters : \"\"\n  \"\"\"\n  # run canu\n  canu \\\\\n      -p ${fixed_id} \\\\\n      -d canu \\\\\n      maxThreads=$task.cpus \\\\\n      genomeSize=${genome_size} \\\\\n      $additional_params \\\\\n      $corrected \\\\\n      $lr $lreads\n\n  # rename results\n  mv canu/${fixed_id}.contigs.fasta canu/canu_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "  lr        = (lr_type == 'nanopore') ? '-nanopore' : '-pacbio'\n  corrected = (corrected_long_reads == 'true') ? '-corrected' : ''\n  fixed_id = id - \":strategy_2\"\n  additional_params = (params.canu_additional_parameters) ? params.canu_additional_parameters : \"\"\n  \"\"\"\n  # run canu\n  canu \\\\\n      -p ${fixed_id} \\\\\n      -d canu \\\\\n      maxThreads=$task.cpus \\\\\n      genomeSize=${genome_size} \\\\\n      $additional_params \\\\\n      $corrected \\\\\n      $lr $lreads\n\n  # rename results\n  mv canu/${fixed_id}.contigs.fasta canu/canu_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "LRC",
+            "CANU"
+        ],
+        "tools_url": [
+            "https://bio.tools/lrc",
+            "https://bio.tools/canu"
+        ],
+        "tools_dico": [
+            {
+                "name": "LRC",
+                "uri": "https://bio.tools/lrc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2830",
+                            "term": "Immunoproteins and antigens"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0804",
+                            "term": "Immunology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2480",
+                                    "term": "Structure analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein structure comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology structure modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A computational method based on a combination of physicochemical and structural properties to predict the B-cell epitopes.",
+                "homepage": "http://bs.ipm.ir/softwares/LRC/"
+            },
+            {
+                "name": "CANU",
+                "uri": "https://bio.tools/canu",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De-novo assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "De Bruijn graph"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0524",
+                                    "term": "Sequence assembly (de-novo assembly)"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "De-novo assembly tool for long read chemistry like Nanopore data and PacBio data.",
+                "homepage": "https://github.com/marbl/canu"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    },
+    "raven": {
+        "name_process": "raven",
+        "string_process": "process raven {\n  publishDir \"${params.output}/${prefix}/raven\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"raven_assembly.*\"                   \n  tuple val(id), file(\"raven_assembly.fasta\"), val('raven')                     \n\n  when:\n  (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  corrected = (corrected_long_reads == 'true') ? '--weaken' : ''\n  additional_params = (params.raven_additional_parameters) ? params.raven_additional_parameters : \"\"\n  \"\"\"\n  # run raven\n  raven \\\\\n      --threads $task.cpus \\\\\n      --graphical-fragment-assembly raven_assembly.gfa \\\\\n      $additional_params \\\\\n      $corrected \\\\\n      $lreads > raven_assembly.fasta ;\n  \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "  corrected = (corrected_long_reads == 'true') ? '--weaken' : ''\n  additional_params = (params.raven_additional_parameters) ? params.raven_additional_parameters : \"\"\n  \"\"\"\n  # run raven\n  raven \\\\\n      --threads $task.cpus \\\\\n      --graphical-fragment-assembly raven_assembly.gfa \\\\\n      $additional_params \\\\\n      $corrected \\\\\n      $lreads > raven_assembly.fasta ;\n  \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/raven\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    },
+    "unicycler_hybrid": {
+        "name_process": "unicycler_hybrid",
+        "string_process": "process unicycler_hybrid {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"unicycler\"                   \n  tuple val(id), file(\"unicycler/unicycler_assembly.fasta\"), val('unicycler')                     \n\n  when:\n  ((!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) || !(single =~ /input.*/)) && !(lreads =~ /input.*/) && (entrypoint == 'hybrid_strategy_1')\n\n  script:\n                \n  paired_reads = (!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  single_reads = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.unicycler_additional_parameters) ? params.unicycler_additional_parameters : \"\"\n  \"\"\"\n  # copy spades 3.13 to dir\n  src_dir=\\$(which shasta | sed 's/shasta//g')\n  spades_path=\"\\${src_dir}/spades-3.13.tar.gz\"\n  cp \\${spades_path} .\n  tar zxvf spades-3.13.tar.gz && rm spades-3.13.tar.gz\n\n  # run unicycler\n  unicycler \\\\\n      ${paired_reads} \\\\\n      ${single_reads} \\\\\n      -l ${lreads} \\\\\n      -o unicycler \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      --spades_path SPAdes-3.13.0-Linux/bin/spades.py\n\n  # rename results\n  mv unicycler/assembly.fasta unicycler/unicycler_assembly.fasta\n  \"\"\"\n}",
+        "nb_lignes_process": 39,
+        "string_script": "  paired_reads = (!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) ? \"-1 $sread1 -2 $sread2\" : \"\"\n  single_reads = !(single =~ /input.*/) ? \"-s $single\" : \"\"\n  additional_params = (params.unicycler_additional_parameters) ? params.unicycler_additional_parameters : \"\"\n  \"\"\"\n  # copy spades 3.13 to dir\n  src_dir=\\$(which shasta | sed 's/shasta//g')\n  spades_path=\"\\${src_dir}/spades-3.13.tar.gz\"\n  cp \\${spades_path} .\n  tar zxvf spades-3.13.tar.gz && rm spades-3.13.tar.gz\n\n  # run unicycler\n  unicycler \\\\\n      ${paired_reads} \\\\\n      ${single_reads} \\\\\n      -l ${lreads} \\\\\n      -o unicycler \\\\\n      -t $task.cpus \\\\\n      $additional_params \\\\\n      --spades_path SPAdes-3.13.0-Linux/bin/spades.py\n\n  # rename results\n  mv unicycler/assembly.fasta unicycler/unicycler_assembly.fasta\n  \"\"\"",
+        "nb_lignes_script": 22,
+        "language_script": "bash",
+        "tools": [
+            "Unicycler"
+        ],
+        "tools_url": [
+            "https://bio.tools/unicycler"
+        ],
+        "tools_dico": [
+            {
+                "name": "Unicycler",
+                "uri": "https://bio.tools/unicycler",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0196",
+                            "term": "Sequence assembly"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0622",
+                            "term": "Genomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3301",
+                            "term": "Microbiology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3436",
+                                    "term": "Aggregation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genome assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Sequence assembly (genome assembly)"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0525",
+                                    "term": "Genomic assembly"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0848",
+                                "term": "Raw sequence"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0925",
+                                "term": "Sequence assembly"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A tool for assembling bacterial genomes from a combination of short (2nd generation) and long (3rd generation) sequencing reads.",
+                "homepage": "https://github.com/rrwick/Unicycler"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "((!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) || !(single =~ /input.*/)) && !(lreads =~ /input.*/) && (entrypoint == 'hybrid_strategy_1')",
+        "stub": ""
+    },
+    "multiqc": {
+        "name_process": "multiqc",
+        "string_process": "process multiqc {\n  publishDir \"${params.output}/${prefix}/00_quality_assessment\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_ultralow'\n\n  input:\n  tuple val(id), val(entrypoint), val(prefix), file(quast_dirs)\n  val nfRun\n\n  output:\n  file \"multiqc_report_${nfRun}.html\"\n  file \"multiqc_data\"\n  file \"ASSEMBLY_SUMMARY.txt\"\n\n  script:\n  \"\"\"\n  # Run\n  multiqc */report.tsv */busco_stats/short_summary_* ;\n\n  # Rename to have nf run name\n  mv multiqc_report.html multiqc_report_${nfRun}.html ;\n\n  # Create the markdown file resuming the main statistics\n  echo \\\"# A summary of the main assembly statistics\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"## Main QUAST statistics\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  csvtk cut -t -f 1,14,15,16,17,18,22,27,28,31 multiqc_data/multiqc_quast.txt | csvtk -t pretty >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"## Main BUSCO statistics\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  csvtk -t pretty multiqc_data/multiqc_busco.txt >> ASSEMBLY_SUMMARY.txt\n  \"\"\"\n}",
+        "nb_lignes_process": 32,
+        "string_script": "  \"\"\"\n  # Run\n  multiqc */report.tsv */busco_stats/short_summary_* ;\n\n  # Rename to have nf run name\n  mv multiqc_report.html multiqc_report_${nfRun}.html ;\n\n  # Create the markdown file resuming the main statistics\n  echo \\\"# A summary of the main assembly statistics\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"## Main QUAST statistics\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  csvtk cut -t -f 1,14,15,16,17,18,22,27,28,31 multiqc_data/multiqc_quast.txt | csvtk -t pretty >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"## Main BUSCO statistics\\\" >> ASSEMBLY_SUMMARY.txt\n  echo \\\"\\\" >> ASSEMBLY_SUMMARY.txt\n  csvtk -t pretty multiqc_data/multiqc_busco.txt >> ASSEMBLY_SUMMARY.txt\n  \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "MultiQC"
+        ],
+        "tools_url": [
+            "https://bio.tools/multiqc"
+        ],
+        "tools_dico": [
+            {
+                "name": "MultiQC",
+                "uri": "https://bio.tools/multiqc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0091",
+                            "term": "Bioinformatics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2428",
+                                    "term": "Validation"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_2048",
+                                "term": "Report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "MultiQC aggregates results from multiple bioinformatics analyses across many samples into a single report. It searches a given directory for analysis logs and compiles a HTML report. It's a general use tool, perfect for summarising the output from numerous bioinformatics tools.",
+                "homepage": "http://multiqc.info/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "prefix",
+            "quast_dirs",
+            "nfRun"
+        ],
+        "nb_inputs": 5,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/00_quality_assessment\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_ultralow'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "shasta": {
+        "name_process": "shasta",
+        "string_process": "process shasta {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"shasta/\"                   \n  tuple val(id), file(\"shasta/shasta_assembly.fasta\"), val('shasta')                     \n\n  when:\n  (lr_type == 'nanopore') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  lr        = (lr_type == 'nanopore') ? '-nanopore' : '-pacbio'\n  in_reads  = (lreads.getName() - \".gz\")\n  additional_params = (params.shasta_additional_parameters) ? params.shasta_additional_parameters : \"\"\n  \"\"\"\n  # unzip reads\n  gunzip -dcf $lreads > uncompressed_${in_reads} ;\n\n  # assemble\n  shasta \\\\\n      --assemblyDirectory shasta \\\\\n      --threads $task.cpus \\\\\n      $additional_params \\\\\n      --input uncompressed_${in_reads} \\\\\n      --config ${shasta_config} ;\n\n  # rename contigs\n  cp shasta/Assembly.fasta shasta/shasta_assembly.fasta ;\n  \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "  lr        = (lr_type == 'nanopore') ? '-nanopore' : '-pacbio'\n  in_reads  = (lreads.getName() - \".gz\")\n  additional_params = (params.shasta_additional_parameters) ? params.shasta_additional_parameters : \"\"\n  \"\"\"\n  # unzip reads\n  gunzip -dcf $lreads > uncompressed_${in_reads} ;\n\n  # assemble\n  shasta \\\\\n      --assemblyDirectory shasta \\\\\n      --threads $task.cpus \\\\\n      $additional_params \\\\\n      --input uncompressed_${in_reads} \\\\\n      --config ${shasta_config} ;\n\n  # rename contigs\n  cp shasta/Assembly.fasta shasta/shasta_assembly.fasta ;\n  \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "LRC"
+        ],
+        "tools_url": [
+            "https://bio.tools/lrc"
+        ],
+        "tools_dico": [
+            {
+                "name": "LRC",
+                "uri": "https://bio.tools/lrc",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2830",
+                            "term": "Immunoproteins and antigens"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2229",
+                            "term": "Cell biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0804",
+                            "term": "Immunology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2814",
+                            "term": "Protein structure"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2480",
+                                    "term": "Structure analysis"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Protein structure comparative modelling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0477",
+                                    "term": "Homology structure modelling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A computational method based on a combination of physicochemical and structural properties to predict the B-cell epitopes.",
+                "homepage": "http://bs.ipm.ir/softwares/LRC/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "(lr_type == 'nanopore') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    },
+    "quast": {
+        "name_process": "quast",
+        "string_process": "process quast {\n  publishDir \"${params.output}/${prefix}/00_quality_assessment\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_low'\n\n  input:\n  tuple val(id), file(contigs), val(assembler), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  tuple val(id), val(entrypoint), val(prefix), file(\"${assembler}\")\n\n  script:\n                         \n  paired_param = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"--pe1 ${sread1} --pe2 ${sread2}\" : \"\"\n  single_param = !(single =~ /input.?/) ? \"--single ${single}\" : \"\"\n  lreads_param = !(lreads =~ /input.?/) ? \"--${lr_type} ${lreads}\" : \"\"\n  additional_params = (params.quast_additional_parameters) ? params.quast_additional_parameters : \"\"\n\n  if (params.selected_profile == \"docker\" || params.selected_profile == \"conda\")\n  \"\"\"\n  # run quast\n  quast.py \\\\\n      -o ${assembler} \\\\\n      -t $task.cpus \\\\\n      ${lreads_param} \\\\\n      ${paired_param} \\\\\n      ${single_param} \\\\\n      --conserved-genes-finding \\\\\n      --rna-finding \\\\\n      --min-contig 100 \\\\\n      $additional_params \\\\\n      ${contigs}\n  \"\"\"\n\n  else if (params.selected_profile == \"singularity\")\n  \"\"\"\n  # fix busco usage in singularity\n  mkdir -p ~/.quast/busco\n  cp -R /opt/conda/envs/mpgap-*/lib/python3.6/site-packages/quast_libs/busco ~/.quast\n\n  # run quast\n  quast.py \\\\\n      -o ${assembler} \\\\\n      -t $task.cpus \\\\\n      ${lreads_param} \\\\\n      ${paired_param} \\\\\n      ${single_param} \\\\\n      --conserved-genes-finding \\\\\n      --rna-finding \\\\\n      --min-contig 100 \\\\\n      $additional_params \\\\\n      ${contigs}\n  \"\"\"\n}",
+        "nb_lignes_process": 52,
+        "string_script": "  paired_param = !(sread1 =~ /input.*/ || sread2 =~ /input.*/) ? \"--pe1 ${sread1} --pe2 ${sread2}\" : \"\"\n  single_param = !(single =~ /input.?/) ? \"--single ${single}\" : \"\"\n  lreads_param = !(lreads =~ /input.?/) ? \"--${lr_type} ${lreads}\" : \"\"\n  additional_params = (params.quast_additional_parameters) ? params.quast_additional_parameters : \"\"\n\n  if (params.selected_profile == \"docker\" || params.selected_profile == \"conda\")\n  \"\"\"\n  # run quast\n  quast.py \\\\\n      -o ${assembler} \\\\\n      -t $task.cpus \\\\\n      ${lreads_param} \\\\\n      ${paired_param} \\\\\n      ${single_param} \\\\\n      --conserved-genes-finding \\\\\n      --rna-finding \\\\\n      --min-contig 100 \\\\\n      $additional_params \\\\\n      ${contigs}\n  \"\"\"\n\n  else if (params.selected_profile == \"singularity\")\n  \"\"\"\n  # fix busco usage in singularity\n  mkdir -p ~/.quast/busco\n  cp -R /opt/conda/envs/mpgap-*/lib/python3.6/site-packages/quast_libs/busco ~/.quast\n\n  # run quast\n  quast.py \\\\\n      -o ${assembler} \\\\\n      -t $task.cpus \\\\\n      ${lreads_param} \\\\\n      ${paired_param} \\\\\n      ${single_param} \\\\\n      --conserved-genes-finding \\\\\n      --rna-finding \\\\\n      --min-contig 100 \\\\\n      $additional_params \\\\\n      ${contigs}\n  \"\"\"",
+        "nb_lignes_script": 39,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "assembler",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "contigs",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 18,
+        "outputs": [
+            "prefix"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/00_quality_assessment\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_low'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "haslr_hybrid": {
+        "name_process": "haslr_hybrid",
+        "string_process": "process haslr_hybrid {\n  publishDir \"${params.output}/${prefix}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  file \"*\"                   \n  tuple val(id), file(\"haslr/haslr_assembly.fa\"), val('haslr')                     \n\n  when:\n  ((!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) || !(single =~ /input.*/)) && !(lreads =~ /input.*/) && (entrypoint == 'hybrid_strategy_1')\n\n  script:\n                \n  paired_reads = (!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) ? \"$sread1 $sread2\" : \"\"\n  single_reads = !(single =~ /input.*/) ? \"$single\" : \"\"\n  additional_params = (params.haslr_additional_parameters) ? params.haslr_additional_parameters : \"\"\n  \"\"\"\n  # run haslr\n  haslr.py \\\\\n      -t $task.cpus \\\\\n      -o haslr \\\\\n      -g ${genome_size} \\\\\n      -l $lreads \\\\\n      -x ${lr_type} \\\\\n      $additional_params \\\\\n      -s ${paired_reads} ${single_reads} \n\n  # rename results\n  cp haslr/*/asm.final.fa haslr/haslr_assembly.fa\n  \"\"\"\n}",
+        "nb_lignes_process": 33,
+        "string_script": "  paired_reads = (!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) ? \"$sread1 $sread2\" : \"\"\n  single_reads = !(single =~ /input.*/) ? \"$single\" : \"\"\n  additional_params = (params.haslr_additional_parameters) ? params.haslr_additional_parameters : \"\"\n  \"\"\"\n  # run haslr\n  haslr.py \\\\\n      -t $task.cpus \\\\\n      -o haslr \\\\\n      -g ${genome_size} \\\\\n      -l $lreads \\\\\n      -x ${lr_type} \\\\\n      $additional_params \\\\\n      -s ${paired_reads} ${single_reads} \n\n  # rename results\n  cp haslr/*/asm.final.fa haslr/haslr_assembly.fa\n  \"\"\"",
+        "nb_lignes_script": 16,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "id",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 16,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "((!(sread1 =~ /input.*/) && !(sread2 =~ /input.*/)) || !(single =~ /input.*/)) && !(lreads =~ /input.*/) && (entrypoint == 'hybrid_strategy_1')",
+        "stub": ""
+    },
+    "nanopolish": {
+        "name_process": "nanopolish",
+        "string_process": "process nanopolish {\n  publishDir \"${params.output}/${prefix}/nanopolished_contigs/${assembler}\", mode: 'copy'\n  tag \"${id}\"\n  label 'process_assembly'\n\n  input:\n  tuple val(id), file(draft), val(assembler), val(entrypoint), file(sread1), file(sread2), file(single), file(lreads), val(lr_type), val(wtdbg2_technology), val(genome_size), val(corrected_long_reads), val(medaka_model), file(fast5), val(nanopolish_max_haplotypes), val(shasta_config), file(bams), val(prefix)\n\n  output:\n  tuple val(id), file(\"${assembler}_nanopolish_consensus.fa\"), val(\"${assembler}_nanopolish\")                             \n  file \"${assembler}_nanopolish_consensus.complete.vcf\"            \n\n  when:\n  !(fast5 =~ /input.*/) && (lr_type == 'nanopore') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')\n\n  script:\n  fast5_dir = fast5.toString()\n  \"\"\"\n  # save reads as fasta\n  seqtk seq -A ${lreads} > reads.fa ;\n\n  # filter contigs for polish\n  # nanopolish accepts sequences greater than 40bp\n  # will be used only to create window ranges\n  seqtk seq -L 40 ${draft} > filtered_assembly.fa ;\n\n  # index fast5 files\n  nanopolish index -d \"${fast5_dir}\" reads.fa ;\n\n  # index assembly\n  minimap2 \\\\\n      -d draft.mmi \\\\\n      ${draft} ;\n  \n  # map reads to assembly\n  minimap2 \\\\\n      -ax map-ont \\\\\n      -t $task.cpus \\\\\n      ${draft} \\\\\n      reads.fa | \\\\\n      samtools \\\\\n          sort \\\\\n          -o reads.sorted.bam \\\\\n          -T reads.tmp ;\n  \n  # index bam\n  samtools index reads.sorted.bam ;\n\n  # run nanopolish\n  nanopolish_makerange.py \\\\\n      filtered_assembly.fa | \\\\\n      parallel --results nanopolish.results -P 1 \\\\\n      nanopolish variants --consensus -o polished.{1}.vcf \\\\\n          -w {1} \\\\\n          -r reads.fa \\\\\n          -b reads.sorted.bam \\\\\n          -g ${draft} \\\\\n          -t $task.cpus \\\\\n          --max-haplotypes ${nanopolish_max_haplotypes} ;\n  \n  # call polished fasta from vcf\n  nanopolish \\\\\n      vcf2fasta \\\\\n      --skip-checks \\\\\n      -g ${draft} \\\\\n      polished.*.vcf > ${assembler}_nanopolish_consensus.fa ;\n  \n  # rename contigs\n  cat polished.*.vcf >> ${assembler}_nanopolish_consensus.complete.vcf\n  \"\"\"\n}",
+        "nb_lignes_process": 69,
+        "string_script": "  fast5_dir = fast5.toString()\n  \"\"\"\n  # save reads as fasta\n  seqtk seq -A ${lreads} > reads.fa ;\n\n  # filter contigs for polish\n  # nanopolish accepts sequences greater than 40bp\n  # will be used only to create window ranges\n  seqtk seq -L 40 ${draft} > filtered_assembly.fa ;\n\n  # index fast5 files\n  nanopolish index -d \"${fast5_dir}\" reads.fa ;\n\n  # index assembly\n  minimap2 \\\\\n      -d draft.mmi \\\\\n      ${draft} ;\n  \n  # map reads to assembly\n  minimap2 \\\\\n      -ax map-ont \\\\\n      -t $task.cpus \\\\\n      ${draft} \\\\\n      reads.fa | \\\\\n      samtools \\\\\n          sort \\\\\n          -o reads.sorted.bam \\\\\n          -T reads.tmp ;\n  \n  # index bam\n  samtools index reads.sorted.bam ;\n\n  # run nanopolish\n  nanopolish_makerange.py \\\\\n      filtered_assembly.fa | \\\\\n      parallel --results nanopolish.results -P 1 \\\\\n      nanopolish variants --consensus -o polished.{1}.vcf \\\\\n          -w {1} \\\\\n          -r reads.fa \\\\\n          -b reads.sorted.bam \\\\\n          -g ${draft} \\\\\n          -t $task.cpus \\\\\n          --max-haplotypes ${nanopolish_max_haplotypes} ;\n  \n  # call polished fasta from vcf\n  nanopolish \\\\\n      vcf2fasta \\\\\n      --skip-checks \\\\\n      -g ${draft} \\\\\n      polished.*.vcf > ${assembler}_nanopolish_consensus.fa ;\n  \n  # rename contigs\n  cat polished.*.vcf >> ${assembler}_nanopolish_consensus.complete.vcf\n  \"\"\"",
+        "nb_lignes_script": 53,
+        "language_script": "bash",
+        "tools": [
+            "seqtk",
+            "nanopolish",
+            "Minimap2",
+            "SAMtools",
+            "parallelGWAS"
+        ],
+        "tools_url": [
+            "https://bio.tools/seqtk",
+            "https://bio.tools/nanopolish",
+            "https://bio.tools/minimap2",
+            "https://bio.tools/samtools",
+            "https://bio.tools/parallelgwas"
+        ],
+        "tools_dico": [
+            {
+                "name": "seqtk",
+                "uri": "https://bio.tools/seqtk",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Biological databases"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Data management"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Information systems"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3071",
+                            "term": "Databases and information systems"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Data handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2121",
+                                    "term": "Sequence file editing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Utility operation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File handling"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "File processing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2409",
+                                    "term": "Report handling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "A tool for processing sequences in the FASTA or FASTQ format. It parses both FASTA and FASTQ files which can also be optionally compressed by gzip.",
+                "homepage": "https://github.com/lh3/seqtk"
+            },
+            {
+                "name": "nanopolish",
+                "uri": "https://bio.tools/nanopolish",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "Genetic variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0199",
+                            "term": "DNA variation"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3204",
+                                    "term": "Methylation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Mapping"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0310",
+                                    "term": "Sequence assembly"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Sequence variation analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Variant analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3197",
+                                    "term": "Genetic variation annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3204",
+                                    "term": "Methylation profile analysis"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2429",
+                                    "term": "Cartography"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_2093",
+                                "term": "Data reference"
+                            },
+                            {
+                                "uri": "http://edamontology.org/data_0849",
+                                "term": "Sequence record"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0867",
+                                "term": "Sequence alignment report"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A package for detecting cytosine methylations and genetic variations from nanopore MinION sequencing data.",
+                "homepage": "https://github.com/jts/nanopolish"
+            },
+            {
+                "name": "Minimap2",
+                "uri": "https://bio.tools/minimap2",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0491",
+                                    "term": "Pairwise alignment"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Pairwise aligner for genomic and spliced nucleotide sequences",
+                "homepage": "https://github.com/lh3/minimap2"
+            },
+            {
+                "name": "SAMtools",
+                "uri": "https://bio.tools/samtools",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "Rare diseases"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0102",
+                            "term": "Mapping"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3325",
+                            "term": "https://en.wikipedia.org/wiki/Rare_disease"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3096",
+                                    "term": "Editing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Indexing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File format conversion"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "File formatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0335",
+                                    "term": "Reformatting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Data indexing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0227",
+                                    "term": "Database indexing"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0924",
+                                "term": "Sequence trace"
+                            }
+                        ]
+                    }
+                ],
+                "description": "A software package with various utilities for processing alignments in the SAM format, including variant calling and alignment viewing.",
+                "homepage": "http://www.htslib.org/"
+            },
+            {
+                "name": "parallelGWAS",
+                "uri": "https://bio.tools/parallelgwas",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS study"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype and phenotype resources"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0625",
+                            "term": "Genotype-phenotype"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "GWAS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3517",
+                            "term": "Genome-wide association study"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype mapping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype reconstruction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype map generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0487",
+                                    "term": "Haplotype inference"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Developing parallel computing tools for genome-wide association studies.",
+                "homepage": "https://en.osdn.jp/projects/parallelgwas/"
+            }
+        ],
+        "inputs": [
+            "id",
+            "assembler",
+            "entrypoint",
+            "lr_type",
+            "wtdbg2_technology",
+            "genome_size",
+            "corrected_long_reads",
+            "medaka_model",
+            "nanopolish_max_haplotypes",
+            "shasta_config",
+            "prefix",
+            "draft",
+            "sread1",
+            "sread2",
+            "single",
+            "lreads",
+            "fast5",
+            "bams"
+        ],
+        "nb_inputs": 18,
+        "outputs": [
+            "id"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "fmalmeida__MpGAP",
+        "directive": [
+            "publishDir \"${params.output}/${prefix}/nanopolished_contigs/${assembler}\", mode: 'copy'",
+            "tag \"${id}\"",
+            "label 'process_assembly'"
+        ],
+        "when": "!(fast5 =~ /input.*/) && (lr_type == 'nanopore') && (entrypoint == 'longreads_only' || entrypoint == 'hybrid_strategy_2')",
+        "stub": ""
+    }
+}

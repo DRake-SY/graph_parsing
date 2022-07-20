@@ -1,0 +1,193 @@
+{
+    "chunk_phenotype": {
+        "name_process": "chunk_phenotype",
+        "string_process": "\nprocess chunk_phenotype {\n  label \"chunk\"\n  executor \"local\"\n  cache \"lenient\"\n\n                                               \n    \n  input :\n  file pheno_file from Channel.fromPath(params.pheno_file)                                                                                \n\n  output:\n  file \"chunk_*_phe.txt\" into chunks_phenotypes mode flatten\n  \n  publishDir \"${params.OutDir}/chunked_pheno\", pattern: \"chunk_*_phe.txt\", mode: \"copy\"\n\n  \"\"\"\n  # make sure phenotype file is tab-delimited\n  cat ${pheno_file} | tr \" \" \"\\t\" > temp_pheno_file.txt  \n  \n  Nb_PHENO=\\$((\\$(head -n 1 temp_pheno_file.txt | wc -w ) - 2)) \n  val=\\$((\\$Nb_PHENO/${params.PheStep}))\n  if [[ \\$val > 1 ]]; then\n    for ((Q=1;Q<=\\$val;Q++)); do\n      cut -f 1,2,\\$((( \\$Q - 1) * ${params.PheStep} + 3 ))-\\$(((\\$Q * ${params.PheStep}) + 2)) temp_pheno_file.txt > chunk_\\${Q}_phe.txt\n    done\n  else\n    cp temp_pheno_file.txt chunk_1_phe.txt\n  fi\n  \"\"\"\n}",
+        "nb_lignes_process": 29,
+        "string_script": "\"\"\"\n  # make sure phenotype file is tab-delimited\n  cat ${pheno_file} | tr \" \" \"\\t\" > temp_pheno_file.txt  \n  \n  Nb_PHENO=\\$((\\$(head -n 1 temp_pheno_file.txt | wc -w ) - 2)) \n  val=\\$((\\$Nb_PHENO/${params.PheStep}))\n  if [[ \\$val > 1 ]]; then\n    for ((Q=1;Q<=\\$val;Q++)); do\n      cut -f 1,2,\\$((( \\$Q - 1) * ${params.PheStep} + 3 ))-\\$(((\\$Q * ${params.PheStep}) + 2)) temp_pheno_file.txt > chunk_\\${Q}_phe.txt\n    done\n  else\n    cp temp_pheno_file.txt chunk_1_phe.txt\n  fi\n  \"\"\"",
+        "nb_lignes_script": 13,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "chunks_phenotypes"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "CERC-Genomic-Medicine__Regenie_nextflow",
+        "directive": [
+            "label \"chunk\"",
+            "executor \"local\"",
+            "cache \"lenient\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "step1_l0": {
+        "name_process": "step1_l0",
+        "string_process": "\nprocess step1_l0 {\n  label \"STEP_1_0\"\n  cache \"lenient\"\n  scratch false\n  \n                                        \n\n  input:\n  tuple val(pheno_chunk_no), file(pheno_chunk), file(genotypes_file), file(sample_file), file(additional_file) from chunks_phenotypes.map { f -> [f.getBaseName().split('_')[1], f] }.combine(Channel.fromPath(params.genotypes_file).map(f -> f.getExtension() == \"pgen\" ? [f, file(\"${f.getParent()}/${f.getBaseName()}.psam\"), file(\"${f.getParent()}/${f.getBaseName()}.pvar\")] : [f, file(\"${f.getParent()}/${f.getBaseName()}.sample\"), \"\"]))\n  each file(covar_file) from Channel.fromPath(params.covar_file)\n\n\n  output:\n  tuple val(pheno_chunk_no), file(pheno_chunk), file(\"fit_bin${pheno_chunk_no}.master\"), file(\"fit_bin${pheno_chunk_no}_*.snplist\") into step1_l0_split mode flatten\n  file \"*.log\" into step1_l0_logs\n\n  publishDir \"${params.OutDir}/step1_l0_logs\", pattern: \"*.log\", mode: \"copy\"\n\n\n  \"\"\"\n  if [ ${genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${genotypes_file} --sample ${sample_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n  regenie \\\n    --step 1 \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --gz \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out fit_bin_${pheno_chunk_no} \\\n    --split-l0 fit_bin${pheno_chunk_no},${params.njobs} \\\n    --threads ${params.Threads_S_10} \\\n    --lowmem\n  \"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "\"\"\"\n  if [ ${genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${genotypes_file} --sample ${sample_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n  regenie \\\n    --step 1 \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --gz \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out fit_bin_${pheno_chunk_no} \\\n    --split-l0 fit_bin${pheno_chunk_no},${params.njobs} \\\n    --threads ${params.Threads_S_10} \\\n    --lowmem\n  \"\"\"",
+        "nb_lignes_script": 25,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "chunks_phenotypes"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "step1_l0_split",
+            "step1_l0_logs"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "CERC-Genomic-Medicine__Regenie_nextflow",
+        "directive": [
+            "label \"STEP_1_0\"",
+            "cache \"lenient\"",
+            "scratch false"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "step_1_l1": {
+        "name_process": "step_1_l1",
+        "string_process": "\nprocess step_1_l1 {\n  label \"STEP_1_1\"\n  cache \"lenient\"\n  scratch false\n\n                                  \n\n  input:\n  tuple val(pheno_chunk_no), file(pheno_chunk), file(master), file(snplist), file(genotypes_file), file(sample_file), file(additional_file) from step1_l0_split.combine(Channel.fromPath(params.genotypes_file).map(f -> f.getExtension() == \"pgen\" ? [f, file(\"${f.getParent()}/${f.getBaseName()}.psam\"), file(\"${f.getParent()}/${f.getBaseName()}.pvar\")] : [f, file(\"${f.getParent()}/${f.getBaseName()}.sample\"), \"\"]))\n  each file(covar_file) from Channel.fromPath(params.covar_file)\n\n  output:\n  tuple val(pheno_chunk_no), file(pheno_chunk), file(master), file(\"*_l0_Y*\") into step_1_l1\n  file \"*.log\" into step1_l1_logs\n \n  publishDir \"${params.OutDir}/step1_l1_logs\", pattern: \"*.log\", mode: \"copy\"\n\n  \"\"\"\n  if [ ${genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${genotypes_file} --sample ${sample_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n\n  i=${snplist.getSimpleName().split('_')[2].replaceFirst('^job', '')}\n  regenie \\\n    --step 1 \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --gz \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out fit_bin_${pheno_chunk_no}_\\${i} \\\n    --run-l0 ${master},\\${i} \\\n    --threads ${params.Threads_S_11} \\\n    --lowmem\n  \"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "\"\"\"\n  if [ ${genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${genotypes_file} --sample ${sample_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n\n  i=${snplist.getSimpleName().split('_')[2].replaceFirst('^job', '')}\n  regenie \\\n    --step 1 \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --gz \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out fit_bin_${pheno_chunk_no}_\\${i} \\\n    --run-l0 ${master},\\${i} \\\n    --threads ${params.Threads_S_11} \\\n    --lowmem\n  \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "step1_l0_split"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "step_1_l1",
+            "step1_l1_logs"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "CERC-Genomic-Medicine__Regenie_nextflow",
+        "directive": [
+            "label \"STEP_1_1\"",
+            "cache \"lenient\"",
+            "scratch false"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "step_1_l2": {
+        "name_process": "step_1_l2",
+        "string_process": "\nprocess step_1_l2 {\n  label \"STEP_1_2\"\n  cache \"lenient\"\n  scratch false\n\n                         \n\n  input:\n  tuple val(pheno_chunk_no), file(pheno_chunk), file(master), file(predictions), file(genotypes_file), file(sample_file), file(additional_file) from step_1_l1.groupTuple(by: 0).map{ t -> [t[0], t[1][0], t[2][0], t[3].flatten()] }.combine(Channel.fromPath(params.genotypes_file).map(f -> f.getExtension() == \"pgen\" ? [f, file(\"${f.getParent()}/${f.getBaseName()}.psam\"), file(\"${f.getParent()}/${f.getBaseName()}.pvar\")] : [f, file(\"${f.getParent()}/${f.getBaseName()}.sample\"), \"\"]))\n  each file(covar_file) from Channel.fromPath(params.covar_file)\n\n  output:       \n  tuple val(pheno_chunk_no), file(pheno_chunk), file(\"fit_bin${pheno_chunk_no}_loco_pred.list\"), file(\"*.loco.gz\") into step1_l2\n  file \"*.log\" into step1_l2_logs\n\n  publishDir \"${params.OutDir}/step1_l2_logs\", pattern: \"*.log\", mode: \"copy\"\n  \n\n  \"\"\"\n  if [ ${genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${genotypes_file} --sample ${sample_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n  regenie \\\n    --step 1 \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --gz \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out fit_bin${pheno_chunk_no}_loco \\\n    --run-l1 ${master} \\\n    --keep-l0 \\\n    --threads ${params.Threads_S_12} \\\n    --use-relative-path \\\n    --lowmem\n    \"\"\"\n  }",
+        "nb_lignes_process": 46,
+        "string_script": "\"\"\"\n  if [ ${genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${genotypes_file} --sample ${sample_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n  regenie \\\n    --step 1 \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --gz \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out fit_bin${pheno_chunk_no}_loco \\\n    --run-l1 ${master} \\\n    --keep-l0 \\\n    --threads ${params.Threads_S_12} \\\n    --use-relative-path \\\n    --lowmem\n    \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "step_1_l1"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "step1_l2",
+            "step1_l2_logs"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "CERC-Genomic-Medicine__Regenie_nextflow",
+        "directive": [
+            "label \"STEP_1_2\"",
+            "cache \"lenient\"",
+            "scratch false"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "chunk_chromosomes": {
+        "name_process": "chunk_chromosomes",
+        "string_process": "\nprocess chunk_chromosomes {\n   cache \"lenient\"\n   scratch false\n   executor \"local\"\n   cpus 1\n\n   input:\n   file variants_file from Channel.fromPath(params.gwas_genotypes_files).map(f -> f.getExtension() == \"pgen\" ? file(\"${f.getParent()}/${f.getBaseName()}.pvar\") : f + \".bgi\")\n\n   output:\n   tuple val(\"${variants_file.getSimpleName()}\"), file(\"${variants_file.getSimpleName()}_*.txt\") into chromosome_chunks mode flatten\n\n   \"\"\"\n   if [ ${variants_file.getExtension()} = \"pvar\" ]; then\n      grep -v \"^#\" ${variants_file} | cut -f3\n   else\n      sqlite3 ${variants_file} \"SELECT rsid FROM Variant\"\n   fi | split --numeric-suffixes=1 --suffix-length=4 --additional-suffix=.txt -l ${params.SnpStep} - ${variants_file.getSimpleName()}_\n   \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n   if [ ${variants_file.getExtension()} = \"pvar\" ]; then\n      grep -v \"^#\" ${variants_file} | cut -f3\n   else\n      sqlite3 ${variants_file} \"SELECT rsid FROM Variant\"\n   fi | split --numeric-suffixes=1 --suffix-length=4 --additional-suffix=.txt -l ${params.SnpStep} - ${variants_file.getSimpleName()}_\n   \"\"\"",
+        "nb_lignes_script": 6,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [],
+        "nb_inputs": 0,
+        "outputs": [
+            "chromosome_chunks"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "CERC-Genomic-Medicine__Regenie_nextflow",
+        "directive": [
+            "cache \"lenient\"",
+            "scratch false",
+            "executor \"local\"",
+            "cpus 1"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "step_2": {
+        "name_process": "step_2",
+        "string_process": "\nprocess step_2 {\n  label \"Asscociation_testing\"\n  cache \"lenient\"\n  scratch false \n\n                           \n\n  input:\n  tuple val(pheno_chunk_no), file(pheno_chunk), file(loco_pred_list), file(loco_pred), val(simple_name), file(chromosome_chunk), file(gwas_genotypes_file), file(samples_file), file(variants_file) from step1_l2.combine(chromosome_chunks)\n  each file(covar_file) from Channel.fromPath(params.covar_file)\n  \n  output:       \n  file(\"*.regenie.gz\") into summary_stats mode flatten\n  file \"*.log\" into step2_logs\n  \n  publishDir \"${params.OutDir}/step2_logs\", pattern: \"*.log\", mode: \"copy\"\n\n  \"\"\"\n  if [ ${gwas_genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${gwas_genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${gwas_genotypes_file} --sample ${samples_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n\n  regenie \\\n    --step 2 \\\n    --gz \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out \"${pheno_chunk_no}_${chromosome_chunk.getSimpleName()}_assoc\" \\\n    --pred ${loco_pred_list} \\\n    --extract ${chromosome_chunk} \\\n    --threads ${params.Threads_S_2} \\\n    --lowmem\n  \"\"\"\n}",
+        "nb_lignes_process": 45,
+        "string_script": "\"\"\"\n  if [ ${gwas_genotypes_file.getExtension()} = \"pgen\" ]; then\n     input=\"--pgen ${gwas_genotypes_file.getBaseName()}\"\n  else\n     input=\"--bgen ${gwas_genotypes_file} --sample ${samples_file}\"\n  fi\n\n  if [ ${params.CatCovar}=\"\"]; then\n     CovarCat=\"\"\n  else\n      CovarCat=\"--catCovarList ${params.CatCovar}\"\n  fi\n\n\n  regenie \\\n    --step 2 \\\n    --gz \\\n    --loocv \\\n    --bsize ${params.Bsize} \\\n    --phenoFile ${pheno_chunk} \\\n    --covarFile ${covar_file} \\$CovarCat \\\n    \\${input} \\\n    --out \"${pheno_chunk_no}_${chromosome_chunk.getSimpleName()}_assoc\" \\\n    --pred ${loco_pred_list} \\\n    --extract ${chromosome_chunk} \\\n    --threads ${params.Threads_S_2} \\\n    --lowmem\n  \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "step1_l2",
+            "chromosome_chunks"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "summary_stats",
+            "step2_logs"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "CERC-Genomic-Medicine__Regenie_nextflow",
+        "directive": [
+            "label \"Asscociation_testing\"",
+            "cache \"lenient\"",
+            "scratch false"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "step_2_merge": {
+        "name_process": "step_2_merge",
+        "string_process": "\nprocess step_2_merge {\n  label \"Merging\"\n  cache \"lenient\"\n  scratch false \n\n                                                                       \n\n  input:\n  tuple val(pheno_name), file(summary) from summary_stats.map{ t -> [t.baseName.split(\"_assoc_\")[1], t] }.groupTuple()\n\n  output:       \n  file \"*.txt.gz\" into summary_stats_final\n  \n  publishDir \"${params.OutDir}/step2_result\", pattern: \"*.txt.gz\", mode: \"copy\"\n\n  \"\"\"\n  gzip -dc `find . -name \"*.regenie.gz\" -print -quit` | head -n1 | gzip -c > ${pheno_name}.txt.gz\n  for f in `find . -name \"*.regenie.gz\" | sort -V`; do \n     gzip -dc \\$f; \n  done | grep -v \"^CHROM\" | gzip -c >> ${pheno_name}.txt.gz\n  \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "\"\"\"\n  gzip -dc `find . -name \"*.regenie.gz\" -print -quit` | head -n1 | gzip -c > ${pheno_name}.txt.gz\n  for f in `find . -name \"*.regenie.gz\" | sort -V`; do \n     gzip -dc \\$f; \n  done | grep -v \"^CHROM\" | gzip -c >> ${pheno_name}.txt.gz\n  \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "summary_stats"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "summary_stats_final"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "CERC-Genomic-Medicine__Regenie_nextflow",
+        "directive": [
+            "label \"Merging\"",
+            "cache \"lenient\"",
+            "scratch false"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

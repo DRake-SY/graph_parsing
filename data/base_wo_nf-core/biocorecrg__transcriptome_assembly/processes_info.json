@@ -1,0 +1,1311 @@
+{
+    "prepReference": {
+        "name_process": "prepReference",
+        "string_process": "\nprocess prepReference {\n    label \"big_time_cpus\"\n\n    input:\n    file(transcripts)\n    file(transmap)\n\n    output:\n    file (\"${transcripts}.salmon_quasi.idx\") into indexed_transcripts\n\n    script:\n    \"\"\"\n    align_and_estimate_abundance.pl --thread_count ${task.cpus} --transcripts ${transcripts} --est_method salmon --gene_trans_map ${transmap} --prep_reference\n    \"\"\"\n}",
+        "nb_lignes_process": 14,
+        "string_script": "    \"\"\"\n    align_and_estimate_abundance.pl --thread_count ${task.cpus} --transcripts ${transcripts} --est_method salmon --gene_trans_map ${transmap} --prep_reference\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "transcripts",
+            "transmap"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "indexed_transcripts"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "label \"big_time_cpus\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "alignReadsToTranscritps": {
+        "name_process": "alignReadsToTranscritps",
+        "string_process": "\nprocess alignReadsToTranscritps {\n    tag(\"$pair_id\")\n    label \"big_cpus\"\n\n    input:\n    file(transcripts)\n    file(indexed_transcripts)\n    set pair_id, file(pairs) from read_pairs\n    \n    output: \n    file(\"${pair_id}\") into abund_estimates\n         \n    script:\n    def read_params = \"\"\n    if (params.single == \"YES\") {\n\t    read_params=\" --single ${pairs} \"\n\t} else {\n\t\tread_params= \" --left ${pairs[0]} --right ${pairs[1]} \"\n\t}\n    if (params.strandness != \"NO\") {\n    \tstrand = \"--SS_lib_type ${params.strandness}\"\n    }\n    \"\"\"\n    ${util_scripts_image_path}/align_and_estimate_abundance.pl --thread_count ${task.cpus} ${strand} --transcripts ${transcripts} ${read_params} --seqType fq --est_method salmon --trinity_mode --output_dir ${pair_id}\n    \"\"\"\n}",
+        "nb_lignes_process": 25,
+        "string_script": "    def read_params = \"\"\n    if (params.single == \"YES\") {\n\t    read_params=\" --single ${pairs} \"\n\t} else {\n\t\tread_params= \" --left ${pairs[0]} --right ${pairs[1]} \"\n\t}\n    if (params.strandness != \"NO\") {\n    \tstrand = \"--SS_lib_type ${params.strandness}\"\n    }\n    \"\"\"\n    ${util_scripts_image_path}/align_and_estimate_abundance.pl --thread_count ${task.cpus} ${strand} --transcripts ${transcripts} ${read_params} --seqType fq --est_method salmon --trinity_mode --output_dir ${pair_id}\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "RNAstrand"
+        ],
+        "tools_url": [
+            "https://bio.tools/rnastrand"
+        ],
+        "tools_dico": [
+            {
+                "name": "RNAstrand",
+                "uri": "https://bio.tools/rnastrand",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0082",
+                            "term": "Structure prediction"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature prediction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0880",
+                                "term": "RNA secondary structure"
+                            }
+                        ]
+                    }
+                ],
+                "description": "RNAstrand predicts the reading direction of a structured RNA in a multiple sequence alignment by employing a support vector machine (SVM)",
+                "homepage": "http://www.bioinf.uni-leipzig.de/Software/RNAstrand/"
+            }
+        ],
+        "inputs": [
+            "transcripts",
+            "indexed_transcripts",
+            "read_pairs"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "abund_estimates"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "tag(\"$pair_id\")",
+            "label \"big_cpus\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "BuildMatrices": {
+        "name_process": "BuildMatrices",
+        "string_process": "\nprocess BuildMatrices {\n    publishDir outputMatrix, mode: 'copy'\n\n    input:\n    file(transcripts)\n    file(transmap)\n    file(estimates) from abund_estimates.collect()\n    \n    output: \n    file(\"salmon.gene.TPM.not_cross_norm\") into tpm_matrix_for_evaluation\n         \n    script:\n    def estimates_params = estimates.collect{ \"$it/quant.sf\" }.join(' ') \n\n    \"\"\"\n    ${util_scripts_image_path}/abundance_estimates_to_matrix.pl \\\n            --est_method salmon \\\n            --gene_trans_map ${transmap} \\\n            --name_sample_by_basedir \\\n            ${estimates_params}\n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    def estimates_params = estimates.collect{ \"$it/quant.sf\" }.join(' ') \n\n    \"\"\"\n    ${util_scripts_image_path}/abundance_estimates_to_matrix.pl \\\n            --est_method salmon \\\n            --gene_trans_map ${transmap} \\\n            --name_sample_by_basedir \\\n            ${estimates_params}\n    \"\"\"",
+        "nb_lignes_script": 8,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "transcripts",
+            "transmap",
+            "abund_estimates"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "tpm_matrix_for_evaluation"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputMatrix, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "evaluateTranscription": {
+        "name_process": "evaluateTranscription",
+        "string_process": "\nprocess evaluateTranscription {\n    publishDir outputEvaluation, mode: 'copy'\n\n    input:\n    file(tpm_matrix_for_evaluation)\n\n    output: \n    file(\"${tpm_matrix_for_evaluation}.counts_by_min_TPM*\") \n         \n    script:\n    \"\"\"\n    ${util_scripts_image_path}/misc/count_matrix_features_given_MIN_TPM_threshold.pl \\\n\t\t${tpm_matrix_for_evaluation} | tee ${tpm_matrix_for_evaluation}.counts_by_min_TPM\n\t\n\tplot_TPM.r  ${tpm_matrix_for_evaluation}.counts_by_min_TPM\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    ${util_scripts_image_path}/misc/count_matrix_features_given_MIN_TPM_threshold.pl \\\n\t\t${tpm_matrix_for_evaluation} | tee ${tpm_matrix_for_evaluation}.counts_by_min_TPM\n\t\n\tplot_TPM.r  ${tpm_matrix_for_evaluation}.counts_by_min_TPM\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "tpm_matrix_for_evaluation"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputEvaluation, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "QConRawReads": {
+        "name_process": "QConRawReads",
+        "string_process": "\nprocess QConRawReads {\n    publishDir outputQC\n    tag { read }\n\n    input:\n    file(read) from reads_for_fastqc\n\n    output:\n    file(\"*_fastqc.*\") into raw_fastqc_files\n\n    script:\n    def qc = new QualityChecker(input:read, cpus:task.cpus)\n    qc.fastqc()\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    def qc = new QualityChecker(input:read, cpus:task.cpus)\n    qc.fastqc()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "reads_for_fastqc"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "raw_fastqc_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputQC",
+            "tag { read }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trimReads": {
+        "name_process": "trimReads",
+        "string_process": "\nprocess trimReads {\n    publishDir outputTrimmed\n    tag { pair_id }\n\n    input:\n    set pair_id, file(reads) from (raw_reads_for_trimming )\n\n    output:\n    set val(\"pair1\"), file(\"*-trimmed-pair1.fastq.gz\") into trimmed_pair1_for_normalization\n    set val(\"pair2\"), file(\"*-trimmed-pair2.fastq.gz\") into trimmed_pair2_for_normalization\n    file(\"*trimmed*.fastq.gz\") into filtered_read_for_QC\n    file(\"*trimmed.log\") into logTrimming_for_QC\n     \n    script:\n    def trimmer = new Trimmer(reads:reads, id:pair_id, min_read_size:params.minsize, cpus:task.cpus)\n    trimmer.trimWithSkewer()\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    def trimmer = new Trimmer(reads:reads, id:pair_id, min_read_size:params.minsize, cpus:task.cpus)\n    trimmer.trimWithSkewer()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "raw_reads_for_trimming"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trimmed_pair1_for_normalization",
+            "trimmed_pair2_for_normalization",
+            "filtered_read_for_QC",
+            "logTrimming_for_QC"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputTrimmed",
+            "tag { pair_id }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "fastqcTrim": {
+        "name_process": "fastqcTrim",
+        "string_process": "\nprocess fastqcTrim {\n    tag { filtered_read }\n    publishDir outputQC\n\n \tafterScript 'mv *_fastqc.zip `basename *_fastqc.zip _fastqc.zip`_sel_fastqc.zip'\n\n    input:\n    file(filtered_read) from filtered_read_for_QC.mix(filtered_pairs_for_QC).flatten()\n\n    output:\n    file(\"*_sel_fastqc.zip\") into trimmed_fastqc_files\n\n    script:\n    def qc = new QualityChecker(input:filtered_read, cpus:task.cpus)\n    qc.fastqc()\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    def qc = new QualityChecker(input:filtered_read, cpus:task.cpus)\n    qc.fastqc()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "filtered_read_for_QC",
+            "filtered_pairs_for_QC"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "trimmed_fastqc_files"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "tag { filtered_read }",
+            "publishDir outputQC",
+            "afterScript 'mv *_fastqc.zip `basename *_fastqc.zip _fastqc.zip`_sel_fastqc.zip'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "TrinityNormalization": {
+        "name_process": "TrinityNormalization",
+        "string_process": "\nprocess TrinityNormalization {\n    label 'big_time_cpus'\n    \n    input:\n    set val(pair1), file(pair1) from trimmed_pair1_for_normalization.groupTuple()\n    set val(pair2), file(pair2) from trimmed_pair2_for_normalization.groupTuple()\n\n    output:\n    file \"trinity_out_dir/insilico_read_normalization/*.norm.fq\" into norm_reads_first, norm_reads_second\n\n    script:\n    def pair1_list = pair1.join(',')\n    def pair2_list = pair2.join(',')\n\n    \"\"\"     \n    Trinity --seqType fq --max_memory ${task.memory.giga}G --left ${pair1_list} --right ${pair2_list} --CPU ${task.cpus} --no_run_inchworm\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    def pair1_list = pair1.join(',')\n    def pair2_list = pair2.join(',')\n\n    \"\"\"     \n    Trinity --seqType fq --max_memory ${task.memory.giga}G --left ${pair1_list} --right ${pair2_list} --CPU ${task.cpus} --no_run_inchworm\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [
+            "Trinity"
+        ],
+        "tools_url": [
+            "https://bio.tools/trinity"
+        ],
+        "tools_dico": [
+            {
+                "name": "Trinity",
+                "uri": "https://bio.tools/trinity",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3258",
+                                    "term": "Transcriptome assembly"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Trinity is a transcriptome assembler which relies on three different tools, inchworm an assembler, chrysalis which pools contigs and butterfly which amongst others compacts a graph resulting from butterfly with reads.",
+                "homepage": "https://github.com/trinityrnaseq/trinityrnaseq/wiki"
+            }
+        ],
+        "inputs": [
+            "trimmed_pair1_for_normalization",
+            "trimmed_pair2_for_normalization"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "norm_reads_first",
+            "norm_reads_second"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "label 'big_time_cpus'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "buildIndex": {
+        "name_process": "buildIndex",
+        "string_process": "\nprocess buildIndex {\n    publishDir outputIndex\n    label 'big_time_cpus'\n    \n    input:\n    file genome_file\n\n    output:\n    file \"STARgenome\" into STARgenomeIndex, STARgenomeIndexForCoverage\n\n    script:\n    aligner = new NGSaligner(reference_file:genome_file, index:\"STARgenome\", annotation_file:annotation_file, read_size:params.minsize-1, cpus:task.cpus)\n    aligner.doIndexing(\"STAR\")\n}",
+        "nb_lignes_process": 13,
+        "string_script": "    aligner = new NGSaligner(reference_file:genome_file, index:\"STARgenome\", annotation_file:annotation_file, read_size:params.minsize-1, cpus:task.cpus)\n    aligner.doIndexing(\"STAR\")",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [
+            "Maligner"
+        ],
+        "tools_url": [
+            "https://bio.tools/maligner"
+        ],
+        "tools_dico": [
+            {
+                "name": "Maligner",
+                "uri": "https://bio.tools/maligner",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acids"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0077",
+                            "term": "Nucleic acid informatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment generation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0292",
+                                    "term": "Sequence alignment construction"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Tool for aligning molecular or insilico restriction maps to a reference map.",
+                "homepage": "https://github.com/LeeMendelowitz/maligner"
+            }
+        ],
+        "inputs": [
+            "genome_file"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "STARgenomeIndex",
+            "STARgenomeIndexForCoverage"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputIndex",
+            "label 'big_time_cpus'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "firstPassMapping": {
+        "name_process": "firstPassMapping",
+        "string_process": "\nprocess firstPassMapping {\n    label 'big_mem_cpus'\n    \n        afterScript 'rm STAR_*/*.bam' \n\n        input:\n        file STARgenome from STARgenomeIndex\n        file(reads) from norm_reads_first\n\n        output:\n        file \"STAR_first/firstSJ.out.tab\" into first_pass_junctions\n\n        script:\n        def aligner = new NGSaligner(id:\"first\", reads:reads, index:STARgenome, cpus:task.cpus, output:\"STAR_first\") \n        aligner.doAlignment(\"STAR\")  \n        \n}",
+        "nb_lignes_process": 16,
+        "string_script": "        def aligner = new NGSaligner(id:\"first\", reads:reads, index:STARgenome, cpus:task.cpus, output:\"STAR_first\") \n        aligner.doAlignment(\"STAR\")",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "STARgenomeIndex",
+            "norm_reads_first"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "first_pass_junctions"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "label 'big_mem_cpus'",
+            "afterScript 'rm STAR_*/*.bam'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "secondPassMapping": {
+        "name_process": "secondPassMapping",
+        "string_process": "\nprocess secondPassMapping {\n    label 'big_mem_cpus'\n    publishDir outputCounts, pattern: \"STAR_norm/*ReadsPerGene.out.tab\",  mode: 'copy'\n    publishDir outputQC, pattern: \"STAR_norm/*Log.final.out\", mode: 'copy'\n\n        input:\n        file STARgenome from STARgenomeIndex\n        file(reads) from norm_reads_second\n        file(first_pass_junctions)\n    \n        output:\n        file \"STAR_norm/normAligned.sortedByCoord.out.bam\" into STARmappedBam_for_qualimap, STARmappedBam_for_assembly\n        file \"STAR_norm\"  into Aln_folders_for_multiqc\n        file \"STAR_norm/normReadsPerGene.out.tab\" \n\n        script:\n        def aligner = new NGSaligner(id:\"norm\", reads:reads, index:STARgenome, cpus:task.cpus, output:\"STAR_norm\", extrapars:\"--sjdbFileChrStartEnd ${first_pass_junctions}\") \n        aligner.doAlignment(\"STAR\")  \n        \n}",
+        "nb_lignes_process": 19,
+        "string_script": "        def aligner = new NGSaligner(id:\"norm\", reads:reads, index:STARgenome, cpus:task.cpus, output:\"STAR_norm\", extrapars:\"--sjdbFileChrStartEnd ${first_pass_junctions}\") \n        aligner.doAlignment(\"STAR\")",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "STARgenomeIndex",
+            "norm_reads_second",
+            "first_pass_junctions"
+        ],
+        "nb_inputs": 3,
+        "outputs": [
+            "STARmappedBam_for_qualimap",
+            "STARmappedBam_for_assembly",
+            "Aln_folders_for_multiqc"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "label 'big_mem_cpus'",
+            "publishDir outputCounts, pattern: \"STAR_norm/*ReadsPerGene.out.tab\", mode: 'copy'",
+            "publishDir outputQC, pattern: \"STAR_norm/*Log.final.out\", mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "TrinityAssemblyStep1": {
+        "name_process": "TrinityAssemblyStep1",
+        "string_process": "\nprocess TrinityAssemblyStep1 {\n    label 'assembly'\n    \n    input:\n    file(STARmappedBam_for_assembly)\n\n    output:\n    file (\"trinity_out_dir/*/*/*\") into partitions_groups\n    \n    script:\n    def strand = \"\"\n    if (params.strandness != \"NO\") {\n    \tstrand = \"--SS_lib_type ${params.strandness}\"\n    }    \n    \"\"\"\n    Trinity --genome_guided_bam ${STARmappedBam_for_assembly} \\\n         --genome_guided_max_intron ${params.maxIntron} ${strand} \\\n         --min_contig_length ${minContigSize} \\\n         --no_distributed_trinity_exec \\\n         --max_memory ${task.memory.giga}G --CPU  ${task.cpus} \n    \"\"\"\n}",
+        "nb_lignes_process": 21,
+        "string_script": "    def strand = \"\"\n    if (params.strandness != \"NO\") {\n    \tstrand = \"--SS_lib_type ${params.strandness}\"\n    }    \n    \"\"\"\n    Trinity --genome_guided_bam ${STARmappedBam_for_assembly} \\\n         --genome_guided_max_intron ${params.maxIntron} ${strand} \\\n         --min_contig_length ${minContigSize} \\\n         --no_distributed_trinity_exec \\\n         --max_memory ${task.memory.giga}G --CPU  ${task.cpus} \n    \"\"\"",
+        "nb_lignes_script": 10,
+        "language_script": "bash",
+        "tools": [
+            "RNAstrand",
+            "Trinity"
+        ],
+        "tools_url": [
+            "https://bio.tools/rnastrand",
+            "https://bio.tools/trinity"
+        ],
+        "tools_dico": [
+            {
+                "name": "RNAstrand",
+                "uri": "https://bio.tools/rnastrand",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0082",
+                            "term": "Structure prediction"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature prediction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0880",
+                                "term": "RNA secondary structure"
+                            }
+                        ]
+                    }
+                ],
+                "description": "RNAstrand predicts the reading direction of a structured RNA in a multiple sequence alignment by employing a support vector machine (SVM)",
+                "homepage": "http://www.bioinf.uni-leipzig.de/Software/RNAstrand/"
+            },
+            {
+                "name": "Trinity",
+                "uri": "https://bio.tools/trinity",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3258",
+                                    "term": "Transcriptome assembly"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Trinity is a transcriptome assembler which relies on three different tools, inchworm an assembler, chrysalis which pools contigs and butterfly which amongst others compacts a graph resulting from butterfly with reads.",
+                "homepage": "https://github.com/trinityrnaseq/trinityrnaseq/wiki"
+            }
+        ],
+        "inputs": [
+            "STARmappedBam_for_assembly"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "partitions_groups"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "label 'assembly'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "TrinityStep2": {
+        "name_process": "TrinityStep2",
+        "string_process": "\nprocess TrinityStep2 {\n    label 'increase_mem'\n    tag { partitions_group }\n    \n    input:\n    file(partitions_group) from partitions_groups.flatten()\n\n    output:\n    file (\"Trinity_sub.fasta\") into components\n    set val(\"${partitions_group}\"), file (\"Trinity_sub.fasta\") into components_for_transcoder\n    \n    script:\n    def strand = \"\"\n    if (params.strandness != \"FR\") {\n    \tstrand = \"--SS_lib_type F\"\n    }    \n    \"\"\"\n    ls ${partitions_group} -l | awk -F'/' '{print \"mkdir \" \\$(NF-1)}' | sh;\n    ls ${partitions_group} -l | awk -F'/' '{print \"mkdir \" \\$(NF-1)\"/\"\\$(NF)}' | sh;\n    OUTFOLDER=`ls ${partitions_group} -l | awk -F\"/\" '{print \\$(NF-1)\"/\"\\$(NF)\"/\"}'`;\n    for i in ${partitions_group}/*.fa; do \\\n    Trinity --single \\$i --min_contig_length ${minContigSize} --output \\$OUTFOLDER`basename \\$i`.out ${strand} --CPU 1 --max_memory ${task.memory.giga}G --run_as_paired --seqType fa --trinity_complete --full_cleanup --no_distributed_trinity_exec; done;\n    find \\$OUTFOLDER -name '*inity.fasta' | ${support_scripts_image_path}/partitioned_trinity_aggregator.pl --token_prefix TRINITY_DN --output_prefix Trinity_sub\n    \"\"\"\n}",
+        "nb_lignes_process": 24,
+        "string_script": "    def strand = \"\"\n    if (params.strandness != \"FR\") {\n    \tstrand = \"--SS_lib_type F\"\n    }    \n    \"\"\"\n    ls ${partitions_group} -l | awk -F'/' '{print \"mkdir \" \\$(NF-1)}' | sh;\n    ls ${partitions_group} -l | awk -F'/' '{print \"mkdir \" \\$(NF-1)\"/\"\\$(NF)}' | sh;\n    OUTFOLDER=`ls ${partitions_group} -l | awk -F\"/\" '{print \\$(NF-1)\"/\"\\$(NF)\"/\"}'`;\n    for i in ${partitions_group}/*.fa; do \\\n    Trinity --single \\$i --min_contig_length ${minContigSize} --output \\$OUTFOLDER`basename \\$i`.out ${strand} --CPU 1 --max_memory ${task.memory.giga}G --run_as_paired --seqType fa --trinity_complete --full_cleanup --no_distributed_trinity_exec; done;\n    find \\$OUTFOLDER -name '*inity.fasta' | ${support_scripts_image_path}/partitioned_trinity_aggregator.pl --token_prefix TRINITY_DN --output_prefix Trinity_sub\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "RNAstrand",
+            "RASH",
+            "Trinity"
+        ],
+        "tools_url": [
+            "https://bio.tools/rnastrand",
+            "https://bio.tools/RASH",
+            "https://bio.tools/trinity"
+        ],
+        "tools_dico": [
+            {
+                "name": "RNAstrand",
+                "uri": "https://bio.tools/rnastrand",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0082",
+                            "term": "Structure prediction"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature prediction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0880",
+                                "term": "RNA secondary structure"
+                            }
+                        ]
+                    }
+                ],
+                "description": "RNAstrand predicts the reading direction of a structured RNA in a multiple sequence alignment by employing a support vector machine (SVM)",
+                "homepage": "http://www.bioinf.uni-leipzig.de/Software/RNAstrand/"
+            },
+            {
+                "name": "RASH",
+                "uri": "https://bio.tools/RASH",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0089",
+                            "term": "Ontology and terminology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature and language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Mathematics"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Language"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3068",
+                            "term": "Literature"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3315",
+                            "term": "Maths"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3778",
+                                    "term": "Text annotation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0337",
+                                    "term": "Rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Data extraction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2422",
+                                    "term": "Retrieval"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "a Web-first format for HTML-based scholarly articles.\n\nResearch Articles in Simplified HTML (RASH) Framework includes a markup language defined as a subset of HTML+RDF for writing scientific articles, and related tools to convert it into different formats, to extract data from it, etc.\n\nHow to cite: Peroni, S., Osborne, F., Di Iorio, A., Nuzzolese, A. G., Poggi, F., Vitali, F., Motta, E. (2017). Research Articles in Simplified HTML: a Web-first format for HTML-based scholarly articles. PeerJ Computer Science 3: e132. e2513. DOI: https://doi.org/10.7717/peerj-cs.132.\n\n# rash-check.sh - fully check RASH documents.\n\nThe odt2rash.jar executable converts an ODT file into the RASH format.\n\n||| CORRECT NAME OF TOOL COULD ALSO BE 'Research Articles Simplified HTML', 'SAVE-SD'",
+                "homepage": "https://w3id.org/people/essepuntato/papers/rash-peerj2016.html"
+            },
+            {
+                "name": "Trinity",
+                "uri": "https://bio.tools/trinity",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3258",
+                                    "term": "Transcriptome assembly"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Trinity is a transcriptome assembler which relies on three different tools, inchworm an assembler, chrysalis which pools contigs and butterfly which amongst others compacts a graph resulting from butterfly with reads.",
+                "homepage": "https://github.com/trinityrnaseq/trinityrnaseq/wiki"
+            }
+        ],
+        "inputs": [
+            "partitions_groups"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "components",
+            "components_for_transcoder"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "label 'increase_mem'",
+            "tag { partitions_group }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "collectTrinityRes": {
+        "name_process": "collectTrinityRes",
+        "string_process": "\nprocess collectTrinityRes {\n    publishDir outputMultiQC, mode: 'copy', pattern: \"Trinity.fasta.stat\"\n    publishDir outputAssembly, mode: 'copy', pattern: \"Trinity.fasta*\"\n    \n    input:\n    file(\"Trinity_sub\") from components.collect()\n\n    output:\n    file (\"Trinity.fasta*\")\n    \n    script:\n    \"\"\"\n    cat Trinity_sub* >> Trinity.fasta\n    ${support_scripts_image_path}/get_Trinity_gene_to_trans_map.pl Trinity.fasta >  Trinity.fasta.gene_trans_map\n    ${util_scripts_image_path}/TrinityStats.pl Trinity.fasta > Trinity.fasta.stat\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n    cat Trinity_sub* >> Trinity.fasta\n    ${support_scripts_image_path}/get_Trinity_gene_to_trans_map.pl Trinity.fasta >  Trinity.fasta.gene_trans_map\n    ${util_scripts_image_path}/TrinityStats.pl Trinity.fasta > Trinity.fasta.stat\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "components"
+        ],
+        "nb_inputs": 1,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputMultiQC, mode: 'copy', pattern: \"Trinity.fasta.stat\"",
+            "publishDir outputAssembly, mode: 'copy', pattern: \"Trinity.fasta*\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "splitTrinityFasta": {
+        "name_process": "splitTrinityFasta",
+        "string_process": "\nprocess splitTrinityFasta {\n    tag { fasta_to_split }\n    \n    input:\n    file(fasta_to_split)\n\n    output:\n    file (\"pieces_*.fa\") into components_for_transcoder\n    \n    script:\n    \"\"\"\n    splitTrinityFasta.sh ${params.splitsize}\n    \"\"\"\n\n\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    splitTrinityFasta.sh ${params.splitsize}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "fasta_to_split"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "components_for_transcoder"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "tag { fasta_to_split }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "TransDecoder": {
+        "name_process": "TransDecoder",
+        "string_process": "\nprocess TransDecoder {\n    tag { partitions_group }\n    \n    input:\n    set val(partitions_group), file(components) from components_for_transcoder\n\n    output:\n    file (\"longest_orfs.pep\") into orfs_for_concatenation\n    file (\"longest_orfs.cds\") into cdss_for_concatenation\n    file (\"longest_orfs.gff3\") into gff3_for_concatenation\n    \n    script:\n    \"\"\"\n\tTransDecoder.LongOrfs -m ${params.minProtSize} -t ${components} -G ${params.geneticode} -S \n\tcp ${components}.transdecoder_dir/longest* .\n    \"\"\"\n}",
+        "nb_lignes_process": 16,
+        "string_script": "    \"\"\"\n\tTransDecoder.LongOrfs -m ${params.minProtSize} -t ${components} -G ${params.geneticode} -S \n\tcp ${components}.transdecoder_dir/longest* .\n    \"\"\"",
+        "nb_lignes_script": 3,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "components_for_transcoder"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "orfs_for_concatenation",
+            "cdss_for_concatenation",
+            "gff3_for_concatenation"
+        ],
+        "nb_outputs": 3,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "tag { partitions_group }"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "collectTransDecoderRes": {
+        "name_process": "collectTransDecoderRes",
+        "string_process": "\nprocess collectTransDecoderRes {\n    publishDir outputAssembly, mode: 'copy', pattern: \"longest*\"\n    \n    input:\n    file(\"peps_sub\") from orfs_for_concatenation.collect()\n    file(\"cds_sub\") from cdss_for_concatenation.collect()\n    file(\"gff3_sub\") from gff3_for_concatenation.collect()\n\n    output:\n    file (\"longest_orfs.*\")\n\n    script:\n    \"\"\"\n    cat peps_sub* >> longest_orfs.pep\n    cat cds_sub* >> longest_orfs.cds\n    cat gff3_sub* >> longest_orfs.gff3\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    cat peps_sub* >> longest_orfs.pep\n    cat cds_sub* >> longest_orfs.cds\n    cat gff3_sub* >> longest_orfs.gff3\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "orfs_for_concatenation",
+            "cdss_for_concatenation",
+            "gff3_for_concatenation"
+        ],
+        "nb_inputs": 3,
+        "outputs": [],
+        "nb_outputs": 0,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputAssembly, mode: 'copy', pattern: \"longest*\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "trimReadsPair": {
+        "name_process": "trimReadsPair",
+        "string_process": "\nprocess trimReadsPair {\n    publishDir outputTrimmed\n    tag { pair_id }\n\n    when:\n    params.single == \"NO\"\n    \n    input:\n    set pair_id, file(reads) from (raw_pairs_for_trimming)\n\n    output:\n    set file(\"*-trimmed-pair1.fastq.gz\"), file(\"*-trimmed-pair2.fastq.gz\") into trimmed_pairs_for_assembly\n    val(\"${pair_id}\\t${pair_id}\\t${pair_id}-trimmed-pair1.fastq.gz\\t${pair_id}-trimmed-pair2.fastq.gz\") into sample_row_pe\n    file(\"*trimmed*.fastq.gz\") into filtered_pairs_for_QC\n    file(\"*trimmed.log\") into logTrimming_pairs_for_QC\n     \n    script:\n    def trimmer = new Trimmer(reads:reads, id:pair_id, min_read_size:params.minsize, cpus:task.cpus)\n    trimmer.trimWithSkewer()\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    def trimmer = new Trimmer(reads:reads, id:pair_id, min_read_size:params.minsize, cpus:task.cpus)\n    trimmer.trimWithSkewer()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "raw_pairs_for_trimming"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "trimmed_pairs_for_assembly",
+            "sample_row_pe",
+            "filtered_pairs_for_QC",
+            "logTrimming_pairs_for_QC"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputTrimmed",
+            "tag { pair_id }"
+        ],
+        "when": "params.single == \"NO\"",
+        "stub": ""
+    },
+    "trimReadsSingle": {
+        "name_process": "trimReadsSingle",
+        "string_process": "\nprocess trimReadsSingle {\n    publishDir outputTrimmed\n    tag { pair_id }\n\n    when:\n    params.single == \"YES\"\n    \n    input:\n    set pair_id, file(reads) from (raw_reads_for_trimming )\n\n    output:\n    val(\"${pair_id}\\t${pair_id}\\t${pair_id}-trimmed.fastq.gz\") into sample_row_se\n    file(\"*-trimmed*.fastq.gz\") into trimmed_reads_for_assembly\n    file(\"*trimmed*.fastq.gz\") into filtered_read_for_QC\n    file(\"*trimmed.log\") into logTrimming_for_QC\n     \n    script:\n    def trimmer = new Trimmer(reads:reads, id:pair_id, min_read_size:params.minsize, cpus:task.cpus)\n    trimmer.trimWithSkewer()\n}",
+        "nb_lignes_process": 19,
+        "string_script": "    def trimmer = new Trimmer(reads:reads, id:pair_id, min_read_size:params.minsize, cpus:task.cpus)\n    trimmer.trimWithSkewer()",
+        "nb_lignes_script": 1,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "raw_reads_for_trimming"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "sample_row_se",
+            "trimmed_reads_for_assembly",
+            "filtered_read_for_QC",
+            "logTrimming_for_QC"
+        ],
+        "nb_outputs": 4,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputTrimmed",
+            "tag { pair_id }"
+        ],
+        "when": "params.single == \"YES\"",
+        "stub": ""
+    },
+    "TrinityStep1": {
+        "name_process": "TrinityStep1",
+        "string_process": "\nprocess TrinityStep1 {\n    label 'big_time_cpus'\n       \n    input:\n    val(string) from sample_row_se.mix(sample_row_pe).collect()\n    file(trimmed_file_for_assembly) from trimmed_pairs_for_assembly.mix(trimmed_reads_for_assembly).collect()\n\n    output:\n    file (\"trinity_out_dir/read_partitions/*/*\") into partitions_groups\n    \n    script:\n    def strand = \"\"\n    def stringN = string.join(\"\\n\")\n    if (params.strandness != \"NO\") {\n    \tstrand = \"--SS_lib_type ${params.strandness}\"\n    }\n    \n    \"\"\"\n    echo \"${stringN}\" > sample.list\n    Trinity --min_contig_length ${minContigSize} ${strand} \\\n    --seqType fq --max_memory ${task.memory.giga}G \\\n    --samples_file sample.list --CPU ${task.cpus} --no_distributed_trinity_exec\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "    def strand = \"\"\n    def stringN = string.join(\"\\n\")\n    if (params.strandness != \"NO\") {\n    \tstrand = \"--SS_lib_type ${params.strandness}\"\n    }\n    \n    \"\"\"\n    echo \"${stringN}\" > sample.list\n    Trinity --min_contig_length ${minContigSize} ${strand} \\\n    --seqType fq --max_memory ${task.memory.giga}G \\\n    --samples_file sample.list --CPU ${task.cpus} --no_distributed_trinity_exec\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [
+            "RNAstrand",
+            "Trinity"
+        ],
+        "tools_url": [
+            "https://bio.tools/rnastrand",
+            "https://bio.tools/trinity"
+        ],
+        "tools_dico": [
+            {
+                "name": "RNAstrand",
+                "uri": "https://bio.tools/rnastrand",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0082",
+                            "term": "Structure prediction"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature detection"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature recognition"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0253",
+                                    "term": "Sequence feature prediction"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_1383",
+                                "term": "Nucleic acid sequence alignment"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_0880",
+                                "term": "RNA secondary structure"
+                            }
+                        ]
+                    }
+                ],
+                "description": "RNAstrand predicts the reading direction of a structured RNA in a multiple sequence alignment by employing a support vector machine (SVM)",
+                "homepage": "http://www.bioinf.uni-leipzig.de/Software/RNAstrand/"
+            },
+            {
+                "name": "Trinity",
+                "uri": "https://bio.tools/trinity",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3258",
+                                    "term": "Transcriptome assembly"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Trinity is a transcriptome assembler which relies on three different tools, inchworm an assembler, chrysalis which pools contigs and butterfly which amongst others compacts a graph resulting from butterfly with reads.",
+                "homepage": "https://github.com/trinityrnaseq/trinityrnaseq/wiki"
+            }
+        ],
+        "inputs": [
+            "sample_row_se",
+            "sample_row_pe",
+            "trimmed_pairs_for_assembly",
+            "trimmed_reads_for_assembly"
+        ],
+        "nb_inputs": 4,
+        "outputs": [
+            "partitions_groups"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "label 'big_time_cpus'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "diamondSearch": {
+        "name_process": "diamondSearch",
+        "string_process": "\nprocess diamondSearch {  \n    tag \"$pep_batches\"  \n    label(\"big_cpus\")\n\n    input:\n    file(pep_batches) from peptides_for_diamond.splitFasta( by: params.batch_diam, file: true )\n\n    output:\n    file (\"blastp.outfmt6\") into blastout\n    \n                                           \n    script:\n    \"\"\"\n    diamond blastp --sensitive -d ${params.diamondDB} -q ${pep_batches} -p ${task.cpus} > diamond.out\n    awk 'BEGIN{print \\$0;id=\\$1}{if (id!=\\$1){print \\$0; id=\\$1} }' diamond.out | awk '{if (\\$0!=\"\") print}' > blastp.outfmt6\n    rm diamond.out\n    \"\"\"\n}",
+        "nb_lignes_process": 17,
+        "string_script": "    \"\"\"\n    diamond blastp --sensitive -d ${params.diamondDB} -q ${pep_batches} -p ${task.cpus} > diamond.out\n    awk 'BEGIN{print \\$0;id=\\$1}{if (id!=\\$1){print \\$0; id=\\$1} }' diamond.out | awk '{if (\\$0!=\"\") print}' > blastp.outfmt6\n    rm diamond.out\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [
+            "Diamond"
+        ],
+        "tools_url": [
+            "https://bio.tools/diamond"
+        ],
+        "tools_dico": [
+            {
+                "name": "Diamond",
+                "uri": "https://bio.tools/diamond",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequence analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Proteins"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0080",
+                            "term": "Sequences"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein bioinformatics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0078",
+                            "term": "Protein informatics"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0258",
+                                    "term": "Sequence alignment analysis"
+                                }
+                            ],
+                            []
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Sequence aligner for protein and translated DNA searches and functions as a drop-in replacement for the NCBI BLAST software tools. It is suitable for protein-protein search as well as DNA-protein search on short reads and longer sequences including contigs and assemblies, providing a speedup of BLAST ranging up to x20,000.",
+                "homepage": "https://github.com/bbuchfink/diamond"
+            }
+        ],
+        "inputs": [
+            "peptides_for_diamond"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "blastout"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "tag \"$pep_batches\"",
+            "label(\"big_cpus\")"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "pfam_search": {
+        "name_process": "pfam_search",
+        "string_process": "\nprocess pfam_search {  \n    tag \"$pep_batches\"      \n    when params.pfamDB != \"\"\n    label(\"big_cpus\")\n    \n    input:\n    file(pep_batches) from peptides_for_pfam.splitFasta( by: params.batch_pfam, file: true )\n\n    output:\n    file (\"pfam.domtblout\") into pfamout\n    \n    script:\n    \"\"\"\n    hmmscan --cpu ${task.cpus} --domtblout pfam.domtblout ${params.pfamDB} ${pep_batches}\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    hmmscan --cpu ${task.cpus} --domtblout pfam.domtblout ${params.pfamDB} ${pep_batches}\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "peptides_for_pfam"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "pfamout"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "tag \"$pep_batches\" when params.pfamDB != \"\"",
+            "label(\"big_cpus\")"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "concatenateBlastRes": {
+        "name_process": "concatenateBlastRes",
+        "string_process": "\nprocess concatenateBlastRes {    \n    publishDir outputAnnotation, mode: 'copy'\n    input:\n    file(\"blastres*\") from blastout.collect()\n\n    output:\n    file (\"blastp.all.results\") into blastoutall\n\n    script:\n    \"\"\"\n    cat blastres* >> blastp.all.results\n    \"\"\"\n}",
+        "nb_lignes_process": 12,
+        "string_script": "    \"\"\"\n    cat blastres* >> blastp.all.results\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "blastout"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "blastoutall"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputAnnotation, mode: 'copy'"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "concatenatePfamRes": {
+        "name_process": "concatenatePfamRes",
+        "string_process": "\nprocess concatenatePfamRes {    \n    publishDir outputAnnotation, mode: 'copy'\n\n    when params.pfamDB != \"\"\n\n    input:\n    file(\"pfamout*\") from pfamout.collect()\n\n    output:\n    file (\"pfamout.all.results\") into pfamoutres\n\n    script:\n    \"\"\"\n    cat pfamout* >> pfamout.all.results\n    \"\"\"\n}",
+        "nb_lignes_process": 15,
+        "string_script": "    \"\"\"\n    cat pfamout* >> pfamout.all.results\n    \"\"\"",
+        "nb_lignes_script": 2,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "pfamout"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "pfamoutres"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputAnnotation, mode: 'copy' when params.pfamDB != \"\""
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "transcoderPredict": {
+        "name_process": "transcoderPredict",
+        "string_process": "\nprocess transcoderPredict {    \n    publishDir outputAnnotation, mode: 'copy'\n    label(\"big_mem\")\n\n    input:\n    file(blastoutall)\n    file (pfam) from pfamoutall\n    file(transcripts_for_prediction)\n    file(peptides_for_prediction)\n    file(gff3_for_prediction)\n    file(cdss_for_prediction)\n\n    output:\n    set file(\"*.transdecoder.bed\"), file(\"*.transdecoder.cds\"), file(\"*.transdecoder.gff3\"), file(\"*.transdecoder.pep\") into finalRes\n\n    script:\n    def filter = pfam.name != 'EMPTY_FILE' ? \"--retain_pfam_hits ${pfam}\" : ''\n\n    \"\"\"\n    mkdir ${transcripts_for_prediction}.transdecoder_dir\n    ln -s \\$PWD/`basename ${gff3_for_prediction}` ${transcripts_for_prediction}.transdecoder_dir/\n    ln -s \\$PWD/`basename ${cdss_for_prediction}` ${transcripts_for_prediction}.transdecoder_dir/\n    ln -s \\$PWD/`basename ${peptides_for_prediction}` ${transcripts_for_prediction}.transdecoder_dir/\n    ${util_scripts_image_path}/compute_base_probs.pl ${transcripts_for_prediction} 1 > Trinity.fasta.transdecoder_dir/base_freqs.dat;\n    TransDecoder.Predict --no_refine_starts -G ${params.geneticode} -t ${transcripts_for_prediction} ${filter} --retain_blastp_hits ${blastoutall}\n    \"\"\"\n}",
+        "nb_lignes_process": 26,
+        "string_script": "    def filter = pfam.name != 'EMPTY_FILE' ? \"--retain_pfam_hits ${pfam}\" : ''\n\n    \"\"\"\n    mkdir ${transcripts_for_prediction}.transdecoder_dir\n    ln -s \\$PWD/`basename ${gff3_for_prediction}` ${transcripts_for_prediction}.transdecoder_dir/\n    ln -s \\$PWD/`basename ${cdss_for_prediction}` ${transcripts_for_prediction}.transdecoder_dir/\n    ln -s \\$PWD/`basename ${peptides_for_prediction}` ${transcripts_for_prediction}.transdecoder_dir/\n    ${util_scripts_image_path}/compute_base_probs.pl ${transcripts_for_prediction} 1 > Trinity.fasta.transdecoder_dir/base_freqs.dat;\n    TransDecoder.Predict --no_refine_starts -G ${params.geneticode} -t ${transcripts_for_prediction} ${filter} --retain_blastp_hits ${blastoutall}\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "blastoutall",
+            "pfamoutall",
+            "transcripts_for_prediction",
+            "peptides_for_prediction",
+            "gff3_for_prediction",
+            "cdss_for_prediction"
+        ],
+        "nb_inputs": 6,
+        "outputs": [
+            "finalRes"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "biocorecrg__transcriptome_assembly",
+        "directive": [
+            "publishDir outputAnnotation, mode: 'copy'",
+            "label(\"big_mem\")"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}

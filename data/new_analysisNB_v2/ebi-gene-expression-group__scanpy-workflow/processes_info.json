@@ -1,0 +1,1341 @@
+{
+    "read_10x": {
+        "name_process": "read_10x",
+        "string_process": "\nprocess read_10x {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n\n    input:\n        file expressionMatrix from RAW_COUNT_MATRIX\n        \n    output:\n        file \"${matrix_name}_raw.h5ad\" into RAW_ANNDATA\n\n    \"\"\"\n        zipdir=\\$(unzip -qql ${expressionMatrix.getBaseName()}.zip | head -n1 | tr -s ' ' | cut -d' ' -f5- | sed 's|/||')\n        unzip ${expressionMatrix.getBaseName()}\n        scanpy-read-10x.py -d \\${zipdir}/ -o ${matrix_name}_raw.h5ad -F anndata\n    \"\"\"\n}",
+        "nb_lignes_process": 19,
+        "string_script": "\"\"\"\n        zipdir=\\$(unzip -qql ${expressionMatrix.getBaseName()}.zip | head -n1 | tr -s ' ' | cut -d' ' -f5- | sed 's|/||')\n        unzip ${expressionMatrix.getBaseName()}\n        scanpy-read-10x.py -d \\${zipdir}/ -o ${matrix_name}_raw.h5ad -F anndata\n    \"\"\"",
+        "nb_lignes_script": 4,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "RAW_COUNT_MATRIX"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "RAW_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_cells": {
+        "name_process": "filter_cells",
+        "string_process": "\nprocess filter_cells {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n\n    input:\n        file rawData from RAW_ANNDATA\n        \n    output:\n        file \"${matrix_name}_filter_cells.h5ad\" into FILTER_CELLS_ANNDATA\n\n    \"\"\"\n        scanpy-filter-cells.py -i ${rawData} -p n_genes,n_counts \\\n            -l ${params.scanpy.filter_cells.min_genes},${params.scanpy.filter_cells.min_counts} \\\n            -j ${params.scanpy.filter_cells.max_genes},${params.scanpy.filter_cells.max_counts} \\\n            -o ${matrix_name}_filter_cells.h5ad\n    \"\"\"\n}",
+        "nb_lignes_process": 20,
+        "string_script": "\"\"\"\n        scanpy-filter-cells.py -i ${rawData} -p n_genes,n_counts \\\n            -l ${params.scanpy.filter_cells.min_genes},${params.scanpy.filter_cells.min_counts} \\\n            -j ${params.scanpy.filter_cells.max_genes},${params.scanpy.filter_cells.max_counts} \\\n            -o ${matrix_name}_filter_cells.h5ad\n    \"\"\"",
+        "nb_lignes_script": 5,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "RAW_ANNDATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "FILTER_CELLS_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "make_genelist": {
+        "name_process": "make_genelist",
+        "string_process": "\nprocess make_genelist {\n\n    conda \"${baseDir}/envs/bioconductor-rtracklayer.yml\"\n    \n    memory { 3.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 5\n\n    input:\n        file cdnaGtf from CDNA_GTF\n\n    output:\n        file 'genes.txt' into GENE_LIST\n\n    \"\"\"\n        #!/usr/bin/env Rscript\n        \n        suppressPackageStartupMessages(require(rtracklayer))\n        annotation <- elementMetadata(import('$cdnaGtf'))\n        genes <- unique(annotation[['gene_id']])\n        writeLines(genes[ ! is.na(genes)], con = 'genes.txt') \n    \"\"\"\n}",
+        "nb_lignes_process": 22,
+        "string_script": "\"\"\"\n        #!/usr/bin/env Rscript\n        \n        suppressPackageStartupMessages(require(rtracklayer))\n        annotation <- elementMetadata(import('$cdnaGtf'))\n        genes <- unique(annotation[['gene_id']])\n        writeLines(genes[ ! is.na(genes)], con = 'genes.txt') \n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "Rscript",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "CDNA_GTF"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "GENE_LIST"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${baseDir}/envs/bioconductor-rtracklayer.yml\"",
+            "memory { 3.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 5"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "filter_genes": {
+        "name_process": "filter_genes",
+        "string_process": "\nprocess filter_genes {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n\n    input:\n        file filterCellsData from FILTER_CELLS_ANNDATA\n        file geneList from GENE_LIST        \n\n    output:\n        file \"${matrix_name}_filter_genes.h5ad\" into FILTER_GENES_ANNDATA\n        file \"${matrix_name}_filter_cells_genes.zip\" into FILTER_CELLS_MTX\n\n    \"\"\"\n        mkdir -p ${matrix_name}_filter_cells_genes\n\n        scanpy-filter-genes.py -i ${filterCellsData} -s ${geneList} -p n_cells,n_counts \\\n            -l ${params.scanpy.filter_genes.min_cells},${params.scanpy.filter_genes.min_counts} \\\n            -j ${params.scanpy.filter_genes.max_cells},${params.scanpy.filter_genes.max_counts} \\\n            -o ${matrix_name}_filter_genes.h5ad -x ${matrix_name}_filter_cells_genes/\n        \n        zip -r ${matrix_name}_filter_cells_genes.zip ${matrix_name}_filter_cells_genes/\n        \n        rm -rf ${matrix_name}_filter_cells_genes\n    \"\"\"\n}",
+        "nb_lignes_process": 30,
+        "string_script": "\"\"\"\n        mkdir -p ${matrix_name}_filter_cells_genes\n\n        scanpy-filter-genes.py -i ${filterCellsData} -s ${geneList} -p n_cells,n_counts \\\n            -l ${params.scanpy.filter_genes.min_cells},${params.scanpy.filter_genes.min_counts} \\\n            -j ${params.scanpy.filter_genes.max_cells},${params.scanpy.filter_genes.max_counts} \\\n            -o ${matrix_name}_filter_genes.h5ad -x ${matrix_name}_filter_cells_genes/\n        \n        zip -r ${matrix_name}_filter_cells_genes.zip ${matrix_name}_filter_cells_genes/\n        \n        rm -rf ${matrix_name}_filter_cells_genes\n    \"\"\"",
+        "nb_lignes_script": 11,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FILTER_CELLS_ANNDATA",
+            "GENE_LIST"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "FILTER_GENES_ANNDATA",
+            "FILTER_CELLS_MTX"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "normalise_data": {
+        "name_process": "normalise_data",
+        "string_process": "\nprocess normalise_data {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n\n    input:\n        file filterGenesData from FILTER_GENES_ANNDATA\n\n    output:\n        file \"${matrix_name}_normalised.h5ad\" into NORMALISED_ANNDATA\n        file \"${matrix_name}_normalised.zip\" into NORMALISED_MTX\n\n    \"\"\"\n        mkdir -p ${matrix_name}_normalised\n\n        scanpy-normalise-data.py -i ${filterGenesData} -s ${params.scanpy.normalise_data.scale_factor} \\\n             -o ${matrix_name}_normalised.h5ad --save-raw -x ${matrix_name}_normalised/\n        \n        zip -r ${matrix_name}_normalised.zip ${matrix_name}_normalised/\n\n        rm -rf ${matrix_name}_normalised\n    \"\"\"\n}",
+        "nb_lignes_process": 27,
+        "string_script": "\"\"\"\n        mkdir -p ${matrix_name}_normalised\n\n        scanpy-normalise-data.py -i ${filterGenesData} -s ${params.scanpy.normalise_data.scale_factor} \\\n             -o ${matrix_name}_normalised.h5ad --save-raw -x ${matrix_name}_normalised/\n        \n        zip -r ${matrix_name}_normalised.zip ${matrix_name}_normalised/\n\n        rm -rf ${matrix_name}_normalised\n    \"\"\"",
+        "nb_lignes_script": 9,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FILTER_GENES_ANNDATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "NORMALISED_ANNDATA",
+            "NORMALISED_MTX"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "publishDir \"$resultsRoot/matrices\", mode: 'copy', overwrite: true",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "find_variable_genes": {
+        "name_process": "find_variable_genes",
+        "string_process": "\nprocess find_variable_genes {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n\n    input:\n        file normalisedData from NORMALISED_ANNDATA\n\n    output:\n        file \"${matrix_name}_findvariablegenes.h5ad\" into FIND_VARIABLE_GENES_ANNDATA\n        file \"variable_genes.png\" into VARIABLE_GENES_PLOT\n\n    \"\"\"\n        scanpy-find-variable-genes.py -i ${normalisedData} --flavor ${params.scanpy.find_variable_genes.flavor} \\\n            -p mean,disp -l ${params.scanpy.find_variable_genes.min_mean},${params.scanpy.find_variable_genes.min_disp} \\\n            -j ${params.scanpy.find_variable_genes.max_mean},${params.scanpy.find_variable_genes.max_disp} \\\n            -b ${params.scanpy.find_variable_genes.n_bins} \\\n            -P variable_genes.png -o ${matrix_name}_findvariablegenes.h5ad\n\n    \"\"\"\n}",
+        "nb_lignes_process": 23,
+        "string_script": "\"\"\"\n        scanpy-find-variable-genes.py -i ${normalisedData} --flavor ${params.scanpy.find_variable_genes.flavor} \\\n            -p mean,disp -l ${params.scanpy.find_variable_genes.min_mean},${params.scanpy.find_variable_genes.min_disp} \\\n            -j ${params.scanpy.find_variable_genes.max_mean},${params.scanpy.find_variable_genes.max_disp} \\\n            -b ${params.scanpy.find_variable_genes.n_bins} \\\n            -P variable_genes.png -o ${matrix_name}_findvariablegenes.h5ad\n\n    \"\"\"",
+        "nb_lignes_script": 7,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "NORMALISED_ANNDATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "FIND_VARIABLE_GENES_ANNDATA",
+            "VARIABLE_GENES_PLOT"
+        ],
+        "nb_outputs": 2,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "scale_data": {
+        "name_process": "scale_data",
+        "string_process": "\nprocess scale_data {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n\n    input:\n        file findVariableGenesData from FIND_VARIABLE_GENES_ANNDATA\n\n    output:\n        file \"${matrix_name}_scaledata.h5ad\" into SCALE_DATA_ANNDATA\n\n    script:\n\n        vars_to_regress = ''\n        if ( params.scanpy.scale_data.containsKey('vars_to_regress') ){\n            vars_to_regress = \"-V ${params.scanpy.scale_data.vars_to_regress} \"\n        }\n\n        do_log = ''\n        if ( params.scanpy.scale_data.containsKey('do_log') &&  params.scanpy.scale_data.do_log == 'true'){\n            do_log = \"--do-log\"\n        }\n\n        zero_centre = ''\n        if ( params.scanpy.scale_data.containsKey('zero_centre') && params.scanpy.scale_data.zero_centre == 'false' ){\n            zero_centre = \"--no-zero-center\"\n        }else{\n            zero_centre = \"--zero-center\"\n            \n        }\n\n        scale_max = ''\n        if ( params.scanpy.scale_data.containsKey('scale_max') && params.scanpy.scale_data.scale_max != 'none' ){\n            scale_max = \"--scale-max ${params.scanpy.scale_data.scale_max}\"\n        }\n\n    \"\"\"\n        scanpy-scale-data.py -i ${findVariableGenesData} ${do_log} ${vars_to_regress} ${zero_centre} ${scale_max} \\\n            -o ${matrix_name}_scaledata.h5ad  \n    \"\"\"\n}",
+        "nb_lignes_process": 43,
+        "string_script": "        vars_to_regress = ''\n        if ( params.scanpy.scale_data.containsKey('vars_to_regress') ){\n            vars_to_regress = \"-V ${params.scanpy.scale_data.vars_to_regress} \"\n        }\n\n        do_log = ''\n        if ( params.scanpy.scale_data.containsKey('do_log') &&  params.scanpy.scale_data.do_log == 'true'){\n            do_log = \"--do-log\"\n        }\n\n        zero_centre = ''\n        if ( params.scanpy.scale_data.containsKey('zero_centre') && params.scanpy.scale_data.zero_centre == 'false' ){\n            zero_centre = \"--no-zero-center\"\n        }else{\n            zero_centre = \"--zero-center\"\n            \n        }\n\n        scale_max = ''\n        if ( params.scanpy.scale_data.containsKey('scale_max') && params.scanpy.scale_data.scale_max != 'none' ){\n            scale_max = \"--scale-max ${params.scanpy.scale_data.scale_max}\"\n        }\n\n    \"\"\"\n        scanpy-scale-data.py -i ${findVariableGenesData} ${do_log} ${vars_to_regress} ${zero_centre} ${scale_max} \\\n            -o ${matrix_name}_scaledata.h5ad  \n    \"\"\"",
+        "nb_lignes_script": 26,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "FIND_VARIABLE_GENES_ANNDATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "SCALE_DATA_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_pca": {
+        "name_process": "run_pca",
+        "string_process": "\nprocess run_pca {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n\n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n    \n    publishDir \"$resultsRoot/pca\", mode: 'copy', overwrite: true\n    \n    input:\n        file scaledData from SCALE_DATA_ANNDATA\n\n    output:\n        file \"${matrix_name}_pca.h5ad\" into PCA_ANNDATA\n        file 'embeddings.csv'\n        file 'loadings.csv'\n        file 'stdev.txt'\n        file 'var_ratio.txt'\n        file 'pca.png'\n\n    script:\n\n        zero_centre = ''\n        if ( params.scanpy.pca.containsKey('zero_centre') && params.scanpy.pca.zero_centre == 'false' ){\n            zero_centre = \"--no-zero-center\"\n        }else{\n            zero_centre = \"--zero-center\"\n            \n        }\n\n        chunked = ''\n        if ( params.scanpy.pca.containsKey('chunked') && params.scanpy.pca.chunked == 'true' && params.scanpy.pca.containsKey('chunk_size') ){\n            chunked = \"--chunked --chunk-size ${params.scanpy.pca.chunk_size}\"\n        }\n\n        color_by = ''\n        if ( params.scanpy.pca.containsKey('color_by') && params.scanpy.pca.color_by != 'none' ){\n            color_by = \"--color-by ${params.scanpy.pca.color_by}\"\n        }\n\n        edges = ''\n        if ( params.scanpy.pca.containsKey('edges') && params.scanpy.pca.edges != 'false' ){\n            edges = '--edges'\n        }\n        \n        use_raw = ''\n        if ( params.scanpy.pca.containsKey('use_raw') && params.scanpy.pca.use_raw != 'false' ){\n            use_raw = '--use-raw'\n        }\n\n        arrows = ''\n        if ( params.scanpy.pca.containsKey('arrows') && params.scanpy.pca.arrows != 'false' ){\n            arrows = '--arrows'\n        }\n        \n        sort_order = ''\n        if ( params.scanpy.pca.containsKey('sort_order') && params.scanpy.pca.sort_order == 'false' ){\n            sort_order = '--no-sort-order'\n        }\n        \n        groups = ''\n        if ( params.scanpy.pca.containsKey('groups') && params.scanpy.pca.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.pca.groups}\"\n        }\n  \n        frame = ''\n        if ( params.scanpy.pca.containsKey('frame') && params.scanpy.pca.frame == 'false' ){\n            frame = \"--frameoff\"\n        }\n      \n\n        \"\"\"\n            scanpy-run-pca.py -i ${scaledData} -o ${matrix_name}_pca.h5ad \\\n                --output-embeddings-file embeddings.csv --output-loadings-file loadings.csv \\\n                --output-stdev-file stdev.txt --output-var-ratio-file var_ratio.txt \\\n                --n-pcs ${params.scanpy.pca.n_pcs} --svd-solver ${params.scanpy.pca.svd_solver} \\\n                --random-seed ${params.scanpy.pca.random_seed} ${chunked} --output-plot pca.png \\\n                $color_by $use_raw $edges $arrows $sort_order --projection ${params.scanpy.pca.projection} \\\n                --components ${params.scanpy.pca.components} --palette ${params.scanpy.pca.palette} $zero_centre\n        \"\"\"\n}",
+        "nb_lignes_process": 81,
+        "string_script": "        zero_centre = ''\n        if ( params.scanpy.pca.containsKey('zero_centre') && params.scanpy.pca.zero_centre == 'false' ){\n            zero_centre = \"--no-zero-center\"\n        }else{\n            zero_centre = \"--zero-center\"\n            \n        }\n\n        chunked = ''\n        if ( params.scanpy.pca.containsKey('chunked') && params.scanpy.pca.chunked == 'true' && params.scanpy.pca.containsKey('chunk_size') ){\n            chunked = \"--chunked --chunk-size ${params.scanpy.pca.chunk_size}\"\n        }\n\n        color_by = ''\n        if ( params.scanpy.pca.containsKey('color_by') && params.scanpy.pca.color_by != 'none' ){\n            color_by = \"--color-by ${params.scanpy.pca.color_by}\"\n        }\n\n        edges = ''\n        if ( params.scanpy.pca.containsKey('edges') && params.scanpy.pca.edges != 'false' ){\n            edges = '--edges'\n        }\n        \n        use_raw = ''\n        if ( params.scanpy.pca.containsKey('use_raw') && params.scanpy.pca.use_raw != 'false' ){\n            use_raw = '--use-raw'\n        }\n\n        arrows = ''\n        if ( params.scanpy.pca.containsKey('arrows') && params.scanpy.pca.arrows != 'false' ){\n            arrows = '--arrows'\n        }\n        \n        sort_order = ''\n        if ( params.scanpy.pca.containsKey('sort_order') && params.scanpy.pca.sort_order == 'false' ){\n            sort_order = '--no-sort-order'\n        }\n        \n        groups = ''\n        if ( params.scanpy.pca.containsKey('groups') && params.scanpy.pca.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.pca.groups}\"\n        }\n  \n        frame = ''\n        if ( params.scanpy.pca.containsKey('frame') && params.scanpy.pca.frame == 'false' ){\n            frame = \"--frameoff\"\n        }\n      \n\n        \"\"\"\n            scanpy-run-pca.py -i ${scaledData} -o ${matrix_name}_pca.h5ad \\\n                --output-embeddings-file embeddings.csv --output-loadings-file loadings.csv \\\n                --output-stdev-file stdev.txt --output-var-ratio-file var_ratio.txt \\\n                --n-pcs ${params.scanpy.pca.n_pcs} --svd-solver ${params.scanpy.pca.svd_solver} \\\n                --random-seed ${params.scanpy.pca.random_seed} ${chunked} --output-plot pca.png \\\n                $color_by $use_raw $edges $arrows $sort_order --projection ${params.scanpy.pca.projection} \\\n                --components ${params.scanpy.pca.components} --palette ${params.scanpy.pca.palette} $zero_centre\n        \"\"\"",
+        "nb_lignes_script": 57,
+        "language_script": "bash",
+        "tools": [
+            "ArrowSAM",
+            "ggroups",
+            "FrameD"
+        ],
+        "tools_url": [
+            "https://bio.tools/ArrowSAM",
+            "https://bio.tools/ggroups",
+            "https://bio.tools/framed"
+        ],
+        "tools_dico": [
+            {
+                "name": "ArrowSAM",
+                "uri": "https://bio.tools/ArrowSAM",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Targeted exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "WES"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Whole exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "In-Memory Genomics Data Processing through Apache Arrow Framework | Apache Arrow is a cross-language development platform for in-memory data. It specifies a standardized language-independent columnar memory format for flat and hierarchical data, organized for efficient analytic operations on modern hardware. It also provides computational libraries and zero-copy streaming messaging and interprocess communication. Languages currently supported include C, C++, C#, Go, Java, JavaScript, MATLAB, Python, R, Ruby, and Rust | A cross-language development platform for in-memory data | Join Mailing List Install (0.15.1 Release - 1 November 2019)",
+                "homepage": "https://arrow.apache.org/"
+            },
+            {
+                "name": "ggroups",
+                "uri": "https://bio.tools/ggroups",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Zoology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Metazoa"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animals"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3802",
+                                    "term": "Sorting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "An R package for pedigree and genetic groups data.\n\nCalculates additive and dominance genetic relationship matrices and their inverses, in matrix and tabular-sparse formats. It includes functions for checking and processing pedigree, as well as functions to calculate the matrix of genetic group contributions (Q), and adding those contributions to the genetic merit of animals (Quaas (1988) <doi:10.3168/jds.S0022-0302(88)79691-5>).",
+                "homepage": "https://cran.r-project.org/web/packages"
+            },
+            {
+                "name": "FrameD",
+                "uri": "https://bio.tools/framed",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0593",
+                            "term": "NMR"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0593",
+                            "term": "Nuclear magnetic resonance spectroscopy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0593",
+                            "term": "NMR spectroscopy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0265",
+                                    "term": "Frameshift detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0489",
+                                    "term": "Genetic code prediction"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Program that predicts coding regions in prokaryotic and eukaryotic sequences that may contain frameshifts.",
+                "homepage": "http://genoweb.toulouse.inra.fr/FrameD/FD"
+            }
+        ],
+        "inputs": [
+            "SCALE_DATA_ANNDATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "PCA_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10",
+            "publishDir \"$resultsRoot/pca\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "neighbours": {
+        "name_process": "neighbours",
+        "string_process": "\nprocess neighbours {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n\n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n    \n    input:\n        file pcaData from PCA_ANNDATA\n        \n    output:\n        file \"${matrix_name}_neighbours.h5ad\" into NEIGHBOURS_ANNDATA\n\n    script:\n\n        knn = ''\n        if ( params.scanpy.neighbours.containsKey('knn') && params.scanpy.neighbours.knn == 'false' ){\n            knn = \"--knn\"\n        }else{\n            knn = \"--no-knn\"\n        }\n\n        use_rep = ''\n        if ( params.scanpy.neighbours.containsKey('use_rep') && params.scanpy.neighbours.use_rep != 'none' ){\n            use_rep = \"--use-rep ${params.scanpy.neighbours.use_rep}\"\n        }\n\n        \"\"\"\n            scanpy-neighbours.py -i ${pcaData} -o ${matrix_name}_neighbours.h5ad \\\n                --n-neighbors ${params.scanpy.neighbours.n_neighbours} --n-pcs ${params.scanpy.neighbours.n_pcs} \\\n                ${use_rep} ${knn} --random-seed ${params.scanpy.neighbours.random_seed} \\\n                --method ${params.scanpy.neighbours.method} --metric ${params.scanpy.neighbours.metric}\n        \"\"\"\n}",
+        "nb_lignes_process": 34,
+        "string_script": "        knn = ''\n        if ( params.scanpy.neighbours.containsKey('knn') && params.scanpy.neighbours.knn == 'false' ){\n            knn = \"--knn\"\n        }else{\n            knn = \"--no-knn\"\n        }\n\n        use_rep = ''\n        if ( params.scanpy.neighbours.containsKey('use_rep') && params.scanpy.neighbours.use_rep != 'none' ){\n            use_rep = \"--use-rep ${params.scanpy.neighbours.use_rep}\"\n        }\n\n        \"\"\"\n            scanpy-neighbours.py -i ${pcaData} -o ${matrix_name}_neighbours.h5ad \\\n                --n-neighbors ${params.scanpy.neighbours.n_neighbours} --n-pcs ${params.scanpy.neighbours.n_pcs} \\\n                ${use_rep} ${knn} --random-seed ${params.scanpy.neighbours.random_seed} \\\n                --method ${params.scanpy.neighbours.method} --metric ${params.scanpy.neighbours.metric}\n        \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [
+            "BBKNN"
+        ],
+        "tools_url": [
+            "https://bio.tools/bbknn"
+        ],
+        "tools_dico": [
+            {
+                "name": "BBKNN",
+                "uri": "https://bio.tools/bbknn",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_2269",
+                            "term": "Statistics and probability"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3308",
+                            "term": "Transcriptomics"
+                        }
+                    ],
+                    []
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0571",
+                                    "term": "Expression data visualisation"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical calculation"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0571",
+                                    "term": "Expression data rendering"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Significance testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical testing"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical test"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2238",
+                                    "term": "Statistical analysis"
+                                }
+                            ]
+                        ],
+                        "input": [
+                            {
+                                "uri": "http://edamontology.org/data_3112",
+                                "term": "Gene expression matrix"
+                            }
+                        ],
+                        "output": [
+                            {
+                                "uri": "http://edamontology.org/data_3112",
+                                "term": "Gene expression matrix"
+                            }
+                        ]
+                    }
+                ],
+                "description": "Batch effect removal tool for single cell RNA-Seq data that can be directly used in the scanpy workflow.",
+                "homepage": "https://github.com/Teichlab/bbknn"
+            }
+        ],
+        "inputs": [
+            "PCA_ANNDATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "NEIGHBOURS_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "find_cluster": {
+        "name_process": "find_cluster",
+        "string_process": "\nprocess find_cluster {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n    \n    publishDir \"$resultsRoot/clustering\", mode: 'copy', overwrite: true\n\n    input:\n        file neighboursData from NEIGHBOURS_ANNDATA\n        \n    output:\n        file \"${matrix_name}_clusters.h5ad\" into CLUSTERS_ANNDATA\n        file \"clusters.txt\"\n\n    script:\n\n        use_weights = ''\n        if ( params.scanpy.find_clusters.containsKey('use_weights') && params.scanpy.find_clusters.use_weights != 'false' ){\n            use_weights = \"--use-weights\"\n        }\n\n        restrict_to = ''\n        if ( params.scanpy.find_clusters.containsKey('restrict_to') && params.scanpy.find_clusters.restrict_to != 'none' ){\n            restrict_to = \"--restrict-to ${params.scanpy.find_clusters.restrict_to}\"\n        }\n\n        resolutions = params.scanpy.find_clusters.resolutions.join(\",\")\n\n        \"\"\"\n            scanpy-find-cluster.py -i ${neighboursData} -o ${matrix_name}_clusters.h5ad \\\n                --output-text-file clusters.txt --flavor ${params.scanpy.find_clusters.flavor} \\\n                --resolution ${resolutions} ${restrict_to} ${use_weights} \\\n                --key-added ${params.scanpy.find_clusters.key_added} --random-seed ${params.scanpy.find_clusters.random_seed}  \n        \"\"\"\n}",
+        "nb_lignes_process": 37,
+        "string_script": "        use_weights = ''\n        if ( params.scanpy.find_clusters.containsKey('use_weights') && params.scanpy.find_clusters.use_weights != 'false' ){\n            use_weights = \"--use-weights\"\n        }\n\n        restrict_to = ''\n        if ( params.scanpy.find_clusters.containsKey('restrict_to') && params.scanpy.find_clusters.restrict_to != 'none' ){\n            restrict_to = \"--restrict-to ${params.scanpy.find_clusters.restrict_to}\"\n        }\n\n        resolutions = params.scanpy.find_clusters.resolutions.join(\",\")\n\n        \"\"\"\n            scanpy-find-cluster.py -i ${neighboursData} -o ${matrix_name}_clusters.h5ad \\\n                --output-text-file clusters.txt --flavor ${params.scanpy.find_clusters.flavor} \\\n                --resolution ${resolutions} ${restrict_to} ${use_weights} \\\n                --key-added ${params.scanpy.find_clusters.key_added} --random-seed ${params.scanpy.find_clusters.random_seed}  \n        \"\"\"",
+        "nb_lignes_script": 17,
+        "language_script": "bash",
+        "tools": [],
+        "tools_url": [],
+        "tools_dico": [],
+        "inputs": [
+            "NEIGHBOURS_ANNDATA"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "CLUSTERS_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10",
+            "publishDir \"$resultsRoot/clustering\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_umap": {
+        "name_process": "run_umap",
+        "string_process": "\nprocess run_umap {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n\n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n    \n    publishDir \"$resultsRoot/umap\", mode: 'copy', overwrite: true\n\n    input:\n        file clusteredAnndata from CLUSTERS_ANNDATA_FOR_UMAP\n        \n    output:\n        file \"${matrix_name}_clusters_umap.h5ad\" into UMAP_ANNDATA\n        file 'embeddings.csv'\n        file 'umap.png'\n\n    script:\n\n        maxiter = ''\n        if ( params.scanpy.run_umap.containsKey('maxiter') && params.scanpy.run_umap.maxiter != 'none' ){\n            maxiter = \"--maxiter ${params.scanpy.run_umap.maxiter}\"\n        }\n        \n        a = ''\n        if ( params.scanpy.run_umap.containsKey('a') && params.scanpy.run_umap.a != 'none' ){\n            maxiter = \"-a ${params.scanpy.run_umap.a}\"\n        }\n        \n        b = ''\n        if ( params.scanpy.run_umap.containsKey('b') && params.scanpy.run_umap.b != 'none' ){\n            maxiter = \"-b ${params.scanpy.run_umap.b}\"\n        }\n    \n        use_raw = ''\n        if ( params.scanpy.run_umap.containsKey('use_raw') && params.scanpy.run_umap.use_raw != 'false' ){\n            use_raw = '--use-raw'\n        }\n\n        color_by = ''\n        if ( params.scanpy.run_umap.containsKey('color_by') && params.scanpy.run_umap.color_by != 'none' ){\n            color_by = \"--color-by ${params.scanpy.run_umap.color_by}\"\n        }\n\n        edges = ''\n        if ( params.scanpy.run_umap.containsKey('edges') && params.scanpy.run_umap.edges != 'false' ){\n            edges = '--edges'\n        }\n        \n        arrows = ''\n        if ( params.scanpy.run_umap.containsKey('arrows') && params.scanpy.run_umap.arrows != 'false' ){\n            arrows = '--arrows'\n        }\n        \n        sort_order = ''\n        if ( params.scanpy.run_umap.containsKey('sort_order') && params.scanpy.run_umap.sort_order == 'false' ){\n            sort_order = '--no-sort-order'\n        }\n        \n        groups = ''\n        if ( params.scanpy.run_umap.containsKey('groups') && params.scanpy.run_umap.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.run_umap.groups}\"\n        }\n        \n        \"\"\"\n            scanpy-run-umap.py -i ${clusteredAnndata} -o ${matrix_name}_clusters_umap.h5ad \\\n                --output-embeddings-file embeddings.csv --min-dist ${params.scanpy.run_umap.min_dist} \\\n                --spread ${params.scanpy.run_umap.spread} --n-components ${params.scanpy.run_umap.n_components} \\\n                ${maxiter} --alpha ${params.scanpy.run_umap.alpha} --gamma ${params.scanpy.run_umap.gamma} \\\n                --negative-sample-rate ${params.scanpy.run_umap.negative_sample_rate} \\\n                --init-pos ${params.scanpy.run_umap.init_pos} --random-seed ${params.scanpy.run_umap.random_seed} \\\n                ${a} ${b} --output-plot umap.png ${use_raw} ${color_by} ${edges} ${arrows} ${sort_order} ${groups} \\\n                --projection ${params.scanpy.run_umap.projection}\n        \"\"\"\n}",
+        "nb_lignes_process": 75,
+        "string_script": "        maxiter = ''\n        if ( params.scanpy.run_umap.containsKey('maxiter') && params.scanpy.run_umap.maxiter != 'none' ){\n            maxiter = \"--maxiter ${params.scanpy.run_umap.maxiter}\"\n        }\n        \n        a = ''\n        if ( params.scanpy.run_umap.containsKey('a') && params.scanpy.run_umap.a != 'none' ){\n            maxiter = \"-a ${params.scanpy.run_umap.a}\"\n        }\n        \n        b = ''\n        if ( params.scanpy.run_umap.containsKey('b') && params.scanpy.run_umap.b != 'none' ){\n            maxiter = \"-b ${params.scanpy.run_umap.b}\"\n        }\n    \n        use_raw = ''\n        if ( params.scanpy.run_umap.containsKey('use_raw') && params.scanpy.run_umap.use_raw != 'false' ){\n            use_raw = '--use-raw'\n        }\n\n        color_by = ''\n        if ( params.scanpy.run_umap.containsKey('color_by') && params.scanpy.run_umap.color_by != 'none' ){\n            color_by = \"--color-by ${params.scanpy.run_umap.color_by}\"\n        }\n\n        edges = ''\n        if ( params.scanpy.run_umap.containsKey('edges') && params.scanpy.run_umap.edges != 'false' ){\n            edges = '--edges'\n        }\n        \n        arrows = ''\n        if ( params.scanpy.run_umap.containsKey('arrows') && params.scanpy.run_umap.arrows != 'false' ){\n            arrows = '--arrows'\n        }\n        \n        sort_order = ''\n        if ( params.scanpy.run_umap.containsKey('sort_order') && params.scanpy.run_umap.sort_order == 'false' ){\n            sort_order = '--no-sort-order'\n        }\n        \n        groups = ''\n        if ( params.scanpy.run_umap.containsKey('groups') && params.scanpy.run_umap.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.run_umap.groups}\"\n        }\n        \n        \"\"\"\n            scanpy-run-umap.py -i ${clusteredAnndata} -o ${matrix_name}_clusters_umap.h5ad \\\n                --output-embeddings-file embeddings.csv --min-dist ${params.scanpy.run_umap.min_dist} \\\n                --spread ${params.scanpy.run_umap.spread} --n-components ${params.scanpy.run_umap.n_components} \\\n                ${maxiter} --alpha ${params.scanpy.run_umap.alpha} --gamma ${params.scanpy.run_umap.gamma} \\\n                --negative-sample-rate ${params.scanpy.run_umap.negative_sample_rate} \\\n                --init-pos ${params.scanpy.run_umap.init_pos} --random-seed ${params.scanpy.run_umap.random_seed} \\\n                ${a} ${b} --output-plot umap.png ${use_raw} ${color_by} ${edges} ${arrows} ${sort_order} ${groups} \\\n                --projection ${params.scanpy.run_umap.projection}\n        \"\"\"",
+        "nb_lignes_script": 54,
+        "language_script": "bash",
+        "tools": [
+            "ArrowSAM",
+            "ggroups"
+        ],
+        "tools_url": [
+            "https://bio.tools/ArrowSAM",
+            "https://bio.tools/ggroups"
+        ],
+        "tools_dico": [
+            {
+                "name": "ArrowSAM",
+                "uri": "https://bio.tools/ArrowSAM",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Targeted exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "WES"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Whole exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "In-Memory Genomics Data Processing through Apache Arrow Framework | Apache Arrow is a cross-language development platform for in-memory data. It specifies a standardized language-independent columnar memory format for flat and hierarchical data, organized for efficient analytic operations on modern hardware. It also provides computational libraries and zero-copy streaming messaging and interprocess communication. Languages currently supported include C, C++, C#, Go, Java, JavaScript, MATLAB, Python, R, Ruby, and Rust | A cross-language development platform for in-memory data | Join Mailing List Install (0.15.1 Release - 1 November 2019)",
+                "homepage": "https://arrow.apache.org/"
+            },
+            {
+                "name": "ggroups",
+                "uri": "https://bio.tools/ggroups",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Zoology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Metazoa"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animals"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3802",
+                                    "term": "Sorting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "An R package for pedigree and genetic groups data.\n\nCalculates additive and dominance genetic relationship matrices and their inverses, in matrix and tabular-sparse formats. It includes functions for checking and processing pedigree, as well as functions to calculate the matrix of genetic group contributions (Q), and adding those contributions to the genetic merit of animals (Quaas (1988) <doi:10.3168/jds.S0022-0302(88)79691-5>).",
+                "homepage": "https://cran.r-project.org/web/packages"
+            }
+        ],
+        "inputs": [
+            "CLUSTERS_ANNDATA_FOR_UMAP"
+        ],
+        "nb_inputs": 1,
+        "outputs": [
+            "UMAP_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10",
+            "publishDir \"$resultsRoot/umap\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "run_tsne": {
+        "name_process": "run_tsne",
+        "string_process": "\nprocess run_tsne {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }\n    maxRetries 10\n    \n    publishDir \"$resultsRoot/tsne\", mode: 'copy', overwrite: true\n\n    input:\n        file clusteredAnndata from CLUSTERS_ANNDATA_FOR_TSNE\n        each perplexity from params.scanpy.run_tsne.perplexities\n        \n    output:\n        file \"${matrix_name}_clusters_tsne_${perplexity}.h5ad\" into TSNE_ANNDATA\n        file \"embeddings_${perplexity}.csv\"\n        file \"tsne_${perplexity}.png\"\n\n    script:\n        \n        use_raw = ''\n        if ( params.scanpy.run_tsne.containsKey('use_raw') && params.scanpy.run_tsne.use_raw != 'false' ){\n            use_raw = '--use-raw'\n        }\n\n        color_by = ''\n        if ( params.scanpy.run_tsne.containsKey('color_by') && params.scanpy.run_tsne.color_by != 'none' ){\n            color_by = \"--color-by ${params.scanpy.run_tsne.color_by}\"\n        }\n\n        edges = ''\n        if ( params.scanpy.run_tsne.containsKey('edges') && params.scanpy.run_tsne.edges != 'false' ){\n            edges = '--edges'\n        }\n        \n        arrows = ''\n        if ( params.scanpy.run_tsne.containsKey('arrows') && params.scanpy.run_tsne.arrows != 'false' ){\n            arrows = '--arrows'\n        }\n        \n        sort_order = ''\n        if ( params.scanpy.run_tsne.containsKey('sort_order') && params.scanpy.run_tsne.sort_order == 'false' ){\n            sort_order = '--no-sort-order'\n        }\n        \n        groups = ''\n        if ( params.scanpy.run_tsne.containsKey('groups') && params.scanpy.run_tsne.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.run_tsne.groups}\"\n        }\n        \n        use_rep = ''\n        if ( params.scanpy.run_tsne.containsKey('use_rep') && params.scanpy.neighbours.use_rep != 'none' ){\n            use_rep = \"--use-rep ${params.scanpy.tsne.use_rep}\"\n        }\n        \n        frame = ''\n        if ( params.scanpy.run_tsne.containsKey('frame') && params.scanpy.run_tsne.frame == 'false' ){\n            frame = \"--frameoff\"\n        }\n\n        \"\"\"\n            scanpy-run-tsne.py -i ${clusteredAnndata} -o ${matrix_name}_clusters_tsne_${perplexity}.h5ad \\\n                --output-embeddings-file embeddings_${perplexity}.csv ${use_rep} --perplexity ${perplexity} \\\n                --early-exaggeration ${params.scanpy.run_tsne.early_exaggeration} --learning-rate ${params.scanpy.run_tsne.learning_rate} \\\n                --random-seed ${params.scanpy.run_tsne.random_seed} --output-plot tsne_${perplexity}.png \\\n                ${use_raw} ${color_by} ${edges} ${arrows} ${sort_order} ${groups} --projection ${params.scanpy.run_tsne.projection} \\\n                --components ${params.scanpy.run_tsne.components} --palette ${params.scanpy.run_tsne.palette} $frame\n        \"\"\"\n}",
+        "nb_lignes_process": 69,
+        "string_script": "        use_raw = ''\n        if ( params.scanpy.run_tsne.containsKey('use_raw') && params.scanpy.run_tsne.use_raw != 'false' ){\n            use_raw = '--use-raw'\n        }\n\n        color_by = ''\n        if ( params.scanpy.run_tsne.containsKey('color_by') && params.scanpy.run_tsne.color_by != 'none' ){\n            color_by = \"--color-by ${params.scanpy.run_tsne.color_by}\"\n        }\n\n        edges = ''\n        if ( params.scanpy.run_tsne.containsKey('edges') && params.scanpy.run_tsne.edges != 'false' ){\n            edges = '--edges'\n        }\n        \n        arrows = ''\n        if ( params.scanpy.run_tsne.containsKey('arrows') && params.scanpy.run_tsne.arrows != 'false' ){\n            arrows = '--arrows'\n        }\n        \n        sort_order = ''\n        if ( params.scanpy.run_tsne.containsKey('sort_order') && params.scanpy.run_tsne.sort_order == 'false' ){\n            sort_order = '--no-sort-order'\n        }\n        \n        groups = ''\n        if ( params.scanpy.run_tsne.containsKey('groups') && params.scanpy.run_tsne.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.run_tsne.groups}\"\n        }\n        \n        use_rep = ''\n        if ( params.scanpy.run_tsne.containsKey('use_rep') && params.scanpy.neighbours.use_rep != 'none' ){\n            use_rep = \"--use-rep ${params.scanpy.tsne.use_rep}\"\n        }\n        \n        frame = ''\n        if ( params.scanpy.run_tsne.containsKey('frame') && params.scanpy.run_tsne.frame == 'false' ){\n            frame = \"--frameoff\"\n        }\n\n        \"\"\"\n            scanpy-run-tsne.py -i ${clusteredAnndata} -o ${matrix_name}_clusters_tsne_${perplexity}.h5ad \\\n                --output-embeddings-file embeddings_${perplexity}.csv ${use_rep} --perplexity ${perplexity} \\\n                --early-exaggeration ${params.scanpy.run_tsne.early_exaggeration} --learning-rate ${params.scanpy.run_tsne.learning_rate} \\\n                --random-seed ${params.scanpy.run_tsne.random_seed} --output-plot tsne_${perplexity}.png \\\n                ${use_raw} ${color_by} ${edges} ${arrows} ${sort_order} ${groups} --projection ${params.scanpy.run_tsne.projection} \\\n                --components ${params.scanpy.run_tsne.components} --palette ${params.scanpy.run_tsne.palette} $frame\n        \"\"\"",
+        "nb_lignes_script": 47,
+        "language_script": "bash",
+        "tools": [
+            "ArrowSAM",
+            "ggroups",
+            "FrameD"
+        ],
+        "tools_url": [
+            "https://bio.tools/ArrowSAM",
+            "https://bio.tools/ggroups",
+            "https://bio.tools/framed"
+        ],
+        "tools_dico": [
+            {
+                "name": "ArrowSAM",
+                "uri": "https://bio.tools/ArrowSAM",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Whole genome sequencing"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Targeted exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome analysis"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "WES"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Whole exome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3676",
+                            "term": "Exome capture"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "Genome sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3673",
+                            "term": "WGS"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Essential dynamics"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Parsing"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "PCA"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "Principal modes"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3891",
+                                    "term": "ED"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Data loading"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_1812",
+                                    "term": "Loading"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "In-Memory Genomics Data Processing through Apache Arrow Framework | Apache Arrow is a cross-language development platform for in-memory data. It specifies a standardized language-independent columnar memory format for flat and hierarchical data, organized for efficient analytic operations on modern hardware. It also provides computational libraries and zero-copy streaming messaging and interprocess communication. Languages currently supported include C, C++, C#, Go, Java, JavaScript, MATLAB, Python, R, Ruby, and Rust | A cross-language development platform for in-memory data | Join Mailing List Install (0.15.1 Release - 1 November 2019)",
+                "homepage": "https://arrow.apache.org/"
+            },
+            {
+                "name": "ggroups",
+                "uri": "https://bio.tools/ggroups",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Zoology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Metazoa"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animals"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3802",
+                                    "term": "Sorting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "An R package for pedigree and genetic groups data.\n\nCalculates additive and dominance genetic relationship matrices and their inverses, in matrix and tabular-sparse formats. It includes functions for checking and processing pedigree, as well as functions to calculate the matrix of genetic group contributions (Q), and adding those contributions to the genetic merit of animals (Quaas (1988) <doi:10.3168/jds.S0022-0302(88)79691-5>).",
+                "homepage": "https://cran.r-project.org/web/packages"
+            },
+            {
+                "name": "FrameD",
+                "uri": "https://bio.tools/framed",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0593",
+                            "term": "NMR"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "Sequencing"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Model organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "Gene transcripts"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0593",
+                            "term": "Nuclear magnetic resonance spectroscopy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0593",
+                            "term": "NMR spectroscopy"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3168",
+                            "term": "DNA-Seq"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0621",
+                            "term": "Organisms"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3512",
+                            "term": "mRNA features"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "Coding region prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0265",
+                                    "term": "Frameshift detection"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0489",
+                                    "term": "Genetic code prediction"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0436",
+                                    "term": "ORF finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene finding"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_2454",
+                                    "term": "Gene calling"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "Program that predicts coding regions in prokaryotic and eukaryotic sequences that may contain frameshifts.",
+                "homepage": "http://genoweb.toulouse.inra.fr/FrameD/FD"
+            }
+        ],
+        "inputs": [
+            "CLUSTERS_ANNDATA_FOR_TSNE",
+            "params"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "TSNE_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'finish' }",
+            "maxRetries 10",
+            "publishDir \"$resultsRoot/tsne\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    },
+    "find_markers": {
+        "name_process": "find_markers",
+        "string_process": "\nprocess find_markers {\n\n    conda \"${workflow.projectDir}/envs/scanpy.yml\"\n    \n    memory { 2.GB * task.attempt }\n    errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'ignore' }\n    maxRetries 3\n    \n    publishDir \"$resultsRoot/markers\", mode: 'copy', overwrite: true\n\n    input:\n        each resolution from params.scanpy.find_clusters.resolutions\n        file clusteredAnndata from CLUSTERS_ANNDATA_FOR_MARKERS\n        \n    output:\n        file \"${matrix_name}_clusters_${resolution}_markers.h5ad\" into MARKERS_ANNDATA\n        file \"markers_${resolution}.csv\"\n        file \"markers_${resolution}.png\"\n\n    script:\n        groups = ''\n        if ( params.scanpy.find_markers.containsKey('groups') && params.scanpy.find_markers.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.find_markers.groups}\"\n        }\n\n        rankby_abs = ''\n        if ( params.scanpy.find_markers.containsKey('rankby_abs') && params.scanpy.find_markers.rankby_abs == 'true' ){\n            rankby_abs = \"--rankby_abs\"\n        }\n        \n        use_raw = ''\n        if ( params.scanpy.find_clusters.containsKey('use_raw') && params.scanpy.find_clusters.use_raw == 'false' ){\n            use_raw = '--no-raw'\n        }\n\n        key = ''\n        if ( params.scanpy.find_clusters.containsKey('key') && params.scanpy.find_clusters.key == 'none' ){\n            key = \"--key ${params.scanpy.find_clusters.key}\"\n        }\n        \n        \"\"\"\n            scanpy-find-markers.py -i ${clusteredAnndata} \\\n                -o \"${matrix_name}_clusters_${resolution}_markers.h5ad\" \\\n                --output-text-file markers_${resolution}.csv --groupby \"${params.scanpy.find_clusters.key_added}_r${resolution}\" ${groups} \\\n                --reference ${params.scanpy.find_markers.reference} --n-genes ${params.scanpy.find_markers.n_genes} \\\n                --method ${params.scanpy.find_markers.method} ${rankby_abs} ${use_raw} --output-plot markers_${resolution}.png \\\n                --show-n-genes ${params.scanpy.find_markers.show_n_genes} ${key} \n        \"\"\"\n}",
+        "nb_lignes_process": 48,
+        "string_script": "        groups = ''\n        if ( params.scanpy.find_markers.containsKey('groups') && params.scanpy.find_markers.groups != 'none' ){\n            groups = \"--groups ${params.scanpy.find_markers.groups}\"\n        }\n\n        rankby_abs = ''\n        if ( params.scanpy.find_markers.containsKey('rankby_abs') && params.scanpy.find_markers.rankby_abs == 'true' ){\n            rankby_abs = \"--rankby_abs\"\n        }\n        \n        use_raw = ''\n        if ( params.scanpy.find_clusters.containsKey('use_raw') && params.scanpy.find_clusters.use_raw == 'false' ){\n            use_raw = '--no-raw'\n        }\n\n        key = ''\n        if ( params.scanpy.find_clusters.containsKey('key') && params.scanpy.find_clusters.key == 'none' ){\n            key = \"--key ${params.scanpy.find_clusters.key}\"\n        }\n        \n        \"\"\"\n            scanpy-find-markers.py -i ${clusteredAnndata} \\\n                -o \"${matrix_name}_clusters_${resolution}_markers.h5ad\" \\\n                --output-text-file markers_${resolution}.csv --groupby \"${params.scanpy.find_clusters.key_added}_r${resolution}\" ${groups} \\\n                --reference ${params.scanpy.find_markers.reference} --n-genes ${params.scanpy.find_markers.n_genes} \\\n                --method ${params.scanpy.find_markers.method} ${rankby_abs} ${use_raw} --output-plot markers_${resolution}.png \\\n                --show-n-genes ${params.scanpy.find_markers.show_n_genes} ${key} \n        \"\"\"",
+        "nb_lignes_script": 27,
+        "language_script": "bash",
+        "tools": [
+            "ggroups",
+            "MONKEY"
+        ],
+        "tools_url": [
+            "https://bio.tools/ggroups",
+            "https://bio.tools/monkey"
+        ],
+        "tools_dico": [
+            {
+                "name": "ggroups",
+                "uri": "https://bio.tools/ggroups",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3053",
+                            "term": "Genetics"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software engineering"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0602",
+                            "term": "Molecular interactions, pathways and networks"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Zoology"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Computer programming"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3372",
+                            "term": "Software development"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Metazoa"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal biology"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animal"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3500",
+                            "term": "Animals"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantification"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3802",
+                                    "term": "Sorting"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_3196",
+                                    "term": "Genotyping"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_3799",
+                                    "term": "Quantitation"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "An R package for pedigree and genetic groups data.\n\nCalculates additive and dominance genetic relationship matrices and their inverses, in matrix and tabular-sparse formats. It includes functions for checking and processing pedigree, as well as functions to calculate the matrix of genetic group contributions (Q), and adding those contributions to the genetic merit of animals (Quaas (1988) <doi:10.3168/jds.S0022-0302(88)79691-5>).",
+                "homepage": "https://cran.r-project.org/web/packages"
+            },
+            {
+                "name": "MONKEY",
+                "uri": "https://bio.tools/monkey",
+                "topic": [
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_3125",
+                            "term": "DNA binding sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Gene expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0749",
+                            "term": "Transcription factors and regulatory sites"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_3511",
+                            "term": "Nucleic acid sites, features and motifs"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA"
+                        }
+                    ],
+                    [
+                        {
+                            "uri": "http://edamontology.org/topic_0203",
+                            "term": "Expression"
+                        },
+                        {
+                            "uri": "http://edamontology.org/topic_0654",
+                            "term": "DNA analysis"
+                        }
+                    ]
+                ],
+                "function": [
+                    {
+                        "operation": [
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0445",
+                                    "term": "Transcription factor binding site prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcriptional regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0448",
+                                    "term": "Sequence alignment analysis (conservation)"
+                                }
+                            ],
+                            [
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0438",
+                                    "term": "Transcription regulatory element prediction"
+                                },
+                                {
+                                    "uri": "http://edamontology.org/operation_0448",
+                                    "term": "Residue conservation analysis"
+                                }
+                            ]
+                        ],
+                        "input": [],
+                        "output": []
+                    }
+                ],
+                "description": "MONKEY is a set of programs designed to search alignments of non-coding DNA sequence for matches to matrices representing the sequence specificity of transcription factors.",
+                "homepage": "http://labs.csb.utoronto.ca/moses/monkey.html"
+            }
+        ],
+        "inputs": [
+            "params",
+            "CLUSTERS_ANNDATA_FOR_MARKERS"
+        ],
+        "nb_inputs": 2,
+        "outputs": [
+            "MARKERS_ANNDATA"
+        ],
+        "nb_outputs": 1,
+        "name_workflow": "ebi-gene-expression-group__scanpy-workflow",
+        "directive": [
+            "conda \"${workflow.projectDir}/envs/scanpy.yml\"",
+            "memory { 2.GB * task.attempt }",
+            "errorStrategy { task.exitStatus == 130 || task.exitStatus == 137 ? 'retry' : 'ignore' }",
+            "maxRetries 3",
+            "publishDir \"$resultsRoot/markers\", mode: 'copy', overwrite: true"
+        ],
+        "when": "",
+        "stub": ""
+    }
+}
