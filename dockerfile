@@ -18,6 +18,7 @@ ADD gSpan /usr/app/src/gspan
 ADD graphmdl-master /usr/app/src/graphmdl
 ADD modif_json_mdl.py /usr/app/src/modif_json_mdl.py
 ADD parsed_agg.py usr/app/src/parsed_agg.py
+ADD extract_process.py usr/app/src/extract_process.py
 ADD result /usr/app/src/result
 
 
