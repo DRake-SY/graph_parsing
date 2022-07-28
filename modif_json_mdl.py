@@ -7,6 +7,7 @@ La fonction prend en entrée le fichier JSON à modifier et retourne le fichier 
 '''
 
 import json
+import argparse as ar
 
 p = ar.ArgumentParser(description="Cette commande permet de modifier un JSON (graphmdl+) afin de rendre les labels plus lisible")
 p.add_argument('i', help = " chemin vers le fichier à modifier", metavar="input_file")

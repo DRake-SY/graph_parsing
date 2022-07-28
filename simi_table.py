@@ -7,6 +7,7 @@ et on créé un csv qui regroupe chaque process en fonction de l'outils dans leq
 import os
 import json
 import csv
+import argparse as ar
 
 def importing_json_files(file_wf):
     import json
@@ -49,9 +50,10 @@ def sim_proc(liste) :
 
 #----------------------------------------------------------------------------------
 
-p = ar.ArgumentParser(description="Cette commande permet d'extraire tous les process d'un dossier de workflow'")
-p.add_argument('i', help = " chemin vers le fichier à modifier (jSON format)", metavar="input_file")
+p = ar.ArgumentParser(description="Cette commande permet d'extraire tous les process d'un dossier de workflow")
+p.add_argument('i', help = " chemin vers le fichier à traiter (jSON format)", metavar="input_file")
 p.add_argument('o', help = "chemin vers le chemin du fichier de sortie (format CSV)", metavar='output_file')
+p.add_argument('u', help = 'version JSON du fichier csv', metavar = 'JSON file')
 
 args = p.parse_args()
 
@@ -67,7 +69,7 @@ sim_tools = sim_proc(proc_nf)[1] #liste des différents outils
 
 
 ### on sort un fichier json des process trié et groupé
-with open("sim_nf.json","w") as sim :
+with open(args.u,"w") as sim :
     json.dump(sim_nf, sim)
 
 

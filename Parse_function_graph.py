@@ -567,11 +567,11 @@ def Affichage(id_sommet, partenaire, nb_graph, output_name, form, nb_label) : ##
         
         if form == "graphmdl+" :
 
-            if nb_label == 2 :
+            if nb_label == '2' :
                 for key in id_sommet :
                     file.write("v " + str(key[1]) + " " + str(key[2]) + " " + str(nb_graph) + "\n")
                 
-            elif nb_label == 1 :
+            elif nb_label == '1' :
                 for key in id_sommet :
                     file.write("v " + str(key[1]) + " " + str(key[2]) + "\n")
 

@@ -7,10 +7,12 @@ On parcours tous les json de tous les fichiers afin d'extraire les différents
 process présent
 ##################################################################################
 '''
-
+import argparse as ar
+import os
+import json
 
 p = ar.ArgumentParser(description="Cette commande permet d'extraire tous les process d'un dossier de workflow'")
-p.add_argument('i', help = " chemin vers le fichier à modifier", metavar="input_file")
+p.add_argument('i', help = " chemin vers le dossier à analyser", metavar="input_file")
 p.add_argument('o', help = "chemin vers le chemin du fichier de sortie (format JSON)", metavar='output_file')
 
 args = p.parse_args()
@@ -27,7 +29,7 @@ for dirpath, dirnames, filenames in os.walk(args.i):
             
             owner = dirpath
             owner = owner.split("/")
-            owner = owner[1]
+            owner = owner[2] # cela depend d'ou est le fichier ici data/new.../nom_du_wf donc [2]
             owner = owner.split("__")
             
             wf_orig = owner[1]
