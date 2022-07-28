@@ -560,30 +560,52 @@ Cette partie display permet l'affichage, dans un fichier text, des informations 
 récoltés vis à vis de nos workflows.
 
 '''
-def Affichage(id_sommet, partenaire, nb_graph, output_name, form) : ## a changer et mettre dans un fichier directement
+def Affichage(id_sommet, partenaire, nb_graph, output_name, form, nb_label) : ## a changer et mettre dans un fichier directement
     
     with open(output_name,'a') as file :
         file.write("t"+" #" + str(nb_graph)+"\n")
         
+        if form == "graphmdl+" :
 
-        for key in id_sommet :
-            file.write("v " + str(key[1]) + " " + str(key[2]) + "\n")
+            if nb_label == 2 :
+                for key in id_sommet :
+                    file.write("v " + str(key[1]) + " " + str(key[2]) + " " + str(nb_graph) + "\n")
+                
+            elif nb_label == 1 :
+                for key in id_sommet :
+                    file.write("v " + str(key[1]) + " " + str(key[2]) + "\n")
+
+            for part in partenaire :
+                one = False
+                two = False
+
+                for keys in id_sommet :
+                    if part[0] == keys[0] :
+                        id_first = keys[1]
+                        one = True
+                    elif part[1] == keys[0] :
+                        id_second = keys[1]
+                        two = True
+
+                if one == True and two == True :
+                    file.write("e " + str(id_first) +" "+ str(id_second)+ " edge" +"\n")
+
+        if form == "gspan" :
+
+            for key in id_sommet :
+                    file.write("v " + str(key[1]) + " " + str(key[2]) + "\n")
             
+            for part in partenaire :
+                one = False
+                two = False
 
-        for part in partenaire :
-            one = False
-            two = False
-
-            for keys in id_sommet :
-                if part[0] == keys[0] :
-                    id_first = keys[1]
-                    one = True
-                elif part[1] == keys[0] :
-                    id_second = keys[1]
-                    two = True
-
-            if one == True and two == True and form == 'graphmdl+':
-                file.write("e " + str(id_first) +" "+ str(id_second)+ " 0" +"\n")
+                for keys in id_sommet :
+                    if part[0] == keys[0] :
+                        id_first = keys[1]
+                        one = True
+                    elif part[1] == keys[0] :
+                        id_second = keys[1]
+                        two = True
 
             if  one == True and two == True and form == 'gspan' :
                 file.write("e " + str(id_first) +" "+ str(id_second)+" 0" +"\n")

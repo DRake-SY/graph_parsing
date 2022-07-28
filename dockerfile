@@ -16,6 +16,8 @@ ADD simi_table.csv /usr/app/src/simi_table.csv
 ADD data /usr/app/src/data
 ADD gSpan /usr/app/src/gspan
 ADD graphmdl-master /usr/app/src/graphmdl
+ADD modif_json_mdl.py /usr/app/src/modif_json_mdl.py
+ADD parsed_agg.py usr/app/src/parsed_agg.py
 ADD result /usr/app/src/result
 
 

@@ -11,6 +11,7 @@ p.add_argument('f', help = " path to the folder you want to be parsed and analys
 p.add_argument('a', help = "choice between the forma type gspan or graphmdl+",choices=['gspan', 'graphmdl+'], metavar='Analyser')
 p.add_argument('-t',default = None, help = "pathway to the similarity table in case you choose the gspan format", metavar = "simi_table")
 p.add_argument('-g',default = "structure_worklow", help="name of file that will be read during the parsing", metavar="graph file name")
+p.add_argument('-l', default = 1 , help='permet de définir le nombre de label que vous voulez attribuer au sommet, 1 = seulement les outils / 2 = on rajoute le numéro du wf d origine, par défaut 1')
 p.add_argument('s', help = "output file name", metavar='output_name')
 
 args = p.parse_args()
@@ -39,7 +40,7 @@ else :
             id_sommet = res[0]  
             partenaire = res[1]
 
-            pfg.Affichage(id_sommet, partenaire, nb_graph, args.s, args.a)
+            pfg.Affichage(id_sommet, partenaire, nb_graph, args.s, args.a, args.l)
             nb_graph += 1
                 
     else :
@@ -56,5 +57,5 @@ else :
                 
             partenaire = res[1]
 
-            pfg.Affichage(id_sommet, partenaire, nb_graph, args.s, args.a)
+            pfg.Affichage(id_sommet, partenaire, nb_graph, args.s, args.a, args.l)
             nb_graph += 1
