@@ -1,6 +1,6 @@
 
 FROM ubuntu:20.04
-WORKDIR /home/maxime/Bureau/graph_parsing
+WORKDIR /usr/app/src/
 # Install dependencies
 RUN apt-get update && apt-get install -y \
 	software-properties-common
@@ -10,16 +10,17 @@ RUN apt-get update && apt-get install -y \
 	openjdk-11-jre \
 	python3-pip \
 	graphviz graphviz-dev && pip3 install networkX graphviz argparse pandas openpyxl pygraphviz
-ADD main.py /usr/app/src/main.py
-ADD Parse_function_graph.py /usr/app/src/Parse_function_graph.py
-ADD simi_table.csv /usr/app/src/simi_table.csv
-ADD data /usr/app/src/data
-ADD gSpan /usr/app/src/gspan
-ADD graphmdl-master /usr/app/src/graphmdl
-ADD modif_json_mdl.py /usr/app/src/modif_json_mdl.py
-ADD parsed_agg.py usr/app/src/parsed_agg.py
-ADD extract_process.py usr/app/src/extract_process.py
-ADD result /usr/app/src/result
+ADD main.py main.py
+ADD Parse_function_graph.py Parse_function_graph.py
+ADD simi_table.csv simi_table.csv
+ADD simi_table.py simi_table.py
+ADD data data
+ADD gSpan gspan
+ADD graphmdl-master graphmdl
+ADD modif_json_mdl.py modif_json_mdl.py
+ADD parsed_agg.py parsed_agg.py
+ADD extract_process.py extract_process.py
+ADD result result
 
 
 
