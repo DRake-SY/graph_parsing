@@ -607,8 +607,8 @@ def Affichage(id_sommet, partenaire, nb_graph, output_name, form, nb_label) : ##
                         id_second = keys[1]
                         two = True
 
-            if  one == True and two == True and form == 'gspan' :
-                file.write("e " + str(id_first) +" "+ str(id_second)+" 0" +"\n")
+                if  one == True and two == True and form == 'gspan' :
+                    file.write("e " + str(id_first) +" "+ str(id_second)+" 0" +"\n")
 
         file.write("\n")
        
